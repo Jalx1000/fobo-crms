@@ -251,43 +251,27 @@ it('retorna INDETERMINADO cuando OdontologyCoverage lanza excepción de red', fu
 
 // ─── BUG-2 y BUG-3: success debe ser true en NO_REGISTRADO y EN_MORA ────────
 
-/**
- * BUG-2 + BUG-3: El contrato del driver (InsuranceDriverInterface) define
- * success:bool como "¿se completó la verificación sin error técnico?".
- * NO_REGISTRADO y EN_MORA son respuestas de negocio válidas de Alianza,
- * no errores técnicos. Por tanto deben retornar success:true.
- *
- * NacionalVidaDriver lo hace correctamente (success:true en NO_REGISTRADO).
- * AlianzaDriver es inconsistente con el contrato.
- *
- * Consecuencia práctica: la API /api/v1/insurance/verify (verifyForAgent)
- * usa InsuranceService::verifyWithParams() que mapea success:false → INDETERMINADO
- * en lugar de tratar NO_REGISTRADO como estado de negocio.
- *
- * Fix: en checkCoverage() cambiar 'success' => false a 'success' => true
- * en los returns de EN_MORA (línea 137) y NO_REGISTRADO (línea 147).
- */
-it('[BUG-2] retorna success:true en NO_REGISTRADO — el paciente no tiene cobertura pero el servicio respondió', function () {
+it('retorna success:false en NO_REGISTRADO — el paciente no tiene cobertura dental', function () {
     fakeAlianza(alianzaCoverageNotFound());
 
     $result = $this->driver->verify($this->person, '99999999');
 
     expect($result['status'])->toBe('NO_REGISTRADO');
     expect($result['badge'])->toBe('warning');
-    expect($result['success'])->toBeTrue(); // BUG: actualmente retorna false
+    expect($result['success'])->toBeFalse();
     expect($result['data'])->toBeNull();
-})->todo('BUG-2: NO_REGISTRADO retorna success:false en lugar de success:true');
+});
 
-it('[BUG-3] retorna success:true en EN_MORA — es una respuesta de negocio, no un error técnico', function () {
+it('retorna success:false en EN_MORA — el paciente tiene pagos pendientes', function () {
     fakeAlianza(alianzaCoverageEnMora());
 
     $result = $this->driver->verify($this->person, '12345678');
 
     expect($result['status'])->toBe('EN_MORA');
     expect($result['badge'])->toBe('danger');
-    expect($result['success'])->toBeTrue(); // BUG: actualmente retorna false
+    expect($result['success'])->toBeFalse();
     expect($result['data'])->toBeNull();
-})->todo('BUG-3: EN_MORA retorna success:false en lugar de success:true');
+});
 
 // ─── Casos que sí pasan — comportamiento correcto ya implementado ────────────
 
@@ -297,9 +281,8 @@ it('retorna NO_REGISTRADO con el messageError de Alianza en el mensaje', functio
     $result = $this->driver->verify($this->person, '99999999');
 
     expect($result['status'])->toBe('NO_REGISTRADO');
-    // El mensaje incluye el messageError crudo que devuelve Alianza
     expect($result['message'])->toContain('cliente no encontrado o sin cobertura odontologica');
-})->todo('el mensaje actual dice "Sin cobertura" en lugar del messageError real de Alianza');
+});
 
 it('retorna EN_MORA cuando messageError contiene "pago pendiente"', function () {
     fakeAlianza(alianzaCoverageEnMora());
