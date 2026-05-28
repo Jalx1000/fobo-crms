@@ -93,13 +93,32 @@ class AlianzaDriver implements InsuranceDriverInterface
                 'nUsercode' => $nUsercode,
             ]);
 
+        if ($response->failed()) {
+            $this->updateInsuranceAttributes($person, 'INDETERMINADO');
+            return $this->indeterminate('La consulta con Alianza no pudo completarse. Por favor, verifica la conexión o contacta a soporte técnico.');
+        }
+
         $body = $response->json();
 
-        if ($response->successful() && ($body['success'] ?? false)) {
-            $rows   = $body['data'] ?? [];
-            $record = is_array($rows) && isset($rows[0]) ? $rows[0] : $rows;
+        $rows = $body['data'] ?? [];
 
-            $estado = strtoupper($record['ESTADO'] ?? 'VIGENTE');
+        if (($body['success'] ?? false) && is_array($rows) && ! empty($rows)) {
+            $record = isset($rows[0]) ? $rows[0] : $rows;
+
+            $estado = strtoupper($record['ESTADO'] ?? '');
+
+            // Si el registro existe pero no tiene campo ESTADO reconocido, tratar como no registrado
+            if (empty($estado)) {
+                $this->updateInsuranceAttributes($person, 'NO_REGISTRADO');
+                return [
+                    'status'  => 'NO_REGISTRADO',
+                    'message' => 'El paciente no figura con cobertura dental en Alianza: Sin cobertura',
+                    'badge'   => 'warning',
+                    'success' => false,
+                    'data'    => null,
+                ];
+            }
+
             $badge  = $estado === 'VIGENTE' ? 'success' : 'warning';
 
             $this->updateInsuranceAttributes($person, $estado);
@@ -133,7 +152,7 @@ class AlianzaDriver implements InsuranceDriverInterface
                 'status'  => 'EN_MORA',
                 'message' => 'Atención: El paciente tiene pagos pendientes en Alianza. Debe comunicarse con la compañía.',
                 'badge'   => 'danger',
-                'success' => true,
+                'success' => false,
                 'data'    => null,
             ];
         }
@@ -143,7 +162,7 @@ class AlianzaDriver implements InsuranceDriverInterface
             'status'  => 'NO_REGISTRADO',
             'message' => 'El paciente no figura con cobertura dental en Alianza: ' . ($body['messageError'] ?? 'Sin cobertura'),
             'badge'   => 'warning',
-            'success' => true,
+            'success' => false,
             'data'    => null,
         ];
     }
