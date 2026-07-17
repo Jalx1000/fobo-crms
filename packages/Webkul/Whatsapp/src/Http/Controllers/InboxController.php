@@ -248,6 +248,47 @@ class InboxController extends Controller
     }
 
     /**
+     * Send an appointment reminder through the active gateway (used by the
+     * calendar). Unlike send(), it does NOT block when the AI agent is on: a
+     * reminder is a deliberate, templated staff/system message, not a human
+     * talking over the agent. It is logged in the patient's conversation.
+     */
+    public function sendReminder(Request $request, ConversationResolver $resolver): JsonResponse
+    {
+        $data = $request->validate([
+            'phone'     => 'required|string',
+            'name'      => 'nullable|string',
+            'text'      => 'required|string',
+            'person_id' => 'nullable|integer',
+        ]);
+
+        $message = DB::transaction(function () use ($request, $data, $resolver) {
+            $conversation = $this->existingConversation($request)
+                ?? $resolver->findOrCreate($data['phone'], $data['name'] ?? null);
+
+            $message = MessageProxy::modelClass()::create([
+                'conversation_id' => $conversation->id,
+                'direction'       => 'outbound',
+                'type'            => 'text',
+                'body'            => $data['text'],
+                'status'          => 'queued',
+                'sender'          => 'system',
+            ]);
+
+            $conversation->forceFill(['last_message_at' => now()])->save();
+
+            return $message;
+        });
+
+        SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
+
+        return response()->json([
+            'message'         => 'Recordatorio encolado para envío por WhatsApp.',
+            'conversation_id' => $message->conversation_id,
+        ]);
+    }
+
+    /**
      * Resolve the conversation for a thread request (read-only).
      */
     protected function resolveConversation(Request $request)

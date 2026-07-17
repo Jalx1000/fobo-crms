@@ -21,6 +21,7 @@ Route::controller(InboxController::class)
         Route::post('send', 'send')->name('send');
         Route::patch('conversations/{id}/agent', 'toggleAgent')->name('agent');
         Route::post('conversations/{id}/notes', 'storeNote')->name('notes.store');
+        Route::post('reminders/send', 'sendReminder')->name('reminders.send');
     });
 
 Route::controller(ChatController::class)

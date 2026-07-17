@@ -3,6 +3,9 @@
         .wa-scroll::-webkit-scrollbar { width: 6px; }
         .wa-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 3px; }
         .dark .wa-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); }
+        /* Cuando el chat va embebido dentro de otro modal (ej. detalle de cita),
+           sus modales propios deben quedar por encima de ese modal anfitrión. */
+        .wa-nested-modal .fixed.inset-0 { z-index: 10060 !important; }
     </style>
 
     <script type="text/x-template" id="v-whatsapp-inbox-template">
@@ -640,7 +643,7 @@
 
             <!-- Product picker: fills the producto/precio variables of a quick reply -->
             <Teleport to="body">
-                <x-admin::modal ref="productModal">
+                <x-admin::modal ref="productModal" class="wa-nested-modal">
                     <x-slot:header>
                         <h3 class="text-base font-semibold dark:text-white">Elegí un producto</h3>
                     </x-slot>
@@ -675,7 +678,7 @@
 
             <!-- Quick replies manager: native CRM modal -->
             <Teleport to="body">
-                <x-admin::modal ref="qrModal">
+                <x-admin::modal ref="qrModal" class="wa-nested-modal">
                     <x-slot:header>
                         <h3 class="text-base font-semibold dark:text-white">
                             Respuestas rápidas
@@ -796,6 +799,9 @@
                 productsUrl: { type: String, default: '' },
                 // Page mode: fill the parent instead of a bordered 440px card.
                 fullHeight: { type: Boolean, default: false },
+                // Hide the built-in "Detalle del cliente" sidebar (used when the
+                // chat is embedded somewhere that already shows the client detail).
+                hideProfile: { type: Boolean, default: false },
             },
 
             data() {
@@ -936,7 +942,7 @@
 
                 // Open the client detail by default (desktop only: on mobile the
                 // sidebar overlays the whole chat and would hide the messages).
-                if (waProfilePref && this.context.personId && !this.useMock && window.innerWidth >= 1024) {
+                if (waProfilePref && !this.hideProfile && this.context.personId && !this.useMock && window.innerWidth >= 1024) {
                     this.profileOpen = true;
                     this.fetchProfile();
                 }
@@ -1241,6 +1247,7 @@
 
                 // Header click toggles the sidebar; loads the profile once.
                 openProfile() {
+                    if (this.hideProfile) return;
                     if (!this.context.personId || !this.personUrlBase) return;
 
                     this.profileOpen = !this.profileOpen;

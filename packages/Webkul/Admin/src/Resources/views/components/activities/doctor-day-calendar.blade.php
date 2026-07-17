@@ -55,7 +55,7 @@
     <div class="dwc-container">
         <div class="dwc-controls">
             <div class="flex items-center gap-2">
-                <button class="px-2 py-1 rounded border dark:border-gray-800" @click="prevPeriod">←</button>
+                <button class="px-2 py-1 rounded border dark:border-gray-800" aria-label="Período anterior" @click="prevPeriod">←</button>
                 <button class="px-2 py-1 rounded border dark:border-gray-800" @click="goToday">Hoy</button>
                 <button
                     type="button"
@@ -64,7 +64,7 @@
                 >
                     @{{ dayLabel }}
                 </button>
-                <button class="px-2 py-1 rounded border dark:border-gray-800" @click="nextPeriod">→</button>
+                <button class="px-2 py-1 rounded border dark:border-gray-800" aria-label="Período siguiente" @click="nextPeriod">→</button>
             </div>
 
             <div class="dwc-filters">
@@ -92,7 +92,7 @@
         >
             <div class="ddc-quick-menu-head">
                 <div class="ddc-quick-menu-time">@{{ quickMenu.timeText }}</div>
-                <button type="button" class="ddc-quick-menu-close" @click="closeQuickMenu">×</button>
+                <button type="button" class="ddc-quick-menu-close" aria-label="Cerrar menú" @click="closeQuickMenu">×</button>
             </div>
             <div class="ddc-quick-menu-list">
                 <button type="button" class="ddc-quick-menu-item" @click="openAppointmentModal">
@@ -117,12 +117,12 @@
         <div v-if="datePickerOpen" class="ddc-date-overlay" @click="closeDatePicker">
             <div class="ddc-date-panel" @click.stop>
                 <div class="ddc-date-panel-header">
-                    <button type="button" class="ddc-date-nav" @click="shiftPicker(-1)">‹</button>
+                    <button type="button" class="ddc-date-nav" aria-label="Mes anterior" @click="shiftPicker(-1)">‹</button>
                     <div class="ddc-date-months-header">
                         <div class="ddc-date-month-title">@{{ monthTitle(month1Date) }}</div>
                         <div class="ddc-date-month-title">@{{ monthTitle(month2Date) }}</div>
                     </div>
-                    <button type="button" class="ddc-date-nav" @click="shiftPicker(1)">›</button>
+                    <button type="button" class="ddc-date-nav" aria-label="Mes siguiente" @click="shiftPicker(1)">›</button>
                 </div>
 
                 <div class="ddc-date-months">
@@ -186,7 +186,7 @@
                          <div v-for="ev in getEventsForDay(cell.iso)" :key="'mev-'+ev.id"
                               class="dwc-month-event"
                               :title="ev.title || ev.type"
-                              @click.stop="goToLead(ev.lead_id)"
+                              @click.stop="openViewModal(ev)"
                               @mouseenter="onEventMouseEnter($event, ev.id, ev)"
                               @mouseleave="hoveredEventId = null; hoveredEvent = null"
                          >
@@ -226,7 +226,9 @@
                         <div class="dwc-list-group-title">@{{ group.label }}</div>
 
                         <div v-for="ev in group.items" :key="'lrow-'+ev.id" class="dwc-list-row"
-                             :class="{ 'is-cancelled': ev.is_cancelled, 'is-completed': ev.is_completed }">
+                             :class="{ 'is-cancelled': ev.is_cancelled, 'is-completed': ev.is_completed }"
+                             role="button" tabindex="0" style="cursor:pointer"
+                             @click="openViewModal(ev)" @keydown.enter="openViewModal(ev)">
                             <div class="dwc-list-time">
                                 <span class="font-semibold">@{{ formatTime(ev.start) }}</span>
                                 <span class="text-gray-400"> - @{{ formatTime(ev.end) }}</span>
@@ -240,10 +242,10 @@
                                 </div>
                             </div>
                             <div class="dwc-list-actions">
-                                <button type="button" class="dwc-action-btn" title="Ver detalles" @click="openViewModal(ev)">
+                                <button type="button" class="dwc-action-btn" title="Ver detalles" aria-label="Ver detalles de la cita" @click="openViewModal(ev)">
                                     <span class="icon-eye"></span>
                                 </button>
-                                <button type="button" class="dwc-action-btn" title="Editar Cita" @click="openEditModal(ev)">
+                                <button type="button" class="dwc-action-btn" title="Editar Cita" aria-label="Editar la cita" @click="openEditModal(ev)">
                                     <span class="icon-edit"></span>
                                 </button>
                             </div>
@@ -275,7 +277,7 @@
                              class="dwc-week-event"
                              :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed }"
                              :title="ev.title || ev.type"
-                             @click.stop="goToLead(ev.lead_id)"
+                             @click.stop="openViewModal(ev)"
                              @mouseenter="onEventMouseEnter($event, ev.id, ev)"
                              @mouseleave="hoveredEventId = null; hoveredEvent = null"
                         >
@@ -319,7 +321,7 @@
                         <div v-for="idx in 13" :key="'line-sd-'+idx" class="dwc-hour-line" :style="{ top: ((idx - 1) * hourHeight) + 'px' }"></div>
 
                         <!-- Events -->
-                        <div v-for="ev in dayDoctorEvents(day.date, columns[0].id)" :key="'ev-sd-'+ev.id" class="dwc-event" :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-compact': ev.height < 64, 'dwc-event-tiny': ev.height < 40 }" :style="{ top: ev.top + 'px', height: ev.height + 'px', left: 'calc(' + ev.left + '% + 6px)', width: 'calc(' + ev.width + '% - 12px)' }" @click.stop="goToLead(ev.lead_id)" @mouseenter="onEventMouseEnter($event, ev.id, ev)" @mouseleave="hoveredEventId = null; hoveredEvent = null">
+                        <div v-for="ev in dayDoctorEvents(day.date, columns[0].id)" :key="'ev-sd-'+ev.id" class="dwc-event" :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-compact': ev.height < 64, 'dwc-event-tiny': ev.height < 40 }" :style="{ top: ev.top + 'px', height: ev.height + 'px', left: 'calc(' + ev.left + '% + 6px)', width: 'calc(' + ev.width + '% - 12px)' }" @click.stop="openViewModal(ev)" @mouseenter="onEventMouseEnter($event, ev.id, ev)" @mouseleave="hoveredEventId = null; hoveredEvent = null">
                             <div class="dwc-event-content dwc-event-layout">
                                 <div class="dwc-event-info">
                                     <div class="dwc-event-row-primary">
@@ -341,10 +343,10 @@
 
                                 <div class="dwc-event-actions-wrapper">
                                     <div class="dwc-event-actions" @click.stop>
-                                        <button type="button" class="dwc-action-btn" title="Ver Detalles" @click="openViewModal(ev)">
+                                        <button type="button" class="dwc-action-btn" title="Ver Detalles" aria-label="Ver detalles de la cita" @click="openViewModal(ev)">
                                             <span class="icon-eye text-lg"></span>
                                         </button>
-                                        <button type="button" class="dwc-action-btn" title="Editar Cita" @click="openEditModal(ev)">
+                                        <button type="button" class="dwc-action-btn" title="Editar Cita" aria-label="Editar la cita" @click="openEditModal(ev)">
                                             <span class="icon-edit text-lg"></span>
                                         </button>
                                     </div>
@@ -386,7 +388,7 @@
 
                             <div v-for="idx in 13" :key="'line-'+di+'-'+idx" class="dwc-hour-line" :style="{ top: ((idx - 1) * hourHeight) + 'px' }"></div>
 
-                            <div v-for="ev in dayDoctorEvents(day.date, col.id)" :key="'ev-'+ev.id" class="dwc-event" :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-compact': ev.height < 64, 'dwc-event-tiny': ev.height < 40 }" :style="{ top: ev.top + 'px', height: ev.height + 'px', left: 'calc(' + ev.left + '% + 6px)', width: 'calc(' + ev.width + '% - 12px)' }" @click.stop="goToLead(ev.lead_id)" @mouseenter="onEventMouseEnter($event, ev.id, ev)" @mouseleave="hoveredEventId = null; hoveredEvent = null">
+                            <div v-for="ev in dayDoctorEvents(day.date, col.id)" :key="'ev-'+ev.id" class="dwc-event" :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-compact': ev.height < 64, 'dwc-event-tiny': ev.height < 40 }" :style="{ top: ev.top + 'px', height: ev.height + 'px', left: 'calc(' + ev.left + '% + 6px)', width: 'calc(' + ev.width + '% - 12px)' }" @click.stop="openViewModal(ev)" @mouseenter="onEventMouseEnter($event, ev.id, ev)" @mouseleave="hoveredEventId = null; hoveredEvent = null">
                                 <div class="dwc-event-content dwc-event-layout">
                                     <div class="dwc-event-info">
                                         <div class="dwc-event-row-primary">
@@ -408,10 +410,10 @@
 
                                     <div class="dwc-event-actions-wrapper">
                                         <div class="dwc-event-actions" @click.stop>
-                                            <button type="button" class="dwc-action-btn" title="Ver Detalles" @click="openViewModal(ev)">
+                                            <button type="button" class="dwc-action-btn" title="Ver Detalles" aria-label="Ver detalles de la cita" @click="openViewModal(ev)">
                                                 <span class="icon-eye text-lg"></span>
                                             </button>
-                                            <button type="button" class="dwc-action-btn" title="Editar Cita" @click="openEditModal(ev)">
+                                            <button type="button" class="dwc-action-btn" title="Editar Cita" aria-label="Editar la cita" @click="openEditModal(ev)">
                                                 <span class="icon-edit text-lg"></span>
                                             </button>
                                         </div>
@@ -426,110 +428,108 @@
 
         <x-admin::modal ref="appointmentModal">
             <x-slot:header>
-                <div class="text-lg font-semibold dark:text-white">
-                    Añadir cita <div class="text-sm text-gray-500 dark:text-gray-300">
-                    @{{ modalContext.dayLabel }} · @{{ modalContext.timeText }}
+                <div>
+                    <h3 class="text-lg font-semibold dark:text-white">Nueva cita</h3>
+                    <p class="mt-0.5 flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                        <span class="icon-calendar text-base text-brandColor"></span>
+                        @{{ modalContext.dayLabel }} · @{{ modalContext.timeText }}
+                    </p>
                 </div>
-                </div>
-
-                
             </x-slot>
 
             <x-slot:content>
-                <div class="flex flex-col gap-3">
+                <div class="flex flex-col gap-4">
+                    <!-- Paciente -->
+                    <div class="flex flex-col gap-1">
+                        <x-admin::form.control-group.label class="required">Paciente</x-admin::form.control-group.label>
+                        <x-admin::lookup
+                            ::src="personSearchUrl"
+                            ::params="{ limit: 200 }"
+                            name="appointment_person"
+                            placeholder="Buscar o crear paciente…"
+                            :can-add-new="true"
+                            @on-selected="onSelectPatient"
+                            ::value="{ id: appointmentForm.person.id, name: appointmentForm.person.name }"
+                        />
+                    </div>
 
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="col-span-2">
+                    <!-- Datos de la cita -->
+                    <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                        <p class="mb-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Datos de la cita</p>
+                        <div class="grid grid-cols-2 gap-3">
                             <div class="flex flex-col gap-1">
-                                <div class="text-xs text-gray-600 dark:text-gray-300">Paciente</div>
+                                <x-admin::form.control-group.label>Doctor</x-admin::form.control-group.label>
+                                <select
+                                    class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm font-normal text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                                    v-model="appointmentForm.doctor_id"
+                                >
+                                    <option :value="null" disabled>Seleccionar doctor</option>
+                                    <option v-for="d in doctors" :key="'doc-opt-'+d.id" :value="d.id">@{{ d && d.name ? d.name : '' }}</option>
+                                </select>
+                            </div>
+
+                            <div class="flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Servicio</x-admin::form.control-group.label>
                                 <x-admin::lookup
-                                    ::src="personSearchUrl"
+                                    ::src="productSearchUrl"
                                     ::params="{ limit: 200 }"
-                                    name="appointment_person"
-                                    placeholder="Paciente"
-                                    :can-add-new="true"
-                                    @on-selected="onSelectPatient"
-                                    ::value="{ id: appointmentForm.person.id, name: appointmentForm.person.name }"
+                                    name="appointment_product"
+                                    placeholder="Buscar servicio…"
+                                    @on-selected="onSelectService"
+                                    ::value="{ id: appointmentForm.product_id, name: appointmentForm.product_name }"
                                 />
                             </div>
-                        </div>
 
-                        <div class="flex flex-col gap-1">
-                            <x-admin::form.control-group.label>Doctor</x-admin::form.control-group.label>
-                            <select
-                                class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm font-normal text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
-                                v-model="appointmentForm.doctor_id"
-                            >
-                                <option :value="null" disabled>Doctor</option>
-                                <option v-for="d in doctors" :key="'doc-opt-'+d.id" :value="d.id">@{{ d && d.name ? d.name : '' }}</option>
-                            </select>
-                        </div>
+                            <div class="flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Hora de inicio</x-admin::form.control-group.label>
+                                <v-time-picker
+                                    v-model="appointmentForm.startTime"
+                                    @update:modelValue="syncAppointmentEndTime"
+                                ></v-time-picker>
+                            </div>
 
-                        <div class="flex flex-col gap-1">
-                            <div class="text-xs text-gray-600 dark:text-gray-300">Servicio</div>
-                            <x-admin::lookup
-                                class="col-span-1"
-                                ::src="productSearchUrl"
-                                ::params="{ limit: 200 }"
-                                name="appointment_product"
-                                placeholder="Servicio"
-                                @on-selected="onSelectService"
-                                ::value="{ id: appointmentForm.product_id, name: appointmentForm.product_name }"
-                            />
-                        </div>
+                            <div class="flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Duración</x-admin::form.control-group.label>
+                                <select
+                                    class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm font-normal text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                                    v-model.number="appointmentForm.duration"
+                                    @change="syncAppointmentEndTime"
+                                >
+                                    <option :value="15">15 min</option>
+                                    <option :value="30">30 min</option>
+                                    <option :value="45">45 min</option>
+                                    <option :value="60">60 min</option>
+                                    <option :value="90">90 min</option>
+                                    <option :value="120">120 min</option>
+                                </select>
+                            </div>
 
-                        <div class="flex flex-col gap-1">
-                            <x-admin::form.control-group.label>Duración</x-admin::form.control-group.label>
-                            <select
-                                class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm font-normal text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
-                                v-model.number="appointmentForm.duration"
-                                @change="syncAppointmentEndTime"
-                            >
-                                <option :value="15">15 min</option>
-                                <option :value="30">30 min</option>
-                                <option :value="45">45 min</option>
-                                <option :value="60">60 min</option>
-                                <option :value="90">90 min</option>
-                                <option :value="120">120 min</option>
-                            </select>
-                        </div>
+                            <div class="flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Hora de fin</x-admin::form.control-group.label>
+                                <v-time-picker
+                                    v-model="appointmentForm.endTime"
+                                    :disabled="true"
+                                ></v-time-picker>
+                            </div>
 
-                        <div class="flex flex-col gap-1">
-                            <div class="text-xs text-gray-600 dark:text-gray-300">Hora Inicio</div>
-                            <v-time-picker
-                                v-model="appointmentForm.startTime"
-                                @update:modelValue="syncAppointmentEndTime"
-                            ></v-time-picker>
-                        </div>
-
-                        <div class="flex flex-col gap-1">
-                            <div class="text-xs text-gray-600 dark:text-gray-300">Hora Fin</div>
-                            <v-time-picker
-                                v-model="appointmentForm.endTime"
-                                :disabled="true"
-                            ></v-time-picker>
-                        </div>
-                        <div class="col-span-2">
                             <div class="flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Estado</x-admin::form.control-group.label>
                                 <select
                                     class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm font-normal text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
                                     v-model="appointmentForm.lead_pipeline_stage_id"
                                 >
-                                    <option :value="null" disabled>Estado</option>
+                                    <option :value="null" disabled>Seleccionar estado</option>
                                     <option v-for="stage in stages" :key="'st-modal-'+stage.id" :value="stage.id">@{{ stage.name }}</option>
                                 </select>
                             </div>
-                        </div>
 
-                        <div class="col-span-2">
-                            <div class="flex flex-col gap-1">
+                            <div class="col-span-2 flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Motivo de consulta</x-admin::form.control-group.label>
                                 <textarea
                                     rows="3"
                                     class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm font-normal text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
                                     v-model="appointmentForm.reason"
-                                    placeholder="Motivo de consulta"
+                                    placeholder="Motivo de consulta (opcional)"
                                 ></textarea>
                             </div>
                         </div>
@@ -778,7 +778,7 @@
             </x-slot>
         </x-admin::modal>
 
-        <x-admin::modal ref="viewModal">
+        <x-admin::modal ref="viewModal" size="large">
             <x-slot:header>
                 <div class="text-lg font-semibold dark:text-white">
                     Detalles de la Cita
@@ -786,88 +786,257 @@
             </x-slot>
 
             <x-slot:content>
-                <div class="flex flex-col gap-4" v-if="viewAppointment.data">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="flex flex-col">
-                            <span class="text-xs text-gray-500 font-medium uppercase">Paciente</span>
-                            <span class="text-sm font-semibold dark:text-white">@{{ viewAppointment.data.person_name || '-' }}</span>
+                <div v-if="viewAppointment.data" class="flex flex-col gap-5 lg:h-[72vh] lg:flex-row">
+                  <!-- Columna izquierda: detalle / edición de la cita -->
+                  <div class="flex flex-col gap-4 lg:w-1/2 lg:min-w-0 lg:overflow-y-auto lg:pr-1">
+                    <template v-if="!editMode">
+                    <!-- Cabecera: paciente + estado -->
+                    <div class="flex items-start justify-between gap-3 border-b border-gray-200 pb-3 dark:border-gray-800">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-semibold"
+                                 :class="avatarColor(viewAppointment.data.person_name)">
+                                @{{ apptInitials(viewAppointment.data.person_name) }}
+                            </div>
+                            <div class="min-w-0">
+                                <p class="truncate text-base font-bold text-gray-900 dark:text-white">@{{ viewAppointment.data.person_name || 'Paciente' }}</p>
+                                <p v-if="viewAppointment.data.person_whatsapp" class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                    <span class="icon-call text-sm"></span> @{{ viewAppointment.data.person_whatsapp }}
+                                </p>
+                            </div>
                         </div>
-                        <div class="flex flex-col">
-                            <span class="text-xs text-gray-500 font-medium uppercase">Doctor</span>
-                            <span class="text-sm font-semibold dark:text-white">@{{ viewAppointment.data.doctor_name || '-' }}</span>
+                        <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
+                              :class="viewAppointment.data.is_cancelled
+                                        ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                                        : (viewAppointment.data.is_completed
+                                            ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                                            : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300')">
+                            @{{ getStageName(viewAppointment.data.lead_pipeline_stage_id) || 'Agendada' }}
+                        </span>
+                    </div>
+
+                    <!-- Datos de la cita, en filas legibles -->
+                    <div class="flex flex-col divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+                        <div class="flex items-center gap-3 px-3 py-2.5">
+                            <span class="icon-user w-5 shrink-0 text-lg text-brandColor"></span>
+                            <span class="w-24 shrink-0 text-xs font-medium uppercase text-gray-400">Doctor</span>
+                            <span class="text-sm font-medium text-gray-800 dark:text-gray-100">@{{ viewAppointment.data.doctor_name || '-' }}</span>
                         </div>
-                        <div class="flex flex-col">
-                            <span class="text-xs text-gray-500 font-medium uppercase">Fecha</span>
-                            <span class="text-sm dark:text-gray-300">@{{ formatDate(new Date(viewAppointment.data.start)) }}</span>
+                        <div class="flex items-center gap-3 px-3 py-2.5">
+                            <span class="icon-calendar w-5 shrink-0 text-lg text-brandColor"></span>
+                            <span class="w-24 shrink-0 text-xs font-medium uppercase text-gray-400">Fecha</span>
+                            <span class="text-sm text-gray-800 dark:text-gray-100">@{{ formatDate(new Date(viewAppointment.data.start)) }}</span>
                         </div>
-                        <div class="flex flex-col">
-                            <span class="text-xs text-gray-500 font-medium uppercase">Horario</span>
-                            <span class="text-sm dark:text-gray-300">
-                                @{{ formatTime(viewAppointment.data.start) }} - @{{ formatTime(viewAppointment.data.end) }}
-                                <span class="text-gray-400">(@{{ getDuration(viewAppointment.data.start, viewAppointment.data.end) }})</span>
+                        <div class="flex items-center gap-3 px-3 py-2.5">
+                            <span class="icon-calendar w-5 shrink-0 text-lg text-brandColor"></span>
+                            <span class="w-24 shrink-0 text-xs font-medium uppercase text-gray-400">Horario</span>
+                            <span class="text-sm text-gray-800 dark:text-gray-100">
+                                @{{ formatTime(viewAppointment.data.start) }} – @{{ formatTime(viewAppointment.data.end) }}
+                                <span class="ml-1 text-xs text-gray-400">(@{{ getDuration(viewAppointment.data.start, viewAppointment.data.end) }})</span>
                             </span>
                         </div>
-                        <div class="flex flex-col">
-                            <span class="text-xs text-gray-500 font-medium uppercase">Servicio</span>
-                            <span class="text-sm font-semibold dark:text-white">
+                        <div class="flex items-center gap-3 px-3 py-2.5">
+                            <span class="icon-product w-5 shrink-0 text-lg text-brandColor"></span>
+                            <span class="w-24 shrink-0 text-xs font-medium uppercase text-gray-400">Servicio</span>
+                            <span class="text-sm font-medium text-gray-800 dark:text-gray-100">
                                 @{{ viewAppointment.data.product_name || (viewAppointment.data.product ? viewAppointment.data.product.name : '-') }}
                             </span>
                         </div>
                     </div>
 
-                    <div class="flex flex-col" v-if="viewAppointment.data.comment">
-                        <span class="text-xs text-gray-500 font-medium uppercase mb-1">Motivo de Consulta</span>
-                        <div class="p-3 bg-gray-50 dark:bg-gray-800 rounded text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                            @{{ viewAppointment.data.comment }}
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col">
-                        <span class="text-xs text-gray-500 font-medium uppercase mb-1">Estado</span>
-                        <div class="inline-flex">
-                            <span class="px-2 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                @{{ getStageName(viewAppointment.data.lead_pipeline_stage_id) || 'Sin Estado' }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </x-slot>
-
-            <x-slot:footer>
-                <div class="flex items-center gap-2 justify-end">
-                    <div class="ddc-wa-wrap" v-if="viewAppointment.data">
-                        <div v-if="whatsappMenuOpen" class="ddc-wa-overlay" @click="closeWhatsappMenu"></div>
-
-                        <button
-                            type="button"
-                            class="secondary-button flex items-center gap-1"
-                            :disabled="!viewAppointment.data.person_whatsapp"
-                            :class="{ 'opacity-50 cursor-not-allowed': !viewAppointment.data.person_whatsapp }"
-                            :title="viewAppointment.data.person_whatsapp ? 'Enviar mensaje por WhatsApp' : 'El paciente no tiene teléfono registrado'"
-                            @click="toggleWhatsappMenu"
-                        >
-                            <span class="icon-call text-lg"></span>
-                            <span>WhatsApp</span>
-                            <span class="icon-up-arrow text-lg"></span>
-                        </button>
-
-                        <div v-if="whatsappMenuOpen" class="ddc-wa-menu" @click.stop>
-                            <button
-                                v-for="tpl in whatsappTemplates"
-                                :key="'wa-'+tpl.key"
-                                type="button"
-                                class="ddc-wa-menu-item"
-                                @click="openWhatsapp(tpl)"
-                            >
-                                @{{ tpl.label }}
+                    <!-- Estado de la cita: selección única (pastel) -->
+                    <div>
+                        <p class="mb-1.5 text-xs font-medium uppercase text-gray-400">Estado de la cita</p>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('confirmed')"
+                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 disabled:opacity-50"
+                                    :class="apptState() === 'confirmed'
+                                        ? 'bg-green-100 text-green-800 ring-2 ring-green-400 dark:bg-green-900/50 dark:text-green-200'
+                                        : 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300'">
+                                <span class="icon-checkbox-select text-base"></span> Confirmada
+                            </button>
+                            <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('completed')"
+                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-50"
+                                    :class="apptState() === 'completed'
+                                        ? 'bg-sky-100 text-sky-800 ring-2 ring-sky-400 dark:bg-sky-900/50 dark:text-sky-200'
+                                        : 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-300'">
+                                <span class="icon-checkbox-select text-base"></span> Atendida
+                            </button>
+                            <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('cancelled')"
+                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-50"
+                                    :class="apptState() === 'cancelled'
+                                        ? 'bg-red-100 text-red-800 ring-2 ring-red-400 dark:bg-red-900/50 dark:text-red-200'
+                                        : 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300'">
+                                <span class="icon-cross-large text-base"></span> Cancelada
                             </button>
                         </div>
                     </div>
 
-                    <button type="button" class="secondary-button" @click="$refs.viewModal.close()">Cerrar</button>
-                    <button type="button" class="primary-button" v-if="viewAppointment.data" @click="editFromView">
-                        Editar Cita
+                    <!-- Motivo -->
+                    <div v-if="viewAppointment.data.comment">
+                        <p class="mb-1 text-xs font-medium uppercase text-gray-400">Motivo de consulta</p>
+                        <div class="whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                            @{{ viewAppointment.data.comment }}
+                        </div>
+                    </div>
+
+                    <!-- Historial de citas del paciente -->
+                    <div v-if="viewAppointment.data.person_id">
+                        <p class="mb-1.5 text-xs font-medium uppercase text-gray-400">
+                            Historial de citas <span v-if="apptHistory.length" class="text-gray-300">(@{{ apptHistory.length }})</span>
+                        </p>
+                        <div v-if="apptHistoryLoading" class="py-3 text-center text-xs text-gray-400">Cargando…</div>
+                        <div v-else-if="apptHistory.length" class="max-h-40 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+                            <div v-for="a in apptHistory" :key="'h-'+a.id"
+                                 class="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs"
+                                 :class="a.id === viewAppointment.data.id ? 'bg-gray-50 dark:bg-gray-800' : ''">
+                                <span class="text-gray-700 dark:text-gray-300">@{{ a.date }} · @{{ a.time }}</span>
+                                <span class="truncate text-gray-500 dark:text-gray-400">@{{ a.doctor_name || '-' }}</span>
+                                <span class="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                                      :class="a.state === 'cancelled' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                                            : (a.state === 'completed' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                                            : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300')">
+                                    @{{ a.state === 'cancelled' ? 'Cancelada' : (a.state === 'completed' ? 'Atendida' : 'Confirmada') }}
+                                </span>
+                            </div>
+                        </div>
+                        <p v-else class="rounded-lg border border-dashed border-gray-300 px-3 py-3 text-center text-xs text-gray-400 dark:border-gray-700">
+                            Sin otras citas registradas.
+                        </p>
+                    </div>
+                    </template>
+
+                    <!-- Modo edición inline -->
+                    <template v-else>
+                        <div class="flex items-center justify-between border-b border-gray-200 pb-3 dark:border-gray-800">
+                            <h3 class="text-base font-semibold dark:text-white">Editar cita</h3>
+                            <span class="truncate text-sm text-gray-500 dark:text-gray-400">@{{ appointmentForm.person.name }}</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Doctor</x-admin::form.control-group.label>
+                                <select class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" v-model="appointmentForm.doctor_id">
+                                    <option :value="null" disabled>Seleccionar doctor</option>
+                                    <option v-for="d in doctors" :key="'ed-doc-'+d.id" :value="d.id">@{{ d && d.name ? d.name : '' }}</option>
+                                </select>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Servicio</x-admin::form.control-group.label>
+                                <x-admin::lookup
+                                    ::src="productSearchUrl"
+                                    ::params="{ limit: 200 }"
+                                    name="appointment_product_edit"
+                                    placeholder="Buscar servicio…"
+                                    @on-selected="onSelectService"
+                                    ::value="{ id: appointmentForm.product_id, name: appointmentForm.product_name }"
+                                />
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Hora de inicio</x-admin::form.control-group.label>
+                                <v-time-picker v-model="appointmentForm.startTime" @update:modelValue="syncAppointmentEndTime"></v-time-picker>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Duración</x-admin::form.control-group.label>
+                                <select class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" v-model.number="appointmentForm.duration" @change="syncAppointmentEndTime">
+                                    <option :value="15">15 min</option>
+                                    <option :value="30">30 min</option>
+                                    <option :value="45">45 min</option>
+                                    <option :value="60">60 min</option>
+                                    <option :value="90">90 min</option>
+                                    <option :value="120">120 min</option>
+                                </select>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Estado</x-admin::form.control-group.label>
+                                <select class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" v-model="appointmentForm.lead_pipeline_stage_id">
+                                    <option :value="null" disabled>Estado</option>
+                                    <option v-for="stage in stages" :key="'ed-st-'+stage.id" :value="stage.id">@{{ stage.name }}</option>
+                                </select>
+                            </div>
+                            <div class="col-span-2 flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Motivo de consulta</x-admin::form.control-group.label>
+                                <textarea rows="3" class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:focus:border-gray-400" v-model="appointmentForm.reason" placeholder="Motivo de consulta (opcional)"></textarea>
+                            </div>
+                        </div>
+
+                        <p v-if="modalError" class="text-sm text-red-600 dark:text-red-400">@{{ modalError }}</p>
+                    </template>
+                  </div>
+                  <!-- /Columna izquierda -->
+
+                  <!-- Columna derecha: chat de WhatsApp del paciente -->
+                  <div class="flex min-h-0 flex-col lg:w-1/2 lg:min-w-0 lg:border-l lg:border-gray-200 lg:pl-5 dark:lg:border-gray-800">
+                      <p class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase text-gray-400">
+                          <span class="icon-call text-sm text-green-600"></span> Chat de WhatsApp
+                      </p>
+                      <div v-if="viewAppointment.data.person_id" class="h-[440px] lg:h-auto lg:flex-1 lg:min-h-0">
+                          <v-whatsapp-inbox
+                              :key="'appt-chat-'+viewAppointment.data.person_id"
+                              :context="{ conversationId: null, personId: viewAppointment.data.person_id, leadId: viewAppointment.data.lead_id, name: viewAppointment.data.person_name, phone: viewAppointment.data.person_whatsapp }"
+                              :use-mock="false"
+                              :full-height="true"
+                              :hide-profile="true"
+                              :thread-url="waThreadUrl"
+                              :send-url="waSendUrl"
+                              :agent-url-base="waAgentUrlBase"
+                              :quick-replies-url="waQuickRepliesUrl"
+                              :person-url-base="waPersonUrlBase"
+                              :products-url="waProductsUrl"
+                          ></v-whatsapp-inbox>
+                      </div>
+                      <div v-else class="flex h-[440px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 text-center text-sm text-gray-400 dark:border-gray-700">
+                          <span class="icon-call text-3xl"></span>
+                          El paciente no está vinculado a un contacto del CRM.
+                      </div>
+                  </div>
+                </div>
+            </x-slot>
+
+            <x-slot:footer>
+                <!-- Footer en modo edición -->
+                <div v-if="viewAppointment.data && editMode" class="flex w-full items-center justify-end gap-2">
+                    <button type="button" class="secondary-button" :disabled="modalSaving" @click="cancelInlineEdit">Cancelar</button>
+                    <button type="button" class="primary-button" :disabled="modalSaving" @click="saveAppointment">
+                        <span v-if="!modalSaving">Guardar cambios</span>
+                        <span v-else class="flex items-center gap-2"><x-admin::spinner /> Guardando…</span>
                     </button>
+                </div>
+
+                <!-- Footer en modo detalle -->
+                <div v-else-if="viewAppointment.data" class="flex w-full flex-wrap items-center justify-between gap-3">
+                    <!-- Grupo 1: acciones sobre la cita -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- WhatsApp (recordatorio por gateway) -->
+                        <div class="ddc-wa-wrap">
+                            <div v-if="whatsappMenuOpen" class="ddc-wa-overlay" @click="closeWhatsappMenu"></div>
+                            <button
+                                type="button"
+                                class="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-sm font-medium text-green-700 transition hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:cursor-not-allowed disabled:opacity-50 dark:text-green-400 dark:hover:bg-green-900/20"
+                                :disabled="!viewAppointment.data.person_whatsapp || reminderSending"
+                                :title="viewAppointment.data.person_whatsapp ? 'Enviar recordatorio por WhatsApp' : 'El paciente no tiene teléfono registrado'"
+                                @click="toggleWhatsappMenu"
+                            >
+                                <span class="icon-call text-base"></span>
+                                <span>WhatsApp</span>
+                                <span class="icon-down-arrow text-sm"></span>
+                            </button>
+                            <div v-if="whatsappMenuOpen" class="ddc-wa-menu" @click.stop>
+                                <button v-for="tpl in whatsappTemplates" :key="'wa-'+tpl.key" type="button" class="ddc-wa-menu-item" @click="openWhatsapp(tpl)">
+                                    @{{ tpl.label }}
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Grupo 2: navegación / edición -->
+                    <div class="flex items-center gap-2">
+                        <button type="button" class="secondary-button" v-if="viewAppointment.data.lead_id" @click="goToLead(viewAppointment.data.lead_id)">
+                            Ver lead
+                        </button>
+                        <button type="button" class="secondary-button" @click="$refs.viewModal.close()">Cerrar</button>
+                        <button type="button" class="primary-button" @click="editFromView">Editar</button>
+                    </div>
                 </div>
             </x-slot>
         </x-admin::modal>
@@ -1470,6 +1639,21 @@
                 appointmentStoreUrl: "{{ route('admin.activities.appointments.store') }}",
                 personSearchUrl: "{{ route('admin.contacts.persons.search') }}",
                 productSearchUrl: "{{ route('admin.products.search') }}",
+                reminderSendUrl: "{{ route('admin.whatsapp.reminders.send') }}",
+                reminderSending: false,
+                appointmentStatusUrlTemplate: "{{ route('admin.activities.appointments.status', 'replaceId') }}",
+                statusUpdating: false,
+                // WhatsApp: chat embebido del paciente en el modal de detalle
+                waThreadUrl: "{{ route('admin.whatsapp.thread') }}",
+                waSendUrl: "{{ route('admin.whatsapp.send') }}",
+                waAgentUrlBase: "{{ url(config('app.admin_path').'/whatsapp/conversations') }}",
+                waQuickRepliesUrl: "{{ route('admin.whatsapp.quick-replies.index') }}",
+                waPersonUrlBase: "{{ url(config('app.admin_path').'/whatsapp/persons') }}",
+                waProductsUrl: "{{ route('admin.whatsapp.products') }}",
+                apptHistoryUrlTemplate: "{{ route('admin.activities.persons.appointments', 'replaceId') }}",
+                apptHistory: [],
+                apptHistoryLoading: false,
+                editMode: false,
                 editUrlTemplate: "{{ route('admin.activities.edit', 'replaceId') }}",
                 deleteUrlTemplate: "{{ route('admin.activities.delete', 'replaceId') }}",
                 leadUrlTemplate: "{{ route('admin.leads.view', 'replaceId') }}",
@@ -1477,13 +1661,13 @@
                 // Plantillas del boton WhatsApp del detalle de cita. Los
                 // placeholders :fecha, :hora y :doctor los sustituye
                 // buildWhatsappMessage() con los datos de la cita abierta.
-                clinicAddress: 'Av Roca y  Coronado 3er anillo interno entrando por  el surtidor El Arroyo Calle Burapacú Nro 2888,  lado Taller  Bavaria',
-                surveyUrl: 'https://forms.gle/z6zbPMPzPYU1knKZ9',
+                clinicAddress: @json(config('whatsapp.clinic.address') ?: 'Av Roca y  Coronado 3er anillo interno entrando por  el surtidor El Arroyo Calle Burapacú Nro 2888,  lado Taller  Bavaria'),
+                surveyUrl: @json(config('whatsapp.clinic.survey_url') ?: 'https://forms.gle/z6zbPMPzPYU1knKZ9'),
                 whatsappTemplates: [
                     {
                         key: 'appointment_reminder',
                         label: 'Recordatorio de cita',
-                        body: 'Buenos días! \nRecordarle que tiene cita el :fecha a horas :hora con el Dr(a). :doctor en la clínica Odontoking :direccion!\nEs obligatorio confirmar su asistencia para evitar disponer de su espacio! Gracias!!',
+                        body: 'Buenos días! \nRecordarle que tiene cita el :fecha a horas :hora con el Dr(a). :doctor en la clínica Odontoking :direccion!\nEs obligatorio confirmar su asistencia para evitar disponer de su espacio! Gracias!!\n\nResponda *SÍ* para confirmar o *NO* para cancelar su cita.',
                     },
                     {
                         key: 'appointment_confirmation',
@@ -1498,7 +1682,7 @@
                     {
                         key: 'first_appointment_reminder',
                         label: 'Recordatorio Primera Cita',
-                        body: 'Buenos días! \nRecordarle que tiene cita el :fecha a horas :hora con el Dr(a). :doctor en la clínica Odontoking :direccion! Es obligatorio confirmar su asistencia para evitar disponer de su espacio! \nPor ser su primera cita por favor se le pide estar 15min  antes de la hora agendada para poder realizar su historia clínica de inicio.\nGracias!!',
+                        body: 'Buenos días! \nRecordarle que tiene cita el :fecha a horas :hora con el Dr(a). :doctor en la clínica Odontoking :direccion! Es obligatorio confirmar su asistencia para evitar disponer de su espacio! \nPor ser su primera cita por favor se le pide estar 15min  antes de la hora agendada para poder realizar su historia clínica de inicio.\nGracias!!\n\nResponda *SÍ* para confirmar o *NO* para cancelar su cita.',
                     },
                 ],
                 hoveredEventId: null,
@@ -2255,15 +2439,13 @@
                 this.closeQuickMenu();
                 this.$refs.appointmentModal.open();
             },
-            openEditModal(ev) {
+            // Fill the shared appointmentForm from an existing appointment.
+            populateAppointmentForm(ev) {
                 this.modalError = '';
                 this.modalSaving = false;
 
-                // Get date object from event start
                 const start = new Date(ev.start);
                 const end = new Date(ev.end);
-
-                // Setup modal context
                 const isoDate = this.toISO(start);
                 const dayLabel = this.days.find(d => d.date === isoDate)?.label || isoDate;
 
@@ -2275,39 +2457,51 @@
                     timeText: this.formatTime(ev.start),
                 };
 
-                // Populate form
                 this.appointmentForm.id = ev.id;
                 this.appointmentForm.doctor_id = ev.doctor_id;
-                this.appointmentForm.startTime =
-                    `${this.pad2(start.getHours())}:${this.pad2(start.getMinutes())}`;
+                this.appointmentForm.startTime = `${this.pad2(start.getHours())}:${this.pad2(start.getMinutes())}`;
                 this.appointmentForm.endTime = `${this.pad2(end.getHours())}:${this.pad2(end.getMinutes())}`;
                 this.syncAppointmentDurationFromTimes();
-
                 this.appointmentForm.reason = ev.comment || '';
                 this.appointmentForm.lead_id = ev.lead_id || null;
                 this.appointmentForm.lead_pipeline_stage_id = ev.lead_pipeline_stage_id;
-                this.appointmentForm.person = {
-                    id: ev.person_id || null,
-                    name: ev.person_name || '',
-                };
-
-                // Set product info from event
+                this.appointmentForm.person = { id: ev.person_id || null, name: ev.person_name || '' };
                 this.appointmentForm.product_id = ev.product_id || (ev.product ? ev.product.id : null);
                 this.appointmentForm.product_name = ev.product_name || (ev.product ? ev.product.name : '');
+            },
 
+            openEditModal(ev) {
+                this.populateAppointmentForm(ev);
                 this.$refs.appointmentModal.open();
             },
             openViewModal(ev) {
                 this.viewAppointment.data = ev;
                 this.viewAppointment.visible = true;
                 this.whatsappMenuOpen = false;
+                this.editMode = false;
+                this.loadApptHistory(ev.person_id);
                 this.$refs.viewModal.open();
             },
+
+            loadApptHistory(personId) {
+                this.apptHistory = [];
+                if (!personId) return;
+                this.apptHistoryLoading = true;
+                this.$axios.get(this.apptHistoryUrlTemplate.replace('replaceId', personId))
+                    .then(res => { this.apptHistory = res.data?.appointments ?? []; })
+                    .catch(() => {})
+                    .finally(() => { this.apptHistoryLoading = false; });
+            },
+            // Edit inline in the left column of the detail modal (no separate modal).
             editFromView() {
                 const ev = this.viewAppointment.data;
                 if (!ev) return;
-                this.$refs.viewModal.close();
-                this.openEditModal(ev);
+                this.populateAppointmentForm(ev);
+                this.editMode = true;
+            },
+            cancelInlineEdit() {
+                this.editMode = false;
+                this.modalError = '';
             },
             toggleWhatsappMenu() {
                 this.whatsappMenuOpen = !this.whatsappMenuOpen;
@@ -2331,15 +2525,77 @@
                     .split(':direccion').join(this.clinicAddress)
                     .split(':encuesta').join(this.surveyUrl);
             },
+            // Current appointment state for the single-select control.
+            apptState() {
+                const d = this.viewAppointment.data;
+                if (!d) return null;
+                if (d.is_cancelled) return 'cancelled';
+                if (d.is_completed) return 'completed';
+                return 'confirmed';
+            },
+
+            // Initials + a stable flat color per name, matching Krayin's avatar.
+            apptInitials(name) {
+                return (name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+            },
+
+            avatarColor(name) {
+                const bg = ['bg-yellow-200', 'bg-red-200', 'bg-lime-200', 'bg-blue-200', 'bg-orange-200', 'bg-green-200', 'bg-pink-200', 'bg-yellow-400'];
+                const tx = ['text-yellow-900', 'text-red-900', 'text-lime-900', 'text-blue-900', 'text-orange-900', 'text-green-900', 'text-pink-900', 'text-yellow-900'];
+                let h = 0;
+                for (const ch of String(name || '?')) h = (h * 31 + ch.charCodeAt(0)) % 997;
+                return bg[h % bg.length] + ' ' + tx[h % tx.length];
+            },
+
+            // Confirm / cancel the appointment (moves its lead to the mapped
+            // stage). Refreshes the calendar so is_cancelled/is_completed update.
+            setAppointmentStatus(status) {
+                const ev = this.viewAppointment.data;
+                if (!ev || this.statusUpdating) return;
+
+                this.statusUpdating = true;
+
+                this.$axios.post(this.appointmentStatusUrlTemplate.replace('replaceId', ev.id), { status })
+                    .then(res => {
+                        this.$emitter.emit('add-flash', { type: 'success', message: res.data.message });
+                        this.$refs.viewModal.close();
+                        this.fetch();
+                    })
+                    .catch(err => {
+                        this.$emitter.emit('add-flash', {
+                            type: 'error',
+                            message: err.response?.data?.message || 'No se pudo actualizar el estado de la cita.',
+                        });
+                    })
+                    .finally(() => { this.statusUpdating = false; });
+            },
+
+            // Send the reminder THROUGH the CRM gateway (Kommo/Cloud API) so it
+            // lands in the patient's WhatsApp conversation and is logged — no
+            // more wa.me deep link that needs WhatsApp Web open and a manual tap.
             openWhatsapp(tpl) {
                 const ev = this.viewAppointment.data;
-                if (!ev || !ev.person_whatsapp) return;
+                if (!ev || !ev.person_whatsapp || this.reminderSending) return;
 
-                const url = `https://wa.me/${ev.person_whatsapp}?text=${encodeURIComponent(this.buildWhatsappMessage(tpl, ev))}`;
+                this.reminderSending = true;
 
-                window.open(url, '_blank', 'noopener');
-
-                this.closeWhatsappMenu();
+                this.$axios.post(this.reminderSendUrl, {
+                        phone: ev.person_whatsapp,
+                        name: ev.person_name || null,
+                        person_id: ev.person_id || null,
+                        text: this.buildWhatsappMessage(tpl, ev),
+                    })
+                    .then(res => {
+                        this.$emitter.emit('add-flash', { type: 'success', message: res.data.message });
+                        this.closeWhatsappMenu();
+                    })
+                    .catch(err => {
+                        this.$emitter.emit('add-flash', {
+                            type: 'error',
+                            message: err.response?.data?.message || 'No se pudo enviar el recordatorio.',
+                        });
+                    })
+                    .finally(() => { this.reminderSending = false; });
             },
             openGroupModal() {
                 this.modalError = '';
@@ -2437,6 +2693,12 @@
                     .then((response) => {
                         this.modalSaving = false;
                         this.$refs.appointmentModal.close();
+                        // Inline edit (from the detail modal): leave edit mode and
+                        // close the detail modal — the calendar refresh shows the change.
+                        if (this.editMode) {
+                            this.editMode = false;
+                            this.$refs.viewModal.close();
+                        }
                         this.fetch();
                         this.$emitter.emit('add-flash', {
                             type: 'success',
@@ -2725,6 +2987,26 @@
 </script>
 
 <style>
+    /* Accesibilidad (estándar salud): respetar quien pide menos movimiento. */
+    @media (prefers-reduced-motion: reduce) {
+        .ddc-container *,
+        .ddc-container *::before,
+        .ddc-container *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+        }
+    }
+
+    /* Foco visible de 3px con el color de marca (WCAG AAA) en los interactivos. */
+    .ddc-container [role="button"]:focus-visible,
+    .ddc-container button:focus-visible,
+    .ddc-container .ddc-cell:focus-visible {
+        outline: 3px solid var(--brand-color, #3b82f6);
+        outline-offset: 2px;
+    }
+
     .ddc-date-overlay {
         position: fixed;
         inset: 0;
@@ -2827,14 +3109,14 @@
     }
 
     .ddc-date-day:not(:disabled):hover {
-        background: rgba(103, 80, 164, 0.10);
-        border-color: rgba(103, 80, 164, 0.35)
+        background: color-mix(in srgb, var(--brand-color, #6750A4) 10%, transparent);
+        border-color: color-mix(in srgb, var(--brand-color, #6750A4) 35%, transparent)
     }
 
     .ddc-date-day.is-selected {
-        background: rgba(103, 80, 164, 0.18);
-        border-color: #6750A4;
-        color: #6750A4;
+        background: color-mix(in srgb, var(--brand-color, #6750A4) 18%, transparent);
+        border-color: var(--brand-color, #6750A4);
+        color: var(--brand-color, #6750A4);
         font-weight: 700
     }
 
@@ -2970,12 +3252,12 @@
     }
 
     .ddc-quick-menu-item:hover {
-        background: rgba(103, 80, 164, 0.10)
+        background: color-mix(in srgb, var(--brand-color, #6750A4) 10%, transparent)
     }
 
     .ddc-quick-menu-link {
         padding: 10px 8px;
-        color: #6750A4;
+        color: var(--brand-color, #6750A4);
         font-size: 14px
     }
 
@@ -3484,7 +3766,7 @@
         --day-text: #111827;
         --event-bg: #f8fafc;
         --event-text: #111827;
-        --event-accent: #3b82f6;
+        --event-accent: var(--brand-color, #3b82f6);
         --controls-bg: #fff
     }
 
@@ -3561,12 +3843,12 @@
     }
 
     .dwc-month-cell:hover {
-        border-color: rgba(103, 80, 164, 0.35);
+        border-color: color-mix(in srgb, var(--brand-color, #6750A4) 35%, transparent);
         box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
     }
 
     .dwc-month-cell.is-today {
-        border-color: #3b82f6;
+        border-color: var(--brand-color, #3b82f6);
         background: rgba(59, 130, 246, 0.06);
     }
 
@@ -3610,7 +3892,7 @@
         border-radius: 6px;
         background: #dbeafe;
         color: #1e40af;
-        border-left: 3px solid #3b82f6;
+        border-left: 3px solid var(--brand-color, #3b82f6);
         cursor: pointer;
         transition: filter .15s ease;
     }
@@ -3828,13 +4110,13 @@
     }
 
     .tp-list li.is-selected {
-        background-color: #3b82f6;
+        background-color: var(--brand-color, #3b82f6);
         color: white;
         font-weight: bold;
     }
 
     .dark .tp-list li.is-selected {
-        background-color: #2563eb;
+        background-color: var(--brand-color, #2563eb);
     }
 
     /* ===== Vista Lista por rango ===== */

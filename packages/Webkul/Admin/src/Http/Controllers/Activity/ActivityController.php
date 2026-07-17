@@ -213,15 +213,17 @@ class ActivityController extends Controller
             ]);
 
             $appointments = $appointments->map(function ($appointment) use ($cancelledStageIds, $completedStageIds) {
-                // lead_status puede ser NULL (lead abierto): (int) null === 0 daría un
-                // falso positivo, por eso se compara contra el string/valor crudo primero.
-                $statusIsZero = $appointment->lead_status !== null && (int) $appointment->lead_status === 0;
+                // La cancelación se determina SOLO por la etapa "Cancelado" del lead
+                // (es lo que setean la sync de ShareMeData y el botón Cancelar).
+                // NO por lead_status: en odontoking status=0 aparece también en leads
+                // en "Cita confirmadas", así que usarlo marcaba citas confirmadas como
+                // canceladas (falso positivo).
                 $stageIsCancelled = $appointment->lead_pipeline_stage_id !== null
                     && in_array((int) $appointment->lead_pipeline_stage_id, $cancelledStageIds, true);
                 $stageIsCompleted = $appointment->lead_pipeline_stage_id !== null
                     && in_array((int) $appointment->lead_pipeline_stage_id, $completedStageIds, true);
 
-                $appointment->is_cancelled = (bool) $appointment->lead_id && ($statusIsZero || $stageIsCancelled);
+                $appointment->is_cancelled = (bool) $appointment->lead_id && $stageIsCancelled;
                 // Cancelado tiene prioridad visual sobre completado si por algún motivo
                 // coincidieran (no deberían, son stages distintos en stage_map).
                 $appointment->is_completed = (bool) $appointment->lead_id && $stageIsCompleted && ! $appointment->is_cancelled;
@@ -686,6 +688,89 @@ class ActivityController extends Controller
                 ]);
             }
         }
+    }
+
+    /**
+     * Confirm / cancel / complete an appointment from the calendar. Moves the
+     * appointment's lead to the mapped pipeline stage (smd.stage_map), which is
+     * what drives is_cancelled / is_completed in the calendar events.
+     *
+     * Used after a patient replies SÍ/NO to a WhatsApp reminder.
+     */
+    public function updateAppointmentStatus(int $id): JsonResponse
+    {
+        $data = request()->validate([
+            'status' => 'required|in:confirmed,cancelled,completed',
+        ]);
+
+        $activity = $this->activityRepository->findOrFail($id);
+
+        $leadIds = $activity->leads()->pluck('leads.id');
+
+        if ($leadIds->isEmpty()) {
+            return response()->json([
+                'message' => 'La cita no tiene un lead asociado; no se puede cambiar el estado.',
+            ], 422);
+        }
+
+        $stageId = (int) config('smd.stage_map.'.$data['status']);
+
+        DB::table('leads')
+            ->whereIn('id', $leadIds)
+            ->update(['lead_pipeline_stage_id' => $stageId, 'updated_at' => now()]);
+
+        $labels = ['confirmed' => 'confirmada', 'cancelled' => 'cancelada', 'completed' => 'atendida'];
+
+        return response()->json([
+            'message' => 'Cita marcada como '.$labels[$data['status']].'.',
+            'status'  => $data['status'],
+        ]);
+    }
+
+    /**
+     * A patient's appointment history (meeting activities), newest first, with
+     * doctor and derived state. Shown in the appointment detail modal.
+     */
+    public function personAppointments(int $personId): JsonResponse
+    {
+        $cancelledStageIds = array_filter([(int) config('smd.stage_map.cancelled'), (int) config('smd.stage_map.no_show')]);
+        $completedStageIds = array_filter([(int) config('smd.stage_map.completed')]);
+
+        $rows = DB::table('activities')
+            ->join('activity_participants', 'activity_participants.activity_id', '=', 'activities.id')
+            ->leftJoin('doctor_activities', 'doctor_activities.activity_id', '=', 'activities.id')
+            ->leftJoin('doctors', 'doctors.id', '=', 'doctor_activities.doctor_id')
+            ->leftJoin('lead_activities', 'lead_activities.activity_id', '=', 'activities.id')
+            ->leftJoin('leads', 'leads.id', '=', 'lead_activities.lead_id')
+            ->where('activity_participants.person_id', $personId)
+            ->where('activities.type', 'meeting')
+            ->groupBy('activities.id')
+            ->orderByDesc('activities.schedule_from')
+            ->limit(50)
+            ->get([
+                'activities.id',
+                'activities.schedule_from as start',
+                DB::raw('MAX('.DB::getTablePrefix().'doctors.name) as doctor_name'),
+                DB::raw('MAX('.DB::getTablePrefix().'leads.lead_pipeline_stage_id) as stage_id'),
+            ]);
+
+        $appointments = $rows->map(function ($r) use ($cancelledStageIds, $completedStageIds) {
+            $state = in_array((int) $r->stage_id, $cancelledStageIds, true) ? 'cancelled'
+                : (in_array((int) $r->stage_id, $completedStageIds, true) ? 'completed' : 'confirmed');
+
+            return [
+                'id'          => $r->id,
+                'date'        => $r->start ? Carbon::parse($r->start)->format('d/m/Y') : null,
+                'time'        => $r->start ? Carbon::parse($r->start)->format('H:i') : null,
+                'doctor_name' => $r->doctor_name,
+                'state'       => $state,
+            ];
+        });
+
+        return response()->json([
+            'appointments' => $appointments->values(),
+            'total'        => $appointments->count(),
+        ]);
     }
 
     /**

@@ -112,4 +112,34 @@ return [
     'ui' => [
         'use_mock' => env('WHATSAPP_UI_USE_MOCK', false),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Clinic / business
+    |--------------------------------------------------------------------------
+    | Used by the appointment reminders and the calendar message templates
+    | (:direccion, :encuesta). Set per install via .env.
+    */
+    'clinic' => [
+        'address'    => env('WHATSAPP_CLINIC_ADDRESS'),
+        'survey_url' => env('WHATSAPP_CLINIC_SURVEY_URL'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Appointment reminders (scheduled)
+    |--------------------------------------------------------------------------
+    | The command whatsapp:appointment-reminders sends this template to every
+    | patient with an appointment `days_before` days from now. Placeholders:
+    | :fecha :hora :doctor :direccion. Set enabled=true to activate.
+    */
+    'reminders' => [
+        'enabled'     => env('WHATSAPP_REMINDERS_ENABLED', false),
+        'days_before' => (int) env('WHATSAPP_REMINDERS_DAYS_BEFORE', 1),
+        'template'    => env('WHATSAPP_REMINDERS_TEMPLATE',
+            'Buenos días! Le recordamos su cita el :fecha a horas :hora con el Dr(a). :doctor'
+            .' en la clínica Odontoking :direccion.'
+            ."\n\nResponda *SÍ* para confirmar o *NO* para cancelar su cita."
+        ),
+    ],
 ];

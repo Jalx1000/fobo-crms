@@ -425,6 +425,9 @@
 
         @include('admin::components.activities.doctor-day-calendar')
 
+        {{-- Chat de WhatsApp embebido en el modal de detalle de la cita --}}
+        @includeIf('whatsapp::inbox-component')
+
         @if (bouncer()->hasPermission('activities'))
             @include('admin::components.smd-sync-control')
         @endif

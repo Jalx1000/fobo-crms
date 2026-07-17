@@ -2,12 +2,14 @@
 
 namespace Webkul\Whatsapp\Providers;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Webkul\Whatsapp\Console\Commands\KommoCheck;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
+use Webkul\Whatsapp\Console\Commands\SendAppointmentReminders;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
 
 class WhatsappServiceProvider extends ServiceProvider
@@ -34,8 +36,17 @@ class WhatsappServiceProvider extends ServiceProvider
                 KommoCheck::class,
                 NormalizePhones::class,
                 RepairGateway::class,
+                SendAppointmentReminders::class,
                 WebhookInfo::class,
             ]);
+
+            // Self-schedule the daily reminder run (no host Kernel edit needed).
+            $this->app->booted(function () {
+                $schedule = $this->app->make(Schedule::class);
+                $schedule->command('whatsapp:appointment-reminders')
+                    ->dailyAt('09:00')
+                    ->withoutOverlapping();
+            });
         }
     }
 

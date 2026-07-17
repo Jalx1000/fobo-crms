@@ -19,6 +19,10 @@ Route::controller(ActivityController::class)->prefix('activities')->group(functi
 
     Route::post('appointments/create', 'storeAppointment')->name('admin.activities.appointments.store');
 
+    Route::post('appointments/{id}/status', 'updateAppointmentStatus')->name('admin.activities.appointments.status');
+
+    Route::get('persons/{id}/appointments', 'personAppointments')->name('admin.activities.persons.appointments');
+
     Route::get('edit/{id}', 'edit')->name('admin.activities.edit');
 
     Route::put('edit/{id}', 'update')->name('admin.activities.update');
