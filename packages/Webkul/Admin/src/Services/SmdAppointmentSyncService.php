@@ -39,6 +39,7 @@ class SmdAppointmentSyncService
             'creados'      => 0,
             'actualizados' => 0,
             'cancelados'   => 0,
+            'bloqueos'     => 0,
             'sin_cambios'  => 0,
             'obsoletos'    => 0,
             'errores'      => 0,
@@ -207,6 +208,26 @@ class SmdAppointmentSyncService
         }
 
         $result = $this->incoming->processDropbox($json);
+
+        // Un evento sin paciente es un bloqueo de agenda ("Ocupado"), no una cita.
+        // Se registra igual para no re-evaluarlo en cada corrida, pero sin cita ni
+        // lead: crearlos generaba personas "Paciente" y leads basura.
+        if (($result['skipped'] ?? null) === 'block') {
+            DB::table('smd_synced_events')->insert($this->withSourceUpdatedAt([
+                'external_id'  => $externalId,
+                'source_file'  => $sourceFile,
+                'activity_id'  => null,
+                'lead_id'      => null,
+                'raw_payload'  => json_encode($json),
+                'status'       => $status,
+                'processed_at' => now(),
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ], $updatedAt));
+
+            return 'bloqueos';
+        }
+
         DB::table('smd_synced_events')->insert($this->withSourceUpdatedAt([
             'external_id'  => $externalId,
             'source_file'  => $sourceFile,

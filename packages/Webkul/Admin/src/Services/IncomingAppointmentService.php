@@ -51,10 +51,21 @@ class IncomingAppointmentService
 
     /**
      * Procesa payload en formato Dropbox (owner/attendances/startDate/endDate).
+     *
+     * Devuelve ['skipped' => 'block'] cuando el evento no trae paciente: en SMD
+     * eso es un bloqueo de agenda ("Ocupado", 0 asistentes, owner = el médico),
+     * no una cita. Sin este corte el sync creaba una persona "Paciente" y un lead
+     * basura por cada bloqueo.
      */
     public function processDropbox(array $data): array
     {
-        return $this->process($this->normalizeDropbox($data));
+        $normalized = $this->normalizeDropbox($data);
+
+        if (! $normalized['patient_identified']) {
+            return ['skipped' => 'block'];
+        }
+
+        return $this->process($normalized);
     }
 
     /**
