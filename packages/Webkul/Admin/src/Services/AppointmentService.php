@@ -16,10 +16,10 @@ class AppointmentService
 {
     public function __construct(
         protected ActivityRepository $activityRepository,
-        protected LeadRepository     $leadRepository,
-        protected PersonRepository   $personRepository,
+        protected LeadRepository $leadRepository,
+        protected PersonRepository $personRepository,
         protected ShareMeDataService $shareMeDataService,
-        protected DoctorRepository   $doctorRepository,
+        protected DoctorRepository $doctorRepository,
         protected SpecialtyRepository $specialtyRepository,
     ) {}
 
@@ -34,31 +34,26 @@ class AppointmentService
      *  5. Crear evento en ShareMeData PRIMERO                       ┘ smd.validate_availability=false
      *  6. Crear registros locales (Lead + Activity) en transacción
      *
-     * @param  array  $data {
-     *   doctor_id, person.id, schedule_from, schedule_to,
-     *   title?, reason?, product_id?, lead_id?
-     * }
+     * @param  array  $data  {
+     *                       doctor_id, person.id, schedule_from, schedule_to,
+     *                       title?, reason?, product_id?, lead_id?
+     *                       }
      * @return array { lead_id, activity_id, message }
+     *
      * @throws AppointmentException
      */
     public function process(array $data): array
     {
         $scheduleFrom = Carbon::parse($data['schedule_from']);
-        $scheduleTo   = Carbon::parse($data['schedule_to']);
-        $doctorId     = $data['doctor_id'];
-        $personData   = $data['person'];
-        $productId      = $data['product_id'] ?? null;
+        $scheduleTo = Carbon::parse($data['schedule_to']);
+        $doctorId = $data['doctor_id'];
+        $personData = $data['person'];
+        $productId = $data['product_id'] ?? null;
+        // Regla 1 lead = 1 cita: cada cita crea su propio lead. Solo se reusa un
+        // lead cuando llega un lead_id EXPLÍCITO (ej. agendar desde un lead).
+        // (Antes se auto-reusaba el lead abierto más reciente del paciente, lo que
+        // dejaba varios appointments colgando de un mismo lead.)
         $existingLeadId = $data['lead_id'] ?? null;
-
-        // Si no viene lead_id, buscar el lead abierto más reciente del paciente (solo para meetings).
-        // Krayin setea closed_at cuando el stage es won/lost, así que whereNull es suficiente.
-        if (! $existingLeadId && ! empty($personData['id'])) {
-            $existingLeadId = DB::table('leads')
-                ->where('person_id', $personData['id'])
-                ->whereNull('closed_at')
-                ->orderBy('created_at', 'desc')
-                ->value('id');
-        }
 
         // Si no viene product_id pero sí lead_id, intentar tomarlo del primer producto del lead
         if (! $productId && $existingLeadId) {
@@ -76,7 +71,7 @@ class AppointmentService
         }
 
         $doctorExternalId = $doctor->unique_id;
-        $doctorEmail      = $doctor->email;
+        $doctorEmail = $doctor->email;
 
         // ── 1. Validar turno/jornada laboral ─────────────────────────────────
         $hasValidShift = DB::table('doctor_shifts')
@@ -88,8 +83,8 @@ class AppointmentService
 
         if (! $hasValidShift) {
             throw new AppointmentException(
-                "El horario seleccionado está fuera de la jornada laboral del doctor para este día. " .
-                "Por favor, revisa los turnos disponibles."
+                'El horario seleccionado está fuera de la jornada laboral del doctor para este día. '.
+                'Por favor, revisa los turnos disponibles.'
             );
         }
 
@@ -113,13 +108,13 @@ class AppointmentService
             ->where(function ($query) use ($scheduleFrom, $scheduleTo) {
                 $query->where(function ($q) use ($scheduleFrom, $scheduleTo) {
                     $q->where('schedule_from', '>=', $scheduleFrom)
-                      ->where('schedule_from', '<', $scheduleTo);
+                        ->where('schedule_from', '<', $scheduleTo);
                 })->orWhere(function ($q) use ($scheduleFrom, $scheduleTo) {
                     $q->where('schedule_to', '>', $scheduleFrom)
-                      ->where('schedule_to', '<=', $scheduleTo);
+                        ->where('schedule_to', '<=', $scheduleTo);
                 })->orWhere(function ($q) use ($scheduleFrom, $scheduleTo) {
                     $q->where('schedule_from', '<=', $scheduleFrom)
-                      ->where('schedule_to', '>=', $scheduleTo);
+                        ->where('schedule_to', '>=', $scheduleTo);
                 });
             })
             ->where(function ($query) use ($cancelledStageIds) {
@@ -140,7 +135,7 @@ class AppointmentService
                             // NULL (no true), así que hay que tratarlo aparte para que un lead
                             // sin stage asignado siga contando como abierto/bloqueante.
                             $q->whereNull('leads.lead_pipeline_stage_id')
-                              ->orWhereNotIn('leads.lead_pipeline_stage_id', $cancelledStageIds);
+                                ->orWhereNotIn('leads.lead_pipeline_stage_id', $cancelledStageIds);
                         });
                 });
             })
@@ -148,7 +143,7 @@ class AppointmentService
 
         if ($localConflict) {
             throw new AppointmentException(
-                "El doctor ya tiene una cita programada en este horario en el sistema local."
+                'El doctor ya tiene una cita programada en este horario en el sistema local.'
             );
         }
 
@@ -161,17 +156,17 @@ class AppointmentService
 
         $product = $productId ? DB::table('products')->where('id', $productId)->first() : null;
 
-        $nameParts  = explode(' ', trim($person->name ?? 'Paciente'));
-        $eventTitle = ($person->name ?? 'Paciente') . ' - ' . ($product->name ?? 'Consulta');
-        $title      = $data['title'] ?? $eventTitle;
+        $nameParts = explode(' ', trim($person->name ?? 'Paciente'));
+        $eventTitle = ($person->name ?? 'Paciente').' - '.($product->name ?? 'Consulta');
+        $title = $data['title'] ?? $eventTitle;
 
         $validateWithSmd = (bool) config('smd.validate_availability', true);
-        $smdResult        = null;
+        $smdResult = null;
 
         if ($validateWithSmd) {
             // ── 3. Auto-descubrir unique_id en SMD si falta ──────────────────
             if (empty($doctorExternalId) || empty($doctorEmail)) {
-                $doctorModel          = $this->doctorRepository->with('specialties')->find($doctorId);
+                $doctorModel = $this->doctorRepository->with('specialties')->find($doctorId);
                 $discoverySpecialties = $doctorModel->specialties->pluck('name')->toArray();
 
                 if (empty($discoverySpecialties)) {
@@ -194,12 +189,12 @@ class AppointmentService
                     if ($raw && isset($raw['body']) && is_array($raw['body'])) {
                         foreach ($raw['body'] as $item) {
                             $smdName = trim(strtolower(
-                                ($item['physician']['name']     ?? '') . ' ' .
+                                ($item['physician']['name'] ?? '').' '.
                                 ($item['physician']['lastName'] ?? '')
                             ));
                             if ($smdName === trim(strtolower($doctor->name))) {
-                                $doctorExternalId = $item['physician']['_id']    ?? null;
-                                $doctorEmail      = $item['physician']['email']  ?? null;
+                                $doctorExternalId = $item['physician']['_id'] ?? null;
+                                $doctorEmail = $item['physician']['email'] ?? null;
                                 if ($doctorExternalId) {
                                     $this->doctorRepository->update(
                                         ['unique_id' => $doctorExternalId, 'email' => $doctorEmail],
@@ -215,14 +210,14 @@ class AppointmentService
 
                 if (! $found) {
                     throw new AppointmentException(
-                        "No se pudo vincular al doctor {$doctor->name} con ShareMeData. " .
-                        "Verifica que el nombre coincida exactamente."
+                        "No se pudo vincular al doctor {$doctor->name} con ShareMeData. ".
+                        'Verifica que el nombre coincida exactamente.'
                     );
                 }
             }
 
             // ── 4. Verificar disponibilidad en ShareMeData ────────────────────
-            $doctorModel      = $this->doctorRepository->with('specialties')->find($doctorId);
+            $doctorModel = $this->doctorRepository->with('specialties')->find($doctorId);
             $doctorSpecialties = $doctorModel->specialties->pluck('name')->toArray();
 
             if (empty($doctorSpecialties)) {
@@ -234,7 +229,7 @@ class AppointmentService
             }
 
             $isAvailableExternally = false;
-            $smdErrors             = [];
+            $smdErrors = [];
 
             foreach ($doctorSpecialties as $specialty) {
                 $slots = $this->shareMeDataService->checkAvailability(
@@ -262,9 +257,10 @@ class AppointmentService
                                 foreach ($intervals as $interval) {
                                     if (
                                         Carbon::parse($interval['start'])->timestamp === $required['start'] &&
-                                        Carbon::parse($interval['end'])->timestamp   === $required['end']
+                                        Carbon::parse($interval['end'])->timestamp === $required['end']
                                     ) {
                                         $foundCount++;
+
                                         continue 3;
                                     }
                                 }
@@ -277,7 +273,7 @@ class AppointmentService
                         break;
                     }
 
-                    $smdErrors[$specialty] = "Solo se encontraron {$foundCount} de " . count($requiredIntervals) . " bloques de 15m libres.";
+                    $smdErrors[$specialty] = "Solo se encontraron {$foundCount} de ".count($requiredIntervals).' bloques de 15m libres.';
                 } else {
                     $smdErrors[$specialty] = $lastResponse['body']['message'] ?? 'Sin disponibilidad devuelta por SMD';
                 }
@@ -297,7 +293,7 @@ class AppointmentService
 
             if (! $isAvailableExternally) {
                 throw new AppointmentException(
-                    "El doctor no tiene disponibilidad en SHAREMEDATA para el horario solicitado.",
+                    'El doctor no tiene disponibilidad en SHAREMEDATA para el horario solicitado.',
                     ['smd_errors' => $smdErrors, 'doctor_external_id' => $doctorExternalId]
                 );
             }
@@ -323,12 +319,12 @@ class AppointmentService
                     $smdPersonId = $smdPatients[0]['_id'] ?? null;
                 } else {
                     $nameParts_ = explode(' ', trim($person->name ?? 'Paciente'));
-                    $ciAttr_    = app(\Webkul\Attribute\Repositories\AttributeRepository::class)
+                    $ciAttr_ = app(\Webkul\Attribute\Repositories\AttributeRepository::class)
                         ->findOneByField('code', 'ci_paciente');
-                    $ci_        = $ciAttr_ ? $person->getCustomAttributeValue($ciAttr_) : null;
+                    $ci_ = $ciAttr_ ? $person->getCustomAttributeValue($ciAttr_) : null;
 
                     $result_ = $this->shareMeDataService->createPatient([
-                        'first_name' => $nameParts_[0]                                    ?? 'Paciente',
+                        'first_name' => $nameParts_[0] ?? 'Paciente',
                         'last_name'  => implode(' ', array_slice($nameParts_, 1)) ?: 'Externo',
                         'phone'      => $personPhone,
                         'ci'         => $ci_ ?: null,
@@ -337,7 +333,7 @@ class AppointmentService
                     if ($result_['success']) {
                         $smdPersonId = $result_['data']['_id'] ?? null;
                     } elseif ($result_['duplicate'] ?? false) {
-                        $retry_      = $this->shareMeDataService->searchPatient($personPhone);
+                        $retry_ = $this->shareMeDataService->searchPatient($personPhone);
                         $smdPersonId = $retry_[0]['_id'] ?? null;
                     }
                 }
@@ -349,10 +345,10 @@ class AppointmentService
             }
 
             $firstName = $nameParts[0] ?: 'Paciente';
-            $lastName  = count($nameParts) > 1 ? implode(' ', array_slice($nameParts, 1)) : 'Externo';
+            $lastName = count($nameParts) > 1 ? implode(' ', array_slice($nameParts, 1)) : 'Externo';
 
             $smdPayload = [
-                'summary'   => 'CONSULTA: ' . $title,
+                'summary'   => 'CONSULTA: '.$title,
                 'physician' => ['_id' => $doctorExternalId, 'email' => $doctorEmail ?: ''],
                 'patient'   => [
                     'name'     => (string) $firstName,
@@ -383,7 +379,7 @@ class AppointmentService
                 ]);
 
                 throw new AppointmentException(
-                    "Error al registrar la cita en ShareMeData. La cita no fue creada.",
+                    'Error al registrar la cita en ShareMeData. La cita no fue creada.',
                     ['smd_response' => $smdResult]
                 );
             }
@@ -398,7 +394,7 @@ class AppointmentService
         try {
             return DB::transaction(function () use (
                 $data, $scheduleFrom, $scheduleTo,
-                $doctor, $doctorExternalId, $doctorEmail,
+                $doctor,
                 $person, $productId, $product, $title,
                 $existingLeadId, $smdResult, $validateWithSmd
             ) {
@@ -439,7 +435,7 @@ class AppointmentService
                     ->where('lead_pipeline_id', DB::table('leads')->where('id', $lead->id)->value('lead_pipeline_id'))
                     ->where(function ($q) {
                         $q->where('name', 'like', '%confirm%')
-                          ->orWhere('name', 'like', '%Confirm%');
+                            ->orWhere('name', 'like', '%Confirm%');
                     })
                     ->value('id') ?? 7;
 
@@ -468,12 +464,12 @@ class AppointmentService
         } catch (AppointmentException $e) {
             throw $e;
         } catch (\Exception $e) {
-            Log::error('Error creando cita localmente tras registro en SMD: ' . $e->getMessage(), [
+            Log::error('Error creando cita localmente tras registro en SMD: '.$e->getMessage(), [
                 'smd_event' => $smdResult['data'] ?? null,
             ]);
             throw new AppointmentException(
-                "La cita fue registrada en ShareMeData pero ocurrió un error al guardarla localmente. " .
-                "Contacta al administrador.",
+                'La cita fue registrada en ShareMeData pero ocurrió un error al guardarla localmente. '.
+                'Contacta al administrador.',
                 ['internal_error' => $e->getMessage()]
             );
         }
