@@ -1,0 +1,30 @@
+{
+    "name": "krayin/laravel-whatsapp",
+    "license": "MIT",
+    "description": "WhatsApp Cloud API inbox for Krayin CRM (chat, media, AI agent switch).",
+    "authors": [
+        {
+            "name": "Javier",
+            "email": "jalejandromogro1@gmail.com"
+        }
+    ],
+    "require": {
+        "krayin/laravel-core": "^1.0",
+        "krayin/laravel-user": "^1.0",
+        "krayin/laravel-contact": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Webkul\\Whatsapp\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Webkul\\Whatsapp\\Providers\\WhatsappServiceProvider"
+            ],
+            "aliases": {}
+        }
+    },
+    "minimum-stability": "dev"
+}

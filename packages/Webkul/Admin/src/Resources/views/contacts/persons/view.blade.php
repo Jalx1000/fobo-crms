@@ -132,9 +132,15 @@
 
             <!-- Stages Navigation -->
             <x-admin::activities :endpoint="route('admin.contacts.persons.activities.index', $person->id)" :extra-types="[
+                ['name' => 'whatsapp', 'label' => 'WhatsApp'],
                 ['name' => 'historial', 'label' => 'Historial IA'],
                 ['name' => 'smd', 'label' => 'Seguro & SMD'],
             ]">
+                {{-- WhatsApp Inbox --}}
+                <x-slot:whatsapp>
+                    @include('whatsapp::inbox')
+                </x-slot>
+
                 {{-- Historial IA --}}
                 <x-slot:historial>
                     @include('admin::leads.view.historial-ia', [
