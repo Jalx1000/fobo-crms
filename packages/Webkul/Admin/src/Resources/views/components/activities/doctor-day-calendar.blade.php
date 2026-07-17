@@ -1456,6 +1456,15 @@
             }
         },
         watch: {
+            // Autosave del formulario de cita NUEVA: si el usuario cierra por
+            // accidente (Esc/click-afuera), al reabrir recupera lo que escribió.
+            appointmentForm: {
+                deep: true,
+                handler(val) {
+                    if (val.id || this.editMode) return; // solo citas nuevas, no edición
+                    try { localStorage.setItem('ddc_appt_draft', JSON.stringify(val)); } catch (e) {}
+                },
+            },
             isOpen(isOpen) {
                 if (isOpen) {
                     this.$nextTick(() => {
@@ -2412,6 +2421,10 @@
                 this.closeQuickMenu();
             },
             openAppointmentModal() {
+                // Capturar el borrador ANTES de resetear el form.
+                let draft = null;
+                try { draft = JSON.parse(localStorage.getItem('ddc_appt_draft') || 'null'); } catch (e) {}
+
                 this.modalError = '';
                 this.modalSaving = false;
                 this.modalContext = {
@@ -2436,6 +2449,19 @@
                 };
                 this.appointmentForm.product_id = null;
                 this.appointmentForm.product_name = '';
+
+                // Restaurar lo que el usuario había escrito (paciente, servicio,
+                // motivo, etc.), respetando el doctor/día/hora del slot clickeado.
+                if (draft && !draft.id) {
+                    if (draft.person && draft.person.name) this.appointmentForm.person = draft.person;
+                    this.appointmentForm.product_id = draft.product_id || null;
+                    this.appointmentForm.product_name = draft.product_name || '';
+                    this.appointmentForm.reason = draft.reason || '';
+                    if (draft.duration) this.appointmentForm.duration = draft.duration;
+                    if (draft.lead_pipeline_stage_id) this.appointmentForm.lead_pipeline_stage_id = draft.lead_pipeline_stage_id;
+                    this.syncAppointmentEndTime();
+                }
+
                 this.closeQuickMenu();
                 this.$refs.appointmentModal.open();
             },
@@ -2646,11 +2672,6 @@
                     return;
                 }
 
-                if (!this.appointmentForm.product_id) {
-                    this.modalSaving = false;
-                    this.modalError = 'Debes seleccionar un servicio.';
-                    return;
-                }
 
                 const payload = {
                     person: {
@@ -2692,6 +2713,7 @@
                 promise
                     .then((response) => {
                         this.modalSaving = false;
+                        try { localStorage.removeItem('ddc_appt_draft'); } catch (e) {}
                         this.$refs.appointmentModal.close();
                         // Inline edit (from the detail modal): leave edit mode and
                         // close the detail modal — the calendar refresh shows the change.

@@ -379,7 +379,7 @@ class ActivityController extends Controller
             'person.name'            => 'required|string|max:255',
             'person.phone'           => 'required_without:person.id|nullable|string|min:7|max:20',
             'doctor_id'              => 'required|exists:doctors,id',
-            'product_id'             => 'required|exists:products,id',
+            'product_id'             => 'nullable|exists:products,id',
             'date'                   => 'required|date_format:Y-m-d',
             'start_time'             => 'required|date_format:H:i',
             'end_time'               => 'nullable|date_format:H:i',
