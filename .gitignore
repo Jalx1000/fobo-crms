@@ -33,3 +33,6 @@ node_modules/
 /test-results/
 /blob-report/
 /playwright/.cache/
+
+# Build de Vite del admin: artefacto generado, se compila en cada servidor
+/public/admin/build
