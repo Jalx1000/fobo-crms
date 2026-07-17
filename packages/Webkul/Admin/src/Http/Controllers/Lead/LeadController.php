@@ -215,7 +215,7 @@ class LeadController extends Controller
             'quick_add'   => 1,
         ]);
 
-        $doctors = $this->doctorRepository->all();
+        $doctors = $this->doctorRepository->findWhere(['is_active' => 1]);
 
         return view('admin::leads.create', compact('attributes', 'doctors'));
     }

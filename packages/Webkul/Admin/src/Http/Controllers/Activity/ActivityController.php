@@ -91,8 +91,11 @@ class ActivityController extends Controller
             $startDate = $start->copy()->setTime(0, 0, 1)->format('Y-m-d H:i:s');
             $endDate = $end->copy()->setTime(23, 59, 59)->format('Y-m-d H:i:s');
 
+            // Solo activos: los recursos de SMD (quirófano, recepcionista) están en
+            // `doctors` pero desactivados y no deben ofrecerse para agendar.
             $doctors = DB::table('doctors')
                 ->select(['id', 'name'])
+                ->where('is_active', 1)
                 ->orderBy('name')
                 ->get();
 
