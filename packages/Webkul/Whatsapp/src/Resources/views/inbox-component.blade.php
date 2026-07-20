@@ -322,7 +322,34 @@
                     </button>
 
                     <!-- Only rendered when the active provider can actually send attachments -->
-                    <div v-if="canAttach" class="js-pop relative">
+                    <!-- recording replaces the whole composer row while it runs -->
+                    <div v-if="recording" class="flex flex-1 items-center gap-3 rounded-full bg-red-50 px-4 py-2 dark:bg-red-900/30">
+                        <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600"></span>
+                        <span class="text-sm font-medium tabular-nums text-red-700 dark:text-red-300">
+                            Grabando… @{{ recElapsed() }}
+                        </span>
+                        <div class="ml-auto flex items-center gap-1">
+                            <button type="button" @click="stopRecording(true)"
+                                    aria-label="Descartar grabación"
+                                    class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 dark:hover:bg-gray-700">
+                                <span class="icon-delete text-xl"></span>
+                            </button>
+                            <button type="button" @click="stopRecording(false)"
+                                    aria-label="Enviar nota de voz"
+                                    class="flex h-9 w-9 items-center justify-center rounded-full bg-brandColor text-white transition hover:opacity-90">
+                                <span class="icon-send text-xl"></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button v-if="canRecord && ! recording && ! uploading" type="button"
+                            @click="startRecording"
+                            aria-label="Grabar nota de voz"
+                            class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-700">
+                        <span class="icon-microphone text-xl"></span>
+                    </button>
+
+                    <div v-if="canAttach && ! recording" class="js-pop relative">
                         <input ref="fileInput" type="file" class="hidden" @change="uploadFile">
                         <button type="button" @click="showAttach = !showAttach"
                                 :disabled="uploading"
@@ -349,6 +376,7 @@
                     </div>
 
                     <textarea
+                        v-if="! recording"
                         ref="msgInput"
                         v-model="draft"
                         rows="1"
@@ -363,7 +391,7 @@
                         class="max-h-28 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                     ></textarea>
 
-                    <button type="button" @click="send" :disabled="!draft.trim()"
+                    <button v-if="! recording" type="button" @click="send" :disabled="!draft.trim()"
                             aria-label="Enviar mensaje"
                             title="Enviar"
                             class="flex h-9 w-9 items-center justify-center rounded-full bg-brandColor text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:opacity-40">
@@ -827,6 +855,12 @@
                     showAttach: false,
                     uploading: false,
                     uploadError: '',
+                    recording: false,
+                    recorder: null,
+                    recChunks: [],
+                    recSeconds: 0,
+                    recTimer: null,
+                    recDiscard: false,
                     since: null,
                     pollTimer: null,
                     // What the active provider can do. Conservative default:
@@ -888,6 +922,12 @@
 
                 canAttach() {
                     return ['image', 'document', 'audio'].some(type => this.canSend(type));
+                },
+
+                // Recording needs both permission from the channel and a browser
+                // able to produce a format WhatsApp accepts.
+                canRecord() {
+                    return this.canSend('audio') && !! this.recorderMime();
                 },
 
                 windowLabel() {
@@ -1386,6 +1426,93 @@
                         .finally(() => { this.noteSaving = false; });
                 },
 
+                /*
+                 * Voice notes.
+                 *
+                 * WhatsApp only takes audio as aac/mp4/mpeg/amr or ogg-with-opus,
+                 * and browsers disagree on what they can record: Firefox gives
+                 * ogg/opus, Safari gives mp4, Chrome usually only webm — which
+                 * WhatsApp rejects. So the format is chosen at run time from what
+                 * WhatsApp accepts, and if the browser offers none we say so
+                 * instead of recording something that would bounce back.
+                 */
+                recorderMime() {
+                    if (typeof MediaRecorder === 'undefined') {
+                        return null;
+                    }
+
+                    const accepted = [
+                        'audio/ogg;codecs=opus',
+                        'audio/ogg',
+                        'audio/mp4',
+                        'audio/mpeg',
+                    ];
+
+                    return accepted.find(m => MediaRecorder.isTypeSupported(m)) ?? null;
+                },
+
+                startRecording() {
+                    const mime = this.recorderMime();
+
+                    if (! mime) {
+                        this.uploadError = 'Este navegador no puede grabar en un formato que WhatsApp acepte.';
+                        return;
+                    }
+
+                    navigator.mediaDevices.getUserMedia({ audio: true })
+                        .then(stream => {
+                            this.recChunks = [];
+                            this.recorder = new MediaRecorder(stream, { mimeType: mime });
+
+                            this.recorder.ondataavailable = e => {
+                                if (e.data.size) this.recChunks.push(e.data);
+                            };
+
+                            this.recorder.onstop = () => {
+                                // Always release the mic, whether we send or discard.
+                                stream.getTracks().forEach(t => t.stop());
+
+                                if (this.recDiscard || ! this.recChunks.length) {
+                                    return;
+                                }
+
+                                const blob = new Blob(this.recChunks, { type: mime });
+                                const ext = mime.includes('ogg') ? 'ogg' : (mime.includes('mp4') ? 'm4a' : 'mp3');
+
+                                this.uploadMedia(
+                                    new File([blob], `nota-de-voz-${Date.now()}.${ext}`, { type: blob.type })
+                                );
+                            };
+
+                            this.recDiscard = false;
+                            this.recorder.start();
+                            this.recording = true;
+                            this.recSeconds = 0;
+                            this.recTimer = setInterval(() => { this.recSeconds++; }, 1000);
+                        })
+                        .catch(() => {
+                            this.uploadError = 'No se pudo acceder al micrófono.';
+                        });
+                },
+
+                stopRecording(discard = false) {
+                    if (! this.recorder || ! this.recording) {
+                        return;
+                    }
+
+                    this.recDiscard = discard;
+                    clearInterval(this.recTimer);
+                    this.recording = false;
+                    this.recorder.stop();
+                },
+
+                recElapsed() {
+                    const m = String(Math.floor(this.recSeconds / 60)).padStart(2, '0');
+                    const s = String(this.recSeconds % 60).padStart(2, '0');
+
+                    return `${m}:${s}`;
+                },
+
                 // Opens the picker filtered to the chosen kind; the upload itself
                 // happens in uploadFile() once the user chooses something.
                 pickFile(type) {
@@ -1410,7 +1537,13 @@
                     // Reset right away so choosing the same file twice re-triggers.
                     event.target.value = '';
 
-                    if (! file || this.uploading) {
+                    if (file) {
+                        this.uploadMedia(file);
+                    }
+                },
+
+                uploadMedia(file) {
+                    if (this.uploading) {
                         return;
                     }
 
