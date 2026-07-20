@@ -323,21 +323,28 @@
 
                     <!-- Only rendered when the active provider can actually send attachments -->
                     <div v-if="canAttach" class="js-pop relative">
+                        <input ref="fileInput" type="file" class="hidden" @change="uploadFile">
                         <button type="button" @click="showAttach = !showAttach"
+                                :disabled="uploading"
                                 aria-label="Adjuntar archivo"
-                                class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-700">
-                            <span class="icon-attachment text-xl"></span>
+                                class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:opacity-50 dark:hover:bg-gray-700">
+                            <span v-if="uploading" class="icon-loader animate-spin text-xl"></span>
+                            <span v-else class="icon-attachment text-xl"></span>
                         </button>
                         <div v-if="showAttach" class="absolute bottom-11 left-0 z-10 w-40 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                            <button v-if="canSend('image')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="mockAttach('image')">
+                            <button v-if="canSend('image')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="pickFile('image')">
                                 <span class="icon-image"></span> Imagen
                             </button>
-                            <button v-if="canSend('document')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="mockAttach('document')">
+                            <button v-if="canSend('document')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="pickFile('document')">
                                 <span class="icon-file"></span> Documento
                             </button>
-                            <button v-if="canSend('audio')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="mockAttach('audio')">
+                            <button v-if="canSend('audio')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="pickFile('audio')">
                                 <span class="icon-microphone"></span> Audio
                             </button>
+                        </div>
+                        <div v-if="uploadError"
+                             class="absolute bottom-11 left-0 z-10 w-64 rounded-md border border-red-300 bg-red-50 px-2 py-1 text-[11px] text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+                            @{{ uploadError }}
                         </div>
                     </div>
 
@@ -798,6 +805,7 @@
                 useMock: { type: Boolean, default: true },
                 threadUrl: { type: String, default: '' },
                 sendUrl: { type: String, default: '' },
+                sendMediaUrl: { type: String, default: '' },
                 agentUrlBase: { type: String, default: '' },
                 quickRepliesUrl: { type: String, default: '' },
                 personUrlBase: { type: String, default: '' },
@@ -817,6 +825,8 @@
                     aiEnabled: false,
                     replyingTo: null,
                     showAttach: false,
+                    uploading: false,
+                    uploadError: '',
                     since: null,
                     pollTimer: null,
                     // What the active provider can do. Conservative default:
@@ -1376,18 +1386,52 @@
                         .finally(() => { this.noteSaving = false; });
                 },
 
-                mockAttach(type) {
+                // Opens the picker filtered to the chosen kind; the upload itself
+                // happens in uploadFile() once the user chooses something.
+                pickFile(type) {
                     this.showAttach = false;
-                    const samples = {
-                        image: { type: 'image', media: { url: 'https://placehold.co/320x200/075E54/ffffff?text=Adjunto' } },
-                        document: { type: 'document', media: { url: '#', filename: 'archivo.pdf', meta: 'PDF · 64 KB' } },
-                        audio: { type: 'audio', media: { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' } },
-                    };
-                    this.messages.push({
-                        id: Date.now(), direction: 'outbound', sender: 'human',
-                        time: this.now(), date: this.today(), status: 'sent', ...samples[type],
-                    });
-                    this.scrollToBottom();
+
+                    const accept = { image: 'image/*', audio: 'audio/*', video: 'video/*', document: '' };
+
+                    this.$refs.fileInput.accept = accept[type] ?? '';
+                    this.$refs.fileInput.click();
+                },
+
+                uploadFile(event) {
+                    const file = event.target.files?.[0];
+
+                    // Reset right away so choosing the same file twice re-triggers.
+                    event.target.value = '';
+
+                    if (! file || this.uploading) {
+                        return;
+                    }
+
+                    const form = new FormData();
+                    form.append('file', file);
+                    form.append('phone', this.context.phone ?? '');
+                    if (this.context.name) form.append('name', this.context.name);
+                    if (this.context.personId) form.append('person_id', this.context.personId);
+                    if (this.context.leadId) form.append('lead_id', this.context.leadId);
+                    // The composer text travels as the caption.
+                    if (this.draft.trim()) form.append('caption', this.draft.trim());
+
+                    this.uploading = true;
+
+                    this.$axios.post(this.sendMediaUrl, form)
+                        .then(({ data }) => {
+                            if (data?.message) {
+                                this.messages.push(data.message);
+                                this.draft = '';
+                                this.scrollToBottom();
+                            }
+                        })
+                        .catch((error) => {
+                            this.uploadError = error.response?.data?.message
+                                ?? 'No se pudo enviar el archivo.';
+                            setTimeout(() => { this.uploadError = ''; }, 6000);
+                        })
+                        .finally(() => { this.uploading = false; });
                 },
 
                 statusTick(status) {

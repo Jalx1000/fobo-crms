@@ -7,10 +7,12 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use Webkul\Activity\Models\ActivityProxy;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Lead\Models\LeadProxy;
+use Webkul\Whatsapp\Gateways\Contracts\Gateway;
 use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\SendMessage;
@@ -63,19 +65,30 @@ class InboxController extends Controller
                 ->values();
         }
 
-        // Resolve against the conversation's own gateway so history created
+        // Receiving and sending can be two different providers (Kommo takes the
+        // messages in, the Cloud API sends them out), so each half of the
+        // capabilities has to come from the driver that actually does it —
+        // otherwise the composer hides what the sending driver supports.
+        // Resolved against the conversation's own gateway so history created
         // under a previous provider still reports the right abilities.
         $gateway = $conversation
             ? $this->gateways->for($conversation)
             : $this->gateways->active();
 
+        $outbound = $this->gateways->outbound($conversation);
+
         return response()->json([
             'conversation' => $conversation,
             'messages'     => $messages->values(),
             'server_time'  => $serverTime->toDateTimeString(),
-            'capabilities' => $gateway->capabilities()->toArray(),
+            'capabilities' => [
+                'send'    => $this->sendCapabilities($gateway, $outbound),
+                'receive' => $gateway->capabilities()->receive,
+            ],
+            // The window is a rule of whoever sends, so it follows the outbound
+            // driver.
             'window'       => MessagingWindow::compute(
-                $gateway->messagingWindowHours(),
+                $outbound->messagingWindowHours(),
                 $conversation?->last_inbound_at,
             )->toArray(),
             'agent'        => [
@@ -156,6 +169,83 @@ class InboxController extends Controller
         SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
 
         return response()->json(['message' => $this->transform($message->load('replyTo'))]);
+    }
+
+    /**
+     * Send a file (document, image, audio, video) to the conversation.
+     *
+     * The provider fetches the file by URL, so it is stored on the public disk
+     * and the message keeps that URL in media_path — which is also what the
+     * inbox renders from, so the thread shows the real attachment.
+     */
+    public function sendMedia(Request $request, ConversationResolver $resolver): JsonResponse
+    {
+        $data = $request->validate([
+            'phone'   => 'required|string',
+            'name'    => 'nullable|string',
+            'file'    => 'required|file|max:16384', // 16 MB
+            'caption' => 'nullable|string',
+        ]);
+
+        $existing = $this->existingConversation($request);
+
+        // Same guard as send(): a human must never talk over the agent.
+        if ($existing && $existing->aiEffective()) {
+            return response()->json([
+                'message' => 'El agente está activo en esta conversación. Desactivalo para escribir a mano.',
+            ], 422);
+        }
+
+        $file = $request->file('file');
+        $type = $this->mediaTypeFor($file->getMimeType());
+
+        if (! $this->gateways->outbound($existing)->capabilities()->canSend($type)) {
+            return response()->json([
+                'message' => 'El canal actual no permite enviar este tipo de archivo.',
+            ], 422);
+        }
+
+        $path = $file->store('whatsapp', 'public');
+
+        $message = DB::transaction(function () use ($existing, $data, $resolver, $file, $type, $path) {
+            $conversation = $existing
+                ?? $resolver->findOrCreate($data['phone'], $data['name'] ?? null);
+
+            $message = MessageProxy::modelClass()::create([
+                'conversation_id' => $conversation->id,
+                'direction'       => 'outbound',
+                'type'            => $type,
+                'body'            => $data['caption'] ?? null,
+                'media_path'      => Storage::disk('public')->url($path),
+                'media_mime'      => $file->getClientMimeType(),
+                'media_name'      => $file->getClientOriginalName(),
+                'status'          => 'queued',
+                'sender'          => 'human',
+            ]);
+
+            $conversation->forceFill(['last_message_at' => now()])->save();
+
+            return $message;
+        });
+
+        SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
+
+        return response()->json(['message' => $this->transform($message)]);
+    }
+
+    /**
+     * Canonical media type for a mime. Anything that is not clearly image/audio/
+     * video travels as a document, which is the type WhatsApp accepts for any
+     * file — better a document than a rejected send.
+     */
+    protected function mediaTypeFor(?string $mime): string
+    {
+        return match (true) {
+            str_starts_with((string) $mime, 'image/') => 'image',
+            str_starts_with((string) $mime, 'audio/') => 'audio',
+            str_starts_with((string) $mime, 'video/') => 'video',
+            default                                   => 'document',
+        };
     }
 
     /**
@@ -344,6 +434,26 @@ class InboxController extends Controller
         return $query
             ->orderByRaw('gateway = ? desc', [(string) config('whatsapp.gateway')])
             ->orderByDesc('last_message_at');
+    }
+
+    /**
+     * What the composer may offer, given that receiving and sending can be two
+     * different providers.
+     *
+     * Quoting a message is the one ability that does not survive that split: it
+     * addresses the original by the provider's own message id, and the ids of
+     * the receiving provider mean nothing to the sending one. Offering it would
+     * show a reply that never quotes anything.
+     */
+    protected function sendCapabilities(Gateway $inbound, Gateway $outbound): array
+    {
+        $send = $outbound->capabilities()->send;
+
+        if ($inbound->key() !== $outbound->key()) {
+            $send = array_values(array_diff($send, ['reply']));
+        }
+
+        return $send;
     }
 
     /**

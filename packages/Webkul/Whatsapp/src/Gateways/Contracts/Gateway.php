@@ -93,4 +93,20 @@ interface Gateway
      * @param  array<int, string>  $variables
      */
     public function sendTemplate(Conversation $conversation, string $templateKey, array $variables): SendResult;
+
+    /**
+     * Send a media message by public link.
+     *
+     * $type is the canonical media type (image, document, audio, video,
+     * sticker). Not every type carries every field — audio and stickers have no
+     * caption, and only documents have a filename — so drivers must drop what
+     * their provider rejects rather than pass it through blindly.
+     */
+    public function sendMedia(
+        Conversation $conversation,
+        string $type,
+        string $link,
+        ?string $caption = null,
+        ?string $filename = null,
+    ): SendResult;
 }

@@ -31,9 +31,9 @@ class CloudApiGateway extends BaseGateway
 
     public function capabilities(): Capabilities
     {
-        // Only what is implemented today. Grows as sendMedia lands.
+        // Only what is implemented today.
         return new Capabilities(
-            send: ['text', 'reply', 'emoji', 'template'],
+            send: ['text', 'reply', 'emoji', 'template', 'image', 'document', 'audio', 'video', 'sticker'],
             receive: ['text', 'image', 'audio', 'document', 'video', 'sticker', 'location', 'contact'],
         );
     }
@@ -142,7 +142,10 @@ class CloudApiGateway extends BaseGateway
             'text'              => ['body' => $body],
         ];
 
-        if ($replyToProviderId) {
+        // Only Meta's own ids can be quoted. When the message being replied to
+        // came in through another provider (Kommo hands out UUIDs), Meta rejects
+        // the whole send — so drop the quote and still deliver the text.
+        if ($replyToProviderId && str_starts_with($replyToProviderId, 'wamid.')) {
             $payload['context'] = ['message_id' => $replyToProviderId];
         }
 
@@ -198,6 +201,63 @@ class CloudApiGateway extends BaseGateway
         $response = Http::withToken($this->required('token'))
             ->acceptJson()
             ->post($this->endpoint('messages'), $payload);
+
+        $response->throw();
+
+        $wamid = $response->json('messages.0.id');
+
+        if (! $wamid) {
+            throw new RuntimeException('Cloud API did not return a message id: '.$response->body());
+        }
+
+        return new SendResult($wamid);
+    }
+
+    /**
+     * Media types this driver can send, and which extra fields each one accepts.
+     * Sending a caption on audio or a filename on an image makes Meta reject the
+     * whole request, so the payload is built strictly from this table.
+     */
+    private const MEDIA_FIELDS = [
+        'image'    => ['caption'],
+        'video'    => ['caption'],
+        'document' => ['caption', 'filename'],
+        'audio'    => [],
+        'sticker'  => [],
+    ];
+
+    public function sendMedia(
+        Conversation $conversation,
+        string $type,
+        string $link,
+        ?string $caption = null,
+        ?string $filename = null,
+    ): SendResult {
+        $allowed = self::MEDIA_FIELDS[$type] ?? null;
+
+        if ($allowed === null) {
+            throw new RuntimeException("Cloud API: unsupported media type [{$type}].");
+        }
+
+        $media = ['link' => $link];
+
+        if ($caption !== null && $caption !== '' && in_array('caption', $allowed, true)) {
+            $media['caption'] = $caption;
+        }
+
+        if ($filename !== null && $filename !== '' && in_array('filename', $allowed, true)) {
+            $media['filename'] = $filename;
+        }
+
+        $response = Http::withToken($this->required('token'))
+            ->acceptJson()
+            ->post($this->endpoint('messages'), [
+                'messaging_product' => 'whatsapp',
+                'recipient_type'    => 'individual',
+                'to'                => PhoneNumber::digits($conversation->wa_phone),
+                'type'              => $type,
+                $type               => $media,
+            ]);
 
         $response->throw();
 

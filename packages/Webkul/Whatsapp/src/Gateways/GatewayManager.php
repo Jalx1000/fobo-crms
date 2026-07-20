@@ -47,4 +47,21 @@ class GatewayManager
     {
         return $this->driver($conversation->gateway ?: (string) config('whatsapp.gateway'));
     }
+
+    /**
+     * The driver that SENDS, which is not always the one that receives:
+     * Odontoking takes messages in through Kommo but sends through the Cloud API
+     * on the same number. Falls back to the conversation's own gateway (or the
+     * active one) when no outbound driver is configured.
+     */
+    public function outbound(?Conversation $conversation = null): Gateway
+    {
+        $key = config('whatsapp.outbound_gateway');
+
+        if ($key) {
+            return $this->driver((string) $key);
+        }
+
+        return $conversation ? $this->for($conversation) : $this->active();
+    }
 }

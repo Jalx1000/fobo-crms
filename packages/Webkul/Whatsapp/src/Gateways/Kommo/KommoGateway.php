@@ -243,6 +243,22 @@ class KommoGateway extends BaseGateway
     }
 
     /**
+     * Kommo has no media path: the salesbot relays a text custom field and
+     * nothing else. Media goes out through the Cloud API driver instead.
+     */
+    public function sendMedia(
+        Conversation $conversation,
+        string $type,
+        string $link,
+        ?string $caption = null,
+        ?string $filename = null,
+    ): SendResult {
+        throw new RuntimeException(
+            "Kommo: sending [{$type}] is not supported; the salesbot only relays text."
+        );
+    }
+
+    /**
      * The Kommo lead id to address a template to. Reminders reach patients who
      * are NOT in Kommo, so when the conversation carries no lead id we search by
      * phone and, failing that, create the lead. The id is persisted back on the

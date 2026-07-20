@@ -16,6 +16,9 @@ class SendMessage implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    /** Message types delivered as media rather than text. */
+    private const MEDIA_TYPES = ['image', 'document', 'audio', 'video', 'sticker'];
+
     /**
      * @param  string|null  $gatewayOverride  Force a specific driver instead of
      *   the conversation's own gateway (reminders send via Cloud API while the
@@ -45,6 +48,16 @@ class SendMessage implements ShouldQueue
                     $message->conversation,
                     (string) ($message->payload['template'] ?? ''),
                     (array) ($message->payload['variables'] ?? []),
+                );
+            } elseif (in_array($message->type, self::MEDIA_TYPES, true)) {
+                // media_path holds the public URL the provider fetches from, and
+                // body doubles as the caption (that is how the inbox renders it).
+                $result = $gateway->sendMedia(
+                    $message->conversation,
+                    $message->type,
+                    (string) $message->media_path,
+                    $message->body,
+                    $message->media_name,
                 );
             } else {
                 $result = $gateway->sendText(
