@@ -183,7 +183,7 @@ class InboxController extends Controller
         $data = $request->validate([
             'phone'   => 'required|string',
             'name'    => 'nullable|string',
-            'file'    => 'required|file|max:16384', // 16 MB
+            'file'    => 'required|file|max:102400', // ceiling; the real limit is per type below
             'caption' => 'nullable|string',
         ]);
 
@@ -199,9 +199,23 @@ class InboxController extends Controller
         $file = $request->file('file');
         $type = $this->mediaTypeFor($file->getMimeType());
 
+        if (! $type) {
+            return response()->json([
+                'message' => 'WhatsApp no acepta este formato ('.$file->getClientMimeType().').',
+            ], 422);
+        }
+
         if (! $this->gateways->outbound($existing)->capabilities()->canSend($type)) {
             return response()->json([
                 'message' => 'El canal actual no permite enviar este tipo de archivo.',
+            ], 422);
+        }
+
+        $maxKb = self::MEDIA_RULES[$type]['max'];
+
+        if ($file->getSize() > $maxKb * 1024) {
+            return response()->json([
+                'message' => 'El archivo supera el máximo de WhatsApp para '.$type.' ('.round($maxKb / 1024).' MB).',
             ], 422);
         }
 
@@ -234,18 +248,58 @@ class InboxController extends Controller
     }
 
     /**
-     * Canonical media type for a mime. Anything that is not clearly image/audio/
-     * video travels as a document, which is the type WhatsApp accepts for any
-     * file — better a document than a rejected send.
+     * What WhatsApp accepts per media type, straight from Meta's own reference:
+     * exact mime types and a size ceiling that differs for each one.
+     *
+     * Matching by mime prefix instead would happily send a .wav or a .gif and
+     * let Meta reject the message, leaving it failed with nothing to show the
+     * agent. Anything not listed here is refused up front with a clear reason.
      */
-    protected function mediaTypeFor(?string $mime): string
+    private const MEDIA_RULES = [
+        'audio' => [
+            'mimes' => ['audio/aac', 'audio/mp4', 'audio/mpeg', 'audio/amr', 'audio/ogg'],
+            'max'   => 16384, // KB
+        ],
+        'image' => [
+            'mimes' => ['image/jpeg', 'image/png'],
+            'max'   => 5120,
+        ],
+        'video' => [
+            'mimes' => ['video/mp4', 'video/3gp', 'video/3gpp'],
+            'max'   => 16384,
+        ],
+        'sticker' => [
+            'mimes' => ['image/webp'],
+            'max'   => 100,
+        ],
+        'document' => [
+            'mimes' => [
+                'text/plain',
+                'application/pdf',
+                'application/msword',
+                'application/vnd.ms-excel',
+                'application/vnd.ms-powerpoint',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            ],
+            'max' => 102400,
+        ],
+    ];
+
+    /**
+     * The media type WhatsApp would deliver this mime as, or null when it
+     * accepts none.
+     */
+    protected function mediaTypeFor(?string $mime): ?string
     {
-        return match (true) {
-            str_starts_with((string) $mime, 'image/') => 'image',
-            str_starts_with((string) $mime, 'audio/') => 'audio',
-            str_starts_with((string) $mime, 'video/') => 'video',
-            default                                   => 'document',
-        };
+        foreach (self::MEDIA_RULES as $type => $rule) {
+            if (in_array((string) $mime, $rule['mimes'], true)) {
+                return $type;
+            }
+        }
+
+        return null;
     }
 
     /**

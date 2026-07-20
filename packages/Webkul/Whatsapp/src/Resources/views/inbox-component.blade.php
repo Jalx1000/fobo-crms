@@ -1391,7 +1391,14 @@
                 pickFile(type) {
                     this.showAttach = false;
 
-                    const accept = { image: 'image/*', audio: 'audio/*', video: 'video/*', document: '' };
+                    // Only what WhatsApp actually accepts — a wide image/* would
+                    // let the agent pick a .gif that Meta then rejects.
+                    const accept = {
+                        image: 'image/jpeg,image/png',
+                        audio: 'audio/aac,audio/mp4,audio/mpeg,audio/amr,audio/ogg',
+                        video: 'video/mp4,video/3gpp',
+                        document: '.pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx',
+                    };
 
                     this.$refs.fileInput.accept = accept[type] ?? '';
                     this.$refs.fileInput.click();
