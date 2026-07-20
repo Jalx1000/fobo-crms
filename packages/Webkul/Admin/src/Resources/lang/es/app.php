@@ -2,7 +2,7 @@
 
 return [
     'acl' => [
-        'leads'           => 'Clientes potenciales',
+        'leads'           => 'Citas',
         'lead'            => 'Cliente potencial',
         'quotes'          => 'Cotizaciones',
         'mail'            => 'Correo',

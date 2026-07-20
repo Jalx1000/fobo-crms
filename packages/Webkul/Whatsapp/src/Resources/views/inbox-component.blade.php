@@ -842,8 +842,8 @@
                         { id: 'imagenes', label: 'Imágenes' },
                         { id: 'documentos', label: 'Docs' },
                         { id: 'enlaces', label: 'Enlaces' },
-                        { id: 'productos', label: 'Productos' },
-                        { id: 'pedidos', label: 'Pedidos' },
+                        { id: 'productos', label: '@lang('admin::app.acl.products')' },
+                        { id: 'pedidos', label: '@lang('admin::app.acl.leads')' },
                     ],
                     // Quick lead creation (inside the drawer)
                     leadFormOpen: false,
