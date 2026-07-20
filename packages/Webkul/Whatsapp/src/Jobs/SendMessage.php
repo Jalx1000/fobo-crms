@@ -16,7 +16,12 @@ class SendMessage implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct(public int $messageId) {}
+    /**
+     * @param  string|null  $gatewayOverride  Force a specific driver instead of
+     *   the conversation's own gateway (reminders send via Cloud API while the
+     *   inbox stays on Kommo).
+     */
+    public function __construct(public int $messageId, public ?string $gatewayOverride = null) {}
 
     public function handle(GatewayManager $gateways): void
     {
@@ -27,11 +32,27 @@ class SendMessage implements ShouldQueue
         }
 
         try {
-            $result = $gateways->for($message->conversation)->sendText(
-                $message->conversation,
-                (string) $message->body,
-                $message->replyTo?->wa_message_id,
-            );
+            // Explicit override first, then the installation's outbound driver,
+            // and only then the conversation's own gateway.
+            $key = $this->gatewayOverride ?: config('whatsapp.outbound_gateway');
+
+            $gateway = $key
+                ? $gateways->driver((string) $key)
+                : $gateways->for($message->conversation);
+
+            if ($message->type === 'template') {
+                $result = $gateway->sendTemplate(
+                    $message->conversation,
+                    (string) ($message->payload['template'] ?? ''),
+                    (array) ($message->payload['variables'] ?? []),
+                );
+            } else {
+                $result = $gateway->sendText(
+                    $message->conversation,
+                    (string) $message->body,
+                    $message->replyTo?->wa_message_id,
+                );
+            }
 
             $message->update([
                 'wa_message_id' => $result->providerMessageId,

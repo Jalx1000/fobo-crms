@@ -80,4 +80,17 @@ interface Gateway
      * provider_conversation_id (its lead id).
      */
     public function sendText(Conversation $conversation, string $body, ?string $replyToProviderId = null): SendResult;
+
+    /**
+     * Send an approved message template (HSM) — the only way to open a
+     * conversation OUTSIDE the free-text window (appointment reminders, etc.).
+     *
+     * $templateKey selects a template from the driver's own config; $variables
+     * fills its body placeholders IN ORDER ({{1}}, {{2}}, ...). Each driver maps
+     * the key to what the provider needs: Cloud API to a template name +
+     * language, Kommo to a salesbot + custom fields.
+     *
+     * @param  array<int, string>  $variables
+     */
+    public function sendTemplate(Conversation $conversation, string $templateKey, array $variables): SendResult;
 }

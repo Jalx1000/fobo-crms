@@ -32,7 +32,7 @@ class ConversationResolver
                 ->where('provider_conversation_id', $providerConversationId)
                 ->first();
         } elseif ($contact->phone) {
-            $conversation = $model::where('wa_phone', PhoneNumber::normalize($contact->phone))->first();
+            $conversation = $model::where('wa_phone', $this->phoneKey($contact->phone))->first();
         } else {
             return null; // nothing to key on
         }
@@ -45,7 +45,7 @@ class ConversationResolver
 
         return $model::create([
             'gateway'                  => $gateway,
-            'wa_phone'                 => PhoneNumber::normalize($contact->phone) ?: null,
+            'wa_phone'                 => $this->phoneKey($contact->phone) ?: null,
             'provider_conversation_id' => $providerConversationId,
             'wa_name'                  => $contact->name,
             'person_id'                => $person?->id,
@@ -72,7 +72,7 @@ class ConversationResolver
         }
 
         if ($contact->phone && ! $conversation->wa_phone) {
-            $updates['wa_phone'] = PhoneNumber::normalize($contact->phone);
+            $updates['wa_phone'] = $this->phoneKey($contact->phone);
         }
 
         // A conversation may have been created before the phone was known (Kommo
@@ -90,6 +90,19 @@ class ConversationResolver
         }
 
         return $conversation;
+    }
+
+    /**
+     * Canonical key for a phone: full international ("+<cc><number>"). The CRM
+     * holds Bolivian numbers as 8 digits, so "78164851" and "59178164851" would
+     * otherwise land in two separate conversations for the same patient — and
+     * both resolve to one Kommo lead, breaking the unique (gateway, lead) index.
+     */
+    protected function phoneKey(?string $phone): string
+    {
+        return PhoneNumber::normalize(
+            PhoneNumber::withCountryCode($phone, config('whatsapp.default_country_code'))
+        );
     }
 
     /**

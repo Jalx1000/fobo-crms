@@ -17,6 +17,7 @@ use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
 use Webkul\Whatsapp\Gateways\Dto\WebhookSecurity;
 use Webkul\Whatsapp\Models\Conversation;
+use Webkul\Whatsapp\Services\PhoneNumber;
 
 /**
  * Kommo (amoCRM).
@@ -44,8 +45,9 @@ class KommoGateway extends BaseGateway
 
     public function capabilities(): Capabilities
     {
-        // The salesbot only relays the text field today.
-        return new Capabilities(send: ['text'], receive: ['text']);
+        // Free text via the relay salesbot, plus approved HSM templates via the
+        // template-bound salesbot (see sendTemplate).
+        return new Capabilities(send: ['text', 'template'], receive: ['text']);
     }
 
     public function messagingWindowHours(): ?int
@@ -149,6 +151,35 @@ class KommoGateway extends BaseGateway
     }
 
     /**
+     * Send an approved WhatsApp template through the template-bound salesbot.
+     *
+     * Deliberately its OWN method, not a branch of sendText: it targets a
+     * different bot, parks one custom field per template variable (not the
+     * single free-text field) and, unlike an agent reply, must reach patients
+     * who are NOT in Kommo yet — so it resolves-or-creates the lead by phone.
+     * The two share only low-level plumbing (resolveLeadId, runSalesbot, http).
+     */
+    public function sendTemplate(Conversation $conversation, string $templateKey, array $variables): SendResult
+    {
+        $template = $this->config['templates'][$templateKey] ?? null;
+
+        if (! $template) {
+            throw new RuntimeException(
+                "Kommo: template [{$templateKey}] is not configured under gateways.kommo.templates."
+            );
+        }
+
+        $leadId = $this->resolveLeadId($conversation);
+
+        $this->writeTemplateFields($leadId, $template['fields'] ?? [], $variables);
+
+        $this->runSalesbot($leadId, (int) ($template['bot_id'] ?? $this->required('bot_id')));
+
+        // Kommo returns no message id; synthesize one to preserve idempotency.
+        return new SendResult('kommo-tpl-'.Str::uuid()->toString());
+    }
+
+    /**
      * Step 1: park the outgoing text in the lead's custom field.
      */
     protected function writeMessageField(string $leadId, string $body): void
@@ -166,19 +197,155 @@ class KommoGateway extends BaseGateway
     }
 
     /**
-     * Step 2: launch the bot that reads the field and delivers the message.
+     * Template step 1: park each variable in its mapped custom field, in
+     * {{1}}, {{2}}... order. The template-bound salesbot reads these to fill
+     * the approved HSM before sending.
+     *
+     * @param  array<int, int|string>  $fieldIds  Custom field ids, ordered by template variable.
+     * @param  array<int, string>  $variables
      */
-    protected function runSalesbot(string $leadId): void
+    protected function writeTemplateFields(string $leadId, array $fieldIds, array $variables): void
+    {
+        $fieldIds = array_values($fieldIds);
+        $variables = array_values($variables);
+
+        $customFields = [];
+
+        foreach ($fieldIds as $i => $fieldId) {
+            $customFields[] = [
+                'field_id' => (int) $fieldId,
+                'values'   => [['value' => (string) ($variables[$i] ?? '')]],
+            ];
+        }
+
+        $this->http()
+            ->patch($this->url("/api/v4/leads/{$leadId}"), [
+                'custom_fields_values' => $customFields,
+            ])
+            ->throw();
+    }
+
+    /**
+     * Step 2: launch a salesbot on the lead. Defaults to the free-text relay
+     * bot; sendTemplate passes its own template-bound bot.
+     */
+    protected function runSalesbot(string $leadId, ?int $botId = null): void
     {
         $this->http()
             ->post($this->url('/api/v2/salesbot/run'), [
                 [
-                    'bot_id'      => (int) $this->required('bot_id'),
+                    'bot_id'      => $botId ?? (int) $this->required('bot_id'),
                     'entity_id'   => (int) $leadId,
                     'entity_type' => (int) ($this->config['entity_type'] ?? 2), // 2 = lead
                 ],
             ])
             ->throw();
+    }
+
+    /**
+     * The Kommo lead id to address a template to. Reminders reach patients who
+     * are NOT in Kommo, so when the conversation carries no lead id we search by
+     * phone and, failing that, create the lead. The id is persisted back on the
+     * conversation so the next send reuses it instead of creating a duplicate.
+     */
+    protected function resolveLeadId(Conversation $conversation): string
+    {
+        if ($conversation->provider_conversation_id) {
+            return (string) $conversation->provider_conversation_id;
+        }
+
+        // Full international number: the CRM stores Bolivian phones as 8 digits,
+        // and a lead created with that would never receive the WhatsApp.
+        $phone = PhoneNumber::withCountryCode($conversation->wa_phone, config('whatsapp.default_country_code'));
+
+        if ($phone === '') {
+            throw new RuntimeException(
+                "Kommo: conversation #{$conversation->id} has no phone to resolve a lead."
+            );
+        }
+
+        $leadId = $this->findLeadByPhone($phone) ?? $this->createLead($phone, $conversation->wa_name);
+
+        // Persist for reuse — unless another conversation already owns this lead
+        // (same patient reached under two phone formats). The unique
+        // (gateway, provider_conversation_id) index would reject it, and the
+        // send only needs the id, so a collision must never fail the send.
+        $ownedElsewhere = $conversation->newQuery()
+            ->where('gateway', $conversation->gateway)
+            ->where('provider_conversation_id', $leadId)
+            ->where('id', '!=', $conversation->id)
+            ->exists();
+
+        if (! $ownedElsewhere) {
+            $conversation->forceFill(['provider_conversation_id' => $leadId])->save();
+        }
+
+        return $leadId;
+    }
+
+    /**
+     * Find an existing Kommo lead by the contact's phone: the first lead linked
+     * to the first matching contact, or null when the number is unknown.
+     */
+    protected function findLeadByPhone(string $phone): ?string
+    {
+        $response = $this->http()->get($this->url('/api/v4/contacts'), [
+            'query' => $phone,
+            'with'  => 'leads',
+        ]);
+
+        // Kommo answers 204 No Content when nothing matches the query.
+        if ($response->status() === 204) {
+            return null;
+        }
+
+        $response->throw();
+
+        foreach ($response->json('_embedded.contacts') ?? [] as $contact) {
+            if ($leadId = data_get($contact, '_embedded.leads.0.id')) {
+                return (string) $leadId;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Create a lead + contact + phone in one call for a patient Kommo doesn't
+     * have yet (`leads/complex`). Returns the new lead id.
+     */
+    protected function createLead(string $phone, ?string $name): string
+    {
+        $name = $name ?: 'Paciente '.$phone;
+
+        $response = $this->http()
+            ->post($this->url('/api/v4/leads/complex'), [
+                [
+                    'name'      => 'Recordatorio de cita — '.$name,
+                    '_embedded' => [
+                        'contacts' => [
+                            [
+                                'name'                 => $name,
+                                'custom_fields_values' => [
+                                    [
+                                        'field_code' => 'PHONE',
+                                        'values'     => [['value' => $phone, 'enum_code' => 'WORK']],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ])
+            ->throw();
+
+        $leadId = data_get($response->json(), '0.id');
+
+        if (! $leadId) {
+            throw new RuntimeException('Kommo: leads/complex returned no lead id: '.$response->body());
+        }
+
+        return (string) $leadId;
     }
 
     /**

@@ -33,7 +33,7 @@ class CloudApiGateway extends BaseGateway
     {
         // Only what is implemented today. Grows as sendMedia lands.
         return new Capabilities(
-            send: ['text', 'reply', 'emoji'],
+            send: ['text', 'reply', 'emoji', 'template'],
             receive: ['text', 'image', 'audio', 'document', 'video', 'sticker', 'location', 'contact'],
         );
     }
@@ -145,6 +145,55 @@ class CloudApiGateway extends BaseGateway
         if ($replyToProviderId) {
             $payload['context'] = ['message_id' => $replyToProviderId];
         }
+
+        $response = Http::withToken($this->required('token'))
+            ->acceptJson()
+            ->post($this->endpoint('messages'), $payload);
+
+        $response->throw();
+
+        $wamid = $response->json('messages.0.id');
+
+        if (! $wamid) {
+            throw new RuntimeException('Cloud API did not return a message id: '.$response->body());
+        }
+
+        return new SendResult($wamid);
+    }
+
+    /**
+     * Send an approved template (HSM). $templateKey selects a name+language from
+     * config('whatsapp.gateways.cloud_api.templates'); $variables fills the body
+     * parameters ({{1}}, {{2}}, ...) in order.
+     */
+    public function sendTemplate(Conversation $conversation, string $templateKey, array $variables): SendResult
+    {
+        $template = $this->config['templates'][$templateKey] ?? null;
+
+        if (! $template) {
+            throw new RuntimeException(
+                "Cloud API: template [{$templateKey}] is not configured under gateways.cloud_api.templates."
+            );
+        }
+
+        $parameters = array_map(
+            fn ($value) => ['type' => 'text', 'text' => (string) $value],
+            array_values($variables),
+        );
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'recipient_type'    => 'individual',
+            'to'                => PhoneNumber::digits($conversation->wa_phone),
+            'type'              => 'template',
+            'template'          => [
+                'name'     => $template['name'],
+                'language' => ['code' => $template['language'] ?? 'es'],
+                'components' => $parameters === [] ? [] : [
+                    ['type' => 'body', 'parameters' => $parameters],
+                ],
+            ],
+        ];
 
         $response = Http::withToken($this->required('token'))
             ->acceptJson()

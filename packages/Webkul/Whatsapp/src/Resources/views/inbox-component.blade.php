@@ -158,6 +158,11 @@
                                 </div>
                             </div>
 
+                            <div v-else-if="msg.type === 'template'" class="whitespace-pre-wrap break-words">
+                                <span class="mb-1 inline-block rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide dark:bg-white/15">Plantilla</span>
+                                <div v-html="formatText(msg.text)"></div>
+                            </div>
+
                             <div v-else class="italic text-gray-500">Tipo no soportado</div>
 
                             <!-- why it failed: the agent is who needs this, not the log -->

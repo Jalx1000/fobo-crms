@@ -66,10 +66,10 @@ class SendAppointmentReminders extends Command
                 continue;
             }
 
-            $message = $this->buildMessage($appt);
+            $variables = $this->buildVariables($appt);
 
             if ($this->option('dry-run')) {
-                $this->line("  → [dry-run] {$appt->person_name} ({$phone}) — ".Carbon::parse($appt->start)->format('H:i'));
+                $this->line("  → [dry-run] {$appt->person_name} ({$phone}) — ".implode(' | ', $variables));
 
                 continue;
             }
@@ -79,23 +79,35 @@ class SendAppointmentReminders extends Command
             $msg = MessageProxy::modelClass()::create([
                 'conversation_id' => $conversation->id,
                 'direction'       => 'outbound',
-                'type'            => 'text',
-                'body'            => $message,
+                'type'            => 'template',
+                // Readable preview for the inbox; the real send uses the template.
+                'body'            => $this->buildMessage($appt),
                 'status'          => 'queued',
                 'sender'          => 'system',
+                'payload'         => [
+                    'template'  => config('whatsapp.reminders.template_key', 'appointment_reminder'),
+                    'variables' => $variables,
+                ],
             ]);
 
             $conversation->forceFill(['last_message_at' => now()])->save();
 
-            SendMessage::dispatch($msg->id)->onQueue(config('whatsapp.queue'));
+            SendMessage::dispatch($msg->id, config('whatsapp.reminders.gateway'))
+                ->onQueue(config('whatsapp.queue'));
 
-            DB::table('whatsapp_appointment_reminders')->insert([
-                'activity_id'     => $appt->id,
-                'conversation_id' => $conversation->id,
-                'sent_at'         => now(),
-                'created_at'      => now(),
-                'updated_at'      => now(),
-            ]);
+            // Linked to the message so idempotency can tell a delivered reminder
+            // from a failed one. updateOrInsert (activity_id is unique) lets a
+            // retry re-point the row at the new message.
+            DB::table('whatsapp_appointment_reminders')->updateOrInsert(
+                ['activity_id' => $appt->id],
+                [
+                    'conversation_id' => $conversation->id,
+                    'message_id'      => $msg->id,
+                    'sent_at'         => now(),
+                    'created_at'      => now(),
+                    'updated_at'      => now(),
+                ],
+            );
 
             $this->line("  ✓ {$appt->person_name} ({$phone})");
             $sent++;
@@ -122,10 +134,15 @@ class SendAppointmentReminders extends Command
             ->where('activities.type', 'meeting')
             ->where('activities.is_done', 0)
             ->when($personId, fn ($q) => $q->where('activity_participants.person_id', $personId))
+            // "Already reminded" = a reminder row whose message did NOT fail.
+            // A failed send (or a legacy row with no message) leaves the
+            // appointment eligible again, so the next run retries it.
             ->whereNotExists(function ($q) {
                 $q->select(DB::raw(1))
                     ->from('whatsapp_appointment_reminders as r')
-                    ->whereColumn('r.activity_id', 'activities.id');
+                    ->join('whatsapp_messages as m', 'm.id', '=', 'r.message_id')
+                    ->whereColumn('r.activity_id', 'activities.id')
+                    ->where('m.status', '<>', 'failed');
             })
             ->groupBy('activities.id')
             ->orderBy('activities.schedule_from')
@@ -136,6 +153,25 @@ class SendAppointmentReminders extends Command
                 DB::raw('MAX('.DB::getTablePrefix().'persons.name) as person_name'),
                 DB::raw('MAX('.DB::getTablePrefix().'doctors.name) as doctor_name'),
             ]);
+    }
+
+    /**
+     * The approved template's variables for one appointment, IN ORDER:
+     *   {{1}} = fecha y hora ("Lunes 20 de Julio a horas 17:00")
+     *   {{2}} = doctor asignado
+     * The gateway maps each to its provider slot (Kommo custom field / Cloud API
+     * body parameter).
+     *
+     * @return array<int, string>
+     */
+    protected function buildVariables(object $appt): array
+    {
+        $start = Carbon::parse($appt->start);
+
+        return [
+            $this->longDate($start).' a horas '.$start->format('H:i'),
+            $appt->doctor_name ?? '',
+        ];
     }
 
     /**

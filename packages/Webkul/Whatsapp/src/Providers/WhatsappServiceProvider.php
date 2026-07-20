@@ -41,11 +41,40 @@ class WhatsappServiceProvider extends ServiceProvider
             ]);
 
             // Self-schedule the daily reminder run (no host Kernel edit needed).
+            // Idempotent (one reminder per appointment) and gated by
+            // reminders.enabled, so a re-run never duplicates a send.
             $this->app->booted(function () {
                 $schedule = $this->app->make(Schedule::class);
                 $schedule->command('whatsapp:appointment-reminders')
-                    ->dailyAt('09:00')
+                    ->dailyAt((string) config('whatsapp.reminders.send_at', '08:00'))
+                    ->timezone((string) config('whatsapp.reminders.timezone', 'America/La_Paz'))
                     ->withoutOverlapping();
+
+                // Drain the WhatsApp queue every minute.
+                //
+                // Chat can't share a worker with the SMD/Dropbox jobs: those run
+                // for minutes and time out, and an inbound message stuck behind
+                // them means the AI agent answers a customer half an hour late.
+                // This keeps its own queue without a second supervised worker.
+                //
+                // It stays alive listening for the whole minute instead of
+                // exiting on an empty queue: a reply enqueued mid-minute would
+                // otherwise wait for the next run, and chat answers arriving a
+                // minute late read as the bot being broken.
+                //
+                // --max-time guarantees the process EXITS, and withoutOverlapping
+                // means one run at a time: this must never leave a daemon behind
+                // (that is what exhausted the container's memory before).
+                if (config('whatsapp.queue_drainer.enabled', true)) {
+                    $schedule->command(sprintf(
+                        'queue:work %s --queue=%s --max-time=55 --sleep=1 --tries=3 --quiet',
+                        (string) config('queue.default'),
+                        (string) config('whatsapp.queue'),
+                    ))
+                        ->everyMinute()
+                        ->withoutOverlapping()
+                        ->runInBackground();
+                }
             });
         }
     }
