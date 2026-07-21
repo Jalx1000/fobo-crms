@@ -201,12 +201,16 @@ class InboxController extends Controller
     public function sendTemplate(Request $request, ConversationResolver $resolver, TemplateCatalog $catalog): JsonResponse
     {
         $data = $request->validate([
-            'phone'     => 'required|string',
-            'name'      => 'nullable|string',
-            'template'  => 'required|string',
-            'language'  => 'required|string',
-            'variables' => 'array',
-            'variables.*' => 'string',
+            // The standalone chat page addresses a conversation directly and has
+            // no phone at hand; the embedded inbox has the phone but no id yet
+            // when the conversation does not exist. One of the two must arrive.
+            'conversation_id' => 'nullable|integer',
+            'phone'           => 'required_without:conversation_id|string',
+            'name'            => 'nullable|string',
+            'template'        => 'required|string',
+            'language'        => 'required|string',
+            'variables'       => 'array',
+            'variables.*'     => 'string',
         ]);
 
         $existing = $this->existingConversation($request);
@@ -235,6 +239,12 @@ class InboxController extends Controller
 
         if (in_array('', array_map('trim', $variables), true)) {
             return response()->json(['message' => 'Completá todas las variables.'], 422);
+        }
+
+        // A conversation_id that resolves to nothing leaves us with no phone to
+        // fall back on, so it is rejected before opening the transaction.
+        if (! $existing && empty($data['phone'])) {
+            return response()->json(['message' => 'No se encontró la conversación.'], 422);
         }
 
         $message = DB::transaction(function () use ($existing, $data, $resolver, $template, $variables) {

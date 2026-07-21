@@ -268,9 +268,16 @@
                     </div>
                 </div>
 
-                <!-- template picker -->
-                <div v-if="showTemplates" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="closeTemplates">
-                    <div class="flex max-h-[85vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl dark:bg-gray-800">
+                <!-- Template picker. Teleported to <body> because the inbox is
+                     embedded inside panels (lead, person, calendar) whose
+                     ancestors create containing blocks: a plain `fixed` overlay
+                     would be trapped in the sidebar column instead of covering
+                     the viewport. -->
+                <Teleport to="body">
+                <div v-if="showTemplates" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" @click.self="closeTemplates">
+                    <!-- Fluid up to a readable maximum: a fixed width either
+                         overflows a phone or wastes the desktop viewport. -->
+                    <div class="flex max-h-[85vh] w-[280px] flex-col rounded-lg bg-white shadow-xl sm:max-w-lg dark:bg-gray-800">
                         <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                             <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
                                 @{{ selectedTemplate ? selectedTemplate.name : 'Elegí una plantilla' }}
@@ -350,8 +357,12 @@
                         </div>
                     </div>
                 </div>
+                </Teleport>
 
-                <template v-else>
+                <!-- Not a v-else: the picker above is teleported away, so there is
+                     no adjacent v-if to chain to. The composer still hides while
+                     the picker is open. -->
+                <template v-if="! showTemplates">
                     <!-- reminder to re-enable the agent when the human is done -->
                     <div v-if="agentNote" class="mb-2 flex items-center justify-between rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
                         <span>Desactivaste el agente. Acordate de <button class="font-semibold underline" @click="toggleAgent(true)">reactivarlo</button> cuando termines.</span>
@@ -464,6 +475,21 @@
                         </div>
                     </div>
 
+                    <!-- Templates are reachable at any time, not only once the 24h
+                         window shuts: an agent may want to send an approved one
+                         (a reminder, a confirmation) mid-conversation. -->
+                    <button v-if="canSend('template') && ! recording" type="button" @click="openTemplates"
+                            :disabled="uploading"
+                            aria-label="Enviar plantilla"
+                            title="Enviar plantilla aprobada"
+                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:opacity-50 dark:hover:bg-gray-700">
+                        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M3 9h18M9 9v12"/>
+                        </svg>
+                    </button>
+
                     <textarea
                         v-if="! recording"
                         ref="msgInput"
@@ -477,7 +503,7 @@
                         @keydown.enter.meta.exact.prevent="send"
                         @keydown.down="qrMove($event, 1)"
                         @keydown.up="qrMove($event, -1)"
-                        class="max-h-28 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                        class="max-h-28 min-w-0 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                     ></textarea>
 
                     <button v-if="! recording" type="button" @click="send" :disabled="!draft.trim()"
@@ -1599,6 +1625,7 @@
                     this.templateError = '';
 
                     this.$axios.post(this.sendTemplateUrl, {
+                            conversation_id: this.conversationId,
                             phone: this.context.phone,
                             name: this.context.name,
                             person_id: this.context.personId,
