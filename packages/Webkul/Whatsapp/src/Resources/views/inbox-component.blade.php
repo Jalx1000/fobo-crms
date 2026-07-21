@@ -47,10 +47,19 @@
                     </div>
                 </div>
 
-                <!-- AI agent switch -->
+                <!-- AI agent switch. Disabled outright in test mode: the switch
+                     would store a preference the backend ignores, so the honest
+                     UI is to block it and say why. -->
                 <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-300"
-                       :class="agentToggling ? 'opacity-50 pointer-events-none' : ''">
+                       :class="agentToggling || agentTestBlocked ? 'opacity-50 pointer-events-none' : ''"
+                       :title="agentTestBlocked
+                           ? 'El agente está en modo prueba y este número no está en la lista habilitada'
+                           : 'Activa o desactiva el agente IA en esta conversación'">
                     <span>Agente IA</span>
+                    <span v-if="agentTestBlocked"
+                          class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                        modo prueba
+                    </span>
                     <span class="relative inline-flex h-5 w-9 items-center">
                         <input type="checkbox" :checked="aiEnabled" @change="toggleAgent($event.target.checked)" class="peer sr-only">
                         <span class="h-5 w-9 rounded-full bg-gray-300 transition peer-checked:bg-brandColor dark:bg-gray-600"></span>
@@ -974,6 +983,9 @@
                     draft: '',
                     isLoading: false,
                     aiEnabled: false,
+                    // Test mode is on and this number is not whitelisted: the
+                    // agent stays silent here no matter what the switch says.
+                    agentTestBlocked: false,
                     replyingTo: null,
                     showAttach: false,
                     uploading: false,
@@ -1197,6 +1209,7 @@
                     this.$axios.patch(`${this.agentUrlBase}/${this.conversationId}/agent`, { enabled })
                         .then(res => {
                             this.aiEnabled = res.data?.agent?.effective ?? enabled;
+                            this.agentTestBlocked = res.data?.agent?.test_blocked ?? false;
                             // Show the reminder only when the human just took over.
                             this.agentNote = !this.aiEnabled;
                             // Anything the locked composer could still have open
@@ -1264,7 +1277,10 @@
                             if (res.data?.window) this.window = res.data.window;
                             if (res.data?.conversation?.id) this.conversationId = res.data.conversation.id;
                             if (res.data?.conversation?.gateway) this.gateway = res.data.conversation.gateway;
-                            if (res.data?.agent) this.aiEnabled = res.data.agent.effective;
+                            if (res.data?.agent) {
+                                this.aiEnabled = res.data.agent.effective;
+                                this.agentTestBlocked = res.data.agent.test_blocked ?? false;
+                            }
 
                             const incoming = res.data?.messages ?? [];
                             if (!incoming.length) return;

@@ -176,6 +176,19 @@ return [
     */
     'ai' => [
         'enabled'      => env('WHATSAPP_AI_ENABLED', false),
+
+        // Test mode: with this on, the agent only answers the numbers listed
+        // below and stays silent for everyone else, whatever the per-conversation
+        // switch says. Lets the agent run against real patients a couple at a
+        // time instead of the whole clinic at once.
+        //
+        // Comma-separated, any format ("59176616013, 75640698"): only the last
+        // 8 digits are compared, so the country code is optional. Empty list =
+        // test mode does nothing (it would otherwise silence the agent
+        // everywhere, which is what WHATSAPP_AI_ENABLED=false is for).
+        'test_mode'    => env('WHATSAPP_AI_TEST_MODE', false),
+        'test_numbers' => env('WHATSAPP_AI_TEST_NUMBERS', ''),
+
         'webhook_url'  => env('WHATSAPP_AGENT_WEBHOOK_URL'),
         'token'        => env('WHATSAPP_AGENT_TOKEN'), // Bearer the CRM sends so the agent knows it's us
         'history_size' => env('WHATSAPP_AGENT_HISTORY_SIZE', 15),

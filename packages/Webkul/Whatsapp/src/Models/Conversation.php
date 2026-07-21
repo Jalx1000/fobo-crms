@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Lead\Models\LeadProxy;
 use Webkul\Whatsapp\Contracts\Conversation as ConversationContract;
+use Webkul\Whatsapp\Services\AgentTestMode;
 
 class Conversation extends Model implements ConversationContract
 {
@@ -47,10 +48,17 @@ class Conversation extends Model implements ConversationContract
     /**
      * Resolve whether the AI agent is effectively enabled for this conversation,
      * falling back to the global default when the per-conversation flag is null.
+     *
+     * Test mode sits on top of both: a number outside the whitelist never gets
+     * the agent, however the switches are set. Every path that could reach the
+     * agent — inbound ingestion, the notify job, the inbox composer — goes
+     * through here, so this single check is the whole gate.
      */
     public function aiEffective(): bool
     {
-        return $this->ai_enabled ?? (bool) config('whatsapp.ai.enabled');
+        $enabled = $this->ai_enabled ?? (bool) config('whatsapp.ai.enabled');
+
+        return $enabled && AgentTestMode::allows($this->wa_phone);
     }
 
     public function person(): BelongsTo

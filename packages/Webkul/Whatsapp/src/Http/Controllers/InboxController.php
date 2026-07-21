@@ -18,6 +18,7 @@ use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
+use Webkul\Whatsapp\Services\AgentTestMode;
 use Webkul\Whatsapp\Services\ConversationResolver;
 use Webkul\Whatsapp\Services\PhoneNumber;
 use Webkul\Whatsapp\Services\TemplateCatalog;
@@ -97,6 +98,9 @@ class InboxController extends Controller
                 // effective = what actually applies right now.
                 'enabled'   => $conversation?->ai_enabled,
                 'effective' => $conversation ? $conversation->aiEffective() : (bool) config('whatsapp.ai.enabled'),
+                // Why the switch may look ignored: in test mode the agent is
+                // restricted to a whitelist, and this number is not on it.
+                'test_blocked' => $conversation ? ! AgentTestMode::allows($conversation->wa_phone) : false,
             ],
         ]);
     }
@@ -118,8 +122,9 @@ class InboxController extends Controller
 
         return response()->json([
             'agent' => [
-                'enabled'   => $conversation->ai_enabled,
-                'effective' => $conversation->aiEffective(),
+                'enabled'      => $conversation->ai_enabled,
+                'effective'    => $conversation->aiEffective(),
+                'test_blocked' => ! AgentTestMode::allows($conversation->wa_phone),
             ],
         ]);
     }
