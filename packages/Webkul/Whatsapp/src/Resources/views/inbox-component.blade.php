@@ -371,7 +371,7 @@
                                 @click="agentNote = false">✕</button>
                     </div>
 
-                <div class="relative flex items-end gap-2">
+                <div class="relative flex items-end gap-2" :class="agentLocked ? 'opacity-60' : ''">
                     <!-- "/" picker: canned replies matching what follows the slash -->
                     <div v-if="qrMatches.length" ref="qrList"
                          class="absolute bottom-12 left-0 z-10 max-h-48 w-80 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800">
@@ -396,9 +396,10 @@
                     <!-- emoji picker: only when the gateway can deliver them (Cloud API) -->
                     <div v-if="canSend('emoji')" class="js-pop relative">
                         <button type="button" @click="showEmoji = !showEmoji"
+                                :disabled="agentLocked"
                                 aria-label="Insertar emoji"
                                 title="Insertar emoji"
-                                class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-700">
+                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:cursor-not-allowed disabled:hover:bg-transparent dark:hover:bg-gray-700">
                             <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                 <circle cx="12" cy="12" r="9"/>
                                 <path stroke-linecap="round" d="M8.5 14.5a4.5 4.5 0 007 0M9 9.5h.01M15 9.5h.01"/>
@@ -415,9 +416,10 @@
                     </div>
 
                     <button type="button" @click="openQuickReplies"
+                            :disabled="agentLocked"
                             aria-label="Respuestas rápidas"
                             title="Respuestas rápidas (escribí / para insertarlas)"
-                            class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-700">
+                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:cursor-not-allowed disabled:hover:bg-transparent dark:hover:bg-gray-700">
                         <span class="icon-bookmark text-xl"></span>
                     </button>
 
@@ -444,6 +446,7 @@
 
                     <button v-if="canRecord && ! recording && ! uploading" type="button"
                             @click="startRecording"
+                            :disabled="agentLocked"
                             aria-label="Grabar nota de voz"
                             class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-700">
                         <span class="icon-microphone text-xl"></span>
@@ -452,9 +455,9 @@
                     <div v-if="canAttach && ! recording" class="js-pop relative">
                         <input ref="fileInput" type="file" class="hidden" @change="uploadFile">
                         <button type="button" @click="showAttach = !showAttach"
-                                :disabled="uploading"
+                                :disabled="uploading || agentLocked"
                                 aria-label="Adjuntar archivo"
-                                class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:opacity-50 dark:hover:bg-gray-700">
+                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent dark:hover:bg-gray-700">
                             <span v-if="uploading" class="icon-loader animate-spin text-xl"></span>
                             <span v-else class="icon-attachment text-xl"></span>
                         </button>
@@ -479,7 +482,7 @@
                          window shuts: an agent may want to send an approved one
                          (a reminder, a confirmation) mid-conversation. -->
                     <button v-if="canSend('template') && ! recording" type="button" @click="openTemplates"
-                            :disabled="uploading"
+                            :disabled="uploading || agentLocked"
                             aria-label="Enviar plantilla"
                             title="Enviar plantilla aprobada"
                             class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:opacity-50 dark:hover:bg-gray-700">
@@ -495,7 +498,10 @@
                         ref="msgInput"
                         v-model="draft"
                         rows="1"
-                        placeholder="Escribe un mensaje… (/ para respuestas rápidas)"
+                        :disabled="agentLocked"
+                        :placeholder="agentLocked
+                            ? 'El agente IA está respondiendo — desactivalo para escribir'
+                            : 'Escribe un mensaje… (/ para respuestas rápidas)'"
                         title="Enter envía · Shift+Enter salto de línea"
                         @input="autoGrow"
                         @keydown.enter.exact.prevent="send"
@@ -503,13 +509,13 @@
                         @keydown.enter.meta.exact.prevent="send"
                         @keydown.down="qrMove($event, 1)"
                         @keydown.up="qrMove($event, -1)"
-                        class="max-h-28 min-w-0 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                        class="max-h-28 min-w-0 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brandColor focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:disabled:bg-gray-900"
                     ></textarea>
 
-                    <button v-if="! recording" type="button" @click="send" :disabled="!draft.trim()"
+                    <button v-if="! recording" type="button" @click="send" :disabled="!draft.trim() || agentLocked"
                             aria-label="Enviar mensaje"
                             title="Enviar"
-                            class="flex h-9 w-9 items-center justify-center rounded-full bg-brandColor text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:opacity-40">
+                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brandColor text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:cursor-not-allowed disabled:opacity-40">
                         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor" aria-hidden="true">
                             <path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a1 1 0 00-1.38 1.2L4.4 11 12 12l-7.6 1-2.38 6.2a1 1 0 001.38 1.2z"/>
                         </svg>
@@ -1050,6 +1056,14 @@
                     return ['image', 'document', 'audio'].some(type => this.canSend(type));
                 },
 
+                // While the AI agent owns the conversation a human must not talk
+                // over it. The backend rejects every send for the same reason, so
+                // locking the whole row turns a failed request into a visible
+                // state with one explicit way out: the "Desactivalo" button.
+                agentLocked() {
+                    return this.aiEnabled;
+                },
+
                 // Recording needs both permission from the channel and a browser
                 // able to produce a format WhatsApp accepts.
                 canRecord() {
@@ -1185,7 +1199,13 @@
                             this.aiEnabled = res.data?.agent?.effective ?? enabled;
                             // Show the reminder only when the human just took over.
                             this.agentNote = !this.aiEnabled;
-                            if (this.aiEnabled) this.showAttach = false;
+                            // Anything the locked composer could still have open
+                            // has to go with it.
+                            if (this.aiEnabled) {
+                                this.showAttach = false;
+                                this.showEmoji = false;
+                                this.closeTemplates();
+                            }
                             // The composer just unlocked: put the caret there.
                             if (!this.aiEnabled) this.focusComposer();
                         })
@@ -1271,6 +1291,12 @@
                 },
 
                 send() {
+                    // The composer is disabled while the agent answers, but a
+                    // keyboard shortcut could still land here.
+                    if (this.agentLocked) {
+                        return;
+                    }
+
                     // "/" picker open: Enter inserts the highlighted match, not a send.
                     if (this.qrMatches.length) {
                         this.insertQuickReply(this.qrMatches[this.qrIndex] ?? this.qrMatches[0]);
@@ -1561,6 +1587,10 @@
                  * agent actually opens the picker.
                  */
                 openTemplates() {
+                    if (this.agentLocked) {
+                        return;
+                    }
+
                     this.showTemplates = true;
                     this.templateError = '';
 
@@ -1738,6 +1768,10 @@
                 // Opens the picker filtered to the chosen kind; the upload itself
                 // happens in uploadFile() once the user chooses something.
                 pickFile(type) {
+                    if (this.agentLocked) {
+                        return;
+                    }
+
                     this.showAttach = false;
 
                     // Only what WhatsApp actually accepts — a wide image/* would
