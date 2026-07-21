@@ -32,8 +32,14 @@ class CloudApiGateway extends BaseGateway
     public function capabilities(): Capabilities
     {
         // Only what is implemented today.
+        //
+        // 'audio' is deliberately out: voice notes did not come through
+        // reliably. Dropping it here removes the microphone and the audio
+        // option from the composer AND makes the upload endpoint refuse audio,
+        // so nothing half-working is offered. Put it back once sending a voice
+        // note is verified end to end.
         return new Capabilities(
-            send: ['text', 'reply', 'emoji', 'template', 'image', 'document', 'audio', 'video', 'sticker'],
+            send: ['text', 'reply', 'emoji', 'template', 'image', 'document', 'video', 'sticker'],
             receive: ['text', 'image', 'audio', 'document', 'video', 'sticker', 'location', 'contact'],
         );
     }
@@ -169,15 +175,19 @@ class CloudApiGateway extends BaseGateway
      * config('whatsapp.gateways.cloud_api.templates'); $variables fills the body
      * parameters ({{1}}, {{2}}, ...) in order.
      */
-    public function sendTemplate(Conversation $conversation, string $templateKey, array $variables): SendResult
-    {
-        $template = $this->config['templates'][$templateKey] ?? null;
+    public function sendTemplate(
+        Conversation $conversation,
+        string $templateKey,
+        array $variables,
+        ?string $language = null,
+    ): SendResult {
+        // A configured key (the scheduled reminder) resolves to its name and
+        // language. Anything else is taken as the template's own name, which is
+        // how the inbox sends one the agent picked from the catalogue.
+        $template = $this->config['templates'][$templateKey] ?? [];
 
-        if (! $template) {
-            throw new RuntimeException(
-                "Cloud API: template [{$templateKey}] is not configured under gateways.cloud_api.templates."
-            );
-        }
+        $name = $template['name'] ?? $templateKey;
+        $languageCode = $language ?? $template['language'] ?? 'es';
 
         $parameters = array_map(
             fn ($value) => ['type' => 'text', 'text' => (string) $value],
@@ -190,8 +200,8 @@ class CloudApiGateway extends BaseGateway
             'to'                => PhoneNumber::digits($conversation->wa_phone),
             'type'              => 'template',
             'template'          => [
-                'name'     => $template['name'],
-                'language' => ['code' => $template['language'] ?? 'es'],
+                'name'     => $name,
+                'language' => ['code' => $languageCode],
                 'components' => $parameters === [] ? [] : [
                     ['type' => 'body', 'parameters' => $parameters],
                 ],

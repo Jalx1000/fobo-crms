@@ -7,6 +7,7 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Webkul\Whatsapp\Console\Commands\KommoCheck;
+use Webkul\Whatsapp\Console\Commands\ListTemplates;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
 use Webkul\Whatsapp\Console\Commands\SendAppointmentReminders;
@@ -36,6 +37,7 @@ class WhatsappServiceProvider extends ServiceProvider
                 KommoCheck::class,
                 NormalizePhones::class,
                 RepairGateway::class,
+                ListTemplates::class,
                 SendAppointmentReminders::class,
                 WebhookInfo::class,
             ]);

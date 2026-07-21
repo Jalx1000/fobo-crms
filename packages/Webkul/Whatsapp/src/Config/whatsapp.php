@@ -9,6 +9,12 @@
 */
 $cloud = [
     'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+
+    // WhatsApp Business Account that owns the phone number. Templates live on
+    // the account, not the number, so reading the catalogue needs it — and it
+    // cannot be derived from the token or the phone number, it has to be copied
+    // from WhatsApp Manager.
+    'waba_id'         => env('WHATSAPP_WABA_ID'),
     'token'           => env('WHATSAPP_TOKEN'),
     'app_secret'      => env('WHATSAPP_APP_SECRET'),
     'verify_token'    => env('WHATSAPP_VERIFY_TOKEN'),
@@ -137,6 +143,18 @@ return [
     */
     'queue_drainer' => [
         'enabled' => env('WHATSAPP_QUEUE_DRAINER', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Template catalogue
+    |--------------------------------------------------------------------------
+    | Approved templates are read from Meta and cached: the list barely changes
+    | and the inbox asks for it on every conversation. Refresh on demand with
+    | `php artisan whatsapp:templates --fresh`.
+    */
+    'templates' => [
+        'cache_minutes' => (int) env('WHATSAPP_TEMPLATES_CACHE_MINUTES', 30),
     ],
 
     /*

@@ -20,6 +20,7 @@ use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\ConversationResolver;
 use Webkul\Whatsapp\Services\PhoneNumber;
+use Webkul\Whatsapp\Services\TemplateCatalog;
 
 class InboxController extends Controller
 {
@@ -172,6 +173,113 @@ class InboxController extends Controller
     }
 
     /**
+     * Approved templates the agent can pick from.
+     *
+     * Never fails the inbox: a missing account id or an unreachable Meta means
+     * an empty list plus the reason, so the composer degrades to "no templates"
+     * instead of breaking the conversation.
+     */
+    public function templates(TemplateCatalog $catalog): JsonResponse
+    {
+        if (! $this->gateways->outbound()->capabilities()->canSend('template')) {
+            return response()->json(['templates' => [], 'reason' => 'El canal actual no envía plantillas.']);
+        }
+
+        try {
+            return response()->json(['templates' => $catalog->all()]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json(['templates' => [], 'reason' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Send an approved template — the only thing WhatsApp accepts once the 24h
+     * window has closed.
+     */
+    public function sendTemplate(Request $request, ConversationResolver $resolver, TemplateCatalog $catalog): JsonResponse
+    {
+        $data = $request->validate([
+            'phone'     => 'required|string',
+            'name'      => 'nullable|string',
+            'template'  => 'required|string',
+            'language'  => 'required|string',
+            'variables' => 'array',
+            'variables.*' => 'string',
+        ]);
+
+        $existing = $this->existingConversation($request);
+
+        if ($existing && $existing->aiEffective()) {
+            return response()->json([
+                'message' => 'El agente está activo en esta conversación. Desactivalo para escribir a mano.',
+            ], 422);
+        }
+
+        $template = $catalog->find($data['template'], $data['language']);
+
+        if (! $template) {
+            return response()->json(['message' => 'Esa plantilla ya no está disponible.'], 422);
+        }
+
+        $variables = array_values($data['variables'] ?? []);
+
+        // Meta fills the placeholders by position and rejects the whole message
+        // when the count differs, so it is caught here with a usable reason.
+        if (count($variables) !== $template['variables']) {
+            return response()->json([
+                'message' => 'La plantilla necesita '.$template['variables'].' variable(s) y llegaron '.count($variables).'.',
+            ], 422);
+        }
+
+        if (in_array('', array_map('trim', $variables), true)) {
+            return response()->json(['message' => 'Completá todas las variables.'], 422);
+        }
+
+        $message = DB::transaction(function () use ($existing, $data, $resolver, $template, $variables) {
+            $conversation = $existing
+                ?? $resolver->findOrCreate($data['phone'], $data['name'] ?? null);
+
+            $message = MessageProxy::modelClass()::create([
+                'conversation_id' => $conversation->id,
+                'direction'       => 'outbound',
+                'type'            => 'template',
+                // Readable preview for the thread: the real send uses the payload.
+                'body'            => $this->renderTemplate($template['body'], $variables),
+                'status'          => 'queued',
+                'sender'          => 'human',
+                'payload'         => [
+                    'template'  => $template['name'],
+                    'language'  => $template['language'],
+                    'variables' => $variables,
+                ],
+            ]);
+
+            $conversation->forceFill(['last_message_at' => now()])->save();
+
+            return $message;
+        });
+
+        SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
+
+        return response()->json(['message' => $this->transform($message)]);
+    }
+
+    /**
+     * Replace {{1}}, {{2}}... with the values, for the preview stored on the
+     * message.
+     */
+    protected function renderTemplate(string $body, array $variables): string
+    {
+        foreach ($variables as $i => $value) {
+            $body = str_replace('{{'.($i + 1).'}}', $value, $body);
+        }
+
+        return $body;
+    }
+
+    /**
      * Send a file (document, image, audio, video) to the conversation.
      *
      * The provider fetches the file by URL, so it is stored on the public disk
@@ -197,7 +305,7 @@ class InboxController extends Controller
         }
 
         $file = $request->file('file');
-        $type = $this->mediaTypeFor($file->getMimeType());
+        $type = $this->mediaTypeFor($file->getMimeType(), $file->getClientMimeType());
 
         if (! $type) {
             return response()->json([
@@ -220,8 +328,9 @@ class InboxController extends Controller
         }
 
         $path = $file->store('whatsapp', 'public');
+        $mime = $this->mimeForType($type, $file->getClientMimeType(), $file->getMimeType());
 
-        $message = DB::transaction(function () use ($existing, $data, $resolver, $file, $type, $path) {
+        $message = DB::transaction(function () use ($existing, $data, $resolver, $file, $type, $path, $mime) {
             $conversation = $existing
                 ?? $resolver->findOrCreate($data['phone'], $data['name'] ?? null);
 
@@ -230,8 +339,10 @@ class InboxController extends Controller
                 'direction'       => 'outbound',
                 'type'            => $type,
                 'body'            => $data['caption'] ?? null,
-                'media_path'      => Storage::disk('public')->url($path),
-                'media_mime'      => $file->getClientMimeType(),
+                // Served by our own route so the Content-Type matches the type
+                // declared to WhatsApp (see MediaController).
+                'media_path'      => route('whatsapp.media', ['file' => basename($path)]),
+                'media_mime'      => $mime,
                 'media_name'      => $file->getClientOriginalName(),
                 'status'          => 'queued',
                 'sender'          => 'human',
@@ -288,18 +399,46 @@ class InboxController extends Controller
     ];
 
     /**
-     * The media type WhatsApp would deliver this mime as, or null when it
+     * The media type WhatsApp would deliver this file as, or null when it
      * accepts none.
+     *
+     * Sniffing the contents alone is not enough: a voice note recorded as
+     * audio/mp4 is an MP4 container with no video track, and detection reports
+     * it as video/mp4 — so notes went out as videos. The browser's own mime
+     * breaks that tie, and is only trusted when WhatsApp accepts it anyway.
      */
-    protected function mediaTypeFor(?string $mime): ?string
+    protected function mediaTypeFor(?string $detected, ?string $declared = null): ?string
     {
-        foreach (self::MEDIA_RULES as $type => $rule) {
-            if (in_array((string) $mime, $rule['mimes'], true)) {
-                return $type;
+        foreach ([$declared, $detected] as $mime) {
+            // Browsers append codec parameters ("audio/ogg;codecs=opus").
+            $mime = trim(explode(';', (string) $mime)[0]);
+
+            foreach (self::MEDIA_RULES as $type => $rule) {
+                if (in_array($mime, $rule['mimes'], true)) {
+                    return $type;
+                }
             }
         }
 
         return null;
+    }
+
+    /**
+     * The mime to serve the file as, matching the type we declare to WhatsApp.
+     */
+    protected function mimeForType(string $type, ?string $declared, ?string $detected): string
+    {
+        $allowed = self::MEDIA_RULES[$type]['mimes'];
+
+        foreach ([$declared, $detected] as $mime) {
+            $mime = trim(explode(';', (string) $mime)[0]);
+
+            if (in_array($mime, $allowed, true)) {
+                return $mime;
+            }
+        }
+
+        return $allowed[0];
     }
 
     /**

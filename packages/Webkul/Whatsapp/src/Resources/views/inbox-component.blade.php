@@ -259,7 +259,96 @@
                 </div>
 
                 <div v-else-if="window.applies && !window.open" class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
-                    Ventana de 24h cerrada. WhatsApp no permite texto libre hasta que el cliente vuelva a escribir (o usar una plantilla aprobada).
+                    <div class="flex items-center justify-between gap-3">
+                        <span>Ventana de 24h cerrada. WhatsApp no permite texto libre hasta que el cliente vuelva a escribir.</span>
+                        <button v-if="canSend('template')" type="button" @click="openTemplates"
+                                class="shrink-0 rounded-md bg-red-600 px-2.5 py-1 font-semibold text-white transition hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                            Enviar plantilla
+                        </button>
+                    </div>
+                </div>
+
+                <!-- template picker -->
+                <div v-if="showTemplates" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="closeTemplates">
+                    <div class="flex max-h-[85vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl dark:bg-gray-800">
+                        <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                            <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                @{{ selectedTemplate ? selectedTemplate.name : 'Elegí una plantilla' }}
+                            </h3>
+                            <button type="button" @click="closeTemplates" aria-label="Cerrar"
+                                    class="rounded text-gray-400 transition hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+                        </div>
+
+                        <div class="wa-scroll min-h-0 flex-1 overflow-y-auto p-4">
+                            <!-- list -->
+                            <template v-if="! selectedTemplate">
+                                <p v-if="! templatesLoaded" class="text-sm text-gray-500">Cargando…</p>
+
+                                <p v-else-if="! templates.length" class="text-sm text-gray-500">
+                                    @{{ templatesReason || 'No hay plantillas aprobadas disponibles.' }}
+                                </p>
+
+                                <button v-for="tpl in templates" :key="tpl.name + tpl.language" type="button"
+                                        @click="selectTemplate(tpl)"
+                                        class="mb-2 block w-full rounded-lg border border-gray-200 p-3 text-left transition hover:border-brandColor dark:border-gray-700">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="text-sm font-medium text-gray-800 dark:text-gray-100">@{{ tpl.name }}</span>
+                                        <span class="flex shrink-0 items-center gap-1">
+                                            <!-- MARKETING templates are billed per message -->
+                                            <span v-if="tpl.category === 'MARKETING'"
+                                                  class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                                @{{ tpl.category }}
+                                            </span>
+                                            <span class="text-[10px] uppercase text-gray-400">@{{ tpl.language }}</span>
+                                        </span>
+                                    </div>
+                                    <p class="mt-1 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">@{{ tpl.body }}</p>
+                                    <p v-if="tpl.variables" class="mt-1 text-[11px] text-gray-400">
+                                        @{{ tpl.variables }} variable(s)
+                                    </p>
+                                </button>
+                            </template>
+
+                            <!-- fill in + preview -->
+                            <template v-else>
+                                <div v-for="(v, i) in templateVars" :key="'v-' + i" class="mb-3">
+                                    <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                                        Variable @{{ i + 1 }}
+                                    </label>
+                                    <input v-model="templateVars[i]" type="text"
+                                           :placeholder="selectedTemplate.examples?.[i] || ''"
+                                           class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                                </div>
+
+                                <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Vista previa</p>
+                                <div class="whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                    <span v-if="selectedTemplate.header" class="mb-1 block font-semibold">@{{ selectedTemplate.header }}</span>
+                                    @{{ templatePreview() }}
+                                    <span v-if="selectedTemplate.footer" class="mt-1 block text-xs text-gray-400">@{{ selectedTemplate.footer }}</span>
+                                    <span v-if="selectedTemplate.buttons?.length" class="mt-2 flex flex-wrap gap-1">
+                                        <span v-for="b in selectedTemplate.buttons" :key="b"
+                                              class="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-500 dark:border-gray-600">@{{ b }}</span>
+                                    </span>
+                                </div>
+                            </template>
+
+                            <p v-if="templateError" class="mt-3 rounded border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+                                @{{ templateError }}
+                            </p>
+                        </div>
+
+                        <div v-if="selectedTemplate" class="flex items-center justify-between gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+                            <button type="button" @click="selectedTemplate = null"
+                                    class="text-sm text-gray-500 transition hover:text-gray-700 dark:hover:text-gray-300">
+                                ← Volver
+                            </button>
+                            <button type="button" @click="sendTemplate"
+                                    :disabled="! templateReady() || templateSending"
+                                    class="rounded-md bg-brandColor px-4 py-1.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-40">
+                                @{{ templateSending ? 'Enviando…' : 'Enviar' }}
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <template v-else>
@@ -834,6 +923,8 @@
                 threadUrl: { type: String, default: '' },
                 sendUrl: { type: String, default: '' },
                 sendMediaUrl: { type: String, default: '' },
+                templatesUrl: { type: String, default: '' },
+                sendTemplateUrl: { type: String, default: '' },
                 agentUrlBase: { type: String, default: '' },
                 quickRepliesUrl: { type: String, default: '' },
                 personUrlBase: { type: String, default: '' },
@@ -861,6 +952,15 @@
                     recSeconds: 0,
                     recTimer: null,
                     recDiscard: false,
+                    // approved templates — the only way to write once the 24h window closed
+                    showTemplates: false,
+                    templates: [],
+                    templatesLoaded: false,
+                    templatesReason: '',
+                    selectedTemplate: null,
+                    templateVars: [],
+                    templateSending: false,
+                    templateError: '',
                     since: null,
                     pollTimer: null,
                     // What the active provider can do. Conservative default:
@@ -1424,6 +1524,101 @@
                             this.noteError = err.response?.data?.message || 'No se pudo guardar la nota.';
                         })
                         .finally(() => { this.noteSaving = false; });
+                },
+
+                /*
+                 * Approved templates.
+                 *
+                 * Once the 24h window closes WhatsApp refuses free text, so a
+                 * template is the only way to reach the customer again. The
+                 * catalogue is fetched on demand — it is not needed until the
+                 * agent actually opens the picker.
+                 */
+                openTemplates() {
+                    this.showTemplates = true;
+                    this.templateError = '';
+
+                    if (this.templatesLoaded || ! this.templatesUrl) {
+                        return;
+                    }
+
+                    this.$axios.get(this.templatesUrl)
+                        .then(({ data }) => {
+                            this.templates = data?.templates ?? [];
+                            this.templatesReason = data?.reason ?? '';
+                            this.templatesLoaded = true;
+                        })
+                        .catch(() => {
+                            this.templatesReason = 'No se pudo cargar la lista de plantillas.';
+                            this.templatesLoaded = true;
+                        });
+                },
+
+                closeTemplates() {
+                    this.showTemplates = false;
+                    this.selectedTemplate = null;
+                    this.templateVars = [];
+                    this.templateError = '';
+                },
+
+                selectTemplate(template) {
+                    this.selectedTemplate = template;
+                    // Meta ships an example per variable; it is a far better
+                    // starting point than an empty box.
+                    this.templateVars = Array.from(
+                        { length: template.variables },
+                        (_, i) => template.examples?.[i] ?? '',
+                    );
+                },
+
+                // The body with its placeholders replaced, so the agent sees what
+                // will actually be sent. Written as a regex on purpose: a literal
+                // brace pair here would be parsed by Blade as one of its own
+                // expressions and break the view.
+                templatePreview() {
+                    if (! this.selectedTemplate) return '';
+
+                    return this.selectedTemplate.body.replace(/\{\{(\d+)\}\}/g, (token, n) => {
+                        const value = this.templateVars[n - 1];
+
+                        return (value ?? '').trim() !== '' ? value : token;
+                    });
+                },
+
+                templateReady() {
+                    return !! this.selectedTemplate
+                        && this.templateVars.every(v => (v ?? '').trim() !== '');
+                },
+
+                sendTemplate() {
+                    if (! this.templateReady() || this.templateSending) {
+                        return;
+                    }
+
+                    this.templateSending = true;
+                    this.templateError = '';
+
+                    this.$axios.post(this.sendTemplateUrl, {
+                            phone: this.context.phone,
+                            name: this.context.name,
+                            person_id: this.context.personId,
+                            lead_id: this.context.leadId,
+                            template: this.selectedTemplate.name,
+                            language: this.selectedTemplate.language,
+                            variables: this.templateVars,
+                        })
+                        .then(({ data }) => {
+                            if (data?.message) {
+                                this.messages.push(data.message);
+                                this.scrollToBottom();
+                            }
+                            this.closeTemplates();
+                        })
+                        .catch((error) => {
+                            this.templateError = error.response?.data?.message
+                                ?? 'No se pudo enviar la plantilla.';
+                        })
+                        .finally(() => { this.templateSending = false; });
                 },
 
                 /*

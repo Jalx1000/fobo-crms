@@ -92,7 +92,12 @@ interface Gateway
      *
      * @param  array<int, string>  $variables
      */
-    public function sendTemplate(Conversation $conversation, string $templateKey, array $variables): SendResult;
+    public function sendTemplate(
+        Conversation $conversation,
+        string $templateKey,
+        array $variables,
+        ?string $language = null,
+    ): SendResult;
 
     /**
      * Send a media message by public link.

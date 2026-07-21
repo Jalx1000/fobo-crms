@@ -978,6 +978,9 @@
                               :hide-profile="true"
                               :thread-url="waThreadUrl"
                               :send-url="waSendUrl"
+                              :send-media-url="waSendMediaUrl"
+                              :templates-url="waTemplatesUrl"
+                              :send-template-url="waSendTemplateUrl"
                               :agent-url-base="waAgentUrlBase"
                               :quick-replies-url="waQuickRepliesUrl"
                               :person-url-base="waPersonUrlBase"
@@ -1655,6 +1658,9 @@
                 // WhatsApp: chat embebido del paciente en el modal de detalle
                 waThreadUrl: "{{ route('admin.whatsapp.thread') }}",
                 waSendUrl: "{{ route('admin.whatsapp.send') }}",
+                waSendMediaUrl: "{{ route('admin.whatsapp.send-media') }}",
+                waTemplatesUrl: "{{ route('admin.whatsapp.templates') }}",
+                waSendTemplateUrl: "{{ route('admin.whatsapp.send-template') }}",
                 waAgentUrlBase: "{{ url(config('app.admin_path').'/whatsapp/conversations') }}",
                 waQuickRepliesUrl: "{{ route('admin.whatsapp.quick-replies.index') }}",
                 waPersonUrlBase: "{{ url(config('app.admin_path').'/whatsapp/persons') }}",

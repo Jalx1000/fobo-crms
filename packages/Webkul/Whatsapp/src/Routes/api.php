@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Webkul\Whatsapp\Http\Controllers\Api\AgentController;
+use Webkul\Whatsapp\Http\Controllers\MediaController;
 use Webkul\Whatsapp\Http\Controllers\WebhookController;
 
 /*
@@ -20,6 +21,23 @@ Route::prefix('api/v1/whatsapp')->group(function () {
     Route::get('webhook/{secret?}', [WebhookController::class, 'verify'])->name('whatsapp.webhook.verify');
     Route::post('webhook/{secret?}', [WebhookController::class, 'receive'])->name('whatsapp.webhook.receive');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Outgoing media
+|--------------------------------------------------------------------------
+| The provider downloads attachments from here, so it cannot sit behind auth.
+| The random 40-char filename is what keeps it private, the same protection the
+| files already had while served straight from public storage.
+|
+| It exists because the Content-Type has to match the type we declare to
+| WhatsApp: served by the web server, a voice note recorded as audio/mp4 goes
+| out as video/mp4 (or audio/x-m4a as .m4a), neither of which WhatsApp accepts
+| for audio. Here the mime is set from what was stored with the message.
+*/
+Route::get('whatsapp/media/{file}', [MediaController::class, 'show'])
+    ->where('file', '[A-Za-z0-9._-]+')
+    ->name('whatsapp.media');
 
 /*
 |--------------------------------------------------------------------------

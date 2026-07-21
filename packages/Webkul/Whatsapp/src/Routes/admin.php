@@ -20,6 +20,8 @@ Route::controller(InboxController::class)
         Route::get('thread', 'thread')->name('thread');
         Route::post('send', 'send')->name('send');
         Route::post('send-media', 'sendMedia')->name('send-media');
+        Route::get('templates', 'templates')->name('templates');
+        Route::post('send-template', 'sendTemplate')->name('send-template');
         Route::patch('conversations/{id}/agent', 'toggleAgent')->name('agent');
         Route::post('conversations/{id}/notes', 'storeNote')->name('notes.store');
         Route::post('reminders/send', 'sendReminder')->name('reminders.send');

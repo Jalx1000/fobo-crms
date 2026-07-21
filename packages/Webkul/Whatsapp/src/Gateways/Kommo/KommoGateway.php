@@ -159,8 +159,14 @@ class KommoGateway extends BaseGateway
      * who are NOT in Kommo yet — so it resolves-or-creates the lead by phone.
      * The two share only low-level plumbing (resolveLeadId, runSalesbot, http).
      */
-    public function sendTemplate(Conversation $conversation, string $templateKey, array $variables): SendResult
-    {
+    public function sendTemplate(
+        Conversation $conversation,
+        string $templateKey,
+        array $variables,
+        ?string $language = null,
+    ): SendResult {
+        // $language is ignored: a Kommo template is a salesbot, and the bot is
+        // bound to one approved template in one language.
         $template = $this->config['templates'][$templateKey] ?? null;
 
         if (! $template) {

@@ -48,6 +48,7 @@ class SendMessage implements ShouldQueue
                     $message->conversation,
                     (string) ($message->payload['template'] ?? ''),
                     (array) ($message->payload['variables'] ?? []),
+                    $message->payload['language'] ?? null,
                 );
             } elseif (in_array($message->type, self::MEDIA_TYPES, true)) {
                 // media_path holds the public URL the provider fetches from, and
