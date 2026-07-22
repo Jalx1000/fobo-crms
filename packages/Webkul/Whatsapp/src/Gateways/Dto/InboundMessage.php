@@ -16,5 +16,11 @@ final class InboundMessage
         public ?string $providerConversationId = null,
         public ?string $replyToProviderId = null,
         public array $raw = [],
+        // Attachment the customer sent: a URL the ingestion job downloads into
+        // our own storage. Providers hand these as short-lived links (Kommo's
+        // amojo URLs expire), so the link is only good at ingestion time.
+        public ?string $mediaLink = null,
+        public ?string $mediaName = null,
+        public ?string $mediaMime = null,
     ) {}
 }

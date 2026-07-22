@@ -112,6 +112,8 @@ class KommoGateway extends BaseGateway
 
             $contactId = isset($event['contact_id']) ? (string) $event['contact_id'] : null;
 
+            $attachment = $this->attachmentFrom($event);
+
             $messages[] = new InboundMessage(
                 providerMessageId: (string) $event['id'],
                 contact: new ContactIdentity(
@@ -119,17 +121,75 @@ class KommoGateway extends BaseGateway
                     providerId: $contactId,
                     name: data_get($event, 'author.name'),
                 ),
-                type: 'text',
-                body: $event['text'] ?? null,
+                type: $attachment['type'],
+                body: $attachment['body'],
                 // element_id and entity_id are the same lead id; element_id is
                 // what the send path addresses.
                 providerConversationId: isset($event['element_id']) ? (string) $event['element_id'] : null,
                 raw: $event,
+                mediaLink: $attachment['link'],
+                mediaName: $attachment['name'],
             );
         }
 
         // Kommo reports no delivery receipts.
         return new InboundBatch($messages);
+    }
+
+    /**
+     * Normalize a Kommo message event into (type, body, link, name).
+     *
+     * Kommo carries an attachment under `attachment` (link/type/file_name) and
+     * echoes its kind in `message_type`. We map that kind to the vocabulary the
+     * inbox renders — image/audio/video/document/sticker — and hand the link to
+     * the ingestion job, which downloads it before Kommo's URL expires.
+     *
+     * Attachment-less kinds (a shared vCard or a location) have no file, so they
+     * fall back to text with a readable body: the thread still shows something.
+     *
+     * @return array{type: string, body: ?string, link: ?string, name: ?string}
+     */
+    protected function attachmentFrom(array $event): array
+    {
+        $link = data_get($event, 'attachment.link');
+        $kind = data_get($event, 'attachment.type') ?? ($event['message_type'] ?? 'text');
+
+        // Kommo's kind -> the inbox's media vocabulary.
+        $map = [
+            'picture'  => 'image',
+            'image'    => 'image',
+            'video'    => 'video',
+            'voice'    => 'audio',
+            'audio'    => 'audio',
+            'file'     => 'document',
+            'document' => 'document',
+            'sticker'  => 'sticker',
+        ];
+
+        $text = $event['text'] ?? null;
+
+        // A real attachment we can download.
+        if ($link && isset($map[$kind])) {
+            return [
+                'type' => $map[$kind],
+                // Any caption Kommo relays rides along as the body.
+                'body' => $text !== '' ? $text : null,
+                'link' => (string) $link,
+                'name' => data_get($event, 'attachment.file_name'),
+            ];
+        }
+
+        // No file (vCard, location, plain text): keep it as text, but never
+        // leave the bubble empty when the customer shared a contact or a place.
+        $body = $text !== '' && $text !== null
+            ? $text
+            : match ($kind) {
+                'contact'  => '[Contacto compartido]',
+                'location' => '[Ubicación compartida]',
+                default    => null,
+            };
+
+        return ['type' => 'text', 'body' => $body, 'link' => null, 'name' => null];
     }
 
     public function sendText(Conversation $conversation, string $body, ?string $replyToProviderId = null): SendResult
