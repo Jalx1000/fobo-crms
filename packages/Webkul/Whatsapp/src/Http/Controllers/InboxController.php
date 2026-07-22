@@ -156,6 +156,24 @@ class InboxController extends Controller
             ], 422);
         }
 
+        // WhatsApp policy: free text is only allowed within 24h of the customer's
+        // last message, and only THEIR message reopens that window — sending a
+        // template does not. The UI hides the composer when it closes, but the
+        // window can lapse between page load and send, so it is enforced here
+        // too: otherwise the message is queued only for Meta to reject it.
+        if ($existing) {
+            $window = MessagingWindow::compute(
+                $this->gateways->outbound($existing)->messagingWindowHours(),
+                $existing->last_inbound_at,
+            );
+
+            if ($window->applies && ! $window->open) {
+                return response()->json([
+                    'message' => 'Ventana de 24h cerrada. Solo podés enviar una plantilla aprobada hasta que el cliente vuelva a escribir.',
+                ], 422);
+            }
+        }
+
         $message = DB::transaction(function () use ($existing, $data, $resolver) {
             // Reuse an existing conversation already linked to this person/lead
             // (inbound links person_id reliably); otherwise resolve by phone.
