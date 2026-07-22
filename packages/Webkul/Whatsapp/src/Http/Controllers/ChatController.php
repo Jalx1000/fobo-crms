@@ -16,6 +16,7 @@ use Webkul\Lead\Models\TypeProxy;
 use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Product\Models\ProductProxy;
 use Webkul\Whatsapp\Models\ConversationProxy;
+use Webkul\Whatsapp\Services\PhoneNumber;
 use Webkul\Whatsapp\Models\MessageProxy;
 
 /**
@@ -37,6 +38,14 @@ class ChatController extends Controller
      */
     public function conversations(Request $request): JsonResponse
     {
+        // Doctors are not patients: they have no Person row and no lead, so they
+        // can't be reached by filtering the conversation list. This tab lists
+        // them from the doctors table instead, attaching the WhatsApp
+        // conversation only when one already exists.
+        if ($request->input('filter') === 'doctors') {
+            return $this->doctorList($request);
+        }
+
         $messageModel = MessageProxy::modelClass();
 
         $query = ConversationProxy::modelClass()::query()
@@ -400,6 +409,69 @@ class ChatController extends Controller
         return response()->json([
             'message'   => 'Contacto creado y vinculado.',
             'person_id' => $person->id,
+        ]);
+    }
+
+    /**
+     * The doctors tab: every doctor with a WhatsApp number, in the same shape
+     * the conversation list uses so the front renders it with one template.
+     *
+     * A doctor may not have written yet, so the conversation is optional: when
+     * none exists the row carries only the phone and the inbox opens an empty
+     * thread, creating the conversation on the first send.
+     */
+    protected function doctorList(Request $request): JsonResponse
+    {
+        $search = trim((string) $request->input('search'));
+
+        $doctors = DB::table('doctors')
+            ->whereNotNull('phone')
+            ->where('phone', '<>', '')
+            ->when($search, fn ($query) => $query->where(function ($where) use ($search) {
+                $where->where('name', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
+            }))
+            ->orderByDesc('is_active')
+            ->orderBy('name')
+            ->get(['id', 'name', 'phone', 'title', 'is_active']);
+
+        // Doctors are stored as the receptionist typed them (often 8 local
+        // digits) while conversations key on the canonical wa_id, so they are
+        // matched on the trailing digits — the same rule the rest of the
+        // pipeline uses.
+        $byTail = ConversationProxy::modelClass()::query()
+            ->whereNotNull('wa_phone')
+            ->get()
+            ->keyBy(fn ($conversation) => PhoneNumber::tail($conversation->wa_phone));
+
+        $data = $doctors->map(function ($doctor) use ($byTail) {
+            $conversation = $byTail->get(PhoneNumber::tail($doctor->phone));
+
+            return [
+                'id'           => $conversation?->id,
+                'doctor_id'    => $doctor->id,
+                'name'         => $doctor->name,
+                'phone'        => $doctor->phone,
+                'gateway'      => $conversation?->gateway,
+                'person_id'    => $conversation?->person_id,
+                'lead_id'      => $conversation?->lead_id,
+                'unread_count' => (int) ($conversation?->unread_count ?? 0),
+                'ai_enabled'   => false, // the agent answers patients, not staff
+                'stage'        => $doctor->title ?: 'Doctor',
+                'preview'      => $conversation
+                    ? Str::limit((string) optional($conversation->latestMessage)->body, 60)
+                    : 'Sin mensajes',
+                'last_message_at' => optional($conversation?->last_message_at)->toIso8601String(),
+                'inactive'        => ! $doctor->is_active,
+            ];
+        });
+
+        // Small, fixed roster: paginating it would only add a page control that
+        // never has a second page.
+        return response()->json([
+            'data'         => $data->values(),
+            'current_page' => 1,
+            'last_page'    => 1,
         ]);
     }
 }

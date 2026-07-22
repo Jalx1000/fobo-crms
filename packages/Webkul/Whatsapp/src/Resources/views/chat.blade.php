@@ -91,15 +91,15 @@
                         </div>
 
                         <template v-else>
-                            <div v-for="c in conversations" :key="c.id"
+                            <div v-for="c in conversations" :key="rowKey(c)"
                                  class="group relative flex cursor-pointer items-center gap-3 px-3 py-3 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brandColor dark:hover:bg-gray-800/60"
-                                 :class="selected?.id === c.id ? 'bg-gray-100 dark:bg-gray-800' : ''"
+                                 :class="isSelected(c) ? 'bg-gray-100 dark:bg-gray-800' : ''"
                                  role="button"
                                  tabindex="0"
                                  @click="select(c)"
                                  @keydown.enter.prevent="select(c)">
                                 <!-- selected accent -->
-                                <span v-if="selected?.id === c.id" class="absolute inset-y-0 left-0 w-1 bg-brandColor"></span>
+                                <span v-if="isSelected(c)" class="absolute inset-y-0 left-0 w-1 bg-brandColor"></span>
 
                                 <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-medium"
                                      :class="avatarColor(c.name)">
@@ -218,6 +218,10 @@
                             { value: 'all', label: 'Todas' },
                             { value: 'unread', label: 'No leídas' },
                             { value: 'unassigned', label: 'Sin asignar' },
+                            // Staff, not patients: listed from the doctors table
+                            // rather than from existing conversations, so a
+                            // doctor who never wrote is still reachable.
+                            { value: 'doctors', label: 'Doctores' },
                         ],
                         stages: [],
                         stageFilter: null,
@@ -316,6 +320,21 @@
                     debouncedLoad() {
                         if (this.searchTimer) clearTimeout(this.searchTimer);
                         this.searchTimer = setTimeout(() => this.load(), 350);
+                    },
+
+                    // A doctor who has never written has no conversation yet, so
+                    // `id` is null for several rows at once: key and compare by
+                    // the phone, which is what actually identifies the chat.
+                    rowKey(c) {
+                        return c.id || ('doc-' + (c.doctor_id ?? c.phone));
+                    },
+
+                    isSelected(c) {
+                        if (!this.selected) return false;
+
+                        return this.selected.id && c.id
+                            ? this.selected.id === c.id
+                            : this.selected.phone === c.phone;
                     },
 
                     select(conversation) {
