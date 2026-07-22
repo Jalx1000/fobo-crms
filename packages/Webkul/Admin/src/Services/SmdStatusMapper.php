@@ -25,7 +25,9 @@ class SmdStatusMapper
             'confirmed'             => (int) config('smd.stage_map.confirmed'),
             'completed'             => (int) config('smd.stage_map.completed'),
             'canceled', 'cancelled' => (int) config('smd.stage_map.cancelled'),
-            'no-show'               => (int) config('smd.stage_map.no_show'),
+            // SMD manda "MISSED" para la cita perdida; "no-show" queda por
+            // compatibilidad con payloads viejos.
+            'no-show', 'missed'     => (int) config('smd.stage_map.no_show'),
             default                 => null,
         };
     }
@@ -35,7 +37,7 @@ class SmdStatusMapper
      */
     public function isCancelled(?string $smdStatus): bool
     {
-        return in_array($this->normalize($smdStatus), ['canceled', 'cancelled', 'no-show']);
+        return in_array($this->normalize($smdStatus), ['canceled', 'cancelled', 'no-show', 'missed']);
     }
 
     /**
@@ -45,7 +47,7 @@ class SmdStatusMapper
     {
         return match ($this->normalize($smdStatus)) {
             'canceled', 'cancelled' => 'Cancelado',
-            'no-show'               => 'No-show',
+            'no-show', 'missed'     => 'Cita perdida',
             default                 => null,
         };
     }

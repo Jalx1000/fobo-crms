@@ -49,8 +49,18 @@ class WhatsappServiceProvider extends ServiceProvider
             // reminders.enabled, so a re-run never duplicates a send.
             $this->app->booted(function () {
                 $schedule = $this->app->make(Schedule::class);
+                // Hourly, not once a day. SMD keeps syncing appointments all day
+                // long, and a single 08:00 run leaves every appointment created
+                // afterwards without a reminder — on 2026-07-21 that lost 20
+                // patients who did have a phone. The command is idempotent (one
+                // reminder per appointment, failed sends retried), so the extra
+                // runs only pick up what the earlier ones could not.
                 $schedule->command('whatsapp:appointment-reminders')
-                    ->dailyAt((string) config('whatsapp.reminders.send_at', '08:00'))
+                    ->hourlyAt(0)
+                    ->between(
+                        (string) config('whatsapp.reminders.send_at', '08:00'),
+                        (string) config('whatsapp.reminders.until', '20:00'),
+                    )
                     ->timezone((string) config('whatsapp.reminders.timezone', 'America/La_Paz'))
                     ->withoutOverlapping();
 

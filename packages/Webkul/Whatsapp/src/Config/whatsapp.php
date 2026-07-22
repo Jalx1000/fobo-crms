@@ -295,8 +295,11 @@ return [
         // reminder is sent as. The gateway fills its variables in order.
         'template_key' => env('WHATSAPP_REMINDERS_TEMPLATE_KEY', 'appointment_reminder'),
 
-        // Daily send time (clinic local time) for the scheduled run.
+        // Clinic hours for the scheduled run: it fires every hour on the hour
+        // between these two, not just once. Appointments synced from SMD during
+        // the day would otherwise never get a reminder.
         'send_at'      => env('WHATSAPP_REMINDERS_SEND_AT', '08:00'),
+        'until'        => env('WHATSAPP_REMINDERS_UNTIL', '20:00'),
         'timezone'     => env('WHATSAPP_REMINDERS_TIMEZONE', 'America/La_Paz'),
 
         // Human-readable preview stored on the message row so the inbox shows

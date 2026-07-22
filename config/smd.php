@@ -10,7 +10,7 @@ return [
         'confirmed' => env('SMD_STAGE_CONFIRMED', 7),
         'completed' => env('SMD_STAGE_COMPLETED', 5),
         'cancelled' => env('SMD_STAGE_CANCELLED', 6),
-        'no_show'   => env('SMD_STAGE_NO_SHOW', 6),
+        'no_show'   => env('SMD_STAGE_NO_SHOW', 8), // Cita Perdida (no Cancelado)
         'default'   => env('SMD_STAGE_DEFAULT', 1),
     ],
     'fallback_doctor_id' => env('SMD_FALLBACK_DOCTOR_ID', null),
