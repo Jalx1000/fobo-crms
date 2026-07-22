@@ -3,7 +3,9 @@
 namespace Webkul\Whatsapp\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Webkul\Whatsapp\Models\ConversationProxy;
+use Webkul\Whatsapp\Services\StaffNumbers;
 
 /**
  * Hands conversations back to the AI agent once the human take-over has gone
@@ -37,20 +39,30 @@ class ReactivateAgent extends Command
         $cutoff = now()->subMinutes((int) round($hours * 60));
         $dryRun = (bool) $this->option('dry-run');
 
-        // Only conversations explicitly switched off (ai_enabled = 0) and stamped
-        // by the switch. A NULL ai_enabled means "inherit the global default" —
-        // it was never taken over, so there is nothing to give back.
+        $prefix = DB::getTablePrefix();
+
+        // Only conversations explicitly switched off (ai_enabled = 0). A NULL
+        // ai_enabled means "inherit the global default" — it was never taken
+        // over, so there is nothing to give back.
+        //
+        // ai_disabled_at is only stamped by the switch, so every conversation
+        // turned off before it existed (or by a bulk update) carries NULL. They
+        // must still come back, so updated_at stands in as the handoff time —
+        // requiring the stamp is what kept this from reactivating anything.
         $conversations = ConversationProxy::modelClass()::query()
             ->where('ai_enabled', 0)
-            ->whereNotNull('ai_disabled_at')
-            ->where('ai_disabled_at', '<=', $cutoff)
+            ->whereRaw("COALESCE({$prefix}whatsapp_conversations.ai_disabled_at, {$prefix}whatsapp_conversations.updated_at) <= ?", [$cutoff])
             // The clock is the handoff, but a still-live chat must not have the
             // bot barge in: any traffic after the cutoff resets the wait.
             ->where(function ($query) use ($cutoff) {
                 $query->whereNull('last_message_at')
                     ->orWhere('last_message_at', '<=', $cutoff);
             })
-            ->get();
+            ->get()
+            // Staff are deliberately off: the agent never handles a doctor, so
+            // giving them back would only undo that on every run.
+            ->reject(fn ($conversation) => StaffNumbers::isStaff($conversation->wa_phone))
+            ->values();
 
         if ($conversations->isEmpty()) {
             $this->info('Sin conversaciones para reactivar.');
@@ -62,11 +74,11 @@ class ReactivateAgent extends Command
 
         foreach ($conversations as $conversation) {
             $this->line(sprintf(
-                '  %s %s (%s) — apagado %s',
+                '  %s %s (%s) — inactiva desde %s',
                 $dryRun ? '→ [dry-run]' : '✓',
                 $conversation->wa_name ?: 'sin nombre',
                 $conversation->wa_phone,
-                $conversation->ai_disabled_at,
+                $conversation->ai_disabled_at ?: $conversation->updated_at,
             ));
 
             if (! $dryRun) {
