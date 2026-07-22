@@ -625,7 +625,9 @@ class InboxController extends Controller
         }
 
         if ($phone = $request->input('phone')) {
-            return $model::where('wa_phone', PhoneNumber::normalize($phone))->first();
+            // Same canonical wa_id the resolver stores (full international, no
+            // '+'), so a phone lookup matches the row it created.
+            return $model::where('wa_phone', PhoneNumber::withCountryCode($phone, config('whatsapp.default_country_code')))->first();
         }
 
         return null;

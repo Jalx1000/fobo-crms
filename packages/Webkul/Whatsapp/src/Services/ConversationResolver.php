@@ -93,16 +93,16 @@ class ConversationResolver
     }
 
     /**
-     * Canonical key for a phone: full international ("+<cc><number>"). The CRM
-     * holds Bolivian numbers as 8 digits, so "78164851" and "59178164851" would
-     * otherwise land in two separate conversations for the same patient — and
-     * both resolve to one Kommo lead, breaking the unique (gateway, lead) index.
+     * Canonical key for a phone: full international, digits only, no '+' and no
+     * spaces ("59178164851"). The CRM holds Bolivian numbers as 8 digits, so
+     * "78164851" and "59178164851" would otherwise land in two separate
+     * conversations for the same patient — and both resolve to one Kommo lead,
+     * breaking the unique (gateway, lead) index. The same format is stored on
+     * persons.contact_numbers so number matches never fail (INSTRUCCIÓN 1).
      */
     protected function phoneKey(?string $phone): string
     {
-        return PhoneNumber::normalize(
-            PhoneNumber::withCountryCode($phone, config('whatsapp.default_country_code'))
-        );
+        return PhoneNumber::withCountryCode($phone, config('whatsapp.default_country_code'));
     }
 
     /**

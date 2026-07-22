@@ -196,6 +196,46 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | CRM orchestration (patient context — CONTRATO A)
+    |--------------------------------------------------------------------------
+    | Maps this install's pipeline to the appointment-history block the CRM
+    | injects into the agent event (see Services\PatientContext). All ids/codes
+    | are instance-specific — these defaults are Odontoking's, confirmed against
+    | the live DB (lead_pipeline_stages + attributes tables).
+    */
+    'crm' => [
+        // The Consultas stage: its lead is the conversation lead, NOT an
+        // appointment, so it is excluded from the cita history.
+        'stage_consulta' => (int) env('WHATSAPP_CRM_STAGE_CONSULTA', 1),
+
+        // The "vigente" appointment stage (Cita confirmadas): a lead here is the
+        // patient's active cita.
+        'stage_activa' => (int) env('WHATSAPP_CRM_STAGE_ACTIVA', 7),
+
+        // stage id -> human label for each cita's `estado`.
+        'stage_labels' => [
+            7 => 'confirmada',   // Cita confirmadas
+            5 => 'atendida',     // Paciente (Atendido)
+            8 => 'perdida',      // Cita Perdida
+            6 => 'cancelada',    // Cancelado
+        ],
+
+        // Lead custom-attribute CODES that PatientContext reads per cita.
+        // ci/seguro exist and are wired. There is NO lead attribute for the
+        // appointment date or doctor in this CRM — those live on the meeting
+        // ACTIVITY (see SendAppointmentReminders), so they stay null until the
+        // lead-per-cita model the agent creates carries them, or PatientContext
+        // is pointed at the activity. Override via env when the codes exist.
+        'attributes' => [
+            'ci'         => env('WHATSAPP_CRM_ATTR_CI', 'ci'),
+            'seguro'     => env('WHATSAPP_CRM_ATTR_SEGURO', 'insurance'),
+            'cita_fecha' => env('WHATSAPP_CRM_ATTR_CITA_FECHA'),   // no lead attribute yet
+            'cita_doctor'=> env('WHATSAPP_CRM_ATTR_CITA_DOCTOR'),  // no lead attribute yet
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Front-end
     |--------------------------------------------------------------------------
     | While the backend endpoints are being built (Sprints 0-2) the inbox
