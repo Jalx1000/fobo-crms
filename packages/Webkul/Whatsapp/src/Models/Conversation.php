@@ -28,6 +28,7 @@ class Conversation extends Model implements ConversationContract
         'provider_conversation_id',
         'wa_name',
         'ai_enabled',
+        'ai_disabled_at',
         'status',
         'last_message_at',
         'unread_count',
@@ -43,6 +44,7 @@ class Conversation extends Model implements ConversationContract
      */
     protected $casts = [
         'ai_enabled'      => 'boolean',
+        'ai_disabled_at'  => 'datetime',
         'last_message_at' => 'datetime',
         'last_inbound_at' => 'datetime',
     ];

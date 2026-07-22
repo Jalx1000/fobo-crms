@@ -194,7 +194,13 @@ return [
         // remembers to turn it back on. The wait restarts on any new message, so
         // the bot never barges into a live chat.
         'reactivate' => [
-            'enabled'     => env('WHATSAPP_AI_REACTIVATE', true),
+            'enabled' => env('WHATSAPP_AI_REACTIVATE', true),
+
+            // La espera, en MINUTOS. Es lo que manda si está definida; permite
+            // valores cortos (2, 15) sin escribir fracciones de hora.
+            'after_minutes' => env('WHATSAPP_AI_REACTIVATE_AFTER_MINUTES'),
+
+            // Respaldo en horas, para no romper instalaciones que ya la usaban.
             'after_hours' => env('WHATSAPP_AI_REACTIVATE_AFTER_HOURS', 1),
         ],
 

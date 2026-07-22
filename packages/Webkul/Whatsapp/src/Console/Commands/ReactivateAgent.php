@@ -35,8 +35,15 @@ class ReactivateAgent extends Command
             return self::SUCCESS;
         }
 
-        $hours = (float) config('whatsapp.ai.reactivate.after_hours', 1);
-        $cutoff = now()->subMinutes((int) round($hours * 60));
+        // Minutes wins when set; hours stays as the fallback so a short test
+        // value (2, 15) needs no fraction-of-an-hour arithmetic.
+        $minutes = config('whatsapp.ai.reactivate.after_minutes');
+
+        $minutes = $minutes !== null && $minutes !== ''
+            ? max(1, (int) $minutes)
+            : max(1, (int) round((float) config('whatsapp.ai.reactivate.after_hours', 1) * 60));
+
+        $cutoff = now()->subMinutes($minutes);
         $dryRun = (bool) $this->option('dry-run');
 
         $prefix = DB::getTablePrefix();
@@ -70,7 +77,7 @@ class ReactivateAgent extends Command
             return self::SUCCESS;
         }
 
-        $this->info(sprintf('Conversaciones inactivas hace más de %s h: %d', $hours, $conversations->count()));
+        $this->info(sprintf('Conversaciones inactivas hace más de %d min: %d', $minutes, $conversations->count()));
 
         foreach ($conversations as $conversation) {
             $this->line(sprintf(

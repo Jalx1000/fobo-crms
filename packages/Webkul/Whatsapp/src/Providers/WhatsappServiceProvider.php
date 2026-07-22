@@ -64,12 +64,13 @@ class WhatsappServiceProvider extends ServiceProvider
                     ->timezone((string) config('whatsapp.reminders.timezone', 'America/La_Paz'))
                     ->withoutOverlapping();
 
-                // Give quiet conversations back to the agent. Runs often because
-                // the wait is measured in hours but should end promptly once it
-                // elapses; the command itself is a no-op when nothing qualifies.
+                // Give quiet conversations back to the agent. Every minute so the
+                // configured wait is honoured as-is: on a ten-minute tick a
+                // two-minute wait would really take up to twelve. It is one small
+                // indexed query, and a no-op when nothing qualifies.
                 if (config('whatsapp.ai.reactivate.enabled', true)) {
                     $schedule->command('whatsapp:reactivate-agent')
-                        ->everyTenMinutes()
+                        ->everyMinute()
                         ->withoutOverlapping();
                 }
 
