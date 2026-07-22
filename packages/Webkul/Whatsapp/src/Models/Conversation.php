@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Lead\Models\LeadProxy;
 use Webkul\Whatsapp\Contracts\Conversation as ConversationContract;
+use Webkul\Whatsapp\Services\AgentBlocklist;
 use Webkul\Whatsapp\Services\AgentTestMode;
 
 class Conversation extends Model implements ConversationContract
@@ -56,6 +57,12 @@ class Conversation extends Model implements ConversationContract
      */
     public function aiEffective(): bool
     {
+        // A blocked number is silent no matter what: it outranks the global
+        // default and the per-conversation switch alike.
+        if (AgentBlocklist::blocks($this->wa_phone)) {
+            return false;
+        }
+
         $enabled = $this->ai_enabled ?? (bool) config('whatsapp.ai.enabled');
 
         return $enabled && AgentTestMode::allows($this->wa_phone);

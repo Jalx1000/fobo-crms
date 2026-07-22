@@ -9,6 +9,7 @@ use Illuminate\Support\ServiceProvider;
 use Webkul\Whatsapp\Console\Commands\KommoCheck;
 use Webkul\Whatsapp\Console\Commands\ListTemplates;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
+use Webkul\Whatsapp\Console\Commands\ReactivateAgent;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
 use Webkul\Whatsapp\Console\Commands\SendAppointmentReminders;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
@@ -38,6 +39,7 @@ class WhatsappServiceProvider extends ServiceProvider
                 NormalizePhones::class,
                 RepairGateway::class,
                 ListTemplates::class,
+                ReactivateAgent::class,
                 SendAppointmentReminders::class,
                 WebhookInfo::class,
             ]);
@@ -51,6 +53,15 @@ class WhatsappServiceProvider extends ServiceProvider
                     ->dailyAt((string) config('whatsapp.reminders.send_at', '08:00'))
                     ->timezone((string) config('whatsapp.reminders.timezone', 'America/La_Paz'))
                     ->withoutOverlapping();
+
+                // Give quiet conversations back to the agent. Runs often because
+                // the wait is measured in hours but should end promptly once it
+                // elapses; the command itself is a no-op when nothing qualifies.
+                if (config('whatsapp.ai.reactivate.enabled', true)) {
+                    $schedule->command('whatsapp:reactivate-agent')
+                        ->everyTenMinutes()
+                        ->withoutOverlapping();
+                }
 
                 // Drain the WhatsApp queue every minute.
                 //

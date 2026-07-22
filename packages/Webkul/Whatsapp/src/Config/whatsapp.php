@@ -189,6 +189,20 @@ return [
         'test_mode'    => env('WHATSAPP_AI_TEST_MODE', false),
         'test_numbers' => env('WHATSAPP_AI_TEST_NUMBERS', ''),
 
+        // Hand the conversation back to the agent when the human take-over goes
+        // quiet. Turning the agent off is how an advisor takes over, but nobody
+        // remembers to turn it back on. The wait restarts on any new message, so
+        // the bot never barges into a live chat.
+        'reactivate' => [
+            'enabled'     => env('WHATSAPP_AI_REACTIVATE', true),
+            'after_hours' => env('WHATSAPP_AI_REACTIVATE_AFTER_HOURS', 1),
+        ],
+
+        // Numbers the agent must NEVER answer, whatever the switches say.
+        // Same format as test_numbers (comma-separated, country code optional:
+        // only the last 8 digits are compared). Empty = nobody is blocked.
+        'blocked_numbers' => env('WHATSAPP_AI_BLOCKED_NUMBERS', ''),
+
         'webhook_url'  => env('WHATSAPP_AGENT_WEBHOOK_URL'),
         'token'        => env('WHATSAPP_AGENT_TOKEN'), // Bearer the CRM sends so the agent knows it's us
         'history_size' => env('WHATSAPP_AGENT_HISTORY_SIZE', 15),

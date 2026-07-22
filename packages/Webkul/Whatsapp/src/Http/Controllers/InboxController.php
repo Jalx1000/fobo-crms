@@ -118,7 +118,12 @@ class InboxController extends Controller
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
 
-        $conversation->update(['ai_enabled' => $data['enabled']]);
+        // Stamp the hand-over so whatsapp:reactivate-agent knows how long the
+        // human has had it; cleared the moment the agent is back on.
+        $conversation->update([
+            'ai_enabled'     => $data['enabled'],
+            'ai_disabled_at' => $data['enabled'] ? null : now(),
+        ]);
 
         return response()->json([
             'agent' => [
