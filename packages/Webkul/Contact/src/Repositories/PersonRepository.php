@@ -92,7 +92,7 @@ class PersonRepository extends Repository
      */
     public function update(array $data, $id, $attributes = [])
     {
-        $data = $this->sanitizeRequestedPersonData($data);
+        $data = $this->sanitizeRequestedPersonData($data, $id);
 
         $data['user_id'] = empty($data['user_id']) ? null : $data['user_id'];
 
@@ -181,7 +181,7 @@ class PersonRepository extends Repository
     /**
      * Sanitize requested person data and return the clean array.
      */
-    private function sanitizeRequestedPersonData(array $data): array
+    private function sanitizeRequestedPersonData(array $data, $ignoreId = null): array
     {
         if (
             array_key_exists('organization_id', $data)
@@ -199,9 +199,12 @@ class PersonRepository extends Repository
         $data['unique_id'] = implode('|', $uniqueIdParts);
 
         if (isset($data['contact_numbers'])) {
-            $data['contact_numbers'] = collect($data['contact_numbers'])->filter(fn ($number) => ! is_null($number['value']))->toArray();
+            $data['contact_numbers'] = collect($data['contact_numbers'])->filter(fn ($number) => ! is_null($number['value']))->values()->toArray();
 
-            $data['unique_id'] .= '|'.$data['contact_numbers'][0]['value'];
+            // The filter can drop index 0, so only append when a number survives.
+            if (! empty($data['contact_numbers'][0]['value'])) {
+                $data['unique_id'] .= '|'.$data['contact_numbers'][0]['value'];
+            }
         }
 
         if (
@@ -209,6 +212,23 @@ class PersonRepository extends Repository
             && empty($data['unique_id'])
         ) {
             unset($data['unique_id']);
+        }
+
+        // unique_id is a best-effort dedupe hint, not an identity: two people can
+        // legitimately share a phone (family members) with no email to tell them
+        // apart, which collapses unique_id to "|<phone>". Rather than let that
+        // raise a raw 1062 on an otherwise valid contact, drop the hint so the
+        // row saves with a NULL unique_id — the column is nullable and MySQL
+        // allows many NULLs in a unique index.
+        if (! empty($data['unique_id'])) {
+            $collides = app($this->model())->newQuery()
+                ->where('unique_id', $data['unique_id'])
+                ->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))
+                ->exists();
+
+            if ($collides) {
+                unset($data['unique_id']);
+            }
         }
 
         return $data;
