@@ -43,6 +43,26 @@
                         <x-admin::form.control-group.error control-name="email" />
                     </x-admin::form.control-group>
 
+                    {{-- WhatsApp number. ShareMeData never sends it, so it is
+                         loaded here by hand; it is what lets the WhatsApp module
+                         open a conversation with the doctor. --}}
+                    <x-admin::form.control-group>
+                        <x-admin::form.control-group.label>
+                            WhatsApp
+                        </x-admin::form.control-group.label>
+
+                        <x-admin::form.control-group.control
+                            type="text"
+                            id="phone"
+                            name="phone"
+                            :label="trans('WhatsApp')"
+                            :placeholder="trans('Ej.: 78960835 o 59178960835')"
+                            :value="old('phone', isset($doctor) ? $doctor->phone : '')"
+                        />
+
+                        <x-admin::form.control-group.error control-name="phone" />
+                    </x-admin::form.control-group>
+
                     <x-admin::form.control-group>
                         <x-admin::form.control-group.label>
                             ID de ShareMeData (Hexadecimal)
