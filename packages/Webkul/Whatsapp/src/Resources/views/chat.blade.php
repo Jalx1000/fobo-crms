@@ -226,6 +226,12 @@
                         listLoading: false,
                         searchTimer: null,
                         pollTimer: null,
+                        // Monotonic tag for list requests. The 10s poll and a
+                        // filter/search click fire overlapping requests; without
+                        // ordering, a slow older response can land last and
+                        // overwrite the current filter's list. Each request
+                        // captures this; a response whose tag is stale is dropped.
+                        loadSeq: 0,
                     };
                 },
 
@@ -248,7 +254,7 @@
                         .then(res => { this.stages = res.data?.stages ?? []; })
                         .catch(() => {});
                     // Keep the list fresh (previews, unread badges) while open.
-                    this.pollTimer = setInterval(() => this.load(true), 10000);
+                    this.pollTimer = setInterval(() => this.poll(), 10000);
                 },
 
                 beforeUnmount() {
@@ -257,28 +263,51 @@
                 },
 
                 methods: {
+                    poll() {
+                        // load() refetches page 1 and replaces the list. If the
+                        // user scrolled and loaded more pages, doing that every
+                        // 10s would drop those pages and snap the list to the
+                        // top. Only auto-refresh while still on the first page;
+                        // any filter/search click reloads on demand anyway.
+                        if (this.page > 1) return;
+
+                        this.load(true);
+                    },
+
                     load(background = false) {
                         if (!background) this.listLoading = true;
+
+                        // Newest request wins: a stale response (an in-flight
+                        // poll from the previous filter) must not clobber the
+                        // list the current filter just loaded.
+                        const seq = ++this.loadSeq;
 
                         return this.$axios.get(this.conversationsUrl, {
                                 params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, page: 1 },
                             })
                             .then(res => {
+                                if (seq !== this.loadSeq) return; // superseded
                                 this.conversations = res.data?.data ?? [];
                                 this.page = res.data?.current_page ?? 1;
                                 this.lastPage = res.data?.last_page ?? 1;
                             })
                             .catch(() => {})
-                            .finally(() => { this.listLoading = false; });
+                            .finally(() => { if (seq === this.loadSeq) this.listLoading = false; });
                     },
 
                     loadMore() {
+                        // Appending shares the same guard: a background poll that
+                        // lands mid-append would otherwise drop the new page.
+                        const seq = ++this.loadSeq;
+                        const page = this.page + 1;
+
                         this.$axios.get(this.conversationsUrl, {
-                                params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, page: this.page + 1 },
+                                params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, page },
                             })
                             .then(res => {
+                                if (seq !== this.loadSeq) return; // superseded
                                 this.conversations.push(...(res.data?.data ?? []));
-                                this.page = res.data?.current_page ?? this.page + 1;
+                                this.page = res.data?.current_page ?? page;
                                 this.lastPage = res.data?.last_page ?? this.lastPage;
                             })
                             .catch(() => {});
