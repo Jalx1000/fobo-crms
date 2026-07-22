@@ -11,6 +11,7 @@ use Webkul\Lead\Models\LeadProxy;
 use Webkul\Whatsapp\Contracts\Conversation as ConversationContract;
 use Webkul\Whatsapp\Services\AgentBlocklist;
 use Webkul\Whatsapp\Services\AgentTestMode;
+use Webkul\Whatsapp\Services\StaffNumbers;
 
 class Conversation extends Model implements ConversationContract
 {
@@ -58,8 +59,10 @@ class Conversation extends Model implements ConversationContract
     public function aiEffective(): bool
     {
         // A blocked number is silent no matter what: it outranks the global
-        // default and the per-conversation switch alike.
-        if (AgentBlocklist::blocks($this->wa_phone)) {
+        // default and the per-conversation switch alike. Staff (doctors) are
+        // treated the same way — the agent answers patients, and a doctor
+        // writing to the clinic must always reach a human.
+        if (AgentBlocklist::blocks($this->wa_phone) || StaffNumbers::isStaff($this->wa_phone)) {
             return false;
         }
 

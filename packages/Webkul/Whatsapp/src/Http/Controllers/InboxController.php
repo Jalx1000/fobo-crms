@@ -21,6 +21,7 @@ use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\AgentTestMode;
 use Webkul\Whatsapp\Services\ConversationResolver;
 use Webkul\Whatsapp\Services\PhoneNumber;
+use Webkul\Whatsapp\Services\StaffNumbers;
 use Webkul\Whatsapp\Services\TemplateCatalog;
 
 class InboxController extends Controller
@@ -97,7 +98,14 @@ class InboxController extends Controller
                 // raw = the per-conversation override (null = inherit global);
                 // effective = what actually applies right now.
                 'enabled'   => $conversation?->ai_enabled,
-                'effective' => $conversation ? $conversation->aiEffective() : (bool) config('whatsapp.ai.enabled'),
+                // With no conversation yet there is nothing to read the flag
+                // from, so the global default applies — except for staff, who
+                // the agent never handles. Without this a doctor who has never
+                // written shows the agent as active, which locks the composer
+                // and with it the template button.
+                'effective' => $conversation
+                    ? $conversation->aiEffective()
+                    : ((bool) config('whatsapp.ai.enabled') && ! StaffNumbers::isStaff($request->input('phone'))),
                 // Why the switch may look ignored: in test mode the agent is
                 // restricted to a whitelist, and this number is not on it.
                 'test_blocked' => $conversation ? ! AgentTestMode::allows($conversation->wa_phone) : false,

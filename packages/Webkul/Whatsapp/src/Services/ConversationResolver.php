@@ -9,6 +9,7 @@ use Webkul\Contact\Models\PersonProxy;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Models\ConversationProxy;
+use Webkul\Whatsapp\Services\StaffNumbers;
 
 class ConversationResolver
 {
@@ -51,7 +52,9 @@ class ConversationResolver
             'person_id'                => $person?->id,
             'lead_id'                  => $person ? optional($person->leads()->latest()->first())->id : null,
             'status'                   => $person ? 'open' : 'unassigned',
-            'ai_enabled'               => true, // new conversations start with the agent on
+            // New conversations start with the agent on — except staff (doctors),
+            // who must always reach a human.
+            'ai_enabled'               => ! StaffNumbers::isStaff($contact->phone),
         ]);
     }
 
