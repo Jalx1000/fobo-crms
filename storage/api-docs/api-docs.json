@@ -15,6 +15,345 @@
         }
     ],
     "paths": {
+        "/api/doctors/{id}/available-slots": {
+            "get": {
+                "tags": [
+                    "Doctors"
+                ],
+                "summary": "Disponibilidad real del doctor (ShareMeData ∩ jornada local − citas)",
+                "description": "Devuelve los slots realmente libres de un doctor: cruza la disponibilidad de ShareMeData (SMD) con la jornada local del CRM (doctor_shifts) y le resta las citas ya agendadas. Es el endpoint recomendado para clientes externos (agente IA), en lugar de `GET /api/doctors/{id}` (que devuelve solo la agenda local, sin SMD). Si SMD no se puede consultar, degrada a la disponibilidad local e informa el motivo en `source`/`degraded`/`reason`.",
+                "operationId": "ab3028ba1bb5b9d606e8086a52e1ecef",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID numérico del doctor en el CRM",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "example": 5
+                        }
+                    },
+                    {
+                        "name": "date",
+                        "in": "query",
+                        "description": "Fecha inicial (hoy o futura, hasta 6 meses). Formato Y-m-d.",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "date",
+                            "example": "2026-07-23"
+                        }
+                    },
+                    {
+                        "name": "days",
+                        "in": "query",
+                        "description": "Cantidad de días a devolver desde `date` (1–30). Default 7.",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 7,
+                            "maximum": 30,
+                            "minimum": 1,
+                            "example": 1
+                        }
+                    },
+                    {
+                        "name": "duration_minutes",
+                        "in": "query",
+                        "description": "Si se envía, recorta cada ventana libre en slots de esta duración (15–480). Si se omite, devuelve las ventanas libres completas.",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 480,
+                            "minimum": 15,
+                            "example": 30
+                        }
+                    },
+                    {
+                        "name": "specialty",
+                        "in": "query",
+                        "description": "Especialidad a consultar en SMD. Si se omite, usa las especialidades del doctor en el CRM.",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 120,
+                            "example": "Endodoncia"
+                        }
+                    },
+                    {
+                        "name": "subsidiary",
+                        "in": "query",
+                        "description": "Sucursal a consultar en SMD. Default: `Santa Cruz`.",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 120,
+                            "example": "Santa Cruz"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Disponibilidad resuelta. `source=smd` cuando se cruzó con ShareMeData; `source=local` (con `degraded=true` y `reason`) cuando se degradó a la agenda local.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "doctor_id": {
+                                            "type": "integer",
+                                            "example": 5
+                                        },
+                                        "from": {
+                                            "type": "string",
+                                            "format": "date",
+                                            "example": "2026-07-23"
+                                        },
+                                        "days": {
+                                            "type": "integer",
+                                            "example": 1
+                                        },
+                                        "source": {
+                                            "type": "string",
+                                            "enum": [
+                                                "smd",
+                                                "local"
+                                            ],
+                                            "example": "smd"
+                                        },
+                                        "degraded": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "reason": {
+                                            "description": "Motivo de la degradación a local (null cuando `source=smd`).",
+                                            "type": "string",
+                                            "enum": [
+                                                "doctor_unlinked",
+                                                "smd_unavailable",
+                                                "smd_disabled"
+                                            ],
+                                            "example": null,
+                                            "nullable": true
+                                        },
+                                        "schedule": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "date": {
+                                                        "type": "string",
+                                                        "format": "date",
+                                                        "example": "2026-07-23"
+                                                    },
+                                                    "slots": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "properties": {
+                                                                "start_time": {
+                                                                    "type": "string",
+                                                                    "example": "09:00"
+                                                                },
+                                                                "end_time": {
+                                                                    "type": "string",
+                                                                    "example": "09:30"
+                                                                },
+                                                                "status": {
+                                                                    "type": "string",
+                                                                    "example": "available"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado (falta el Bearer token de Sanctum)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Unauthenticated."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Doctor no encontrado o inactivo",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Doctor not found."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Parámetros inválidos (p. ej. `date` faltante o fuera de rango)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "The date field is required."
+                                        },
+                                        "errors": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/disponibilidad": {
+            "get": {
+                "tags": [
+                    "Doctors"
+                ],
+                "summary": "Slots de disponibilidad de un doctor para una fecha",
+                "description": "Devuelve los bloques de tiempo disponibles de un doctor en una fecha específica, descontando las citas ya reservadas. Una llamada por fecha — para consultar 7 días hacer 7 requests. Requiere token Sanctum (Bearer).",
+                "operationId": "ebd482b15cb1d37e4f2928b0528d532b",
+                "parameters": [
+                    {
+                        "name": "doctorId",
+                        "in": "query",
+                        "description": "ID del doctor (User)",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 3
+                        }
+                    },
+                    {
+                        "name": "date",
+                        "in": "query",
+                        "description": "Fecha a consultar en formato YYYY-MM-DD. Solo acepta una fecha por llamada.",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "date",
+                            "example": "2026-05-26"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de slots disponibles para la fecha. Array vacío si el doctor no trabaja ese día.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "properties": {
+                                            "doctorId": {
+                                                "type": "integer",
+                                                "example": 3
+                                            },
+                                            "date": {
+                                                "type": "string",
+                                                "format": "date",
+                                                "example": "2026-05-26"
+                                            },
+                                            "startTime": {
+                                                "type": "string",
+                                                "example": "09:00"
+                                            },
+                                            "endTime": {
+                                                "type": "string",
+                                                "example": "13:00"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Parámetros inválidos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "errors": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token ausente o inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Unauthenticated."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Doctor no encontrado o sin horario para esa fecha",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "El doctor no trabaja en la fecha especificada."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/insurance/verify": {
             "post": {
                 "tags": [
@@ -799,6 +1138,202 @@
                         "description": "Validation error"
                     }
                 }
+            }
+        },
+        "/api/specialties/{identifier}/doctors": {
+            "get": {
+                "tags": [
+                    "Specialties"
+                ],
+                "summary": "Listar doctores activos por especialidad",
+                "description": "Devuelve los doctores ACTIVOS (is_active=true) asociados a una especialidad, con campos resumidos y disponibilidad de cita a 7/14/30 días. El parámetro {identifier} acepta ID numérico, slug o nombre (coincidencia parcial). Endpoint público.",
+                "operationId": "9e19a78813cd453f4abfab7f8aac3cd8",
+                "parameters": [
+                    {
+                        "name": "identifier",
+                        "in": "path",
+                        "description": "ID, slug o nombre de la especialidad",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "ortodoncia"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Especialidad encontrada con sus doctores activos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "specialty": {
+                                            "type": "object"
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer",
+                                                        "example": 1
+                                                    },
+                                                    "name": {
+                                                        "type": "string",
+                                                        "example": "Dr. García"
+                                                    },
+                                                    "unique_id": {
+                                                        "type": "string",
+                                                        "example": "123|Dr. García"
+                                                    },
+                                                    "age_range_min": {
+                                                        "type": "string",
+                                                        "example": "0",
+                                                        "nullable": true
+                                                    },
+                                                    "age_range_max": {
+                                                        "type": "string",
+                                                        "example": "99",
+                                                        "nullable": true
+                                                    },
+                                                    "type_service_doctor": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "string"
+                                                        },
+                                                        "example": [
+                                                            "PROTESIS FIJA"
+                                                        ],
+                                                        "nullable": true
+                                                    },
+                                                    "attendsPatientType": {
+                                                        "type": "string",
+                                                        "example": "Pacientes nuevos",
+                                                        "nullable": true
+                                                    },
+                                                    "available_7d": {
+                                                        "type": "boolean",
+                                                        "example": true
+                                                    },
+                                                    "available_14d": {
+                                                        "type": "boolean",
+                                                        "example": true
+                                                    },
+                                                    "available_30d": {
+                                                        "type": "boolean",
+                                                        "example": true
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Especialidad no encontrada"
+                    }
+                }
+            }
+        },
+        "/api/v1/whatsapp/conversations/{id}/messages": {
+            "get": {
+                "tags": [
+                    "WhatsApp"
+                ],
+                "summary": "Get a WhatsApp conversation's recent messages (agent context)",
+                "operationId": "whatsappConversationMessages",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Conversation contact + history"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Conversation not found"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "WhatsApp"
+                ],
+                "summary": "Send a WhatsApp reply as the AI agent",
+                "operationId": "whatsappAgentReply",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "text"
+                                ],
+                                "properties": {
+                                    "text": {
+                                        "type": "string",
+                                        "example": "Hola, ¿en qué te ayudo?"
+                                    },
+                                    "reply_to_id": {
+                                        "type": "integer",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Message queued for delivery"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Conversation not found"
+                    },
+                    "422": {
+                        "description": "Outside the 24h messaging window"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
             }
         },
         "/api/v1/activities": {
@@ -15842,6 +16377,10 @@
         {
             "name": "Specialties",
             "description": "Specialties"
+        },
+        {
+            "name": "WhatsApp",
+            "description": "WhatsApp"
         }
     ]
 }

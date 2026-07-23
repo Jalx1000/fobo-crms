@@ -45,6 +45,7 @@ return [
                     base_path('packages/Webkul/Doctor/src/Http/Controllers/Api'),
                     base_path('packages/Webkul/Admin/src/Http/Controllers/Api'),
                     base_path('packages/Webkul/Whatsapp/src/Http/Controllers/Api'),
+                    base_path('app/Http/Controllers/Api'),
                 ],
 
             ],
