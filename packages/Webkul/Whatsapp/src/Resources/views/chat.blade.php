@@ -47,9 +47,15 @@
                             >
                         </div>
 
-                        <div class="flex gap-1.5">
+                        <!-- Los filtros ya no entran en el ancho de la columna, así
+                             que la fila scrollea. La rueda del mouse desplaza en
+                             vertical por defecto y aquí no hay nada que desplazar,
+                             de modo que se traduce a horizontal a mano. -->
+                        <div class="wa-scroll wa-scroll-x flex gap-1.5 pb-1"
+                             @wheel.prevent="$event.currentTarget.scrollLeft += ($event.deltaY || $event.deltaX)"
+                             @mousedown="dragScroll">
                             <button v-for="f in filters" :key="f.value" type="button"
-                                    class="rounded-full px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
+                                    class="shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
                                     :class="filter === f.value
                                         ? 'bg-brandColor text-white'
                                         : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'"
@@ -59,7 +65,9 @@
                         </div>
 
                         <!-- stage filter: chips from the default pipeline -->
-                        <div v-if="stages.length" class="wa-scroll flex gap-1.5 overflow-x-auto pb-0.5">
+                        <div v-if="stages.length" class="wa-scroll wa-scroll-x flex gap-1.5 pb-1"
+                             @wheel.prevent="$event.currentTarget.scrollLeft += ($event.deltaY || $event.deltaX)"
+                             @mousedown="dragScroll">
                             <button type="button"
                                     class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
                                     :class="!stageFilter
@@ -119,6 +127,9 @@
                                         <span class="flex min-w-0 items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                                             <span v-if="c.ai_enabled" title="El agente IA atiende esta conversación"
                                                   class="shrink-0 rounded bg-emerald-100 px-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">IA</span>
+                                            <!-- Recordatorio de cita ya enviado. -->
+                                            <span v-if="c.reminded_at" :title="'Recordatorio enviado el ' + c.reminded_at"
+                                                  class="shrink-0 rounded bg-sky-100 px-1 text-[10px] font-bold text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">REC</span>
                                             <span class="truncate">@{{ c.preview || 'Sin mensajes' }}</span>
                                         </span>
                                         <span v-if="c.unread_count"
@@ -218,6 +229,8 @@
                             { value: 'all', label: 'Todas' },
                             { value: 'unread', label: 'No leídas' },
                             { value: 'unassigned', label: 'Sin asignar' },
+                            // Quién ya recibió el recordatorio de su cita.
+                            { value: 'reminded', label: 'Recordatorio' },
                             // Staff, not patients: listed from the doctors table
                             // rather than from existing conversations, so a
                             // doctor who never wrote is still reachable.
@@ -325,6 +338,39 @@
                     // A doctor who has never written has no conversation yet, so
                     // `id` is null for several rows at once: key and compare by
                     // the phone, which is what actually identifies the chat.
+                    // Arrastrar la fila de filtros con el cursor. No usa
+                    // preventDefault en el mousedown: eso mataría el clic de los
+                    // botones. En su lugar solo desplaza si el puntero se movió
+                    // más que el umbral, y en ese caso se traga el clic siguiente
+                    // para que arrastrar no termine seleccionando un filtro.
+                    dragScroll(event) {
+                        if (event.button !== 0) return;
+
+                        const el = event.currentTarget;
+                        const startX = event.pageX;
+                        const startLeft = el.scrollLeft;
+                        let arrastro = false;
+
+                        const mover = ev => {
+                            const delta = ev.pageX - startX;
+                            if (!arrastro && Math.abs(delta) < 4) return;
+                            arrastro = true;
+                            el.scrollLeft = startLeft - delta;
+                        };
+
+                        const soltar = () => {
+                            document.removeEventListener('mousemove', mover);
+                            document.removeEventListener('mouseup', soltar);
+
+                            if (arrastro) {
+                                el.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); }, { capture: true, once: true });
+                            }
+                        };
+
+                        document.addEventListener('mousemove', mover);
+                        document.addEventListener('mouseup', soltar);
+                    },
+
                     rowKey(c) {
                         return c.id || ('doc-' + (c.doctor_id ?? c.phone));
                     },

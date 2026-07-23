@@ -1,6 +1,22 @@
 @pushOnce('scripts')
     <style>
-        .wa-scroll::-webkit-scrollbar { width: 6px; }
+        /* `height` es lo que gobierna la barra HORIZONTAL: sin ella las filas de
+           filtros quedaban con la barra gruesa del sistema o sin barra visible. */
+        .wa-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+
+        /* Filas de filtros: barra SIEMPRE visible (no `auto`, que la esconde
+           hasta que hace falta) y arrastrable con el cursor. */
+        .wa-scroll-x {
+            overflow-x: scroll;
+            scrollbar-width: thin;
+            cursor: grab;
+            overscroll-behavior-x: contain;
+        }
+        .wa-scroll-x:active { cursor: grabbing; }
+        .wa-scroll-x::-webkit-scrollbar { height: 8px; }
+        .wa-scroll-x::-webkit-scrollbar-thumb { background: rgba(0,0,0,.25); border-radius: 4px; }
+        .dark .wa-scroll-x::-webkit-scrollbar-thumb { background: rgba(255,255,255,.25); }
+        .wa-scroll-x::-webkit-scrollbar-track { background: rgba(0,0,0,.05); border-radius: 4px; }
         .wa-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 3px; }
         .dark .wa-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); }
         /* Cuando el chat va embebido dentro de otro modal (ej. detalle de cita),
@@ -286,7 +302,7 @@
                 <div v-if="showTemplates" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" @click.self="closeTemplates">
                     <!-- Fluid up to a readable maximum: a fixed width either
                          overflows a phone or wastes the desktop viewport. -->
-                    <div class="flex max-h-[85vh] w-[280px] flex-col rounded-lg bg-white shadow-xl sm:max-w-lg dark:bg-gray-800">
+                    <div style="max-width:500px;" class="flex max-h-[85vh] w-full flex-col rounded-lg bg-white shadow-xl sm:max-w-lg dark:bg-gray-800">
                         <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                             <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
                                 @{{ selectedTemplate ? selectedTemplate.name : 'Elegí una plantilla' }}

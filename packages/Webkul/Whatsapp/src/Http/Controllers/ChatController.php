@@ -84,6 +84,17 @@ class ChatController extends Controller
                     ->orderByDesc('id')->limit(1),
                 'last_direction'
             )
+            // Cuándo se le mandó el último recordatorio de cita. Alimenta la
+            // etiqueta de la fila y el filtro, para que recepción sepa a quién
+            // ya se le avisó sin abrir la conversación.
+            ->selectSub(
+                DB::table('whatsapp_appointment_reminders')
+                    ->select('sent_at')
+                    ->whereColumn('conversation_id', 'whatsapp_conversations.id')
+                    ->orderByDesc('id')
+                    ->limit(1),
+                'last_reminder_at'
+            )
             // Stage of the contact's active (or latest) lead, for the row badge.
             ->selectSub(
                 DB::table('leads')
@@ -108,6 +119,13 @@ class ChatController extends Controller
         match ($request->input('filter')) {
             'unassigned' => $query->whereNull('person_id')->whereNull('lead_id'),
             'unread'     => $query->where('unread_count', '>', 0),
+            // Sólo los que ya recibieron un recordatorio de cita, para revisar
+            // la cobertura del envío del día.
+            'reminded'   => $query->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('whatsapp_appointment_reminders')
+                    ->whereColumn('whatsapp_appointment_reminders.conversation_id', 'whatsapp_conversations.id');
+            }),
             default      => null,
         };
 
@@ -142,6 +160,7 @@ class ChatController extends Controller
                     ? ($c->last_direction === 'outbound' ? '↩ ' : '').Str::limit((string) $c->last_body, 60)
                     : null,
                 'last_message_at' => optional($c->last_message_at)->toIso8601String(),
+                'reminded_at'     => $c->last_reminder_at,
             ]),
             'current_page' => $conversations->currentPage(),
             'last_page'    => $conversations->lastPage(),

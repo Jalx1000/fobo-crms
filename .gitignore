@@ -36,3 +36,7 @@ node_modules/
 
 # Build de Vite del admin: artefacto generado, se compila en cada servidor
 /public/admin/build
+
+# Reportes de citas con telefonos de pacientes: no van al repo
+/citas-*.csv
+/citas-*.xlsx

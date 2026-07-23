@@ -39,12 +39,27 @@ class PhoneNumber
      * Left untouched if it already starts with the country code or if no code
      * is configured. Returns digits only (no '+').
      */
+    /**
+     * Local numbers, in digits, that may still be missing their country code.
+     *
+     * Bolivian numbers are 8 digits (mobile and landline alike), so anything
+     * longer already carries a country code — prefixing it would corrupt a
+     * foreign number: "5493875154445" (Argentina) became "5915493875154445".
+     */
+    protected const LOCAL_LENGTH = 8;
+
     public static function withCountryCode(?string $value, ?string $countryCode): string
     {
         $digits = self::digits($value);
         $cc = self::digits($countryCode);
 
         if ($digits === '' || $cc === '' || str_starts_with($digits, $cc)) {
+            return $digits;
+        }
+
+        // Only a bare local number gets the code. A longer number is already
+        // international (foreign or with another prefix) and is left alone.
+        if (strlen($digits) !== self::LOCAL_LENGTH) {
             return $digits;
         }
 
