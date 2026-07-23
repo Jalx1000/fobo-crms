@@ -5,6 +5,7 @@ namespace Webkul\Whatsapp\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Log;
 use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\SendMessage;
@@ -47,6 +48,68 @@ class AgentController extends Controller
             'gateway'         => $conversation->gateway,
             'contact'         => $this->payloads->contact($conversation),
             'history'         => $this->payloads->history($conversation),
+        ]);
+    }
+
+    /**
+     * Derivación a recepción (CONTRATO B).
+     *
+     * El agente pide el traspaso y el CRM apaga el bot para esa conversación.
+     * Va atado a la CONVERSACIÓN —o sea, al paciente— y no a un lead: los leads
+     * son las citas, van cambiando de etapa, y mover una a "recepción" le
+     * borraría su estado real. El paciente, en cambio, es estable.
+     *
+     * El agente ya recibe `conversation_id` en cada evento, así que no tiene
+     * nada que resolver: una sola llamada con un dato que ya tiene.
+     *
+     * @OA\Post(
+     *     path="/api/v1/whatsapp/conversations/{id}/handoff",
+     *     operationId="whatsappAgentHandoff",
+     *     tags={"WhatsApp"},
+     *     summary="Derivar la conversación a una recepcionista humana",
+     *     security={ {"sanctum_admin": {} }},
+     *
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *
+     *     @OA\RequestBody(@OA\JsonContent(
+     *         @OA\Property(property="motivo", type="string", nullable=true),
+     *         @OA\Property(property="fuera_de_horario", type="boolean", nullable=true)
+     *     )),
+     *
+     *     @OA\Response(response=200, description="Conversación derivada"),
+     *     @OA\Response(response=404, description="Conversation not found")
+     * )
+     */
+    public function handoff(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            'motivo'           => 'nullable|string|max:500',
+            'fuera_de_horario' => 'nullable|boolean',
+        ]);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        $conversation->update([
+            'ai_enabled'     => false,
+            // Sella el traspaso: es lo que mide whatsapp:reactivate-agent.
+            'ai_disabled_at' => now(),
+            // Y lo marca como pedido POR EL PACIENTE, que espera su propio plazo.
+            'ai_handoff_at'  => now(),
+        ]);
+
+        Log::info('WhatsApp: el agente derivó la conversación a recepción', [
+            'conversation_id'  => $conversation->id,
+            'person_id'        => $conversation->person_id,
+            'motivo'           => $data['motivo'] ?? null,
+            'fuera_de_horario' => (bool) ($data['fuera_de_horario'] ?? false),
+        ]);
+
+        return response()->json([
+            'handoff' => [
+                'conversation_id' => $conversation->id,
+                'ai_enabled'      => $conversation->ai_enabled,
+                'derivada_at'     => optional($conversation->ai_disabled_at)->toIso8601String(),
+            ],
         ]);
     }
 

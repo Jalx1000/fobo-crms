@@ -11,6 +11,7 @@ use Webkul\Lead\Models\LeadProxy;
 use Webkul\Whatsapp\Contracts\Conversation as ConversationContract;
 use Webkul\Whatsapp\Services\AgentBlocklist;
 use Webkul\Whatsapp\Services\AgentTestMode;
+use Webkul\Whatsapp\Services\ReceptionStage;
 use Webkul\Whatsapp\Services\StaffNumbers;
 
 class Conversation extends Model implements ConversationContract
@@ -29,6 +30,7 @@ class Conversation extends Model implements ConversationContract
         'wa_name',
         'ai_enabled',
         'ai_disabled_at',
+        'ai_handoff_at',
         'status',
         'last_message_at',
         'unread_count',
@@ -45,6 +47,7 @@ class Conversation extends Model implements ConversationContract
     protected $casts = [
         'ai_enabled'      => 'boolean',
         'ai_disabled_at'  => 'datetime',
+        'ai_handoff_at'   => 'datetime',
         'last_message_at' => 'datetime',
         'last_inbound_at' => 'datetime',
     ];
@@ -65,6 +68,14 @@ class Conversation extends Model implements ConversationContract
         // treated the same way — the agent answers patients, and a doctor
         // writing to the clinic must always reach a human.
         if (AgentBlocklist::blocks($this->wa_phone) || StaffNumbers::isStaff($this->wa_phone)) {
+            return false;
+        }
+
+        // CONTRATO B: derivada a recepción. El agente pide el traspaso moviendo
+        // el lead a la etapa Recepcionista, y esto es lo que hace que el CRM
+        // deje de avisarle. Sin señal de vuelta: cuando recepción saca el lead
+        // de esa etapa, el agente se reanuda solo.
+        if (ReceptionStage::holds($this->lead_id, $this->person_id)) {
             return false;
         }
 

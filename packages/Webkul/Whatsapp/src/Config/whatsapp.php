@@ -202,6 +202,11 @@ return [
 
             // Respaldo en horas, para no romper instalaciones que ya la usaban.
             'after_hours' => env('WHATSAPP_AI_REACTIVATE_AFTER_HOURS', 1),
+
+            // Plazo aparte, más largo, cuando el traspaso lo pidió el PACIENTE
+            // (CONTRATO B). Volver al bot al rato contradice un pedido explícito,
+            // así que recepción tiene margen para resolverlo.
+            'handoff_after_minutes' => env('WHATSAPP_AI_REACTIVATE_HANDOFF_MINUTES', 180),
         ],
 
         // Numbers the agent must NEVER answer, whatever the switches say.
@@ -231,6 +236,11 @@ return [
         // The "vigente" appointment stage (Cita confirmadas): a lead here is the
         // patient's active cita.
         'stage_activa' => (int) env('WHATSAPP_CRM_STAGE_ACTIVA', 7),
+
+        // Etapa Recepcionista (CONTRATO B). El agente deriva moviendo el
+        // lead-conversación acá; mientras esté en esta etapa el CRM no le
+        // reenvía los mensajes y atiende una persona.
+        'stage_recepcion' => (int) env('WHATSAPP_CRM_STAGE_RECEPCION', 9),
 
         // stage id -> human label for each cita's `estado`.
         'stage_labels' => [

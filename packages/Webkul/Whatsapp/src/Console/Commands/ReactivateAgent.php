@@ -44,6 +44,12 @@ class ReactivateAgent extends Command
             : max(1, (int) round((float) config('whatsapp.ai.reactivate.after_hours', 1) * 60));
 
         $cutoff = now()->subMinutes($minutes);
+
+        // Las derivaciones pedidas por el paciente esperan más: devolverle el bot
+        // a alguien que pidió una persona contradice ese pedido.
+        $minutosHandoff = max(1, (int) config('whatsapp.ai.reactivate.handoff_after_minutes', 180));
+        $cutoffHandoff = now()->subMinutes($minutosHandoff);
+
         $dryRun = (bool) $this->option('dry-run');
 
         $prefix = DB::getTablePrefix();
@@ -69,6 +75,8 @@ class ReactivateAgent extends Command
             // Staff are deliberately off: the agent never handles a doctor, so
             // giving them back would only undo that on every run.
             ->reject(fn ($conversation) => StaffNumbers::isStaff($conversation->wa_phone))
+            // Una derivación pedida por el paciente espera su propio plazo.
+            ->reject(fn ($conversation) => $conversation->ai_handoff_at && $conversation->ai_handoff_at->gt($cutoffHandoff))
             ->values();
 
         if ($conversations->isEmpty()) {
@@ -92,6 +100,9 @@ class ReactivateAgent extends Command
                 $conversation->forceFill([
                     'ai_enabled'     => true,
                     'ai_disabled_at' => null,
+                    // También la marca de derivación: si no, un apagado posterior
+                    // heredaría el plazo largo sin que nadie lo haya pedido.
+                    'ai_handoff_at'  => null,
                 ])->save();
             }
         }

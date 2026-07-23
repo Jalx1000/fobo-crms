@@ -131,6 +131,8 @@ class InboxController extends Controller
         $conversation->update([
             'ai_enabled'     => $data['enabled'],
             'ai_disabled_at' => $data['enabled'] ? null : now(),
+            // Recepción resolvió la derivación: deja de tener plazo especial.
+            'ai_handoff_at'  => $data['enabled'] ? null : $conversation->ai_handoff_at,
         ]);
 
         return response()->json([
