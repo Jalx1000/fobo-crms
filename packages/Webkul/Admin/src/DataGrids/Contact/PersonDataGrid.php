@@ -10,6 +10,15 @@ use Webkul\DataGrid\DataGrid;
 class PersonDataGrid extends DataGrid
 {
     /**
+     * Page sizes offered in the table view.
+     *
+     * Same large sizes as the leads listing: revisar o exportar el padrón de
+     * pacientes de a 50 filas obliga a paginar sin parar. Son opt-in — nada
+     * carga 1000 filas salvo que se elija ese tamaño en el desplegable.
+     */
+    protected $perPageOptions = [10, 20, 30, 40, 50, 100, 500, 1000];
+
+    /**
      * Create a new class instance.
      *
      * @return void
