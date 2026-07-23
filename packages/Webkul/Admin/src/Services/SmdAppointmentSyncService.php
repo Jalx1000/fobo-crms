@@ -66,7 +66,38 @@ class SmdAppointmentSyncService
         // no depende del orden en que Dropbox devuelva los archivos.
         usort($files, fn ($a, $b) => strcmp($a['name'] ?? '', $b['name'] ?? ''));
 
-        foreach ($files as $file) {
+        // Descartar lo ya procesado ANTES de bajarlo. processFile descargaba cada
+        // archivo para recién después decidir si aportaba algo, así que cada
+        // corrida se bajaba la carpeta entera (cientos de archivos) cada cinco
+        // minutos, y una cita nueva quedaba esperando detrás de esa cola.
+        //
+        // Comparar por ruta es seguro: SMD nombra los archivos
+        // `event-YYYY-MM-DD-HHMM-<id>.json`, de modo que una modificación llega
+        // como archivo nuevo. Misma ruta = mismo contenido.
+        $paths = array_filter(array_column($files, 'path_lower'));
+
+        $procesados = collect();
+
+        foreach (array_chunk($paths, 500) as $chunk) {
+            $procesados = $procesados->merge(
+                DB::table('smd_processed_files')->whereIn('path', $chunk)->pluck('path')
+            );
+        }
+
+        $procesados = $procesados->flip();
+
+        $pendientes = array_values(array_filter(
+            $files,
+            fn ($file) => ! isset($procesados[$file['path_lower'] ?? ''])
+        ));
+
+        if ($onLog && count($files) !== count($pendientes)) {
+            $onLog(sprintf('%d archivos, %d ya procesados — se bajan %d', count($files), count($files) - count($pendientes), count($pendientes)));
+        }
+
+        $summary['sin_cambios'] += count($files) - count($pendientes);
+
+        foreach ($pendientes as $file) {
             $this->processFile($file, $summary, $onLog);
         }
 
@@ -92,7 +123,14 @@ class SmdAppointmentSyncService
                 return;
             }
 
-            $summary[$this->processPayload($json, $file['path_lower'])]++;
+            $outcome = $this->processPayload($json, $file['path_lower']);
+
+            $summary[$outcome]++;
+
+            // Anotado pase lo que pase: un archivo obsoleto o que no cambió nada
+            // tampoco hay que volver a bajarlo. Solo se omite si hubo excepción,
+            // para que un fallo transitorio se reintente.
+            $this->markFileProcessed($file['path_lower'], $outcome);
         } catch (\Throwable $e) {
             Log::error('[SmdAppointmentSync] Error procesando archivo', [
                 'file'  => $file['path_lower'] ?? '?',
@@ -189,6 +227,23 @@ class SmdAppointmentSyncService
                         'archived_at' => now(),
                         'updated_at'  => now(),
                     ], $updatedAt));
+            } else {
+                // Cancelada y nunca vista antes: no se crea la cita —ya viene
+                // cerrada de SMD— pero sí queda constancia. Sin esta fila el
+                // evento no figura como sincronizado, se vuelve a evaluar en
+                // cada corrida y parece que faltara respecto del archivo origen.
+                DB::table('smd_synced_events')->insert($this->withSourceUpdatedAt([
+                    'external_id'  => $externalId,
+                    'source_file'  => $sourceFile,
+                    'activity_id'  => null,
+                    'lead_id'      => null,
+                    'raw_payload'  => json_encode($json),
+                    'status'       => $status,
+                    'archived_at'  => now(),
+                    'processed_at' => now(),
+                    'created_at'   => now(),
+                    'updated_at'   => now(),
+                ], $updatedAt));
             }
 
             return 'cancelados';
@@ -241,6 +296,29 @@ class SmdAppointmentSyncService
         ], $updatedAt));
 
         return 'creados';
+    }
+
+    /**
+     * Deja constancia de que el archivo ya se bajó, para que la próxima corrida
+     * no lo vuelva a pedir. Nunca debe hacer fallar la sincronización.
+     */
+    private function markFileProcessed(?string $path, string $outcome): void
+    {
+        if (! $path) {
+            return;
+        }
+
+        try {
+            DB::table('smd_processed_files')->updateOrInsert(
+                ['path' => $path],
+                ['outcome' => $outcome, 'processed_at' => now()],
+            );
+        } catch (\Throwable $e) {
+            Log::warning('[SmdAppointmentSync] No se pudo anotar el archivo procesado', [
+                'file'  => $path,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
