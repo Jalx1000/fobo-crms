@@ -150,23 +150,35 @@ class IncomingAppointmentService
         return DB::transaction(function () use ($data, $activityId, $leadId) {
             $normalized = $this->normalizeDropbox($data);
 
+            // Referencias obsoletas: el lead o la actividad trackeados fueron
+            // borrados (limpiezas manuales, cancelaciones). El evento sigue en
+            // SMD, así que se trata como si el lead no existiera y se recrea. Sin
+            // esto, update() sobre un lead inexistente tira ModelNotFound y el
+            // evento nunca vuelve a entrar.
+            if ($leadId && ! $this->leadRepository->find($leadId)) {
+                $leadId = null;
+            }
+
+            $activityExists = $activityId && $this->activityRepository->find($activityId);
+
             // Un bloqueo (sin lead) que ahora trae paciente deja de ser bloqueo:
             // se borra la actividad de ocupación y se crea la cita real —persona,
             // lead con su etapa y actividad meeting—. updateDropbox solo tocaba la
-            // actividad, así que en esta transición el lead no nacía nunca.
+            // actividad, así que en esta transición el lead no nacía nunca. Cubre
+            // también el lead obsoleto de arriba.
             if (! $leadId && $normalized['patient_identified']) {
-                if ($activityId) {
+                if ($activityExists) {
                     $this->activityRepository->delete($activityId);
                 }
 
-                Log::info('[IncomingAppointment] Bloqueo promovido a cita (llegó paciente)', [
+                Log::info('[IncomingAppointment] Cita (re)creada desde update (bloqueo con paciente o lead borrado)', [
                     'external_id' => $data['_id'],
                 ]);
 
                 return $this->process($normalized);
             }
 
-            $activity = $this->activityRepository->find($activityId);
+            $activity = $activityExists ? $this->activityRepository->find($activityId) : null;
 
             // Si en SMD cambian el paciente o el profesional, la cita del CRM debe
             // seguirlos. resolvePerson() da de alta al paciente si todavía no está
@@ -252,6 +264,12 @@ class IncomingAppointmentService
         return DB::transaction(function () use ($externalId, $existing) {
             $leadId = $existing->lead_id;
             $activityId = $existing->activity_id;
+
+            // Si el lead ya no existe (borrado a mano, o nunca se creó por ser un
+            // bloqueo) no hay nada que cancelar: se evita el ModelNotFound.
+            if ($leadId && ! $this->leadRepository->find($leadId)) {
+                $leadId = null;
+            }
 
             if ($leadId) {
                 $cancelledStageId = (int) config('smd.stage_map.cancelled');

@@ -37,10 +37,16 @@ class SmdStatusMapper
 
     /**
      * Retorna true si el status implica cancelar/cerrar el lead.
+     *
+     * Solo las canceladas. "missed"/"no-show" NO son cancelaciones: la cita
+     * existió y el paciente faltó, así que debe crearse como lead en la etapa
+     * "Cita Perdida" (stage_map.no_show), no descartarse. Antes caían en el
+     * mismo grupo que las canceladas y, en un sync desde cero, quedaban
+     * archivadas sin lead —la cita perdida nunca aparecía en el CRM—.
      */
     public function isCancelled(?string $smdStatus): bool
     {
-        return in_array($this->normalize($smdStatus), ['canceled', 'cancelled', 'no-show', 'missed']);
+        return in_array($this->normalize($smdStatus), ['canceled', 'cancelled']);
     }
 
     /**
