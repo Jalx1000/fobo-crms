@@ -204,32 +204,34 @@ class ActivityController extends Controller
                 ->orderBy('activities.schedule_from')
                 ->get();
 
-            // Misma regla de "cancelado" que usa AppointmentService::process() para
-            // liberar el slot: status=0 o stage en smd.stage_map.cancelled/no_show.
-            // Se calcula aqui (no en el query) porque solo aplica a la visualizacion.
+            // Cada estado visible del calendario se deriva de la etapa del lead
+            // (stage_map). "no_show" (Cita Perdida) ya NO es cancelación: tiene su
+            // propio color, igual que Cirugía y Confirmada. Se calcula aqui (no en
+            // el query) porque solo aplica a la visualizacion.
             $cancelledStageIds = array_filter([
                 (int) config('smd.stage_map.cancelled'),
-                (int) config('smd.stage_map.no_show'),
             ]);
             $completedStageIds = array_filter([
                 (int) config('smd.stage_map.completed'),
             ]);
+            $confirmedStageId = (int) config('smd.stage_map.confirmed');
+            $surgeryStageId   = (int) config('smd.stage_map.surgery');
+            $lostStageId      = (int) config('smd.stage_map.no_show');
 
-            $appointments = $appointments->map(function ($appointment) use ($cancelledStageIds, $completedStageIds) {
+            $appointments = $appointments->map(function ($appointment) use ($cancelledStageIds, $completedStageIds, $confirmedStageId, $surgeryStageId, $lostStageId) {
+                $stage = $appointment->lead_pipeline_stage_id !== null ? (int) $appointment->lead_pipeline_stage_id : null;
+                $hasLead = (bool) $appointment->lead_id;
+
                 // La cancelación se determina SOLO por la etapa "Cancelado" del lead
                 // (es lo que setean la sync de ShareMeData y el botón Cancelar).
                 // NO por lead_status: en odontoking status=0 aparece también en leads
                 // en "Cita confirmadas", así que usarlo marcaba citas confirmadas como
-                // canceladas (falso positivo).
-                $stageIsCancelled = $appointment->lead_pipeline_stage_id !== null
-                    && in_array((int) $appointment->lead_pipeline_stage_id, $cancelledStageIds, true);
-                $stageIsCompleted = $appointment->lead_pipeline_stage_id !== null
-                    && in_array((int) $appointment->lead_pipeline_stage_id, $completedStageIds, true);
-
-                $appointment->is_cancelled = (bool) $appointment->lead_id && $stageIsCancelled;
-                // Cancelado tiene prioridad visual sobre completado si por algún motivo
-                // coincidieran (no deberían, son stages distintos en stage_map).
-                $appointment->is_completed = (bool) $appointment->lead_id && $stageIsCompleted && ! $appointment->is_cancelled;
+                // canceladas (falso positivo). Cancelado tiene prioridad visual.
+                $appointment->is_cancelled = $hasLead && $stage !== null && in_array($stage, $cancelledStageIds, true);
+                $appointment->is_completed = $hasLead && $stage !== null && in_array($stage, $completedStageIds, true) && ! $appointment->is_cancelled;
+                $appointment->is_lost      = $hasLead && $lostStageId > 0 && $stage === $lostStageId && ! $appointment->is_cancelled;
+                $appointment->is_surgery   = $hasLead && $surgeryStageId > 0 && $stage === $surgeryStageId && ! $appointment->is_cancelled;
+                $appointment->is_confirmed = $hasLead && $confirmedStageId > 0 && $stage === $confirmedStageId && ! $appointment->is_cancelled;
 
                 $appointment->person_whatsapp = $this->resolveWhatsappNumber(
                     $appointment->person_email,
@@ -703,7 +705,7 @@ class ActivityController extends Controller
     public function updateAppointmentStatus(int $id): JsonResponse
     {
         $data = request()->validate([
-            'status' => 'required|in:confirmed,cancelled,completed',
+            'status' => 'required|in:confirmed,cancelled,completed,surgery,no_show',
         ]);
 
         $activity = $this->activityRepository->findOrFail($id);
@@ -722,7 +724,13 @@ class ActivityController extends Controller
             ->whereIn('id', $leadIds)
             ->update(['lead_pipeline_stage_id' => $stageId, 'updated_at' => now()]);
 
-        $labels = ['confirmed' => 'confirmada', 'cancelled' => 'cancelada', 'completed' => 'atendida'];
+        $labels = [
+            'confirmed' => 'confirmada',
+            'cancelled' => 'cancelada',
+            'completed' => 'atendida',
+            'surgery'   => 'cirugía',
+            'no_show'   => 'cita perdida',
+        ];
 
         return response()->json([
             'message' => 'Cita marcada como '.$labels[$data['status']].'.',

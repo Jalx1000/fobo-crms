@@ -275,7 +275,7 @@
                     >
                         <div v-for="ev in dayDoctorEvents(day.date, col.id)" :key="'wev-'+ev.id"
                              class="dwc-week-event"
-                             :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed }"
+                             :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-confirmed': ev.is_confirmed, 'dwc-event-surgery': ev.is_surgery, 'dwc-event-lost': ev.is_lost }"
                              :title="ev.title || ev.type"
                              @click.stop="openViewModal(ev)"
                              @mouseenter="onEventMouseEnter($event, ev.id, ev)"
@@ -321,7 +321,7 @@
                         <div v-for="idx in 13" :key="'line-sd-'+idx" class="dwc-hour-line" :style="{ top: ((idx - 1) * hourHeight) + 'px' }"></div>
 
                         <!-- Events -->
-                        <div v-for="ev in dayDoctorEvents(day.date, columns[0].id)" :key="'ev-sd-'+ev.id" class="dwc-event" :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-compact': ev.height < 64, 'dwc-event-tiny': ev.height < 40 }" :style="{ top: ev.top + 'px', height: ev.height + 'px', left: 'calc(' + ev.left + '% + 6px)', width: 'calc(' + ev.width + '% - 12px)' }" @click.stop="openViewModal(ev)" @mouseenter="onEventMouseEnter($event, ev.id, ev)" @mouseleave="hoveredEventId = null; hoveredEvent = null">
+                        <div v-for="ev in dayDoctorEvents(day.date, columns[0].id)" :key="'ev-sd-'+ev.id" class="dwc-event" :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-confirmed': ev.is_confirmed, 'dwc-event-surgery': ev.is_surgery, 'dwc-event-lost': ev.is_lost, 'dwc-event-compact': ev.height < 64, 'dwc-event-tiny': ev.height < 40 }" :style="{ top: ev.top + 'px', height: ev.height + 'px', left: 'calc(' + ev.left + '% + 6px)', width: 'calc(' + ev.width + '% - 12px)' }" @click.stop="openViewModal(ev)" @mouseenter="onEventMouseEnter($event, ev.id, ev)" @mouseleave="hoveredEventId = null; hoveredEvent = null">
                             <div class="dwc-event-content dwc-event-layout">
                                 <div class="dwc-event-info">
                                     <div class="dwc-event-row-primary">
@@ -388,7 +388,7 @@
 
                             <div v-for="idx in 13" :key="'line-'+di+'-'+idx" class="dwc-hour-line" :style="{ top: ((idx - 1) * hourHeight) + 'px' }"></div>
 
-                            <div v-for="ev in dayDoctorEvents(day.date, col.id)" :key="'ev-'+ev.id" class="dwc-event" :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-compact': ev.height < 64, 'dwc-event-tiny': ev.height < 40 }" :style="{ top: ev.top + 'px', height: ev.height + 'px', left: 'calc(' + ev.left + '% + 6px)', width: 'calc(' + ev.width + '% - 12px)' }" @click.stop="openViewModal(ev)" @mouseenter="onEventMouseEnter($event, ev.id, ev)" @mouseleave="hoveredEventId = null; hoveredEvent = null">
+                            <div v-for="ev in dayDoctorEvents(day.date, col.id)" :key="'ev-'+ev.id" class="dwc-event" :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-confirmed': ev.is_confirmed, 'dwc-event-surgery': ev.is_surgery, 'dwc-event-lost': ev.is_lost, 'dwc-event-compact': ev.height < 64, 'dwc-event-tiny': ev.height < 40 }" :style="{ top: ev.top + 'px', height: ev.height + 'px', left: 'calc(' + ev.left + '% + 6px)', width: 'calc(' + ev.width + '% - 12px)' }" @click.stop="openViewModal(ev)" @mouseenter="onEventMouseEnter($event, ev.id, ev)" @mouseleave="hoveredEventId = null; hoveredEvent = null">
                                 <div class="dwc-event-content dwc-event-layout">
                                     <div class="dwc-event-info">
                                         <div class="dwc-event-row-primary">
@@ -846,20 +846,34 @@
                     <!-- Estado de la cita: selección única (pastel) -->
                     <div>
                         <p class="mb-1.5 text-xs font-medium uppercase text-gray-400">Estado de la cita</p>
-                        <div class="grid grid-cols-3 gap-2">
+                        <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
                             <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('confirmed')"
-                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 disabled:opacity-50"
+                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50"
                                     :class="apptState() === 'confirmed'
-                                        ? 'bg-green-100 text-green-800 ring-2 ring-green-400 dark:bg-green-900/50 dark:text-green-200'
-                                        : 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300'">
+                                        ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400 dark:bg-blue-900/50 dark:text-blue-200'
+                                        : 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300'">
                                 <span class="icon-checkbox-select text-base"></span> Confirmada
                             </button>
                             <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('completed')"
-                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-50"
+                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 disabled:opacity-50"
                                     :class="apptState() === 'completed'
-                                        ? 'bg-sky-100 text-sky-800 ring-2 ring-sky-400 dark:bg-sky-900/50 dark:text-sky-200'
-                                        : 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-300'">
-                                <span class="icon-checkbox-select text-base"></span> Atendida
+                                        ? 'bg-green-100 text-green-800 ring-2 ring-green-400 dark:bg-green-900/50 dark:text-green-200'
+                                        : 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300'">
+                                <span class="icon-checkbox-select text-base"></span> A
+                            </button>
+                            <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('surgery')"
+                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 disabled:opacity-50"
+                                    :class="apptState() === 'surgery'
+                                        ? 'bg-amber-100 text-amber-800 ring-2 ring-amber-400 dark:bg-amber-900/50 dark:text-amber-200'
+                                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300'">
+                                <span class="icon-checkbox-select text-base"></span> Cirugía
+                            </button>
+                            <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('no_show')"
+                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 disabled:opacity-50"
+                                    :class="apptState() === 'no_show'
+                                        ? 'bg-orange-100 text-orange-800 ring-2 ring-orange-400 dark:bg-orange-900/50 dark:text-orange-200'
+                                        : 'bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-300'">
+                                <span class="icon-warning text-base"></span> Cita Perdida
                             </button>
                             <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('cancelled')"
                                     class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-50"
@@ -2562,8 +2576,12 @@
                 const d = this.viewAppointment.data;
                 if (!d) return null;
                 if (d.is_cancelled) return 'cancelled';
+                if (d.is_lost) return 'no_show';
                 if (d.is_completed) return 'completed';
-                return 'confirmed';
+                if (d.is_surgery) return 'surgery';
+                if (d.is_confirmed) return 'confirmed';
+                // Consulta (default) no tiene botón propio: no se resalta ninguno.
+                return null;
             },
 
             // Initials + a stable flat color per name, matching Krayin's avatar.
@@ -3611,6 +3629,27 @@
         color: #bbf7d0;
     }
 
+    /* Cita confirmada (etapa "Cita confirmadas"). */
+    .dwc-event.dwc-event-confirmed {
+        border-left-color: #3b82f6;
+        background: #ADD8E6;
+        color: #0c4a6e;
+    }
+
+    /* Cirugía (etapa "Cirugía"). */
+    .dwc-event.dwc-event-surgery {
+        border-left-color: #f59e0b;
+        background: #FFBB76;
+        color: #7c2d12;
+    }
+
+    /* Cita perdida (etapa "Cita Perdida") — NO es cancelación, color propio. */
+    .dwc-event.dwc-event-lost {
+        border-left-color: #f87171;
+        background: #FFAA8F;
+        color: #7f1d1d;
+    }
+
     .dwc-event-content {
         display: flex;
         flex-direction: column;
@@ -4048,6 +4087,21 @@
     .dark .dwc-week-event.dwc-event-completed {
         background: #052e16;
         color: #bbf7d0;
+    }
+
+    .dwc-week-event.dwc-event-confirmed {
+        background: #ADD8E6;
+        color: #0c4a6e;
+    }
+
+    .dwc-week-event.dwc-event-surgery {
+        background: #FFBB76;
+        color: #7c2d12;
+    }
+
+    .dwc-week-event.dwc-event-lost {
+        background: #FFAA8F;
+        color: #7f1d1d;
     }
 
     @media (max-width: 768px) {
