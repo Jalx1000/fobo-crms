@@ -392,18 +392,23 @@ class IncomingAppointmentService
             ->values()
             ->all();
 
-        // Último fallback: el `owner`, y SOLO si SMD lo tipa como physician.
-        // Muchos payloads UPDATED traen únicamente al paciente en `attendances` y
-        // al médico en `owner` (verificado sobre datos reales: rescata 57 de las 60
-        // citas diarias que caían en el placeholder). El filtro por `type` es lo que
-        // evita colgar la cita de quien solo creó el evento —la recepcionista llega
-        // como `entity:staff`—, que fue el motivo por el que antes se descartaba
-        // `owner` por completo.
-        if (! $physiciansRaw) {
-            $owner = $data['owner'] ?? null;
+        // El `owner` también es médico de la cita cuando SMD lo tipa como
+        // physician —NO un fallback—. Un evento puede traer un doctor en
+        // `attendances` (ej. el ayudante) Y otro en `owner` (el tratante): ambos
+        // deben quedar registrados. Antes el owner solo se usaba si `attendances`
+        // no tenía ningún doctor, así que el segundo médico se perdía. El filtro
+        // por `type` evita colgar la cita de quien solo creó el evento —la
+        // recepcionista llega como `entity:staff`—. Se deduplica por `_id` para
+        // no sumar dos veces al mismo si aparece en ambos lados.
+        $owner = $data['owner'] ?? null;
 
-            if (is_array($owner) && in_array(strtolower($owner['type'] ?? $owner['virtualType'] ?? ''), ['physician', 'doctor'])) {
-                $physiciansRaw = [$owner];
+        if (is_array($owner) && in_array(strtolower($owner['type'] ?? $owner['virtualType'] ?? ''), ['physician', 'doctor'])) {
+            $ownerId = $owner['_id'] ?? null;
+
+            $yaEsta = $ownerId && collect($physiciansRaw)->contains(fn ($p) => ($p['_id'] ?? null) === $ownerId);
+
+            if (! $yaEsta) {
+                $physiciansRaw[] = $owner;
             }
         }
 
