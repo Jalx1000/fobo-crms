@@ -859,7 +859,7 @@
                                     :class="apptState() === 'completed'
                                         ? 'bg-green-100 text-green-800 ring-2 ring-green-400 dark:bg-green-900/50 dark:text-green-200'
                                         : 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300'">
-                                <span class="icon-checkbox-select text-base"></span> A
+                                <span class="icon-checkbox-select text-base"></span> Completada
                             </button>
                             <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('surgery')"
                                     class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 disabled:opacity-50"
@@ -885,11 +885,31 @@
                         </div>
                     </div>
 
-                    <!-- Motivo -->
-                    <div v-if="viewAppointment.data.comment">
-                        <p class="mb-1 text-xs font-medium uppercase text-gray-400">Motivo de consulta</p>
-                        <div class="whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                            @{{ viewAppointment.data.comment }}
+                    <!-- Motivo (editable) -->
+                    <div>
+                        <div class="mb-1 flex items-center justify-between">
+                            <p class="text-xs font-medium uppercase text-gray-400">Motivo de consulta</p>
+                            <button type="button" v-if="!editingReason" @click="startEditReason"
+                                    class="text-xs text-blue-600 hover:underline dark:text-blue-400">Editar</button>
+                        </div>
+
+                        <div v-if="!editingReason"
+                             class="whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                            @{{ viewAppointment.data.comment || 'Sin motivo registrado.' }}
+                        </div>
+
+                        <div v-else>
+                            <textarea rows="3" v-model="reasonDraft" :disabled="reasonSaving"
+                                      class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 disabled:opacity-50"
+                                      placeholder="Motivo de consulta"></textarea>
+                            <div class="mt-2 flex justify-end gap-2">
+                                <button type="button" :disabled="reasonSaving" @click="editingReason = false"
+                                        class="rounded px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800">Cancelar</button>
+                                <button type="button" :disabled="reasonSaving" @click="saveReason"
+                                        class="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                                    @{{ reasonSaving ? 'Guardando…' : 'Guardar motivo' }}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -1668,7 +1688,12 @@
                 reminderSendUrl: "{{ route('admin.whatsapp.reminders.send') }}",
                 reminderSending: false,
                 appointmentStatusUrlTemplate: "{{ route('admin.activities.appointments.status', 'replaceId') }}",
+                appointmentUpdateUrlTemplate: "{{ route('admin.activities.appointments.update', 'replaceId') }}",
                 statusUpdating: false,
+                // Edición del motivo de consulta dentro del modal de detalle.
+                editingReason: false,
+                reasonDraft: '',
+                reasonSaving: false,
                 // WhatsApp: chat embebido del paciente en el modal de detalle
                 waThreadUrl: "{{ route('admin.whatsapp.thread') }}",
                 waSendUrl: "{{ route('admin.whatsapp.send') }}",
@@ -2595,6 +2620,40 @@
                 let h = 0;
                 for (const ch of String(name || '?')) h = (h * 31 + ch.charCodeAt(0)) % 997;
                 return bg[h % bg.length] + ' ' + tx[h % tx.length];
+            },
+
+            // Abre el editor del motivo con el valor actual.
+            startEditReason() {
+                this.reasonDraft = this.viewAppointment.data.comment || '';
+                this.editingReason = true;
+            },
+
+            // Guarda el motivo: actualiza la cita y la empuja a SMD. Reutiliza el
+            // endpoint de edición mandando solo `reason` (los demás campos se
+            // conservan en el backend).
+            saveReason() {
+                const ev = this.viewAppointment.data;
+                if (!ev || this.reasonSaving) return;
+
+                this.reasonSaving = true;
+
+                this.$axios.post(this.appointmentUpdateUrlTemplate.replace('replaceId', ev.id), {
+                        reason: this.reasonDraft,
+                    })
+                    .then(res => {
+                        this.$emitter.emit('add-flash', { type: 'success', message: res.data.message });
+                        // Reflejar el cambio en el modal sin recargar todo.
+                        this.viewAppointment.data.comment = this.reasonDraft;
+                        this.editingReason = false;
+                        this.fetch();
+                    })
+                    .catch(err => {
+                        this.$emitter.emit('add-flash', {
+                            type: 'error',
+                            message: err.response?.data?.message || 'No se pudo actualizar el motivo.',
+                        });
+                    })
+                    .finally(() => { this.reasonSaving = false; });
             },
 
             // Confirm / cancel the appointment (moves its lead to the mapped

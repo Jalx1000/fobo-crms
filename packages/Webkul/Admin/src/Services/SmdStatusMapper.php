@@ -36,6 +36,27 @@ class SmdStatusMapper
     }
 
     /**
+     * Camino inverso: dado un lead_pipeline_stage_id del CRM, el string de
+     * `status` que hay que mandarle a SMD al editar la cita (PATCH). Es lo que
+     * cierra el círculo con toLeadStageId() cuando la sync vuelve a leer el
+     * evento. Una etapa que no está mapeada (o Consultas) manda status vacío.
+     */
+    public function smdStatusForStage(?int $stageId): string
+    {
+        if (! $stageId) {
+            return (string) config('smd.smd_status.default', '');
+        }
+
+        foreach (['confirmed', 'completed', 'cancelled', 'no_show', 'surgery'] as $key) {
+            if ($stageId === (int) config('smd.stage_map.'.$key)) {
+                return (string) config('smd.smd_status.'.$key, '');
+            }
+        }
+
+        return (string) config('smd.smd_status.default', '');
+    }
+
+    /**
      * Retorna true si el status implica cancelar/cerrar el lead.
      *
      * Solo las canceladas. "missed"/"no-show" NO son cancelaciones: la cita

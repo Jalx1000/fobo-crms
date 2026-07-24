@@ -20,6 +20,19 @@ return [
     ],
     'fallback_doctor_id' => env('SMD_FALLBACK_DOCTOR_ID', null),
 
+    // Camino inverso del stage_map: qué string de `status` mandarle a SMD cuando
+    // el CRM edita una cita (PATCH /events/{id}). Es lo que interpreta la sync al
+    // volver (SmdStatusMapper). Consulta = vacío. Configurable por env por si SMD
+    // cambia las etiquetas.
+    'smd_status' => [
+        'confirmed' => env('SMD_STATUS_CONFIRMED', 'CONFIRMED'),
+        'completed' => env('SMD_STATUS_COMPLETED', 'COMPLETED'),
+        'cancelled' => env('SMD_STATUS_CANCELLED', 'CANCELED'),
+        'no_show'   => env('SMD_STATUS_NO_SHOW', 'MISSED'),
+        'surgery'   => env('SMD_STATUS_SURGERY', 'SURGERY'),
+        'default'   => env('SMD_STATUS_DEFAULT', ''),
+    ],
+
     // Prefijo que se antepone a los telefonos guardados en formato local para
     // armar los enlaces wa.me del detalle de cita.
     'whatsapp_country_code' => env('WHATSAPP_COUNTRY_CODE', '591'),

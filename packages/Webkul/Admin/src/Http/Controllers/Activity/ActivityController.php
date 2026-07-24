@@ -599,10 +599,26 @@ class ActivityController extends Controller
         // ── Registrar cambios en el historial ────────────────────────────────
         $this->logActivityChanges($activity, $original, $data);
 
+        // Una consulta vinculada a SMD empuja el cambio allá para que la próxima
+        // sync no lo revierta. Es un no-op para actividades que no son citas o no
+        // están vinculadas (pushAppointmentToSmd lo informa en `reason`).
+        $smd = $activity->type === 'meeting'
+            ? $this->pushAppointmentToSmd((int) $activity->id)
+            : ['synced' => false, 'reason' => null];
+
         if (request()->ajax()) {
+            $message = trans('admin::app.activities.update-success');
+
+            if ($activity->type === 'meeting') {
+                $message .= $smd['synced']
+                    ? ' Sincronizada con SMD.'
+                    : ($smd['reason'] ? ' (SMD: '.$smd['reason'].')' : '');
+            }
+
             return response()->json([
                 'data'    => new ActivityResource($activity),
-                'message' => trans('admin::app.activities.update-success'),
+                'message' => $message,
+                'smd'     => $smd,
             ]);
         }
 
@@ -724,6 +740,11 @@ class ActivityController extends Controller
             ->whereIn('id', $leadIds)
             ->update(['lead_pipeline_stage_id' => $stageId, 'updated_at' => now()]);
 
+        // El cambio de estado también se empuja a SMD, no solo se guarda local:
+        // si no, la próxima sync revierte la etapa. El status del PATCH sale del
+        // stage recién seteado (smdStatusForStage).
+        $smd = $this->pushAppointmentToSmd($id);
+
         $labels = [
             'confirmed' => 'confirmada',
             'cancelled' => 'cancelada',
@@ -733,9 +754,194 @@ class ActivityController extends Controller
         ];
 
         return response()->json([
-            'message' => 'Cita marcada como '.$labels[$data['status']].'.',
+            'message' => 'Cita marcada como '.$labels[$data['status']].($smd['synced']
+                ? ' y sincronizada con SMD.'
+                : ' (no se sincronizó con SMD: '.$smd['reason'].').'),
             'status'  => $data['status'],
+            'smd'     => $smd,
         ]);
+    }
+
+    /**
+     * Edita una cita desde el CRM: cambia horario, doctores, motivo y/o estado,
+     * y EMPUJA el cambio a SMD (PATCH del evento). El push a SMD es lo que evita
+     * que la próxima sync revierta la edición: SMD es la fuente de verdad.
+     *
+     * La actualización local nunca falla por SMD: si el push falla (o la cita no
+     * está vinculada a SMD) el CRM queda actualizado igual y se informa el motivo.
+     */
+    public function updateAppointment(int $id): JsonResponse
+    {
+        $data = request()->validate([
+            'date'             => 'nullable|date_format:Y-m-d',
+            'start_time'       => 'nullable|date_format:H:i',
+            'end_time'         => 'nullable|date_format:H:i',
+            'duration_minutes' => 'nullable|integer|min:5|max:480',
+            'doctor_ids'       => 'nullable|array|min:1',
+            'doctor_ids.*'     => 'integer|exists:doctors,id',
+            'status'           => 'nullable|in:confirmed,cancelled,completed,surgery,no_show',
+            'reason'           => 'nullable|string',
+        ]);
+
+        $activity = $this->activityRepository->findOrFail($id);
+
+        // Cada campo es opcional: lo que no se envía conserva su valor actual.
+        // Así el modal puede editar solo el motivo, o solo el horario, o todo.
+        if (! empty($data['date']) && ! empty($data['start_time'])) {
+            $from = Carbon::createFromFormat('Y-m-d H:i', $data['date'].' '.$data['start_time']);
+            $to = ! empty($data['duration_minutes'])
+                ? $from->copy()->addMinutes((int) $data['duration_minutes'])
+                : (! empty($data['end_time'])
+                    ? Carbon::createFromFormat('Y-m-d H:i', $data['date'].' '.$data['end_time'])
+                    : $from->copy()->addMinutes(30));
+        } else {
+            $from = Carbon::parse($activity->schedule_from);
+            $to = Carbon::parse($activity->schedule_to);
+        }
+
+        $doctorIds = ! empty($data['doctor_ids'])
+            ? $data['doctor_ids']
+            : $activity->doctors->pluck('id')->all();
+
+        $personIds = $activity->participants->pluck('person_id')->filter()->values()->all();
+
+        // El motivo es el `summary` de SMD, que la sync vuelca a título y comentario.
+        // Se actualizan ambos para que quede consistente al ir y volver.
+        $update = [
+            'schedule_from' => $from->format('Y-m-d H:i:s'),
+            'schedule_to'   => $to->format('Y-m-d H:i:s'),
+            'participants'  => [
+                'doctors' => $doctorIds,
+                'persons' => $personIds,
+            ],
+        ];
+
+        if (array_key_exists('reason', $data)) {
+            $update['comment'] = (string) $data['reason'];
+            $update['title'] = (string) $data['reason'] ?: $activity->title;
+        }
+
+        $this->activityRepository->update($update, $id);
+
+        // El estado mueve el lead a la etapa mapeada (igual que el botón de estado).
+        if (! empty($data['status'])) {
+            $stageId = (int) config('smd.stage_map.'.$data['status']);
+            $leadIds = $activity->leads()->pluck('leads.id');
+
+            if ($stageId && $leadIds->isNotEmpty()) {
+                DB::table('leads')->whereIn('id', $leadIds)
+                    ->update(['lead_pipeline_stage_id' => $stageId, 'updated_at' => now()]);
+            }
+        }
+
+        $smd = $this->pushAppointmentToSmd($id);
+
+        return response()->json([
+            'message' => $smd['synced']
+                ? 'Cita actualizada y sincronizada con SMD.'
+                : 'Cita actualizada en el CRM (SMD: '.$smd['reason'].').',
+            'smd' => $smd,
+        ]);
+    }
+
+    /**
+     * Arma el evento en formato SMD desde la cita del CRM y lo manda por PATCH.
+     *
+     * Solo empuja si la cita está vinculada a un evento de SMD (external_id). Una
+     * cita 100% local todavía no existe en SMD, así que no hay qué editar allá.
+     *
+     * @return array{synced: bool, reason: ?string}
+     */
+    private function pushAppointmentToSmd(int $activityId): array
+    {
+        $event = DB::table('smd_synced_events')->where('activity_id', $activityId)->first();
+
+        if (! $event || ! $event->external_id) {
+            return ['synced' => false, 'reason' => 'la cita no está vinculada a SMD'];
+        }
+
+        $activity = $this->activityRepository->find($activityId);
+        $payload = json_decode($event->raw_payload ?? '{}', true) ?: [];
+
+        // Paciente: su smd_patient_id es la clave con la que SMD lo reconoce.
+        $attendances = [];
+        $personId = $activity->participants->pluck('person_id')->filter()->first();
+        $person = $personId ? $this->personRepository->find($personId) : null;
+
+        if ($person && $person->smd_patient_id) {
+            [$nombre, $apellido] = $this->splitName($person->name);
+            $phone = '';
+
+            foreach ((array) $person->contact_numbers as $n) {
+                $val = is_array($n) ? ($n['value'] ?? '') : $n;
+                if ($val !== '') { $phone = (string) $val; break; }
+            }
+
+            $attendances[] = [
+                '_id'      => $person->smd_patient_id,
+                'name'     => $nombre,
+                'lastName' => $apellido,
+                'type'     => 'patient',
+                'phone'    => $phone,
+            ];
+        }
+
+        // Todos los doctores de la cita (por su unique_id = _id de SMD).
+        foreach ($activity->doctors as $doctor) {
+            if (! $doctor->unique_id) {
+                continue;
+            }
+
+            [$nombre, $apellido] = $this->splitName($doctor->name);
+
+            $attendances[] = [
+                '_id'      => $doctor->unique_id,
+                'name'     => $nombre,
+                'lastName' => $apellido,
+                'type'     => 'physician',
+                'phone'    => '',
+            ];
+        }
+
+        $lead = $activity->leads()->first();
+        $status = app(\Webkul\Admin\Services\SmdStatusMapper::class)
+            ->smdStatusForStage($lead ? (int) $lead->lead_pipeline_stage_id : null);
+
+        $body = [
+            '_id'         => $event->external_id,
+            'eventId'     => $payload['eventId'] ?? null,
+            'type'        => 'event',
+            'summary'     => (string) ($activity->title ?? ''),
+            'description' => (string) ($activity->comment ?? ''),
+            // El horario se guarda en hora local; SMD lo espera en UTC.
+            'startDate'   => Carbon::parse($activity->schedule_from, config('app.timezone'))->utc()->format('Y-m-d\TH:i:s.000\Z'),
+            'endDate'     => Carbon::parse($activity->schedule_to, config('app.timezone'))->utc()->format('Y-m-d\TH:i:s.000\Z'),
+            'attendances' => $attendances,
+            'status'      => $status,
+        ];
+
+        $result = app(\Webkul\Admin\Services\ShareMeDataService::class)->updateEvent($event->external_id, $body);
+
+        return [
+            'synced' => (bool) ($result['success'] ?? false),
+            'reason' => $result['message'] ?? null,
+        ];
+    }
+
+    /**
+     * Parte un nombre completo en [nombre, apellido] para el formato de SMD.
+     */
+    private function splitName(?string $full): array
+    {
+        $full = trim((string) $full);
+
+        if ($full === '') {
+            return ['', ''];
+        }
+
+        $parts = preg_split('/\s+/', $full, 2);
+
+        return [$parts[0], $parts[1] ?? ''];
     }
 
     /**

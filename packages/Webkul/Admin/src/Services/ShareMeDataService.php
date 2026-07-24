@@ -552,4 +552,51 @@ class ShareMeDataService
             ];
         }
     }
+
+    /**
+     * Editar un evento existente en SMD. PATCH /calendar/events/{_id}.
+     *
+     * A diferencia de createEvent (que usa /schedule/createEvent con un formato
+     * simplificado), la edición usa el formato COMPLETO del evento: attendances
+     * como array con `type`, startDate/endDate y status. Es el mismo formato que
+     * lee la sync, así que el cambio vuelve limpio en la próxima corrida.
+     *
+     * @param  string  $smdEventId  El `_id` del evento en SMD (external_id local).
+     */
+    public function updateEvent(string $smdEventId, array $data): array
+    {
+        try {
+            $this->lastResponse = null;
+
+            $response = $this->http()
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->timeout(30)
+                ->patch("{$this->baseUrl}/events/{$smdEventId}", $data);
+
+            $this->lastResponse = [
+                'status' => $response->status(),
+                'body'   => $response->json() ?: $response->body(),
+            ];
+
+            if ($response->successful()) {
+                return ['success' => true, 'data' => $response->json()];
+            }
+
+            Log::warning('[SMD] updateEvent falló', [
+                'event_id' => $smdEventId,
+                'status'   => $response->status(),
+                'body'     => $response->body(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $response->json('message') ?: $response->body(),
+                'status'  => $response->status(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('[SMD] updateEvent excepción: '.$e->getMessage());
+
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
 }
