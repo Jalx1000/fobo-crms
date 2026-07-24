@@ -102,13 +102,72 @@ class DropboxService
 
     /**
      * Lista archivos JSON en la carpeta del día dado (YYYY-MM-DD).
+     *
+     * Pagina hasta agotar la carpeta. `list_folder` corta alrededor de 2000
+     * entradas y avisa con `has_more` + un cursor; la versión anterior leía sólo
+     * la primera página y descartaba el resto SIN error y SIN log, así que una
+     * carpeta grande se sincronizaba a medias y esas citas no existían para el
+     * CRM. Es la clase de pérdida de datos que nadie nota hasta que falta una
+     * cita puntual.
+     *
      * Devuelve array de entries de Dropbox o [] si hay error.
      */
     public function listFilesForDate(string $date): array
     {
         $path = rtrim($this->folder, '/').'/'.$date;
 
-        return $this->retryWithFreshToken(function (string $token) use ($path) {
+        $entries = [];
+        $cursor = null;
+        $page = 0;
+
+        do {
+            $result = $cursor === null
+                ? $this->listFolderPage($path)
+                : $this->listChanges($cursor);
+
+            $entries = array_merge($entries, $result['entries'] ?? []);
+            $cursor = $result['cursor'] ?? null;
+            $hasMore = (bool) ($result['has_more'] ?? false);
+
+            // Cortafuegos: sin cursor no hay forma de pedir la página siguiente,
+            // y seguir el bucle sería infinito.
+            if ($hasMore && ! $cursor) {
+                Log::warning('[Dropbox] has_more sin cursor, se corta la paginación', [
+                    'path'  => $path,
+                    'hasta' => count($entries),
+                ]);
+
+                break;
+            }
+
+            $page++;
+        } while ($hasMore && $page < 100);
+
+        if ($page > 1) {
+            Log::info('[Dropbox] Carpeta paginada', [
+                'path'     => $path,
+                'paginas'  => $page,
+                'entradas' => count($entries),
+            ]);
+        }
+
+        return collect($entries)
+            ->filter(fn ($e) => ($e['.tag'] ?? '') === 'file' && str_ends_with($e['name'] ?? '', '.json'))
+            ->values()
+            ->toArray();
+    }
+
+    /**
+     * Primera página de una carpeta. Devuelve entries + cursor + has_more para
+     * que listFilesForDate() pueda seguir pidiendo el resto.
+     *
+     * @return array{entries: array, cursor: ?string, has_more: bool}
+     */
+    private function listFolderPage(string $path): array
+    {
+        $vacio = ['entries' => [], 'cursor' => null, 'has_more' => false];
+
+        return $this->retryWithFreshToken(function (string $token) use ($path, $vacio) {
             try {
                 $response = Http::withToken($token)
                     ->withHeaders(['Content-Type' => 'application/json'])
@@ -117,8 +176,9 @@ class DropboxService
                         'recursive' => false,
                     ]);
 
+                // 409 = la carpeta del día todavía no existe. Es normal.
                 if ($response->status() === 409) {
-                    return [];
+                    return $vacio;
                 }
 
                 if ($response->status() === 401) {
@@ -132,20 +192,20 @@ class DropboxService
                         'body'   => $response->body(),
                     ]);
 
-                    return [];
+                    return $vacio;
                 }
 
-                return collect($response->json('entries', []))
-                    ->filter(fn ($e) => ($e['.tag'] ?? '') === 'file' && str_ends_with($e['name'] ?? '', '.json'))
-                    ->values()
-                    ->toArray();
-
+                return [
+                    'entries'  => $response->json('entries', []),
+                    'cursor'   => $response->json('cursor'),
+                    'has_more' => (bool) $response->json('has_more', false),
+                ];
             } catch (\Throwable $e) {
                 Log::error('[Dropbox] Excepcion listando carpeta', ['error' => $e->getMessage()]);
 
-                return [];
+                return $vacio;
             }
-        }, default: []);
+        }, default: $vacio);
     }
 
     /**
@@ -266,5 +326,108 @@ class DropboxService
                 return null;
             }
         }, default: null);
+    }
+
+    /**
+     * Descarga varios JSON a la vez.
+     *
+     * La descarga de a uno era el cuello de botella real: un round-trip HTTP por
+     * archivo, en serie, con miles de archivos en una carga masiva. El tiempo lo
+     * domina la latencia, no el ancho de banda ni el CPU, así que basta con
+     * pedirlos en paralelo.
+     *
+     * El tamaño del lote no se sube más porque Dropbox limita la concurrencia
+     * por app y responde 429; con `SMD_DROPBOX_CONCURRENCY` se puede ajustar sin
+     * tocar código si el límite cambia.
+     *
+     * Los que fallan salen del resultado en vez de propagar el error: quien
+     * llama los trata como no procesados y el siguiente ciclo los reintenta.
+     *
+     * @param  array<int, string>  $paths
+     * @return array<string, array> ruta => payload decodificado
+     */
+    public function downloadManyJson(array $paths, int $intento = 1): array
+    {
+        $paths = array_values(array_unique(array_filter($paths)));
+
+        if (! $paths) {
+            return [];
+        }
+
+        $concurrency = max(1, (int) config('smd.dropbox.concurrency', 10));
+        $decoded = [];
+        $expired = false;
+
+        foreach (array_chunk($paths, $concurrency) as $chunk) {
+            $token = $this->token();
+
+            try {
+                $responses = Http::pool(fn ($pool) => array_map(
+                    fn ($path) => $pool->as($path)
+                        ->withToken($token)
+                        ->withHeaders(['Dropbox-API-Arg' => json_encode(['path' => $path])])
+                        ->withBody('', 'text/plain')
+                        ->post('https://content.dropboxapi.com/2/files/download'),
+                    $chunk,
+                ));
+            } catch (\Throwable $e) {
+                Log::error('[Dropbox] Excepcion en descarga paralela', ['error' => $e->getMessage()]);
+
+                continue;
+            }
+
+            foreach ($chunk as $path) {
+                $response = $responses[$path] ?? null;
+
+                // Una conexión rota llega como excepción en lugar de respuesta.
+                if (! $response instanceof \Illuminate\Http\Client\Response) {
+                    Log::warning('[Dropbox] Descarga fallida', ['path' => $path]);
+
+                    continue;
+                }
+
+                if ($response->status() === 401) {
+                    $expired = true;
+
+                    continue;
+                }
+
+                if (! $response->successful()) {
+                    Log::warning('[Dropbox] Error descargando archivo', [
+                        'path'   => $path,
+                        'status' => $response->status(),
+                    ]);
+
+                    continue;
+                }
+
+                $json = json_decode($response->body(), true);
+
+                if (is_array($json)) {
+                    $decoded[$path] = $json;
+                }
+            }
+        }
+
+        // El token venció a mitad del lote: se renueva y se reintenta sólo lo
+        // que quedó sin bajar, no todo de nuevo. Un solo reintento — si el token
+        // nuevo también da 401 el problema son las credenciales, y reintentar en
+        // bucle sólo convertiría un error de config en una tormenta de requests.
+        if ($expired && $intento === 1) {
+            Cache::forget(self::TOKEN_CACHE_KEY);
+            Log::info('[Dropbox] Token expirado durante la descarga paralela, reintentando lo pendiente');
+
+            $faltantes = array_values(array_diff($paths, array_keys($decoded)));
+
+            if ($faltantes) {
+                $decoded += $this->downloadManyJson($faltantes, 2);
+            }
+        } elseif ($expired) {
+            Log::error('[Dropbox] Token sigue vencido tras renovar; quedan archivos sin bajar', [
+                'pendientes' => count($paths) - count($decoded),
+            ]);
+        }
+
+        return $decoded;
     }
 }
