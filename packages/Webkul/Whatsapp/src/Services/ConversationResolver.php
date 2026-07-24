@@ -131,6 +131,18 @@ class ConversationResolver
         }
 
         if ($person = $this->resolvePerson($contact->phone)) {
+            // Ya lo teníamos, pero puede que sin vincular con SMD: es la misma
+            // consulta y es la única oportunidad de cerrar el hueco sin que
+            // nadie lo haga a mano.
+            if (! $person->smd_patient_id) {
+                $link = app(SmdPatientLink::class);
+                $found = $link->lookup($contact->phone);
+
+                if ($found['status'] === 'unique') {
+                    $link->enrich($person, $found['patient']);
+                }
+            }
+
             return $person;
         }
 
@@ -154,6 +166,20 @@ class ConversationResolver
     {
         // Stored without the leading "+", matching how the CRM already holds numbers.
         $digits = PhoneNumber::digits($contact->phone);
+
+        // SMD suele tener a este paciente con su nombre real, CI y fecha de
+        // nacimiento. Solo se usa cuando el número devuelve UN paciente: con
+        // varios, elegir sería pegarle a alguien la ficha clínica de otro.
+        $link = app(SmdPatientLink::class);
+        $found = $link->lookup($contact->phone);
+
+        if ($found['status'] === 'unique') {
+            if ($person = $link->resolveOrCreate($found['patient'], $digits)) {
+                return $person;
+            }
+        } elseif ($found['status'] === 'ambiguous') {
+            $link->logAmbiguous($digits, $found['candidates']);
+        }
 
         try {
             $person = app(PersonRepository::class)->create([

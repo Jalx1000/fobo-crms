@@ -169,6 +169,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Vínculo con ShareMeData al entrar un número nuevo
+    |--------------------------------------------------------------------------
+    | Cuando escribe un número desconocido se busca al paciente en SMD para dar
+    | de alta el contacto con su nombre real, CI y fecha de nacimiento, y dejar
+    | los dos sistemas apuntando al mismo paciente (persons.smd_patient_id).
+    |
+    | Solo se vincula si el número devuelve UN paciente. Medido sobre 40
+    | conversaciones reales, la mitad de los números devuelve dos o más personas
+    | distintas: elegir una sería asignarle a un paciente la ficha de otro.
+    */
+    'smd_link' => [
+        'enabled' => env('WHATSAPP_SMD_LINK_ENABLED', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | AI Agent
     |--------------------------------------------------------------------------
     | Global default for the AI agent switch and the outbound webhook the

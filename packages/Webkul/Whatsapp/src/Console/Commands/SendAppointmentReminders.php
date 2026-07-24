@@ -97,10 +97,13 @@ class SendAppointmentReminders extends Command
 
             // Linked to the message so idempotency can tell a delivered reminder
             // from a failed one. updateOrInsert (activity_id is unique) lets a
-            // retry re-point the row at the new message.
+            // retry re-point the row at the new message. Se guarda además el
+            // external_id de SMD: es la clave estable que sobrevive a un re-sync,
+            // así una cita recreada con otro activity_id no se recuerda de nuevo.
             DB::table('whatsapp_appointment_reminders')->updateOrInsert(
                 ['activity_id' => $appt->id],
                 [
+                    'external_id'     => $appt->external_id,
                     'conversation_id' => $conversation->id,
                     'message_id'      => $msg->id,
                     'sent_at'         => now(),
@@ -125,11 +128,16 @@ class SendAppointmentReminders extends Command
      */
     protected function dueAppointments(Carbon $from, Carbon $to, ?int $personId = null)
     {
+        $prefix = DB::getTablePrefix();
+
         return DB::table('activities')
             ->leftJoin('activity_participants', 'activities.id', '=', 'activity_participants.activity_id')
             ->leftJoin('doctor_activities', 'activities.id', '=', 'doctor_activities.activity_id')
             ->leftJoin('doctors', 'doctors.id', '=', 'doctor_activities.doctor_id')
             ->leftJoin('persons', 'persons.id', '=', 'activity_participants.person_id')
+            // El external_id de SMD de la cita: la clave estable para la
+            // idempotencia, la que no cambia aunque la cita se recree.
+            ->leftJoin('smd_synced_events as ev', 'ev.activity_id', '=', 'activities.id')
             ->whereBetween('activities.schedule_from', [$from, $to])
             ->where('activities.type', 'meeting')
             ->where('activities.is_done', 0)
@@ -137,12 +145,22 @@ class SendAppointmentReminders extends Command
             // "Already reminded" = a reminder row whose message did NOT fail.
             // A failed send (or a legacy row with no message) leaves the
             // appointment eligible again, so the next run retries it.
+            //
+            // Se compara por external_id Y por activity_id: el external_id cubre
+            // las citas re-sincronizadas (mismo evento SMD, otro activity_id) y
+            // el activity_id cubre las citas locales sin evento de SMD.
             ->whereNotExists(function ($q) {
                 $q->select(DB::raw(1))
                     ->from('whatsapp_appointment_reminders as r')
                     ->join('whatsapp_messages as m', 'm.id', '=', 'r.message_id')
-                    ->whereColumn('r.activity_id', 'activities.id')
-                    ->where('m.status', '<>', 'failed');
+                    ->where('m.status', '<>', 'failed')
+                    ->where(function ($w) {
+                        $w->whereColumn('r.activity_id', 'activities.id')
+                            ->orWhere(function ($x) {
+                                $x->whereColumn('r.external_id', 'ev.external_id')
+                                    ->whereNotNull('ev.external_id');
+                            });
+                    });
             })
             ->groupBy('activities.id')
             ->orderBy('activities.schedule_from')
@@ -150,8 +168,9 @@ class SendAppointmentReminders extends Command
                 'activities.id',
                 'activities.schedule_from as start',
                 'activity_participants.person_id',
-                DB::raw('MAX('.DB::getTablePrefix().'persons.name) as person_name'),
-                DB::raw('MAX('.DB::getTablePrefix().'doctors.name) as doctor_name'),
+                DB::raw('MAX('.$prefix.'ev.external_id) as external_id'),
+                DB::raw('MAX('.$prefix.'persons.name) as person_name'),
+                DB::raw('MAX('.$prefix.'doctors.name) as doctor_name'),
             ]);
     }
 

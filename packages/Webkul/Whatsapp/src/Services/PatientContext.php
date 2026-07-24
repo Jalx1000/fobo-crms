@@ -4,6 +4,8 @@ namespace Webkul\Whatsapp\Services;
 
 use Illuminate\Support\Facades\Log;
 use Throwable;
+use Webkul\Contact\Models\PersonProxy;
+use Webkul\Lead\Models\LeadProxy;
 use Webkul\Whatsapp\Models\Conversation;
 
 /**
@@ -37,9 +39,18 @@ class PatientContext
         $activaStage   = (int) config('whatsapp.crm.stage_activa', 7);
 
         try {
+            // Todas las personas de ese número, no sólo la ligada al chat. En la
+            // clínica la madre agenda para toda la familia desde un solo celular:
+            // Loyi y Matías comparten el 59170895092 y son fichas distintas. Con
+            // una sola persona el agente contestaba con las citas de quien
+            // hubiera quedado enganchado al chat —elegido arbitrariamente por
+            // orden de id—, o sea le respondía a uno con la cita del otro.
+            $personas = $this->personasDelNumero($conversation, $person);
+
             // Every lead of the person is a candidate cita. Exclude the
             // conversación lead (Consultas). Oldest→newest for a readable history.
-            $leads = $person->leads()
+            $leads = LeadProxy::modelClass()::query()
+                ->whereIn('person_id', $personas->pluck('id')->all())
                 ->orderBy('id')
                 ->get()
                 ->filter(fn ($lead) => (int) $lead->lead_pipeline_stage_id !== $consultaStage)
@@ -55,11 +66,16 @@ class PatientContext
             return $this->empty($person->id, $person->name);
         }
 
-        $citas = $leads->map(function ($lead) use ($labels) {
+        // Nombre por persona, para que cada cita diga de quién es. Sin esto el
+        // agente ve dos citas del mismo día y no puede distinguirlas.
+        $nombres = $personas->pluck('name', 'id');
+
+        $citas = $leads->map(function ($lead) use ($labels, $nombres) {
             [$fecha, $hora] = $this->fechaHora($lead);
 
             return [
                 'lead_id'  => $lead->id,
+                'paciente' => $nombres[$lead->person_id] ?? null,
                 'fecha'    => $fecha,
                 'hora'     => $hora,
                 'doctor'   => $this->leadAttribute($lead, 'cita_doctor'),
@@ -78,6 +94,11 @@ class PatientContext
 
         return [
             'person_id'              => $person->id,
+            // Varios pacientes en el mismo número: el agente tiene que preguntar
+            // para quién es antes de dar por sentado a uno.
+            'pacientes_del_numero'   => $personas->count() > 1
+                ? $personas->map(fn ($p) => ['person_id' => $p->id, 'nombre' => $p->name])->values()->all()
+                : [],
             'paciente_nuevo'         => $citas->isEmpty(),
             'nombre_registrado'      => $person->name ?: null,
             'ci_paciente_registrada' => $source ? $this->leadAttribute($source, 'ci') : null,
@@ -85,6 +106,43 @@ class PatientContext
             'citas'                  => $citas->all(),
             'cita_activa'            => $activa?->id,
         ];
+    }
+
+    /**
+     * Todas las fichas que comparten el número de la conversación.
+     *
+     * Siempre incluye a la persona ligada al chat, aunque la conversación no
+     * tenga teléfono cargado: el contexto nunca puede quedar más pobre que antes.
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    protected function personasDelNumero(Conversation $conversation, $person)
+    {
+        $tail = PhoneNumber::tail($conversation->wa_phone);
+
+        if (strlen($tail) < 8) {
+            return collect([$person]);
+        }
+
+        $personas = PersonProxy::modelClass()::where('contact_numbers', 'like', '%'.$tail.'%')
+            ->get()
+            ->filter(function ($candidata) use ($tail) {
+                foreach ((array) $candidata->contact_numbers as $numero) {
+                    $valor = is_array($numero) ? ($numero['value'] ?? '') : $numero;
+
+                    if (str_ends_with(PhoneNumber::digits((string) $valor), $tail)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            });
+
+        if (! $personas->contains(fn ($p) => $p->id === $person->id)) {
+            $personas->push($person);
+        }
+
+        return $personas->sortBy('id')->values();
     }
 
     /**
