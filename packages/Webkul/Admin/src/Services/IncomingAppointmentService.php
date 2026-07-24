@@ -14,6 +14,14 @@ use Webkul\Tag\Repositories\TagRepository;
 
 class IncomingAppointmentService
 {
+    /**
+     * Catálogo de doctores memoizado por request, indexado para el matcheo de
+     * asistentes. Clave '0'/'1' según se pidan todos o solo los activos.
+     *
+     * @var array<string, \Illuminate\Support\Collection>
+     */
+    private array $doctorCatalog = [];
+
     public function __construct(
         protected DoctorRepository $doctorRepository,
         protected SpecialtyRepository $specialtyRepository,
@@ -52,20 +60,75 @@ class IncomingAppointmentService
     /**
      * Procesa payload en formato Dropbox (owner/attendances/startDate/endDate).
      *
-     * Devuelve ['skipped' => 'block'] cuando el evento no trae paciente: en SMD
-     * eso es un bloqueo de agenda ("Ocupado", 0 asistentes, owner = el médico),
-     * no una cita. Sin este corte el sync creaba una persona "Paciente" y un lead
-     * basura por cada bloqueo.
+     * Un evento sin paciente es un bloqueo de agenda: el doctor se reserva el
+     * horario (pausas, casos especiales), no es una cita. No genera lead ni
+     * paciente ni WhatsApp, pero SÍ se refleja en el calendario como una
+     * actividad de ocupación (ver processBlockDropbox), para que el slot no se
+     * vea libre.
      */
     public function processDropbox(array $data): array
     {
         $normalized = $this->normalizeDropbox($data);
 
         if (! $normalized['patient_identified']) {
-            return ['skipped' => 'block'];
+            return $this->processBlockDropbox($normalized);
+        }
+
+        // Un bloqueo también puede venir CON asistente: SMD tapa los horarios
+        // libres con un paciente inventado ("Ocupado Ocupado", sin teléfono ni
+        // CI). Trae asistente, así que el corte de arriba no lo agarra y termina
+        // creando persona + lead + cita por cada slot bloqueado.
+        $directory = app(SmdPatientDirectory::class);
+
+        if ($directory->isDummy(
+            $directory->patient($normalized['patient_external_id'] ?? null),
+            $normalized['patient_name'] ?? null,
+        )) {
+            return $this->processBlockDropbox($normalized);
         }
 
         return $this->process($normalized);
+    }
+
+    /**
+     * Bloqueo de agenda: crea una actividad de ocupación atada SOLO al doctor.
+     *
+     * Es un `time_off` —el tipo que el calendario ya entiende como "no
+     * disponible"— sin lead, sin paciente y sin conversación de WhatsApp. Solo
+     * ocupa el horario para que no se vea libre. Sin doctor identificable no hay
+     * agenda que ocupar, así que se descarta sin dejar rastro.
+     */
+    private function processBlockDropbox(array $normalized): array
+    {
+        $doctors = $normalized['doctor_identified'] ? $this->resolveDoctors($normalized) : [];
+
+        if (empty($doctors)) {
+            return ['skipped' => 'block'];
+        }
+
+        return DB::transaction(function () use ($normalized, $doctors) {
+            $title = trim((string) ($normalized['summary'] ?? '')) ?: 'Bloqueo de agenda';
+
+            $activity = $this->activityRepository->create([
+                'type'          => 'time_off',
+                'title'         => $title,
+                'comment'       => $normalized['summary'] ?? '',
+                'schedule_from' => Carbon::parse($normalized['schedule_from'])->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
+                'schedule_to'   => Carbon::parse($normalized['schedule_to'])->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
+                'user_id'       => 1,
+                // Solo doctores: un bloqueo no tiene paciente.
+                'participants'  => [
+                    'doctors' => array_map(fn ($d) => $d->id, $doctors),
+                ],
+                'additional'    => json_encode([
+                    'external_id' => $normalized['external_id'] ?? null,
+                    'source'      => 'ShareMeData',
+                    'is_block'    => true,
+                ]),
+            ]);
+
+            return ['activity_id' => $activity->id, 'block' => true];
+        });
     }
 
     /**
@@ -86,6 +149,22 @@ class IncomingAppointmentService
 
         return DB::transaction(function () use ($data, $activityId, $leadId) {
             $normalized = $this->normalizeDropbox($data);
+
+            // Un bloqueo (sin lead) que ahora trae paciente deja de ser bloqueo:
+            // se borra la actividad de ocupación y se crea la cita real —persona,
+            // lead con su etapa y actividad meeting—. updateDropbox solo tocaba la
+            // actividad, así que en esta transición el lead no nacía nunca.
+            if (! $leadId && $normalized['patient_identified']) {
+                if ($activityId) {
+                    $this->activityRepository->delete($activityId);
+                }
+
+                Log::info('[IncomingAppointment] Bloqueo promovido a cita (llegó paciente)', [
+                    'external_id' => $data['_id'],
+                ]);
+
+                return $this->process($normalized);
+            }
 
             $activity = $this->activityRepository->find($activityId);
 
@@ -258,6 +337,14 @@ class IncomingAppointmentService
 
     private function normalizeDropbox(array $data): array
     {
+        // El catálogo se refresca por evento. Los archivos de Dropbox son
+        // modificaciones SECUENCIALES, y un evento puede registrar un doctor que
+        // el siguiente necesita reconocer. Cachearlo para toda la corrida hacía
+        // que un evento posterior viera el catálogo viejo y clasificara al doctor
+        // recién creado como paciente. Memoizado dentro del evento (knownDoctorIds
+        // se llama dos veces), fresco entre eventos.
+        $this->doctorCatalog = [];
+
         $attendances = $data['attendances'] ?? [];
 
         // Los payloads UPDATED de SMD vienen deshidratados: no traen `type` ni
@@ -274,21 +361,18 @@ class IncomingAppointmentService
         $allDoctorIds = $this->knownDoctorIds($attendances);
         $activeDoctorIds = $this->knownDoctorIds($attendances, true);
 
-        // Una cita puede tener varios médicos (ej. cirujano + ayudante), así que
-        // se toman todos los asistentes que sean doctores activos, no solo el primero.
+        // Una cita puede tener varios médicos (ej. cirujano + ayudante). Un
+        // asistente es médico si YA lo conocemos (por unique_id o nombre) O si el
+        // payload lo tipa como physician/doctor. Es una UNIÓN, no una cadena de
+        // fallback: antes, si un solo doctor conocido matcheaba, los demás
+        // —identificados por `type`— se descartaban, y un "OCUPADO" con 8 médicos
+        // donde solo uno estaba registrado quedaba con uno. Cubre además al médico
+        // aún no registrado: resolveDoctor lo da de alta.
         $physiciansRaw = collect($attendances)
-            ->filter(fn ($a) => isset($a['_id']) && isset($activeDoctorIds[$a['_id']]))
+            ->filter(fn ($a) => (isset($a['_id']) && isset($activeDoctorIds[$a['_id']]))
+                || in_array(strtolower($a['type'] ?? $a['virtualType'] ?? ''), ['physician', 'doctor']))
             ->values()
             ->all();
-
-        // Fallback: `type` explícito. Cubre los CREATED hidratados y al médico que
-        // todavía no está registrado en el CRM (resolveDoctor lo dará de alta).
-        if (! $physiciansRaw) {
-            $physiciansRaw = collect($attendances)
-                ->filter(fn ($a) => in_array(strtolower($a['type'] ?? $a['virtualType'] ?? ''), ['physician', 'doctor']))
-                ->values()
-                ->all();
-        }
 
         // Último fallback: el `owner`, y SOLO si SMD lo tipa como physician.
         // Muchos payloads UPDATED traen únicamente al paciente en `attendances` y
@@ -347,11 +431,14 @@ class IncomingAppointmentService
     }
 
     /**
-     * Ids de `attendances[]` que corresponden a doctores ya registrados
-     * (doctors.unique_id), indexados por id para un lookup directo.
+     * Ids de `attendances[]` que corresponden a doctores ya registrados,
+     * indexados por id para un lookup directo.
      *
-     * Es lo que permite identificar al médico en los payloads UPDATED, que no
-     * traen `type`. Una sola consulta por payload.
+     * Reconoce al doctor por `unique_id` (SMD _id) O por NOMBRE contra la tabla
+     * `doctors`. El match por nombre es lo que salva el caso real: SMD reasigna
+     * los `_id` de los physicians cada tanto, así que el `unique_id` guardado se
+     * desactualiza y un payload UPDATED —que no trae `type`— dejaba al doctor sin
+     * reconocer y lo descartaba. El nombre no cambia, así que sigue matcheando.
      *
      * Con `$onlyActive` devuelve solo los que pueden atender: los recursos de SMD
      * (quirófano, recepcionista) viven en `doctors` desactivados para que sigan
@@ -359,21 +446,52 @@ class IncomingAppointmentService
      */
     private function knownDoctorIds(array $attendances, bool $onlyActive = false): array
     {
-        $ids = array_values(array_filter(array_map(
-            fn ($a) => is_array($a) ? ($a['_id'] ?? null) : null,
-            $attendances
-        )));
+        $catalog = $this->doctorCatalog($onlyActive);
 
-        if (! $ids) {
-            return [];
+        $uids = $catalog->pluck('unique_id')->filter()->flip();
+        $names = $catalog->mapWithKeys(fn ($d) => [$this->normalizeDoctorName($d->name) => true]);
+
+        $result = [];
+
+        foreach ($attendances as $a) {
+            $id = is_array($a) ? ($a['_id'] ?? null) : null;
+
+            if (! $id) {
+                continue;
+            }
+
+            $name = $this->normalizeDoctorName(trim(($a['name'] ?? '').' '.($a['lastName'] ?? '')));
+
+            if (isset($uids[$id]) || ($name !== '' && isset($names[$name]))) {
+                $result[$id] = true;
+            }
         }
 
-        return DB::table('doctors')
-            ->whereIn('unique_id', $ids)
+        return $result;
+    }
+
+    /**
+     * La tabla `doctors` cacheada por request (una consulta, no una por payload).
+     */
+    private function doctorCatalog(bool $onlyActive): \Illuminate\Support\Collection
+    {
+        $key = $onlyActive ? '1' : '0';
+
+        return $this->doctorCatalog[$key] ??= DB::table('doctors')
             ->when($onlyActive, fn ($q) => $q->where('is_active', 1))
-            ->pluck('unique_id')
-            ->flip()
-            ->all();
+            ->get(['unique_id', 'name']);
+    }
+
+    /**
+     * Nombre de doctor normalizado para comparar: sin acentos, sin puntuación,
+     * en minúsculas y con espacios colapsados. "Carolina Rojas Godoy" y
+     * "CAROLINA  ROJAS GODOY" caen en la misma clave.
+     */
+    private function normalizeDoctorName(?string $name): string
+    {
+        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT', (string) $name) ?: (string) $name;
+
+        return preg_replace('/\s+/', ' ', trim(strtolower(preg_replace('/[^a-zA-Z ]/', '', $ascii))));
     }
 
     private function parseAttendance(array $attendance): array
@@ -475,24 +593,62 @@ class IncomingAppointmentService
         return $doctor;
     }
 
+    /**
+     * El contacto del CRM para el paciente de una cita.
+     *
+     * El orden importa y es lo que evita duplicados y mezclas:
+     *
+     * 1. `smd_patient_id` — identidad exacta y estable. Va PRIMERO. Antes se
+     *    buscaba por teléfono primero y, si aparecía alguien, se le estampaba el
+     *    id de SMD. Como la mitad de los números corresponde a más de un paciente
+     *    (familias que comparten celular: medido, 20 de 40 conversaciones reales),
+     *    eso le pegaba el id de un hermano a la ficha del otro.
+     * 2. Teléfono + nombre. El teléfono solo no alcanza justamente por lo
+     *    anterior, así que se exige que además coincida el nombre.
+     * 3. Alta nueva.
+     *
+     * Y el teléfono se carga SIEMPRE, también cuando el paciente ya existía. La
+     * rama por `smd_patient_id` devolvía la ficha tal cual, así que un paciente
+     * dado de alta por un payload sin teléfono se quedaba sin número para
+     * siempre aunque los payloads siguientes sí lo trajeran: de ahí salían los
+     * contactos sin número que nunca recibían el recordatorio. Si el payload no
+     * lo trae, se pide a la API de pacientes de SMD.
+     */
     private function resolvePerson(?string $phone, ?string $smdPatientId, string $name): object
     {
-        // Buscar por teléfono primero
-        if ($phone) {
-            $cleanPhone = ltrim(preg_replace('/[^0-9]/', '', $phone), '0');
-            $kommoEmail = $cleanPhone.'@whatsapp.sofopolis.net';
+        // Salida de emergencia. Esto corre en el camino de TODA cita que entra,
+        // así que apagarlo tiene que ser una variable de entorno y no una
+        // edición de urgencia con las citas llegando.
+        if (! config('smd.dedupe_v2', true)) {
+            return $this->resolvePersonLegacy($phone, $smdPatientId, $name);
+        }
 
-            $person = $this->personRepository->whereJsonContains('emails', [['value' => $kommoEmail]])->first()
-                ?? $this->personRepository->whereJsonContains('contact_numbers', [['value' => $phone]])->first();
+        $directory = app(SmdPatientDirectory::class);
+
+        // 1. Identidad exacta por el id que vino del calendario.
+        if ($smdPatientId) {
+            $person = $this->personRepository->findOneByField('smd_patient_id', $smdPatientId);
 
             if ($person) {
-                if (! ($person instanceof \Webkul\Contact\Contracts\Person)) {
-                    $person = $this->personRepository->find($person->id);
+                // A SMD sólo se le pregunta si el dato falta de los dos lados.
+                // Preguntarle siempre costaba una llamada HTTP (~0,9 s) por cita
+                // para confirmar un teléfono que ya teníamos: es la diferencia
+                // entre una llamada por PACIENTE NUEVO y una por EVENTO.
+                if (! $phone && empty($person->contact_numbers)) {
+                    $phone = $directory->phone($smdPatientId);
                 }
 
-                // Guardar el id de SMD si todavía no lo tiene: los payloads UPDATED
-                // vienen sin `phone`, así que sin esto una modificación posterior no
-                // encontraría a este paciente y crearía un duplicado.
+                $this->backfillPhone($person, $phone);
+
+                return $person;
+            }
+        }
+
+        // 2. Teléfono + nombre, antes de tocar la red: el payload trae el
+        // teléfono en el 98% de los eventos con paciente, así que casi siempre
+        // alcanza para reconocerlo sin consultar a SMD.
+        if ($phone) {
+            if ($person = $this->personByPhoneAndName($phone, $name)) {
                 if ($smdPatientId && ! $person->smd_patient_id) {
                     $this->personRepository->update([
                         'smd_patient_id' => $smdPatientId,
@@ -506,7 +662,111 @@ class IncomingAppointmentService
             }
         }
 
-        // Buscar por smd_patient_id si no hay teléfono o no se encontró
+        // 3. Recién ahora la red: es un paciente que no pudimos identificar con
+        // lo que ya teníamos. La ficha real se busca por id y, si no aparece,
+        // por nombre — el `_id` del asistente del calendario no siempre es el de
+        // la ficha de paciente.
+        $ficha = $directory->resolve($smdPatientId, $name);
+
+        if ($ficha) {
+            // El id REAL manda: es el que sirve para volver a consultar la ficha
+            // y el que evita duplicar cuando el calendario mande otro.
+            $idReal = $ficha['_id'] ?? $smdPatientId;
+
+            if ($idReal !== $smdPatientId) {
+                $person = $this->personRepository->findOneByField('smd_patient_id', $idReal);
+
+                if ($person) {
+                    $this->backfillPhone($person, $phone ?: $directory->phone($idReal));
+
+                    return $person;
+                }
+            }
+
+            $smdPatientId = $idReal;
+
+            $delaFicha = $ficha['phone'] ?? null;
+
+            if (is_array($delaFicha)) {
+                $delaFicha = $delaFicha[0] ?? null;
+            }
+
+            $delaFicha = preg_replace('/\D/', '', (string) $delaFicha);
+
+            $nuevoTelefono = $phone === null && $delaFicha !== '';
+
+            $phone = $phone ?: ($delaFicha !== '' ? $delaFicha : null);
+
+            // El teléfono lo aportó SMD, así que el intento del paso 2 se hizo
+            // sin él: se reintenta ahora que sí lo tenemos, o si no duplicamos
+            // al paciente que ya estaba cargado sin número.
+            if ($nuevoTelefono && $person = $this->personByPhoneAndName($phone, $name)) {
+                if ($smdPatientId && ! $person->smd_patient_id) {
+                    $this->personRepository->update([
+                        'smd_patient_id' => $smdPatientId,
+                        'entity_type'    => 'persons',
+                    ], $person->id);
+
+                    $person = $this->personRepository->find($person->id);
+                }
+
+                return $person;
+            }
+        }
+
+        // 4. Alta nueva.
+        $createData = [
+            'name'        => $name ?: 'Paciente Externo',
+            'entity_type' => 'persons',
+        ];
+
+        if ($phone) {
+            $createData['contact_numbers'] = [['value' => $phone, 'label' => 'work']];
+            $createData['emails'] = [['value' => $phone.'@whatsapp.sofopolis.net', 'label' => 'work']];
+        }
+
+        if ($smdPatientId) {
+            $createData['smd_patient_id'] = $smdPatientId;
+        }
+
+        return $this->personRepository->create($createData);
+    }
+
+    /**
+     * Comportamiento anterior a `smd.dedupe_v2`, conservado tal cual.
+     *
+     * Busca por teléfono primero y le estampa el `smd_patient_id` a quien
+     * encuentre. Con familias que comparten celular eso cruza las identidades
+     * entre los dos sistemas — es exactamente el motivo por el que existe la
+     * versión nueva. Está acá sólo para poder volver atrás sin editar código.
+     */
+    private function resolvePersonLegacy(?string $phone, ?string $smdPatientId, string $name): object
+    {
+        if ($phone) {
+            $cleanPhone = ltrim(preg_replace('/[^0-9]/', '', $phone), '0');
+            $kommoEmail = $cleanPhone.'@whatsapp.sofopolis.net';
+
+            $person = $this->personRepository->whereJsonContains('emails', [['value' => $kommoEmail]])->first()
+                ?? $this->personRepository->whereJsonContains('contact_numbers', [['value' => $phone]])->first();
+
+            if ($person) {
+                if (! ($person instanceof \Webkul\Contact\Contracts\Person)) {
+                    $person = $this->personRepository->find($person->id);
+                }
+
+                if ($smdPatientId && ! $person->smd_patient_id) {
+                    $this->personRepository->update([
+                        'smd_patient_id' => $smdPatientId,
+                        'entity_type'    => 'persons',
+                    ], $person->id);
+
+                    $person = $this->personRepository->find($person->id);
+                }
+
+                return $person;
+            }
+        }
+
         if ($smdPatientId) {
             $person = $this->personRepository->findOneByField('smd_patient_id', $smdPatientId);
 
@@ -515,7 +775,6 @@ class IncomingAppointmentService
             }
         }
 
-        // Crear nuevo paciente
         $createData = [
             'name'        => $name ?: 'Paciente Externo',
             'entity_type' => 'persons',
@@ -524,6 +783,7 @@ class IncomingAppointmentService
         if ($phone) {
             $cleanPhone = ltrim(preg_replace('/[^0-9]/', '', $phone), '0');
             $createData['contact_numbers'] = [['value' => $phone, 'label' => 'work']];
+
             if ($cleanPhone) {
                 $createData['emails'] = [['value' => $cleanPhone.'@whatsapp.sofopolis.net', 'label' => 'work']];
             }
@@ -534,6 +794,86 @@ class IncomingAppointmentService
         }
 
         return $this->personRepository->create($createData);
+    }
+
+    /**
+     * Busca por número y confirma con el nombre.
+     *
+     * El prefiltro es un LIKE por los últimos 8 dígitos porque el CRM guarda
+     * tanto "78164851" como "59178164851" y una comparación exacta no cruzaría
+     * los dos formatos —ése era el otro origen de fichas duplicadas—. La
+     * confirmación final se hace en PHP contra los valores normalizados.
+     */
+    private function personByPhoneAndName(string $phone, string $name): ?object
+    {
+        $tail = substr(preg_replace('/\D/', '', $phone), -8);
+
+        if (strlen($tail) < 8 || trim($name) === '') {
+            return null;
+        }
+
+        $candidates = $this->personRepository
+            ->where('contact_numbers', 'like', '%'.$tail.'%')
+            ->get();
+
+        foreach ($candidates as $candidate) {
+            $matchesPhone = false;
+
+            foreach ((array) $candidate->contact_numbers as $number) {
+                $value = is_array($number) ? ($number['value'] ?? '') : $number;
+
+                if (str_ends_with(preg_replace('/\D/', '', (string) $value), $tail)) {
+                    $matchesPhone = true;
+
+                    break;
+                }
+            }
+
+            if ($matchesPhone && $this->sameName($candidate->name, $name)) {
+                return $this->personRepository->find($candidate->id);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * ¿Son la misma persona? Compara nombres sin acentos, mayúsculas ni los
+     * sufijos que SMD arrastra en el nombre ("(SISTEMA 2025) SO POLIZA VENCE…").
+     */
+    private function sameName(?string $a, ?string $b): bool
+    {
+        $normalize = function (?string $value): string {
+            $value = explode(' (', (string) $value)[0];
+            $value = iconv('UTF-8', 'ASCII//TRANSLIT', $value) ?: $value;
+
+            return preg_replace('/\s+/', ' ', trim(strtolower(preg_replace('/[^a-zA-Z ]/', '', $value))));
+        };
+
+        $a = $normalize($a);
+        $b = $normalize($b);
+
+        return $a !== '' && $a === $b;
+    }
+
+    /**
+     * Carga el número en una ficha que no lo tenía, sin tocar los que ya están.
+     */
+    private function backfillPhone(object $person, ?string $phone): void
+    {
+        if (! $phone || ! empty($person->contact_numbers)) {
+            return;
+        }
+
+        $this->personRepository->update([
+            'entity_type'     => 'persons',
+            'contact_numbers' => [['value' => $phone, 'label' => 'work']],
+        ], $person->id, ['contact_numbers']);
+
+        Log::info('[SMD] Teléfono cargado desde la API de pacientes', [
+            'person_id'      => $person->id,
+            'smd_patient_id' => $person->smd_patient_id,
+        ]);
     }
 
     private function createLead(object $person, array $data): object

@@ -6,13 +6,13 @@ class SmdStatusMapper
 {
     /**
      * Normaliza el status de SMD (puede venir en cualquier case).
-     * Vacío se trata como "confirmed" según decisión de negocio.
+     *
+     * Vacío se deja vacío: por decisión de negocio va a Consultas (la etapa
+     * default), no a Cita confirmada. Es el status más frecuente que manda SMD.
      */
     public function normalize(?string $smdStatus): string
     {
-        $normalized = strtolower(trim($smdStatus ?? ''));
-
-        return $normalized === '' ? 'confirmed' : $normalized;
+        return strtolower(trim($smdStatus ?? ''));
     }
 
     /**
@@ -28,6 +28,9 @@ class SmdStatusMapper
             // SMD manda "MISSED" para la cita perdida; "no-show" queda por
             // compatibilidad con payloads viejos.
             'no-show', 'missed'     => (int) config('smd.stage_map.no_show'),
+            'surgery'               => (int) config('smd.stage_map.surgery'),
+            // Status vacío (el más común en SMD) → Consultas.
+            ''                      => (int) config('smd.stage_map.default'),
             default                 => null,
         };
     }
@@ -48,6 +51,7 @@ class SmdStatusMapper
         return match ($this->normalize($smdStatus)) {
             'canceled', 'cancelled' => 'Cancelado',
             'no-show', 'missed'     => 'Cita perdida',
+            'surgery'               => 'Cirugía',
             default                 => null,
         };
     }

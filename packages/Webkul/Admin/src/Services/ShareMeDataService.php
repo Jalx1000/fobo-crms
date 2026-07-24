@@ -222,6 +222,88 @@ class ShareMeDataService
     /**
      * Buscar paciente en SMD por email (secondEmail).
      */
+    /**
+     * Buscar paciente en SMD por nombre (regex sobre fullName).
+     *
+     * Hace falta porque el `_id` que trae el asistente del calendario NO siempre
+     * resuelve en la API de pacientes: hay pacientes que existen en SMD y cuyo
+     * `GET /patients/{_id}` viene vacío. Sin esta vía se los daba por
+     * inexistentes y quedaban sin teléfono para siempre.
+     *
+     * El nombre se pasa por tokens y no entero: el CRM guarda "VACA AGUILERA,
+     * CATALINA" y SMD "CATALINA VACA AGUILERA (SISTEMA 2020) AP COBERTURA...",
+     * así que un regex sobre el nombre completo no coincidiría nunca.
+     */
+    public function searchPatientByName(string $name, int $limit = 20): array
+    {
+        // Sin acentos: SMD guarda "EMILIA MONTES SANCHEZ" y el CRM "Emilia Montes
+        // Sánchez". Buscar "Sánchez" contra "SANCHEZ" no devuelve nada. El regex
+        // de la API sí ignora mayúsculas por su cuenta.
+        $sinAcentos = fn (string $t): string => iconv('UTF-8', 'ASCII//TRANSLIT', $t) ?: $t;
+
+        $tokens = collect(preg_split('/[^\p{L}]+/u', $name, -1, PREG_SPLIT_NO_EMPTY))
+            ->map(fn ($t) => preg_replace('/[^a-zA-Z]/', '', $sinAcentos($t)))
+            ->filter(fn ($t) => mb_strlen($t) >= 3)
+            ->take(3);
+
+        if ($tokens->isEmpty()) {
+            return [];
+        }
+
+        // Se filtra en SMD por UN token y el resto se confirma acá: un regex con
+        // lookaheads para exigir todos a la vez no da resultados contra esta API.
+        //
+        // Se prueba token por token porque un apellido común desborda la página:
+        // "Sanchez" devuelve más de `pageSize` fichas y la buscada queda afuera,
+        // mientras que "Emilia" la encuentra de una. Se empieza por el más largo
+        // —suele ser el más distintivo— y se sigue hasta confirmar.
+        $confirma = function (array $patient) use ($tokens, $sinAcentos): bool {
+            $full = mb_strtolower($sinAcentos($patient['fullName'] ?? ''));
+
+            foreach ($tokens as $token) {
+                if (! str_contains($full, mb_strtolower($token))) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        foreach ($tokens->sortByDesc(fn ($t) => mb_strlen($t)) as $ancla) {
+            try {
+                $response = $this->http()->get("{$this->patientsBaseUrl}/patients", [
+                    // Sin el flag `/i`: con él la API devuelve vacío siempre, sin
+                    // error. Igual ignora mayúsculas por su cuenta.
+                    'where'      => 'fullName=/'.urlencode($ancla).'/',
+                    'select'     => '_id,fullName,phone,secondEmail,name,lastName,personID,birthday',
+                    'pageSize'   => $limit,
+                    'pageNumber' => 1,
+                ]);
+
+                if (! $response->successful()) {
+                    Log::warning('[SMD] searchPatientByName falló', [
+                        'status' => $response->status(),
+                        'token'  => $ancla,
+                    ]);
+
+                    continue;
+                }
+
+                $found = $response->json('data') ?? $response->json() ?? [];
+
+                $confirmados = array_values(array_filter($found, $confirma));
+
+                if ($confirmados) {
+                    return $confirmados;
+                }
+            } catch (\Exception $e) {
+                Log::error('[SMD] searchPatientByName excepción: '.$e->getMessage());
+            }
+        }
+
+        return [];
+    }
+
     public function searchPatientByEmail(string $email): array
     {
         try {
@@ -326,6 +408,54 @@ class ShareMeDataService
 
             return null;
         }
+    }
+
+    /**
+     * Varias fichas de paciente a la vez.
+     *
+     * `getPatient()` de a uno era el cuello de botella de la carga masiva: ~0,9 s
+     * por llamada, en serie, una por paciente nuevo. El tiempo es latencia pura,
+     * así que pedirlas en paralelo es todo lo que hace falta.
+     *
+     * @param  array<int, string>  $ids
+     * @return array<string, array|null> id => ficha (null si no existe)
+     */
+    public function getPatientsMany(array $ids, int $concurrency = 10): array
+    {
+        $ids = array_values(array_unique(array_filter($ids)));
+
+        if (! $ids) {
+            return [];
+        }
+
+        $select = '_id,fullName,phone,secondEmail,name,lastName,personID,birthday,extra';
+        $result = [];
+
+        foreach (array_chunk($ids, max(1, $concurrency)) as $chunk) {
+            try {
+                $responses = Http::pool(fn ($pool) => array_map(
+                    fn ($id) => $pool->as($id)
+                        ->withHeaders(['Accept' => 'application/json', 'apikey' => $this->apiKey])
+                        ->get("{$this->patientsBaseUrl}/patients/{$id}", ['select' => $select]),
+                    $chunk,
+                ));
+            } catch (\Exception $e) {
+                Log::error('[SMD] getPatientsMany excepción: '.$e->getMessage());
+
+                continue;
+            }
+
+            foreach ($chunk as $id) {
+                $response = $responses[$id] ?? null;
+
+                // null = no existe. Se guarda igual para no volver a preguntarlo.
+                $result[$id] = ($response instanceof \Illuminate\Http\Client\Response && $response->successful())
+                    ? $response->json()
+                    : null;
+            }
+        }
+
+        return $result;
     }
 
     /**

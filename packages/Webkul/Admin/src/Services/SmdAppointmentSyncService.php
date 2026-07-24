@@ -97,8 +97,23 @@ class SmdAppointmentSyncService
 
         $summary['sin_cambios'] += count($files) - count($pendientes);
 
-        foreach ($pendientes as $file) {
-            $this->processFile($file, $summary, $onLog);
+        // En lotes y en paralelo. Bajar de a uno era el cuello de botella: el
+        // tiempo lo domina la latencia de cada round-trip, no el procesamiento.
+        // El lote se mantiene acotado para no cargar miles de payloads en
+        // memoria de una sola vez.
+        $lote = max(1, (int) config('smd.dropbox.batch_size', 100));
+
+        foreach (array_chunk($pendientes, $lote) as $grupo) {
+            $rutas = array_column($grupo, 'path_lower');
+            $payloads = $this->dropbox->downloadManyJson($rutas);
+
+            if ($onLog) {
+                $onLog(sprintf('  descargados %d/%d', count($payloads), count($rutas)));
+            }
+
+            foreach ($grupo as $file) {
+                $this->processFile($file, $summary, $onLog, $payloads[$file['path_lower']] ?? null);
+            }
         }
 
         Log::info('[SmdAppointmentSync] Sincronización completada', $summary + ['days' => $days]);
@@ -108,11 +123,15 @@ class SmdAppointmentSyncService
 
     /**
      * Procesa un archivo individual de Dropbox, actualizando el resumen por referencia.
+     *
+     * @param  array|null  $json  Payload ya descargado en lote. Si viene null se
+     *                            baja acá, para que el job del webhook y la UI
+     *                            puedan seguir usando el camino de a uno.
      */
-    protected function processFile(array $file, array &$summary, ?callable $onLog): void
+    protected function processFile(array $file, array &$summary, ?callable $onLog, ?array $json = null): void
     {
         try {
-            $json = $this->dropbox->downloadJson($file['path_lower']);
+            $json ??= $this->dropbox->downloadJson($file['path_lower']);
 
             if (! $json || ! isset($json['_id'])) {
                 Log::warning('[SmdAppointmentSync] JSON sin _id o inválido', [
@@ -250,12 +269,18 @@ class SmdAppointmentSyncService
         }
 
         if ($existing) {
-            $this->incoming->updateDropbox($json, $existing);
+            // Se capturan los ids que devuelve: un bloqueo promovido a cita
+            // estrena lead_id y activity_id, y sin guardarlos la próxima corrida
+            // lo volvería a ver como bloqueo.
+            $result = $this->incoming->updateDropbox($json, $existing);
+
             DB::table('smd_synced_events')
                 ->where('external_id', $externalId)
                 ->update($this->withSourceUpdatedAt([
                     'raw_payload' => json_encode($json),
                     'status'      => $status,
+                    'lead_id'     => $result['lead_id'] ?? $existing->lead_id,
+                    'activity_id' => $result['activity_id'] ?? $existing->activity_id,
                     'updated_at'  => now(),
                 ], $updatedAt));
 
@@ -264,14 +289,16 @@ class SmdAppointmentSyncService
 
         $result = $this->incoming->processDropbox($json);
 
-        // Un evento sin paciente es un bloqueo de agenda ("Ocupado"), no una cita.
-        // Se registra igual para no re-evaluarlo en cada corrida, pero sin cita ni
-        // lead: crearlos generaba personas "Paciente" y leads basura.
-        if (($result['skipped'] ?? null) === 'block') {
+        // Bloqueo de agenda: un evento sin paciente. Nunca genera lead ni
+        // persona. Si tiene doctor, processDropbox creó una actividad de
+        // ocupación (time_off) y su id viene en el resultado; si no hay doctor,
+        // no hay nada que ocupar y activity_id queda null. En ambos casos se
+        // registra para no re-evaluarlo en cada corrida.
+        if (($result['skipped'] ?? null) === 'block' || ($result['block'] ?? false)) {
             DB::table('smd_synced_events')->insert($this->withSourceUpdatedAt([
                 'external_id'  => $externalId,
                 'source_file'  => $sourceFile,
-                'activity_id'  => null,
+                'activity_id'  => $result['activity_id'] ?? null,
                 'lead_id'      => null,
                 'raw_payload'  => json_encode($json),
                 'status'       => $status,
