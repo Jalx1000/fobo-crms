@@ -185,6 +185,7 @@
                     <div class="dwc-month-cell-events custom-scrollbar">
                          <div v-for="ev in getEventsForDay(cell.iso)" :key="'mev-'+ev.id"
                               class="dwc-month-event"
+                              :class="{ 'is-cancelled': ev.is_cancelled, 'is-completed': ev.is_completed, 'is-confirmed': ev.is_confirmed, 'is-surgery': ev.is_surgery, 'is-lost': ev.is_lost }"
                               :title="ev.title || ev.type"
                               @click.stop="openViewModal(ev)"
                               @mouseenter="onEventMouseEnter($event, ev.id, ev)"
@@ -226,7 +227,7 @@
                         <div class="dwc-list-group-title">@{{ group.label }}</div>
 
                         <div v-for="ev in group.items" :key="'lrow-'+ev.id" class="dwc-list-row"
-                             :class="{ 'is-cancelled': ev.is_cancelled, 'is-completed': ev.is_completed }"
+                             :class="{ 'is-cancelled': ev.is_cancelled, 'is-completed': ev.is_completed, 'is-confirmed': ev.is_confirmed, 'is-surgery': ev.is_surgery, 'is-lost': ev.is_lost }"
                              role="button" tabindex="0" style="cursor:pointer"
                              @click="openViewModal(ev)" @keydown.enter="openViewModal(ev)">
                             <div class="dwc-list-time">
@@ -4116,6 +4117,13 @@
         border-left-color: #60a5fa;
     }
 
+    /* Colores por estado en la vista mes (mismos que día/semana). */
+    .dwc-month-event.is-confirmed { background: #ADD8E6; color: #0c4a6e; border-left-color: #3b82f6; }
+    .dwc-month-event.is-surgery   { background: #FFBB76; color: #7c2d12; border-left-color: #f59e0b; }
+    .dwc-month-event.is-lost      { background: #FFAA8F; color: #7f1d1d; border-left-color: #f87171; }
+    .dwc-month-event.is-completed { background: #DCFCE7; color: #14532d; border-left-color: #22c55e; }
+    .dwc-month-event.is-cancelled { background: #f3f4f6; color: #6b7280; border-left-color: #9ca3af; text-decoration: line-through; opacity: 0.7; }
+
     .dwc-week-view {
         display: flex;
         flex-direction: column;
@@ -4421,6 +4429,33 @@
 
     .dark .dwc-list-row.is-completed {
         background: rgba(22, 163, 74, 0.12);
+    }
+
+    .dwc-list-row.is-confirmed {
+        background: #eff6ff;
+        box-shadow: inset 3px 0 0 #3b82f6;
+    }
+
+    .dark .dwc-list-row.is-confirmed {
+        background: rgba(59, 130, 246, 0.12);
+    }
+
+    .dwc-list-row.is-surgery {
+        background: #fff7ed;
+        box-shadow: inset 3px 0 0 #f59e0b;
+    }
+
+    .dark .dwc-list-row.is-surgery {
+        background: rgba(245, 158, 11, 0.14);
+    }
+
+    .dwc-list-row.is-lost {
+        background: #fff1f2;
+        box-shadow: inset 3px 0 0 #f87171;
+    }
+
+    .dark .dwc-list-row.is-lost {
+        background: rgba(248, 113, 113, 0.12);
     }
 
     .dwc-list-time {

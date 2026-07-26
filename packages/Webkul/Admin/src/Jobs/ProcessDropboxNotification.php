@@ -26,11 +26,11 @@ class ProcessDropboxNotification implements ShouldBeUnique, ShouldQueue
 
     public int $tries = 3;
 
-    /** Con descarga en paralelo un lote entra holgado; 300s da margen a backlogs. */
-    public int $timeout = 300;
+    /** Con descarga en paralelo un lote entra holgado; 600s da margen amplio a backlogs. */
+    public int $timeout = 600;
 
     /** Si el job muere sin liberar el lock, se libera solo pasado este tiempo. */
-    public int $uniqueFor = 600;
+    public int $uniqueFor = 900;
 
     public function handle(DropboxService $dropbox, SmdAppointmentSyncService $sync): void
     {
