@@ -26,10 +26,11 @@ class ProcessDropboxNotification implements ShouldBeUnique, ShouldQueue
 
     public int $tries = 3;
 
-    public int $timeout = 120;
+    /** Con descarga en paralelo un lote entra holgado; 300s da margen a backlogs. */
+    public int $timeout = 300;
 
     /** Si el job muere sin liberar el lock, se libera solo pasado este tiempo. */
-    public int $uniqueFor = 300;
+    public int $uniqueFor = 600;
 
     public function handle(DropboxService $dropbox, SmdAppointmentSyncService $sync): void
     {
@@ -37,23 +38,33 @@ class ProcessDropboxNotification implements ShouldBeUnique, ShouldQueue
             ->where('key', 'dropbox_cursor')
             ->value('value');
 
+        // Sin cursor no hay de dónde partir: se inicializa una vez y las próximas
+        // notificaciones ya drenan el delta.
         if (! $cursor) {
-            Log::warning('[DropboxWebhook] No hay cursor guardado. Ejecuta: php artisan smd:dropbox-init-cursor');
+            Log::warning('[DropboxWebhook] No hay cursor guardado, inicializando...');
+            $cursor = $this->initCursor($dropbox);
 
-            return;
+            if (! $cursor) {
+                Log::error('[DropboxWebhook] No se pudo inicializar el cursor. Revisá las credenciales de Dropbox.');
+
+                return;
+            }
         }
 
-        $summary = [
-            'creados'      => 0,
-            'actualizados' => 0,
-            'cancelados'   => 0,
-            'sin_cambios'  => 0,
-            'obsoletos'    => 0,
-            'errores'      => 0,
-        ];
+        $summary = $sync->emptySummary();
 
         do {
             $result = $dropbox->listChanges($cursor);
+
+            // Cursor reseteado por Dropbox: se re-inicializa a "ahora" y se corta.
+            // El histórico lo cubre el poll/manual; el webhook sigue con lo nuevo.
+            if (! empty($result['reset'])) {
+                Log::warning('[DropboxWebhook] Cursor reseteado, reinicializando a estado actual');
+                $this->initCursor($dropbox);
+
+                break;
+            }
+
             $entries = $result['entries'];
             $cursor = $result['cursor'];
             $hasMore = $result['has_more'];
@@ -64,28 +75,9 @@ class ProcessDropboxNotification implements ShouldBeUnique, ShouldQueue
             // processPayload() cubre el resto.
             usort($entries, fn ($a, $b) => strcmp($a['name'] ?? '', $b['name'] ?? ''));
 
-            foreach ($entries as $file) {
-                try {
-                    $json = $dropbox->downloadJson($file['path_lower']);
-
-                    if (! $json || ! isset($json['_id'])) {
-                        Log::warning('[DropboxWebhook] JSON sin _id o invalido', [
-                            'file' => $file['path_lower'] ?? '?',
-                        ]);
-                        $summary['errores']++;
-
-                        continue;
-                    }
-
-                    $summary[$sync->processPayload($json, $file['path_lower'])]++;
-                } catch (\Throwable $e) {
-                    Log::error('[DropboxWebhook] Error procesando archivo', [
-                        'file'  => $file['path_lower'] ?? '?',
-                        'error' => $e->getMessage(),
-                    ]);
-                    $summary['errores']++;
-                }
-            }
+            // Descarga EN PARALELO + salto de lo ya procesado (mismo camino que el
+            // comando manual). Bajar de a uno era lo que hacía morir el job por timeout.
+            $sync->processEntries($entries, $summary);
 
             DB::table('settings')->updateOrInsert(
                 ['key' => 'dropbox_cursor'],
@@ -95,5 +87,23 @@ class ProcessDropboxNotification implements ShouldBeUnique, ShouldQueue
         } while ($hasMore);
 
         Log::info('[DropboxWebhook] Procesamiento completado', $summary);
+    }
+
+    /**
+     * Inicializa (o re-inicializa) el cursor de Dropbox a "ahora" y lo guarda.
+     */
+    private function initCursor(DropboxService $dropbox): ?string
+    {
+        $folder = config('smd.dropbox.appointments_folder', '/smd-events');
+        $cursor = $dropbox->getInitialCursor($folder);
+
+        if ($cursor) {
+            DB::table('settings')->updateOrInsert(
+                ['key' => 'dropbox_cursor'],
+                ['value' => $cursor, 'updated_at' => now()]
+            );
+        }
+
+        return $cursor;
     }
 }

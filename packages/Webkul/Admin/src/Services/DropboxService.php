@@ -264,6 +264,17 @@ class DropboxService
                     return ['_expired' => true];
                 }
 
+                // Cursor inválido/reseteado: Dropbox responde con error `reset`.
+                // Se señala para que quien llama re-inicialice el cursor en vez de
+                // reintentar en bucle con un cursor que ya no sirve.
+                if ($response->status() === 409 && str_contains($response->body(), 'reset')) {
+                    Log::warning('[Dropbox] Cursor reseteado por Dropbox, requiere reinicialización', [
+                        'body' => $response->body(),
+                    ]);
+
+                    return ['entries' => [], 'cursor' => null, 'has_more' => false, 'reset' => true];
+                }
+
                 if (! $response->successful()) {
                     Log::warning('[Dropbox] Error en list_folder/continue', [
                         'status' => $response->status(),

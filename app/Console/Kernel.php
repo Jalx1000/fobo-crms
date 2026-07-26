@@ -15,10 +15,13 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('inbound-emails:process')->everyFiveMinutes();
 
-        // El sync automático respeta el flag de pausa (toggle desde la UI).
-        // withoutOverlapping: una corrida lenta no debe solaparse con la siguiente.
+        // Red de seguridad del webhook: el webhook de Dropbox es el camino primario
+        // (near-real-time); este poll solo levanta lo que un webhook perdido no haya
+        // capturado, por eso va espaciado (antes cada 5 min quemaba recursos).
+        // Respeta el flag de pausa (toggle desde la UI). withoutOverlapping: una
+        // corrida lenta no debe solaparse con la siguiente.
         $schedule->command('smd:sync-dropbox --days=2')
-            ->everyFiveMinutes()
+            ->everyThirtyMinutes()
             ->withoutOverlapping(10)
             ->when(fn () => ! SmdSyncState::isPaused());
     }

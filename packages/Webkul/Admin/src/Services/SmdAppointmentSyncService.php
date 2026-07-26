@@ -35,15 +35,7 @@ class SmdAppointmentSyncService
     {
         $days = max(1, $days);
 
-        $summary = [
-            'creados'      => 0,
-            'actualizados' => 0,
-            'cancelados'   => 0,
-            'bloqueos'     => 0,
-            'sin_cambios'  => 0,
-            'obsoletos'    => 0,
-            'errores'      => 0,
-        ];
+        $summary = $this->emptySummary();
 
         $baseDate ??= now();
         $files = [];
@@ -66,15 +58,55 @@ class SmdAppointmentSyncService
         // no depende del orden en que Dropbox devuelva los archivos.
         usort($files, fn ($a, $b) => strcmp($a['name'] ?? '', $b['name'] ?? ''));
 
-        // Descartar lo ya procesado ANTES de bajarlo. processFile descargaba cada
-        // archivo para recién después decidir si aportaba algo, así que cada
-        // corrida se bajaba la carpeta entera (cientos de archivos) cada cinco
-        // minutos, y una cita nueva quedaba esperando detrás de esa cola.
-        //
-        // Comparar por ruta es seguro: SMD nombra los archivos
-        // `event-YYYY-MM-DD-HHMM-<id>.json`, de modo que una modificación llega
-        // como archivo nuevo. Misma ruta = mismo contenido.
+        $this->processEntries($files, $summary, $onLog);
+
+        Log::info('[SmdAppointmentSync] Sincronización completada', $summary + ['days' => $days]);
+
+        return $summary;
+    }
+
+    /**
+     * Resumen vacío con TODAS las claves de outcome. Centralizado para que el
+     * comando, el job del webhook y la UI cuenten igual (y no falte `bloqueos`,
+     * que processPayload() puede devolver).
+     *
+     * @return array<string, int>
+     */
+    public function emptySummary(): array
+    {
+        return [
+            'creados'      => 0,
+            'actualizados' => 0,
+            'cancelados'   => 0,
+            'bloqueos'     => 0,
+            'sin_cambios'  => 0,
+            'obsoletos'    => 0,
+            'errores'      => 0,
+        ];
+    }
+
+    /**
+     * Procesa una lista de entries de Dropbox (comando y webhook comparten esto):
+     * descarta lo ya procesado, baja EN PARALELO por lotes y aplica cada payload.
+     *
+     * Bajar de a uno era el cuello de botella (una latencia de round-trip por
+     * archivo, en serie): con cientos/miles de archivos el job del webhook moría
+     * por timeout. Descargar en paralelo (downloadManyJson) y saltar lo ya
+     * procesado (smd_processed_files) lo vuelve viable.
+     *
+     * Comparar por ruta es seguro: SMD nombra los archivos
+     * `event-YYYY-MM-DD-HHMM-<id>.json`, así que una modificación llega como
+     * archivo nuevo. Misma ruta = mismo contenido.
+     *
+     * @param  array  $files  Entries de Dropbox (cada uno con `path_lower` y `name`).
+     */
+    public function processEntries(array $files, array &$summary, ?callable $onLog = null): void
+    {
         $paths = array_filter(array_column($files, 'path_lower'));
+
+        if (! $paths) {
+            return;
+        }
 
         $procesados = collect();
 
@@ -97,10 +129,8 @@ class SmdAppointmentSyncService
 
         $summary['sin_cambios'] += count($files) - count($pendientes);
 
-        // En lotes y en paralelo. Bajar de a uno era el cuello de botella: el
-        // tiempo lo domina la latencia de cada round-trip, no el procesamiento.
-        // El lote se mantiene acotado para no cargar miles de payloads en
-        // memoria de una sola vez.
+        // El lote se mantiene acotado para no cargar miles de payloads en memoria
+        // de una sola vez; la concurrencia real la fija downloadManyJson.
         $lote = max(1, (int) config('smd.dropbox.batch_size', 100));
 
         foreach (array_chunk($pendientes, $lote) as $grupo) {
@@ -115,10 +145,6 @@ class SmdAppointmentSyncService
                 $this->processFile($file, $summary, $onLog, $payloads[$file['path_lower']] ?? null);
             }
         }
-
-        Log::info('[SmdAppointmentSync] Sincronización completada', $summary + ['days' => $days]);
-
-        return $summary;
     }
 
     /**
