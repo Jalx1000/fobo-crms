@@ -47,6 +47,14 @@ class AppointmentService
         $scheduleFrom = Carbon::parse($data['schedule_from']);
         $scheduleTo = Carbon::parse($data['schedule_to']);
         $doctorId = $data['doctor_id'];
+        // Multi-doctor: el primero es el "principal" (valida turno/disponibilidad y
+        // crea el evento en SMD). Los demás se adjuntan a la cita local y se suman al
+        // evento de SMD por PATCH (el endpoint createEvent solo acepta un físico).
+        $allDoctorIds = ! empty($data['doctor_ids'])
+            ? array_values(array_unique(array_map('intval', $data['doctor_ids'])))
+            : [(int) $doctorId];
+        // Garantizar que el principal quede primero.
+        $allDoctorIds = array_values(array_unique(array_merge([(int) $doctorId], $allDoctorIds)));
         $personData = $data['person'];
         $productId = $data['product_id'] ?? null;
         // Regla 1 lead = 1 cita: cada cita crea su propio lead. Solo se reusa un
@@ -383,6 +391,24 @@ class AppointmentService
                     ['smd_response' => $smdResult]
                 );
             }
+
+            // ── 5.b Multi-doctor: sumar los físicos extra al evento por PATCH ──
+            // createEvent solo acepta un físico; el resto se agrega editando el
+            // evento recién creado (mismo mecanismo que la edición desde el CRM).
+            if (count($allDoctorIds) > 1) {
+                $this->attachExtraPhysicians(
+                    $smdResult['data'] ?? [],
+                    $allDoctorIds,
+                    $smdPersonId ?? null,
+                    $firstName,
+                    $lastName,
+                    $personPhone,
+                    $scheduleFrom,
+                    $scheduleTo,
+                    $title,
+                    $data['reason'] ?? ''
+                );
+            }
         } else {
             Log::info('[AppointmentService] Creando cita sin validar SMD (smd.validate_availability=false)', [
                 'doctor_id' => $doctorId,
@@ -394,7 +420,7 @@ class AppointmentService
         try {
             return DB::transaction(function () use (
                 $data, $scheduleFrom, $scheduleTo,
-                $doctor,
+                $doctor, $allDoctorIds,
                 $person, $productId, $product, $title,
                 $existingLeadId, $smdResult, $validateWithSmd
             ) {
@@ -425,7 +451,7 @@ class AppointmentService
                     'schedule_from' => $scheduleFrom->format('Y-m-d H:i:s'),
                     'schedule_to'   => $scheduleTo->format('Y-m-d H:i:s'),
                     'user_id'       => $currentUserId,
-                    'participants'  => ['doctors' => [$doctor->id], 'persons' => [$person->id]],
+                    'participants'  => ['doctors' => $allDoctorIds, 'persons' => [$person->id]],
                 ]);
 
                 $activity->leads()->sync([$lead->id]);
@@ -443,6 +469,31 @@ class AppointmentService
 
                 if ($productId) {
                     $activity->products()->sync([$productId]);
+                }
+
+                // Vincular la cita con el evento de SMD (external_id) para que EDITARLA
+                // luego pueda empujar los cambios por PATCH (pushAppointmentToSmd busca
+                // este registro). Sin esto, una cita creada en el CRM no se puede
+                // sincronizar hacia SMD al editarla. Idempotente por external_id.
+                if ($validateWithSmd && ! empty($smdResult['data'])) {
+                    $smdEvent = $this->extractSmdEvent($smdResult['data']);
+
+                    if (! empty($smdEvent['_id'])) {
+                        DB::table('smd_synced_events')->updateOrInsert(
+                            ['external_id' => $smdEvent['_id']],
+                            [
+                                'source_file'       => 'crm',
+                                'activity_id'       => $activity->id,
+                                'lead_id'           => $lead->id,
+                                'raw_payload'       => json_encode($smdEvent['event'], JSON_UNESCAPED_UNICODE),
+                                'status'            => (string) ($smdEvent['event']['status'] ?? config('smd.smd_status.confirmed', 'CONFIRMED')),
+                                'source_updated_at' => now(),
+                                'processed_at'      => now(),
+                                'updated_at'        => now(),
+                                'created_at'        => now(),
+                            ]
+                        );
+                    }
                 }
 
                 Log::info('Cita creada', [
@@ -473,5 +524,129 @@ class AppointmentService
                 ['internal_error' => $e->getMessage()]
             );
         }
+    }
+
+    /**
+     * Suma los físicos adicionales a un evento recién creado en SMD, mediante PATCH.
+     *
+     * El endpoint createEvent solo admite un físico, así que para citas multi-doctor
+     * se crea con el principal y luego se edita el evento agregando el resto como
+     * attendances de tipo physician. Nunca lanza: si falla, la cita queda con el
+     * doctor principal en SMD (y todos los doctores localmente) y se registra un aviso.
+     *
+     * @param  array  $createdEvent  Respuesta de createEvent (contiene el _id del evento).
+     * @param  int[]  $allDoctorIds  Ids locales de todos los doctores (principal primero).
+     */
+    private function attachExtraPhysicians(
+        array $createdEvent,
+        array $allDoctorIds,
+        ?string $smdPersonId,
+        string $firstName,
+        string $lastName,
+        string $personPhone,
+        Carbon $scheduleFrom,
+        Carbon $scheduleTo,
+        string $title,
+        string $reason
+    ): void {
+        // El _id del evento creado viene bajo `payload` en la respuesta de createEvent.
+        $extracted = $this->extractSmdEvent($createdEvent);
+        $smdEventId = $extracted['_id'];
+        $eventId = $extracted['eventId'];
+
+        if (! $smdEventId) {
+            Log::warning('[SMD] Multi-doctor: no se pudo obtener el _id del evento creado; los físicos extra no se agregaron.', [
+                'created_event_keys' => array_keys($createdEvent),
+                'created_event_json' => json_encode($createdEvent, JSON_UNESCAPED_UNICODE),
+            ]);
+
+            return;
+        }
+
+        $attendances = [];
+
+        // Paciente.
+        if ($smdPersonId) {
+            $attendances[] = [
+                '_id'      => $smdPersonId,
+                'name'     => $firstName,
+                'lastName' => $lastName,
+                'type'     => 'patient',
+                'phone'    => $personPhone === '0' ? '' : $personPhone,
+            ];
+        }
+
+        // Todos los físicos (por su unique_id = _id de SMD). Un doctor sin unique_id
+        // no se puede vincular a SMD: se omite del evento (queda local igual).
+        $doctors = DB::table('doctors')->whereIn('id', $allDoctorIds)->get();
+
+        foreach ($doctors as $doc) {
+            if (empty($doc->unique_id)) {
+                Log::warning('[SMD] Multi-doctor: doctor sin unique_id, no se agregó a SMD.', [
+                    'doctor_id' => $doc->id, 'name' => $doc->name,
+                ]);
+
+                continue;
+            }
+
+            $parts = preg_split('/\s+/', trim((string) $doc->name), 2);
+
+            $attendances[] = [
+                '_id'      => $doc->unique_id,
+                'name'     => $parts[0] ?? '',
+                'lastName' => $parts[1] ?? '',
+                'type'     => 'physician',
+                'phone'    => '',
+            ];
+        }
+
+        $body = [
+            '_id'         => $smdEventId,
+            'eventId'     => $eventId,
+            'type'        => 'event',
+            'summary'     => 'CONSULTA: '.$title,
+            'description' => (string) $reason,
+            'startDate'   => $scheduleFrom->copy()->utc()->format('Y-m-d\TH:i:s.000\Z'),
+            'endDate'     => $scheduleTo->copy()->utc()->format('Y-m-d\TH:i:s.000\Z'),
+            'attendances' => $attendances,
+            'status'      => (string) config('smd.smd_status.confirmed', 'CONFIRMED'),
+        ];
+
+        $result = $this->shareMeDataService->updateEvent((string) $smdEventId, $body);
+
+        if (! ($result['success'] ?? false)) {
+            Log::warning('[SMD] Multi-doctor: PATCH para sumar físicos extra falló.', [
+                'event_id' => $smdEventId,
+                'message'  => $result['message'] ?? null,
+            ]);
+        } else {
+            Log::info('[SMD] Multi-doctor: físicos extra agregados al evento.', [
+                'event_id'   => $smdEventId,
+                'physicians' => count(array_filter($attendances, fn ($a) => ($a['type'] ?? '') === 'physician')),
+            ]);
+        }
+    }
+
+    /**
+     * Extrae el evento y su identificador de la respuesta de createEvent.
+     *
+     * SMD devuelve `{message, payload, physician}`, con el evento (que trae `_id`
+     * y `eventId`) bajo `payload`. Se contemplan otras envolturas por robustez.
+     *
+     * @return array{event: array, _id: ?string, eventId: ?string}
+     */
+    private function extractSmdEvent(array $created): array
+    {
+        $evt = $created['payload']
+            ?? $created['data']
+            ?? $created['event']
+            ?? $created;
+        $evt = is_array($evt) ? $evt : [];
+
+        return [
+            'event'   => $evt,
+            '_id'     => $evt['_id'] ?? ($created['_id'] ?? null) ?? ($evt['event']['_id'] ?? null),
+            'eventId' => $evt['eventId'] ?? ($created['eventId'] ?? null) ?? ($evt['event']['eventId'] ?? null),
+        ];
     }
 }

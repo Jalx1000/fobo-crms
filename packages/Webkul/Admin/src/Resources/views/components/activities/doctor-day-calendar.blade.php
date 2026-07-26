@@ -458,14 +458,8 @@
                         <p class="mb-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Datos de la cita</p>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="flex flex-col gap-1">
-                                <x-admin::form.control-group.label>Doctor</x-admin::form.control-group.label>
-                                <select
-                                    class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm font-normal text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
-                                    v-model="appointmentForm.doctor_id"
-                                >
-                                    <option :value="null" disabled>Seleccionar doctor</option>
-                                    <option v-for="d in doctors" :key="'doc-opt-'+d.id" :value="d.id">@{{ d && d.name ? d.name : '' }}</option>
-                                </select>
+                                <x-admin::form.control-group.label>Doctor(es)</x-admin::form.control-group.label>
+                                <v-doctor-multiselect :items="doctors" v-model="appointmentForm.doctor_ids"></v-doctor-multiselect>
                             </div>
 
                             <div class="flex flex-col gap-1">
@@ -798,10 +792,30 @@
                                 @{{ apptInitials(viewAppointment.data.person_name) }}
                             </div>
                             <div class="min-w-0">
-                                <p class="truncate text-base font-bold text-gray-900 dark:text-white">@{{ viewAppointment.data.person_name || 'Paciente' }}</p>
-                                <p v-if="viewAppointment.data.person_whatsapp" class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                <div class="flex items-center gap-2">
+                                    <p class="truncate text-base font-bold text-gray-900 dark:text-white">@{{ viewAppointment.data.person_name || 'Paciente' }}</p>
+                                    <button type="button" v-if="!editingPatient" @click="editingPatient = true"
+                                            class="shrink-0 text-xs text-blue-600 hover:underline dark:text-blue-400">Cambiar</button>
+                                </div>
+                                <p v-if="viewAppointment.data.person_whatsapp && !editingPatient" class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                                     <span class="icon-call text-sm"></span> @{{ viewAppointment.data.person_whatsapp }}
                                 </p>
+                                <div v-if="editingPatient" class="mt-1">
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" v-model="patientQuery" @input="searchPatients"
+                                               placeholder="Buscar paciente por nombre…"
+                                               class="w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm text-gray-800 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                                        <button type="button" @click="cancelEditPatient"
+                                                class="shrink-0 text-xs text-gray-500 hover:underline dark:text-gray-400">Cancelar</button>
+                                    </div>
+                                    <div v-if="patientResults.length" class="mt-1 max-h-40 overflow-auto rounded border border-gray-200 dark:border-gray-800">
+                                        <button v-for="p in patientResults" :key="'pp-'+p.id" type="button" @click="onChangePatient(p)"
+                                                class="block w-full truncate px-2.5 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
+                                            @{{ p.name }}
+                                        </button>
+                                    </div>
+                                    <p v-else-if="patientQuery.length >= 2 && !patientSearching" class="mt-1 text-xs text-gray-400">Sin resultados.</p>
+                                </div>
                             </div>
                         </div>
                         <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
@@ -818,8 +832,8 @@
                     <div class="flex flex-col divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
                         <div class="flex items-center gap-3 px-3 py-2.5">
                             <span class="icon-user w-5 shrink-0 text-lg text-brandColor"></span>
-                            <span class="w-24 shrink-0 text-xs font-medium uppercase text-gray-400">Doctor</span>
-                            <span class="text-sm font-medium text-gray-800 dark:text-gray-100">@{{ viewAppointment.data.doctor_name || '-' }}</span>
+                            <span class="w-24 shrink-0 text-xs font-medium uppercase text-gray-400">Doctor(es)</span>
+                            <span class="text-sm font-medium text-gray-800 dark:text-gray-100">@{{ appointmentDoctorNames(viewAppointment.data) }}</span>
                         </div>
                         <div class="flex items-center gap-3 px-3 py-2.5">
                             <span class="icon-calendar w-5 shrink-0 text-lg text-brandColor"></span>
@@ -948,11 +962,8 @@
 
                         <div class="grid grid-cols-2 gap-3">
                             <div class="flex flex-col gap-1">
-                                <x-admin::form.control-group.label>Doctor</x-admin::form.control-group.label>
-                                <select class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" v-model="appointmentForm.doctor_id">
-                                    <option :value="null" disabled>Seleccionar doctor</option>
-                                    <option v-for="d in doctors" :key="'ed-doc-'+d.id" :value="d.id">@{{ d && d.name ? d.name : '' }}</option>
-                                </select>
+                                <x-admin::form.control-group.label>Doctor(es)</x-admin::form.control-group.label>
+                                <v-doctor-multiselect :items="doctors" v-model="appointmentForm.doctor_ids"></v-doctor-multiselect>
                             </div>
                             <div class="flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Servicio</x-admin::form.control-group.label>
@@ -1639,6 +1650,7 @@
                         name: '',
                     },
                     doctor_id: null,
+                    doctor_ids: [],
                     product_id: null,
                     product_name: '',
                     duration: 60,
@@ -1694,6 +1706,11 @@
                 editingReason: false,
                 reasonDraft: '',
                 reasonSaving: false,
+                // Cambio de paciente dentro del modal de detalle.
+                editingPatient: false,
+                patientQuery: '',
+                patientResults: [],
+                patientSearching: false,
                 // WhatsApp: chat embebido del paciente en el modal de detalle
                 waThreadUrl: "{{ route('admin.whatsapp.thread') }}",
                 waSendUrl: "{{ route('admin.whatsapp.send') }}",
@@ -2482,6 +2499,10 @@
                 this.appointmentForm.id = null;
                 this.appointmentForm.lead_id = null;
                 this.appointmentForm.doctor_id = this.quickMenu.doctorId;
+                // Precargar el doctor del slot clickeado en el multiselect (como string).
+                this.appointmentForm.doctor_ids = this.quickMenu.doctorId != null
+                    ? [String(this.quickMenu.doctorId)]
+                    : [];
                 this.appointmentForm.startTime = this.quickMenu.startTime;
                 this.appointmentForm.duration = this.appointmentForm.duration || 60;
                 this.syncAppointmentEndTime();
@@ -2530,6 +2551,10 @@
 
                 this.appointmentForm.id = ev.id;
                 this.appointmentForm.doctor_id = ev.doctor_id;
+                // Precargar TODOS los doctores de la cita en el multiselect (strings).
+                this.appointmentForm.doctor_ids = Array.isArray(ev.doctor_ids) && ev.doctor_ids.length
+                    ? ev.doctor_ids.map(id => String(id))
+                    : (ev.doctor_id != null ? [String(ev.doctor_id)] : []);
                 this.appointmentForm.startTime = `${this.pad2(start.getHours())}:${this.pad2(start.getMinutes())}`;
                 this.appointmentForm.endTime = `${this.pad2(end.getHours())}:${this.pad2(end.getMinutes())}`;
                 this.syncAppointmentDurationFromTimes();
@@ -2541,6 +2566,19 @@
                 this.appointmentForm.product_name = ev.product_name || (ev.product ? ev.product.name : '');
             },
 
+            // Nombres de todos los doctores de una cita (multi-doctor). Cae al
+            // doctor_name de la fila si no hay lista de ids.
+            appointmentDoctorNames(ev) {
+                if (!ev) return '-';
+                const ids = Array.isArray(ev.doctor_ids) ? ev.doctor_ids : [];
+                if (ids.length) {
+                    const names = ids
+                        .map(id => (this.doctors.find(d => d && String(d.id) === String(id)) || {}).name)
+                        .filter(Boolean);
+                    if (names.length) return names.join(', ');
+                }
+                return ev.doctor_name || '-';
+            },
             openEditModal(ev) {
                 this.populateAppointmentForm(ev);
                 this.$refs.appointmentModal.open();
@@ -2656,6 +2694,51 @@
                     .finally(() => { this.reasonSaving = false; });
             },
 
+            // Busca pacientes por nombre para reasignar la cita.
+            searchPatients() {
+                const q = (this.patientQuery || '').trim();
+                if (q.length < 2) { this.patientResults = []; return; }
+
+                this.patientSearching = true;
+                this.$axios.get(this.personSearchUrl, { params: { query: q } })
+                    .then(res => { this.patientResults = res.data?.data || res.data || []; })
+                    .catch(() => { this.patientResults = []; })
+                    .finally(() => { this.patientSearching = false; });
+            },
+
+            cancelEditPatient() {
+                this.editingPatient = false;
+                this.patientQuery = '';
+                this.patientResults = [];
+            },
+
+            // Reasigna la cita a otro paciente existente y la empuja a SMD.
+            onChangePatient(result) {
+                const ev = this.viewAppointment.data;
+                if (!ev) return;
+
+                if (!result?.id) {
+                    this.$emitter.emit('add-flash', { type: 'error', message: 'Elegí un paciente ya registrado.' });
+                    return;
+                }
+
+                this.$axios.post(this.appointmentUpdateUrlTemplate.replace('replaceId', ev.id), {
+                        person_id: result.id,
+                    })
+                    .then(res => {
+                        this.$emitter.emit('add-flash', { type: 'success', message: res.data.message });
+                        this.cancelEditPatient();
+                        this.$refs.viewModal.close();
+                        this.fetch();
+                    })
+                    .catch(err => {
+                        this.$emitter.emit('add-flash', {
+                            type: 'error',
+                            message: err.response?.data?.message || 'No se pudo cambiar el paciente.',
+                        });
+                    });
+            },
+
             // Confirm / cancel the appointment (moves its lead to the mapped
             // stage). Refreshes the calendar so is_cancelled/is_completed update.
             setAppointmentStatus(status) {
@@ -2749,9 +2832,9 @@
                     return;
                 }
 
-                if (!this.appointmentForm.doctor_id) {
+                if (!this.appointmentForm.doctor_ids || !this.appointmentForm.doctor_ids.length) {
                     this.modalSaving = false;
-                    this.modalError = 'Debes seleccionar un doctor.';
+                    this.modalError = 'Debes seleccionar al menos un doctor.';
                     return;
                 }
 
@@ -2761,7 +2844,7 @@
                         id: this.appointmentForm.person.id || null,
                         name: this.appointmentForm.person.name || '',
                     },
-                    doctor_id: this.appointmentForm.doctor_id,
+                    doctor_ids: this.appointmentForm.doctor_ids,
                     product_id: this.appointmentForm.product_id,
                     lead_id: this.appointmentForm.lead_id || null,
                     date: this.modalContext.dayISO,
@@ -2784,7 +2867,7 @@
                         schedule_to: endDateTime,
                         comment: this.appointmentForm.reason,
                         product_id: this.appointmentForm.product_id,
-                        doctor_id: this.appointmentForm.doctor_id,
+                        doctor_ids: this.appointmentForm.doctor_ids,
                         lead_id: this.appointmentForm.lead_id || null,
                         lead_pipeline_stage_id: this.appointmentForm.lead_pipeline_stage_id,
                     };

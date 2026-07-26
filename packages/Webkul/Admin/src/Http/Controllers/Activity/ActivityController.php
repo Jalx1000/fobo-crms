@@ -166,6 +166,9 @@ class ActivityController extends Controller
                     'leads.lead_pipeline_stage_id',
                     'products.id as product_id',
                     'products.name as product_name',
+                    // Todos los doctores de la cita (no solo el de la fila): permite
+                    // precargar el multiselect al editar una cita con varios médicos.
+                    DB::raw('(SELECT GROUP_CONCAT(dagg.doctor_id) FROM '.$prefix.'doctor_activities dagg WHERE dagg.activity_id = '.$prefix.'activities.id) as doctor_ids'),
                     DB::raw('MAX('.$prefix.'p.id) as person_id'),
                     DB::raw('MAX('.$prefix.'p.name) as person_name'),
                     // Se extraen con JSON_EXTRACT porque MAX() no acepta columnas JSON.
@@ -232,6 +235,11 @@ class ActivityController extends Controller
                 $appointment->is_lost      = $hasLead && $lostStageId > 0 && $stage === $lostStageId && ! $appointment->is_cancelled;
                 $appointment->is_surgery   = $hasLead && $surgeryStageId > 0 && $stage === $surgeryStageId && ! $appointment->is_cancelled;
                 $appointment->is_confirmed = $hasLead && $confirmedStageId > 0 && $stage === $confirmedStageId && ! $appointment->is_cancelled;
+
+                // GROUP_CONCAT -> array de ids único (para el multiselect de doctores).
+                $appointment->doctor_ids = ! empty($appointment->doctor_ids)
+                    ? array_values(array_unique(array_map('intval', explode(',', $appointment->doctor_ids))))
+                    : [];
 
                 $appointment->person_whatsapp = $this->resolveWhatsappNumber(
                     $appointment->person_email,
@@ -383,7 +391,9 @@ class ActivityController extends Controller
             'person.id'              => 'nullable|exists:persons,id',
             'person.name'            => 'required|string|max:255',
             'person.phone'           => 'required_without:person.id|nullable|string|min:7|max:20',
-            'doctor_id'              => 'required|exists:doctors,id',
+            'doctor_id'              => 'required_without:doctor_ids|nullable|exists:doctors,id',
+            'doctor_ids'             => 'nullable|array|min:1',
+            'doctor_ids.*'           => 'integer|exists:doctors,id',
             'product_id'             => 'nullable|exists:products,id',
             'date'                   => 'required|date_format:Y-m-d',
             'start_time'             => 'required|date_format:H:i',
@@ -402,9 +412,16 @@ class ActivityController extends Controller
             $scheduleTo = Carbon::createFromFormat('Y-m-d H:i', "{$date} ".request('end_time'));
         }
 
+        // Multi-doctor: el primero manda (valida turno/disponibilidad y crea el evento
+        // en SMD); el resto se adjunta local y se suma al evento SMD por PATCH.
+        $doctorIds = ! empty(request('doctor_ids'))
+            ? array_values(array_unique(array_map('intval', request('doctor_ids'))))
+            : array_filter([request('doctor_id')]);
+
         $appointmentData = [
             'person'        => request('person'),
-            'doctor_id'     => request('doctor_id'),
+            'doctor_id'     => $doctorIds[0] ?? null,
+            'doctor_ids'    => $doctorIds,
             'product_id'    => request('product_id'),
             'lead_id'       => request('lead_id') ?: null,
             'reason'        => request('reason'),
@@ -502,8 +519,10 @@ class ActivityController extends Controller
             $scheduleFrom = Carbon::parse($data['schedule_from'] ?? $existing->schedule_from);
             $scheduleTo = Carbon::parse($data['schedule_to'] ?? $existing->schedule_to);
 
-            // Obtener doctor_id actual o del request (ignorar string vacío)
-            $doctorId = (! empty($data['doctor_id']) ? $data['doctor_id'] : null)
+            // Obtener doctor_id actual o del request (ignorar string vacío).
+            // Con multi-doctor, el primero de doctor_ids valida turno/conflicto.
+            $doctorId = (! empty($data['doctor_ids']) ? (int) $data['doctor_ids'][0] : null)
+                ?? (! empty($data['doctor_id']) ? $data['doctor_id'] : null)
                 ?? $existing->doctors()->value('doctors.id');
 
             if ($doctorId) {
@@ -586,7 +605,12 @@ class ActivityController extends Controller
             );
         }
 
-        if (isset($data['doctor_id'])) {
+        if (isset($data['doctor_ids'])) {
+            // Multi-doctor: se sincronizan todos los doctores seleccionados.
+            $activity->doctors()->sync(
+                array_values(array_unique(array_map('intval', (array) $data['doctor_ids'])))
+            );
+        } elseif (isset($data['doctor_id'])) {
             $activity->doctors()->sync(
                 ! empty($data['doctor_id'])
                     ? [$data['doctor_id']]
@@ -779,6 +803,7 @@ class ActivityController extends Controller
             'duration_minutes' => 'nullable|integer|min:5|max:480',
             'doctor_ids'       => 'nullable|array|min:1',
             'doctor_ids.*'     => 'integer|exists:doctors,id',
+            'person_id'        => 'nullable|integer|exists:persons,id',
             'status'           => 'nullable|in:confirmed,cancelled,completed,surgery,no_show',
             'reason'           => 'nullable|string',
         ]);
@@ -803,7 +828,11 @@ class ActivityController extends Controller
             ? $data['doctor_ids']
             : $activity->doctors->pluck('id')->all();
 
-        $personIds = $activity->participants->pluck('person_id')->filter()->values()->all();
+        // El paciente: el enviado o el actual. Cambiarlo reasigna la cita a otra
+        // persona (y también el lead, más abajo).
+        $personIds = ! empty($data['person_id'])
+            ? [(int) $data['person_id']]
+            : $activity->participants->pluck('person_id')->filter()->values()->all();
 
         // El motivo es el `summary` de SMD, que la sync vuelca a título y comentario.
         // Se actualizan ambos para que quede consistente al ir y volver.
@@ -823,15 +852,22 @@ class ActivityController extends Controller
 
         $this->activityRepository->update($update, $id);
 
+        $leadIds = $activity->leads()->pluck('leads.id');
+
         // El estado mueve el lead a la etapa mapeada (igual que el botón de estado).
         if (! empty($data['status'])) {
             $stageId = (int) config('smd.stage_map.'.$data['status']);
-            $leadIds = $activity->leads()->pluck('leads.id');
 
             if ($stageId && $leadIds->isNotEmpty()) {
                 DB::table('leads')->whereIn('id', $leadIds)
                     ->update(['lead_pipeline_stage_id' => $stageId, 'updated_at' => now()]);
             }
+        }
+
+        // Si cambió el paciente, el lead debe apuntar a la nueva persona.
+        if (! empty($data['person_id']) && $leadIds->isNotEmpty()) {
+            DB::table('leads')->whereIn('id', $leadIds)
+                ->update(['person_id' => (int) $data['person_id'], 'updated_at' => now()]);
         }
 
         $smd = $this->pushAppointmentToSmd($id);
