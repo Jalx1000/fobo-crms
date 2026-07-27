@@ -28,8 +28,14 @@ class SendAppointmentReminders extends Command
 
     public function handle(ConversationResolver $resolver): int
     {
-        if (! config('whatsapp.reminders.enabled') && ! $this->option('dry-run')) {
-            $this->warn('Recordatorios deshabilitados (WHATSAPP_REMINDERS_ENABLED=false). Nada que hacer.');
+        // El broadcast global (sin --person) solo corre si está habilitado. Pero
+        // --person es un test controlado a UN paciente: se permite aun con la
+        // feature apagada, para poder probar el envío real sin encender el auto-envío
+        // a todos los pacientes reales.
+        if (! config('whatsapp.reminders.enabled')
+            && ! $this->option('dry-run')
+            && ! $this->option('person')) {
+            $this->warn('Recordatorios deshabilitados (WHATSAPP_REMINDERS_ENABLED=false). Usá --person=<id> para un test controlado o --dry-run.');
 
             return self::SUCCESS;
         }
