@@ -12,6 +12,7 @@ use Webkul\Whatsapp\Console\Commands\NormalizePhones;
 use Webkul\Whatsapp\Console\Commands\ReactivateAgent;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
 use Webkul\Whatsapp\Console\Commands\SendAppointmentReminders;
+use Webkul\Whatsapp\Console\Commands\SendDoctorShiftReminders;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
 
 class WhatsappServiceProvider extends ServiceProvider
@@ -57,6 +58,7 @@ class WhatsappServiceProvider extends ServiceProvider
                 ListTemplates::class,
                 ReactivateAgent::class,
                 SendAppointmentReminders::class,
+                SendDoctorShiftReminders::class,
                 WebhookInfo::class,
             ]);
 
@@ -79,6 +81,18 @@ class WhatsappServiceProvider extends ServiceProvider
                     )
                     ->timezone((string) config('whatsapp.reminders.timezone', 'America/La_Paz'))
                     ->withoutOverlapping();
+
+                // Aviso de inicio de turno al doctor. Cada 15 min en horario de
+                // clínica: cada doctor lo recibe cuando su primer turno arranca.
+                // Idempotente (uno por doctor por día) y gateado por
+                // doctor_shift.enabled, así las corridas extra no duplican.
+                if (config('whatsapp.doctor_shift.enabled', false)) {
+                    $schedule->command('whatsapp:doctor-shift-reminders')
+                        ->everyFifteenMinutes()
+                        ->between('06:00', '20:00')
+                        ->timezone((string) config('whatsapp.reminders.timezone', 'America/La_Paz'))
+                        ->withoutOverlapping();
+                }
 
                 // Give quiet conversations back to the agent. Every minute so the
                 // configured wait is honoured as-is: on a ten-minute tick a

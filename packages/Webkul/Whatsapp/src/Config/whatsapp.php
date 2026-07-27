@@ -74,6 +74,12 @@ return [
                     'name'     => env('WHATSAPP_REMINDER_TEMPLATE_NAME', 'recordatorio_cita'),
                     'language' => env('WHATSAPP_REMINDER_TEMPLATE_LANG', 'es'),
                 ],
+
+                // Aviso de inicio de turno al doctor. {{1}} = nombre, {{2}} = hora.
+                'doctor_shift_reminder' => [
+                    'name'     => env('WHATSAPP_DOCTOR_SHIFT_TEMPLATE', 'recordatorio_doctores'),
+                    'language' => env('WHATSAPP_DOCTOR_SHIFT_TEMPLATE_LANG', 'es'),
+                ],
             ],
         ]),
 
@@ -346,6 +352,31 @@ return [
             'Buenos días! Le recordamos su cita el :fecha a horas :hora con el Dr(a). :doctor'
             .' en la clínica Odontoking :direccion.'
             ."\n\nResponda *SÍ* para confirmar o *NO* para cancelar su cita."
+        ),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Aviso de inicio de turno al doctor
+    |--------------------------------------------------------------------------
+    |
+    | Al inicio del PRIMER turno del día de cada doctor, se le manda un template
+    | UTILITY confirmando su ingreso. Idempotente: uno por doctor por día
+    | (whatsapp_doctor_shift_reminders). El comando corre desde el scheduler.
+    |
+    */
+    'doctor_shift' => [
+        'enabled'      => env('WHATSAPP_DOCTOR_SHIFT_ENABLED', false),
+
+        // Gateway del envío. Cloud API abre la conversación con el template aprobado.
+        'gateway'      => env('WHATSAPP_DOCTOR_SHIFT_GATEWAY', 'cloud_api'),
+
+        // Template aprobado (de gateways.cloud_api.templates). {{1}}=nombre, {{2}}=hora.
+        'template_key' => env('WHATSAPP_DOCTOR_SHIFT_TEMPLATE_KEY', 'doctor_shift_reminder'),
+
+        // Preview legible para el inbox; el envío real usa el template.
+        'template'     => env('WHATSAPP_DOCTOR_SHIFT_TEXT',
+            'Confirmado: la Dr/a. :nombre ingresa a Clínica Odontoking desde las :hora. ¡Gracias!'
         ),
     ],
 ];
