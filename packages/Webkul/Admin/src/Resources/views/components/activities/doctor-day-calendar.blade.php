@@ -1694,6 +1694,12 @@
                 modalSaving: false,
                 modalError: '',
                 endpoint: "{{ route('admin.activities.get') }}",
+                versionEndpoint: "{{ route('admin.activities.version') }}",
+                // Auto-actualización por polling liviano: solo mientras el calendario
+                // está montado y la pestaña visible. lastVersion = firma del rango.
+                pollTimer: null,
+                pollIntervalMs: 10000,
+                lastVersion: null,
                 storeUrl: "{{ route('admin.activities.store') }}",
                 appointmentStoreUrl: "{{ route('admin.activities.appointments.store') }}",
                 personSearchUrl: "{{ route('admin.contacts.persons.search') }}",
@@ -1917,6 +1923,12 @@
             // Recargar el calendario cuando termina una sincronización con ShareMeData.
             this.onSmdSynced = () => this.fetch();
             this.$emitter.on('smd-sync-completed', this.onSmdSynced);
+
+            // Auto-actualización: polling liviano de la firma del rango. Corre solo
+            // mientras esta vista está montada; se pausa con la pestaña oculta y
+            // recarga al instante al volver.
+            this.startPolling();
+            document.addEventListener('visibilitychange', this.onVisibilityChange);
         },
         beforeUnmount() {
             if (this.nowTimer) {
@@ -1928,6 +1940,9 @@
             if (this.onSmdSynced) {
                 this.$emitter.off('smd-sync-completed', this.onSmdSynced);
             }
+
+            this.stopPolling();
+            document.removeEventListener('visibilitychange', this.onVisibilityChange);
         },
         methods: {
             loadInsuranceOptions() {
@@ -2246,6 +2261,9 @@
             },
             fetch() {
                 this.isLoading = true;
+                // Re-basear el polling al rango/estado recién cargado: evita una
+                // recarga redundante tras navegar o editar.
+                this.lastVersion = null;
 
                 this.$axios.get(this.endpoint, {
                         params: {
@@ -2272,6 +2290,51 @@
                         this.isLoading = false;
                     })
                     .catch(() => this.isLoading = false);
+            },
+            startPolling() {
+                this.stopPolling();
+                this.pollTimer = window.setInterval(this.pollChanges, this.pollIntervalMs);
+            },
+            stopPolling() {
+                if (this.pollTimer) {
+                    clearInterval(this.pollTimer);
+                    this.pollTimer = null;
+                }
+            },
+            // Pestaña oculta: no gastar. Al volver, chequear al instante.
+            onVisibilityChange() {
+                if (document.hidden) {
+                    this.stopPolling();
+                } else {
+                    this.pollChanges();
+                    this.startPolling();
+                }
+            },
+            // Consulta la firma barata del rango; solo recarga si cambió.
+            pollChanges() {
+                if (document.hidden) {
+                    return;
+                }
+
+                this.$axios.get(this.versionEndpoint, {
+                        params: {
+                            calendar_view: this.viewType,
+                            start: this.startISO,
+                            range_start: this.rangeStart,
+                            range_end: this.rangeEnd
+                        }
+                    })
+                    .then(r => {
+                        const v = r.data && r.data.version;
+                        if (!v) return;
+                        // Primera lectura = línea base (no recarga). Si después cambia,
+                        // recarga la grilla completa.
+                        if (this.lastVersion !== null && v !== this.lastVersion) {
+                            this.fetch();
+                        }
+                        this.lastVersion = v;
+                    })
+                    .catch(() => {});
             },
             selectAllDoctors() {
                 this.selectedDoctorIds = this.doctors.map(d => String(d.id));

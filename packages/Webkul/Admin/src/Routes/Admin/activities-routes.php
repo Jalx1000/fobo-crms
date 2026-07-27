@@ -15,6 +15,8 @@ Route::controller(ActivityController::class)->prefix('activities')->group(functi
 
     Route::get('get', 'get')->name('admin.activities.get');
 
+    Route::get('version', 'version')->name('admin.activities.version');
+
     Route::post('create', 'store')->name('admin.activities.store');
 
     Route::post('appointments/create', 'storeAppointment')->name('admin.activities.appointments.store');

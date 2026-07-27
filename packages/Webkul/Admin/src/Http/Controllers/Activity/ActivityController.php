@@ -56,38 +56,7 @@ class ActivityController extends Controller
     public function get(): JsonResponse
     {
         if (request()->get('view_type') === 'calendar' && request()->get('calendar_mode') === 'doctor') {
-            $view = request()->get('calendar_view', 'week'); // 'week' | 'month' | 'day' | 'list'
-            if ($view === 'list') {
-                // Vista lista por rango arbitrario (filtro Desde/Hasta).
-                $start = request()->get('range_start')
-                    ? Carbon::parse(request()->get('range_start'))->startOfDay()
-                    : Carbon::now()->startOfDay();
-                $end = request()->get('range_end')
-                    ? Carbon::parse(request()->get('range_end'))->endOfDay()
-                    : Carbon::now()->copy()->addDays(30)->endOfDay();
-
-                // Si el usuario invierte las fechas, las normalizamos.
-                if ($end->lt($start)) {
-                    [$start, $end] = [$end->copy()->startOfDay(), $start->copy()->endOfDay()];
-                }
-            } elseif ($view === 'month') {
-                $cursor = request()->get('start')
-                    ? Carbon::parse(request()->get('start'))->startOfMonth()
-                    : Carbon::now()->startOfMonth();
-                $start = $cursor->copy()->startOfMonth();
-                $end = $cursor->copy()->endOfMonth();
-            } elseif ($view === 'day') {
-                $cursor = request()->get('start')
-                    ? Carbon::parse(request()->get('start'))->startOfDay()
-                    : Carbon::now()->startOfDay();
-                $start = $cursor->copy()->startOfDay();
-                $end = $cursor->copy()->endOfDay();
-            } else {
-                $start = request()->get('start')
-                    ? Carbon::parse(request()->get('start'))->startOfWeek()
-                    : Carbon::now()->startOfWeek();
-                $end = (clone $start)->endOfWeek();
-            }
+            [$view, $start, $end] = $this->resolveCalendarRange();
             $startDate = $start->copy()->setTime(0, 0, 1)->format('Y-m-d H:i:s');
             $endDate = $end->copy()->setTime(23, 59, 59)->format('Y-m-d H:i:s');
 
@@ -382,6 +351,82 @@ class ActivityController extends Controller
         session()->flash('success', trans('admin::app.activities.create-success'));
 
         return redirect()->back();
+    }
+
+    /**
+     * Resuelve el rango [inicio, fin] del calendario según la vista y los params
+     * de la request. Centralizado para que get() y version() midan lo mismo.
+     *
+     * @return array{0: string, 1: \Carbon\Carbon, 2: \Carbon\Carbon} [$view, $start, $end]
+     */
+    private function resolveCalendarRange(): array
+    {
+        $view = request()->get('calendar_view', 'week'); // 'week' | 'month' | 'day' | 'list'
+
+        if ($view === 'list') {
+            // Vista lista por rango arbitrario (filtro Desde/Hasta).
+            $start = request()->get('range_start')
+                ? Carbon::parse(request()->get('range_start'))->startOfDay()
+                : Carbon::now()->startOfDay();
+            $end = request()->get('range_end')
+                ? Carbon::parse(request()->get('range_end'))->endOfDay()
+                : Carbon::now()->copy()->addDays(30)->endOfDay();
+
+            // Si el usuario invierte las fechas, las normalizamos.
+            if ($end->lt($start)) {
+                [$start, $end] = [$end->copy()->startOfDay(), $start->copy()->endOfDay()];
+            }
+        } elseif ($view === 'month') {
+            $cursor = request()->get('start')
+                ? Carbon::parse(request()->get('start'))->startOfMonth()
+                : Carbon::now()->startOfMonth();
+            $start = $cursor->copy()->startOfMonth();
+            $end = $cursor->copy()->endOfMonth();
+        } elseif ($view === 'day') {
+            $cursor = request()->get('start')
+                ? Carbon::parse(request()->get('start'))->startOfDay()
+                : Carbon::now()->startOfDay();
+            $start = $cursor->copy()->startOfDay();
+            $end = $cursor->copy()->endOfDay();
+        } else {
+            $start = request()->get('start')
+                ? Carbon::parse(request()->get('start'))->startOfWeek()
+                : Carbon::now()->startOfWeek();
+            $end = (clone $start)->endOfWeek();
+        }
+
+        return [$view, $start, $end];
+    }
+
+    /**
+     * Firma barata del estado del calendario en el rango visible. El front la
+     * consulta cada pocos segundos (polling) y solo recarga la grilla completa
+     * (get()) si la firma cambió. Detecta altas/bajas (COUNT), ediciones de la
+     * cita (MAX activities.updated_at) y cambios de etapa/estado del lead
+     * (MAX leads.updated_at). Es una sola query agregada, indexada por schedule_from.
+     */
+    public function version(): JsonResponse
+    {
+        [, $start, $end] = $this->resolveCalendarRange();
+        $startDate = $start->copy()->setTime(0, 0, 1)->format('Y-m-d H:i:s');
+        $endDate = $end->copy()->setTime(23, 59, 59)->format('Y-m-d H:i:s');
+        $prefix = DB::getTablePrefix();
+
+        $row = DB::table('activities')
+            ->leftJoin('lead_activities', 'activities.id', '=', 'lead_activities.activity_id')
+            ->leftJoin('leads', 'lead_activities.lead_id', '=', 'leads.id')
+            ->whereBetween('activities.schedule_from', [$startDate, $endDate])
+            ->whereIn('activities.type', ['call', 'meeting', 'lunch', 'time_off'])
+            ->selectRaw(
+                'COUNT(DISTINCT '.$prefix.'activities.id) as n, '.
+                'MAX('.$prefix.'activities.updated_at) as a, '.
+                'MAX('.$prefix.'leads.updated_at) as l'
+            )
+            ->first();
+
+        $signature = ($row->n ?? 0).'|'.($row->a ?? '').'|'.($row->l ?? '');
+
+        return response()->json(['version' => md5($signature)]);
     }
 
     public function storeAppointment(): JsonResponse
