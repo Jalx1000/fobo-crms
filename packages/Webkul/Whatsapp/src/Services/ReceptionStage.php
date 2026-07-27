@@ -53,6 +53,47 @@ class ReceptionStage
     }
 
     /**
+     * Reactivar el agente: saca de Recepcionista a los leads de esta conversación
+     * (por lead Y por paciente, igual que holds()) y los devuelve a la etapa que
+     * tenían antes (leads.pre_reception_stage_id). Si no la conocemos, cae al
+     * fallback configurado. Así aiEffective() vuelve a true y el agente se reanuda
+     * en vez de que el toggle parpadee.
+     */
+    public static function resume(?int $leadId, ?int $personId): void
+    {
+        $stage = (int) config('whatsapp.crm.stage_recepcion');
+
+        if (! $stage || (! $leadId && ! $personId)) {
+            return;
+        }
+
+        $fallback = (int) config('whatsapp.crm.stage_reactivate_fallback', 1);
+
+        $leads = DB::table('leads')
+            ->where('lead_pipeline_stage_id', $stage)
+            ->where(function ($q) use ($leadId, $personId) {
+                if ($leadId) {
+                    $q->orWhere('id', $leadId);
+                }
+                if ($personId) {
+                    $q->orWhere('person_id', $personId);
+                }
+            })
+            ->get(['id', 'pre_reception_stage_id']);
+
+        foreach ($leads as $lead) {
+            DB::table('leads')->where('id', $lead->id)->update([
+                'lead_pipeline_stage_id' => $lead->pre_reception_stage_id ?: $fallback,
+                'pre_reception_stage_id' => null,
+                'updated_at'             => now(),
+            ]);
+        }
+
+        // El memo por request quedó viejo tras mover los leads.
+        self::flush();
+    }
+
+    /**
      * Pacientes con algún lead en recepción.
      *
      * @return array<int, int> person_id => person_id

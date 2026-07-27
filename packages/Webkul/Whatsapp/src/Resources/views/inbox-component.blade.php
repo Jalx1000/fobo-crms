@@ -1221,9 +1221,19 @@
                     }
                     if (!this.conversationId || this.agentToggling) return;
 
+                    // Optimista: el checkbox del header y el candado del composer
+                    // (ambos derivan de aiEnabled) tienen que moverse JUNTOS al
+                    // instante. Sin esto quedaban desincronizados mientras la
+                    // request estaba en vuelo —y para siempre si el PATCH fallaba—.
+                    const previous = this.aiEnabled;
+                    this.aiEnabled = enabled;
+                    this.agentNote = !enabled;
+
                     this.agentToggling = true;
                     this.$axios.patch(`${this.agentUrlBase}/${this.conversationId}/agent`, { enabled })
                         .then(res => {
+                            // El servidor manda el estado efectivo (p.ej. bloqueado
+                            // por whitelist de prueba): reconciliamos con él.
                             this.aiEnabled = res.data?.agent?.effective ?? enabled;
                             this.agentTestBlocked = res.data?.agent?.test_blocked ?? false;
                             // Show the reminder only when the human just took over.
@@ -1238,7 +1248,12 @@
                             // The composer just unlocked: put the caret there.
                             if (!this.aiEnabled) this.focusComposer();
                         })
-                        .catch(() => {})
+                        .catch(() => {
+                            // Falló: revertir para que header y composer vuelvan a
+                            // coincidir con el estado real previo.
+                            this.aiEnabled = previous;
+                            this.agentNote = !previous;
+                        })
                         .finally(() => { this.agentToggling = false; });
                 },
 

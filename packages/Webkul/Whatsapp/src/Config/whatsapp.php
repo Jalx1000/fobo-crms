@@ -258,6 +258,12 @@ return [
         // reenvía los mensajes y atiende una persona.
         'stage_recepcion' => (int) env('WHATSAPP_CRM_STAGE_RECEPCION', 9),
 
+        // Al reactivar el agente a mano, si el lead sigue en Recepcionista se lo
+        // devuelve a la etapa que tenía antes (leads.pre_reception_stage_id). Si
+        // no la conocemos (derivación previa a esta feature o hecha por fuera de
+        // Eloquent), cae a esta etapa. Default Consultas (1).
+        'stage_reactivate_fallback' => (int) env('WHATSAPP_CRM_STAGE_REACTIVATE_FALLBACK', 1),
+
         // stage id -> human label for each cita's `estado`.
         'stage_labels' => [
             7 => 'confirmada',   // Cita confirmadas

@@ -25,6 +25,22 @@ class WhatsappServiceProvider extends ServiceProvider
 
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 
+        // CONTRATO B: cuando un lead ENTRA a la etapa Recepcionista, recordamos de
+        // qué etapa venía (pre_reception_stage_id). Al reactivar el agente a mano
+        // se lo devuelve a esa etapa (ver ReceptionStage::resume) para que salga de
+        // Recepcionista y aiEffective() vuelva a true. Solo captura movimientos que
+        // pasan por Eloquent; los hechos por fuera caen al fallback configurado.
+        \Webkul\Lead\Models\LeadProxy::modelClass()::updating(function ($lead) {
+            $reception = (int) config('whatsapp.crm.stage_recepcion');
+
+            if ($reception
+                && $lead->isDirty('lead_pipeline_stage_id')
+                && (int) $lead->lead_pipeline_stage_id === $reception
+                && (int) $lead->getOriginal('lead_pipeline_stage_id') !== $reception) {
+                $lead->pre_reception_stage_id = $lead->getOriginal('lead_pipeline_stage_id');
+            }
+        });
+
         // Public webhook endpoints (Meta calls these; no session/CSRF).
         $this->loadRoutesFrom(__DIR__.'/../Routes/api.php');
 

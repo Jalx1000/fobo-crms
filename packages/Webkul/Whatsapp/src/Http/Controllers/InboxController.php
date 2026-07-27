@@ -135,6 +135,17 @@ class InboxController extends Controller
             'ai_handoff_at'  => $data['enabled'] ? null : $conversation->ai_handoff_at,
         ]);
 
+        // Reactivar a mano saca el/los lead(s) de Recepcionista y los devuelve a
+        // su etapa previa: sin esto el toggle "parpadeaba" (aiEffective seguía
+        // false mientras el lead estuviera en esa etapa) y el agente no se reanudaba.
+        if ($data['enabled']) {
+            \Webkul\Whatsapp\Services\ReceptionStage::resume(
+                $conversation->lead_id,
+                $conversation->person_id,
+            );
+            $conversation->refresh();
+        }
+
         return response()->json([
             'agent' => [
                 'enabled'      => $conversation->ai_enabled,
