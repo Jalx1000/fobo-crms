@@ -96,7 +96,11 @@ class WhatsappServiceProvider extends ServiceProvider
                         (string) config('whatsapp.queue'),
                     ))
                         ->everyMinute()
-                        ->withoutOverlapping()
+                        // TTL corto: el drainer dura máx 55s, así que un lock que
+                        // quede colgado (por un kill/OOM/reinicio) se libera solo en
+                        // 2 min en vez de las 24h por defecto —que dejaban la cola sin
+                        // drenar hasta limpiar el mutex a mano.
+                        ->withoutOverlapping(2)
                         ->runInBackground();
                 }
             });
