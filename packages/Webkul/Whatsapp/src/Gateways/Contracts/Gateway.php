@@ -66,6 +66,14 @@ interface Gateway
      */
     public function parseWebhook(array $payload): InboundBatch;
 
+    /**
+     * Fetch the bytes for an inbound media message by the provider's media id.
+     * Returns ['contents' => binary, 'mime' => string|null] or null when the
+     * provider has no media API (or the fetch fails). Drivers without media
+     * inherit the null default from BaseGateway.
+     */
+    public function downloadMedia(?string $mediaId): ?array;
+
     /*
     |--------------------------------------------------------------------------
     | Outbound

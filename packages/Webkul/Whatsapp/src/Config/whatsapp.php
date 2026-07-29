@@ -89,6 +89,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Auto lead
+    |--------------------------------------------------------------------------
+    | Open a lead for a conversation whose contact has none yet (default pipeline,
+    | first stage, "WhatsApp" source). Off keeps the conversation lead-less until
+    | a human creates one from the profile drawer.
+    */
+    'auto_create_lead' => env('WHATSAPP_AUTO_CREATE_LEAD', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Default country code
+    |--------------------------------------------------------------------------
+    | Prepended to bare national numbers (no country code) so "75640698" and
+    | "59175640698" resolve to the same contact instead of fragmenting into
+    | separate conversations. Bolivia = 591. Digits only, no "+".
+    */
+    'default_country_code' => env('WHATSAPP_DEFAULT_COUNTRY_CODE', '591'),
+
+    /*
+    |--------------------------------------------------------------------------
     | AI Agent
     |--------------------------------------------------------------------------
     | Global default for the AI agent switch and the outbound webhook the

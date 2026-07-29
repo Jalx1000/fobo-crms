@@ -31,6 +31,14 @@ abstract class BaseGateway implements Gateway
     }
 
     /**
+     * Default: the provider exposes no media API. Cloud API overrides this.
+     */
+    public function downloadMedia(?string $mediaId): ?array
+    {
+        return null;
+    }
+
+    /**
      * HMAC of the RAW body. Never re-encode the JSON first — a re-serialized
      * body produces a different digest and every request fails.
      */

@@ -106,6 +106,8 @@ class CloudApiGateway extends BaseGateway
 
                     $type = $this->normalizeType($message['type'] ?? 'unknown');
 
+                    $media = $this->extractMedia($message, $type);
+
                     $messages[] = new InboundMessage(
                         providerMessageId: (string) $message['id'],
                         contact: new ContactIdentity(
@@ -116,6 +118,9 @@ class CloudApiGateway extends BaseGateway
                         body: $this->extractBody($message, $type),
                         replyToProviderId: $message['context']['id'] ?? null,
                         raw: $message,
+                        mediaId: $media['id'] ?? null,
+                        mediaMime: $media['mime'] ?? null,
+                        mediaFilename: $media['filename'] ?? null,
                     );
                 }
 
@@ -159,6 +164,58 @@ class CloudApiGateway extends BaseGateway
         }
 
         return new SendResult($wamid);
+    }
+
+    /**
+     * Two-step media fetch: resolve the media id to a short-lived CDN URL, then
+     * download the bytes. Both calls carry the Bearer token — the CDN URL is not
+     * public. Returns null (message persists text-only) on any failure.
+     */
+    public function downloadMedia(?string $mediaId): ?array
+    {
+        if (! $mediaId) {
+            return null;
+        }
+
+        $token = $this->required('token');
+        $version = (string) ($this->config['api_version'] ?? 'v21.0');
+
+        $meta = Http::withToken($token)->acceptJson()
+            ->get(sprintf('https://graph.facebook.com/%s/%s', $version, $mediaId));
+
+        if (! $meta->successful() || ! ($url = $meta->json('url'))) {
+            return null;
+        }
+
+        $file = Http::withToken($token)->get($url);
+
+        if (! $file->successful()) {
+            return null;
+        }
+
+        return [
+            'contents' => $file->body(),
+            'mime'     => $meta->json('mime_type'),
+        ];
+    }
+
+    /**
+     * Media id / mime / filename for the media message types. The node lives
+     * under the type key ($message['image'], $message['document'], ...).
+     */
+    protected function extractMedia(array $message, string $type): array
+    {
+        if (! in_array($type, ['image', 'audio', 'video', 'document', 'sticker'], true)) {
+            return [];
+        }
+
+        $node = $message[$type] ?? [];
+
+        return [
+            'id'       => $node['id'] ?? null,
+            'mime'     => $node['mime_type'] ?? null,
+            'filename' => $node['filename'] ?? null, // documents only
+        ];
     }
 
     /**

@@ -286,7 +286,19 @@ class InboxController extends Controller
         }
 
         if ($phone = $request->input('phone')) {
-            return $model::where('wa_phone', PhoneNumber::normalize($phone))->first();
+            $exact = $model::where('wa_phone', PhoneNumber::normalize($phone))->first();
+
+            if ($exact) {
+                return $exact;
+            }
+
+            // Tolerate a stored number that lacks the country code (or vice versa)
+            // so the thread still resolves instead of showing empty.
+            $tail = PhoneNumber::tail($phone);
+
+            return strlen($tail) >= 7
+                ? $model::where('wa_phone', 'like', '%'.$tail)->orderByDesc('id')->first()
+                : null;
         }
 
         return null;

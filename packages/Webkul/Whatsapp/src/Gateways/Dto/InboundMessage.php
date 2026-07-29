@@ -16,5 +16,10 @@ final class InboundMessage
         public ?string $providerConversationId = null,
         public ?string $replyToProviderId = null,
         public array $raw = [],
+        // Media (image/audio/video/document/sticker): the provider's opaque media
+        // id to fetch the bytes with, plus what we know about the file up front.
+        public ?string $mediaId = null,
+        public ?string $mediaMime = null,
+        public ?string $mediaFilename = null,
     ) {}
 }

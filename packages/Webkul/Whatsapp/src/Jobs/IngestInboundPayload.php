@@ -8,6 +8,10 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Throwable;
+use Webkul\Whatsapp\Gateways\Contracts\Gateway;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
 use Webkul\Whatsapp\Gateways\Dto\StatusUpdate;
 use Webkul\Whatsapp\Gateways\GatewayManager;
@@ -33,7 +37,9 @@ class IngestInboundPayload implements ShouldQueue
 
     public function handle(GatewayManager $gateways, ConversationResolver $resolver): void
     {
-        $batch = $gateways->driver($this->gatewayKey)->parseWebhook($this->payload);
+        $gateway = $gateways->driver($this->gatewayKey);
+
+        $batch = $gateway->parseWebhook($this->payload);
 
         if (! $batch->messages && ! $batch->statuses) {
             // An authenticated delivery that yields nothing almost always means
@@ -49,7 +55,7 @@ class IngestInboundPayload implements ShouldQueue
         }
 
         foreach ($batch->messages as $message) {
-            $this->persistMessage($message, $resolver);
+            $this->persistMessage($message, $resolver, $gateway);
         }
 
         foreach ($batch->statuses as $status) {
@@ -60,7 +66,7 @@ class IngestInboundPayload implements ShouldQueue
     /**
      * Idempotent by the provider's message id: webhooks get retried.
      */
-    protected function persistMessage(InboundMessage $inbound, ConversationResolver $resolver): void
+    protected function persistMessage(InboundMessage $inbound, ConversationResolver $resolver, Gateway $gateway): void
     {
         $model = MessageProxy::modelClass();
 
@@ -74,11 +80,16 @@ class IngestInboundPayload implements ShouldQueue
             return;
         }
 
+        $media = $this->storeMedia($inbound, $gateway, $conversation->id);
+
         $created = $model::create([
             'conversation_id' => $conversation->id,
             'direction'       => 'inbound',
             'type'            => $inbound->type,
             'body'            => $inbound->body,
+            'media_path'      => $media['path'] ?? null,
+            'media_mime'      => $media['mime'] ?? $inbound->mediaMime,
+            'media_name'      => $media['name'] ?? $inbound->mediaFilename,
             'wa_message_id'   => $inbound->providerMessageId,
             'reply_to_id'     => $this->resolveReplyTo($inbound->replyToProviderId),
             'status'          => 'delivered',
@@ -126,5 +137,79 @@ class IngestInboundPayload implements ShouldQueue
         }
 
         return MessageProxy::modelClass()::where('wa_message_id', $providerId)->value('id');
+    }
+
+    /**
+     * Download an inbound media file through the gateway and store it on the
+     * public disk. Returns ['path' => url, 'mime' => ..., 'name' => ...] or an
+     * empty array — a failure must never drop the message, only its attachment.
+     */
+    protected function storeMedia(InboundMessage $inbound, Gateway $gateway, int $conversationId): array
+    {
+        if (! $inbound->mediaId) {
+            return [];
+        }
+
+        try {
+            $file = $gateway->downloadMedia($inbound->mediaId);
+
+            if (! $file || ($file['contents'] ?? '') === '') {
+                Log::warning('WhatsApp: media download returned nothing', [
+                    'media_id' => $inbound->mediaId,
+                    'type'     => $inbound->type,
+                ]);
+
+                return [];
+            }
+
+            $mime = $file['mime'] ?? $inbound->mediaMime;
+            $ext = $this->extensionFor($mime, $inbound->mediaFilename);
+            $path = 'whatsapp/media/'.$conversationId.'/'.Str::random(24).($ext ? '.'.$ext : '');
+
+            Storage::disk('public')->put($path, $file['contents']);
+
+            return [
+                'path' => Storage::disk('public')->url($path),
+                'mime' => $mime,
+                'name' => $inbound->mediaFilename ?: ($inbound->type.($ext ? '.'.$ext : '')),
+            ];
+        } catch (Throwable $e) {
+            Log::warning('WhatsApp: media download failed', [
+                'media_id' => $inbound->mediaId,
+                'error'    => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
+    /**
+     * Best-effort file extension from the mime type (params like "; codecs=opus"
+     * stripped) or the original filename.
+     */
+    protected function extensionFor(?string $mime, ?string $filename): ?string
+    {
+        if ($filename && str_contains($filename, '.')) {
+            return strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        }
+
+        $mime = trim(explode(';', (string) $mime)[0]);
+
+        return match ($mime) {
+            'image/jpeg'                    => 'jpg',
+            'image/png'                     => 'png',
+            'image/webp'                    => 'webp',
+            'image/gif'                     => 'gif',
+            'audio/ogg'                     => 'ogg',
+            'audio/mpeg'                    => 'mp3',
+            'audio/mp4', 'audio/aac'        => 'm4a',
+            'audio/amr'                     => 'amr',
+            'video/mp4'                     => 'mp4',
+            'video/3gpp'                    => '3gp',
+            'application/pdf'               => 'pdf',
+            'application/msword'            => 'doc',
+            'application/vnd.ms-excel'      => 'xls',
+            default                         => null,
+        };
     }
 }

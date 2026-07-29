@@ -26,24 +26,76 @@ return [
     /**
      * Quotes.
      */
-    // Quotes hidden
+    [
+        'key'        => 'quotes',
+        'name'       => 'admin::app.layouts.quotes',
+        'route'      => 'admin.quotes.index',
+        'sort'       => 3,
+        'icon-class' => 'icon-quote',
+    ],
 
     /**
      * Emails.
      */
-    // Emails hidden
-    // , [
-    //     'key'        => 'mail.setting',
-    //     'name'       => 'admin::app.layouts.mail.setting',
-    //     'route'      => 'admin.mail.index',
-    //     'params'     => ['route' => 'setting'],
-    //     'sort'       => 5,
-    // ]
+    [
+        'key'        => 'mail',
+        'name'       => 'admin::app.layouts.mail.title',
+        'route'      => 'admin.mail.index',
+        'params'     => ['route' => 'inbox'],
+        'sort'       => 4,
+        'icon-class' => 'icon-mail',
+    ],
+    [
+        'key'        => 'mail.inbox',
+        'name'       => 'admin::app.layouts.mail.inbox',
+        'route'      => 'admin.mail.index',
+        'params'     => ['route' => 'inbox'],
+        'sort'       => 1,
+        'icon-class' => 'icon-mail',
+    ],
+    [
+        'key'        => 'mail.draft',
+        'name'       => 'admin::app.layouts.mail.draft',
+        'route'      => 'admin.mail.index',
+        'params'     => ['route' => 'draft'],
+        'sort'       => 2,
+        'icon-class' => 'icon-mail',
+    ],
+    [
+        'key'        => 'mail.outbox',
+        'name'       => 'admin::app.layouts.mail.outbox',
+        'route'      => 'admin.mail.index',
+        'params'     => ['route' => 'outbox'],
+        'sort'       => 3,
+        'icon-class' => 'icon-mail',
+    ],
+    [
+        'key'        => 'mail.trash',
+        'name'       => 'admin::app.layouts.mail.trash',
+        'route'      => 'admin.mail.index',
+        'params'     => ['route' => 'trash'],
+        'sort'       => 4,
+        'icon-class' => 'icon-delete',
+    ],
+    [
+        'key'        => 'mail.setting',
+        'name'       => 'admin::app.layouts.mail.setting',
+        'route'      => 'admin.mail.index',
+        'params'     => ['route' => 'setting'],
+        'sort'       => 5,
+        'icon-class' => 'icon-settings-mail',
+    ],
 
     /**
      * Activities.
      */
-    // Activities hidden
+    [
+        'key'        => 'activities',
+        'name'       => 'admin::app.layouts.activities',
+        'route'      => 'admin.activities.index',
+        'sort'       => 5,
+        'icon-class' => 'icon-activity',
+    ],
 
     /**
      * Contacts.
@@ -54,6 +106,20 @@ return [
         'route'      => 'admin.contacts.persons.index',
         'sort'       => 6,
         'icon-class' => 'icon-contact',
+    ],
+    [
+        'key'        => 'contacts.persons',
+        'name'       => 'admin::app.layouts.persons',
+        'route'      => 'admin.contacts.persons.index',
+        'sort'       => 1,
+        'icon-class' => 'icon-contact',
+    ],
+    [
+        'key'        => 'contacts.organizations',
+        'name'       => 'admin::app.layouts.organizations',
+        'route'      => 'admin.contacts.organizations.index',
+        'sort'       => 2,
+        'icon-class' => 'icon-building',
     ],
 
     /**
@@ -85,13 +151,6 @@ return [
         'sort'       => 1,
         'icon-class' => 'icon-settings-group',
     ],
-    /* [
-        'key'        => 'activities',
-        'name'       => 'admin::app.layouts.activities',
-        'route'      => 'admin.activities.index',
-        'sort'       => 5,
-        'icon-class' => 'icon-activity',
-    ], */
     [
         'key'        => 'settings.user.groups',
         'name'       => 'admin::app.layouts.groups',
@@ -188,14 +247,14 @@ return [
         'sort'       => 2,
         'icon-class' => 'icon-settings-mail',
     ],
-    /* [
+    [
         'key'        => 'settings.automation.events',
         'name'       => 'admin::app.layouts.events',
         'info'       => 'admin::app.layouts.events-info',
         'route'      => 'admin.settings.marketing.events.index',
         'sort'       => 2,
         'icon-class' => 'icon-calendar',
-    ], */
+    ],
     [
         'key'        => 'settings.automation.campaigns',
         'name'       => 'admin::app.layouts.campaigns',

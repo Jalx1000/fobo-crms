@@ -462,36 +462,6 @@ return [
         'route' => 'admin.settings.webhooks.delete',
         'sort'  => 3,
     ], [
-        'key'   => 'settings.warehouse',
-        'name'  => 'admin::app.acl.warehouses',
-        'route' => ['admin.settings.warehouses.index', 'admin.settings.warehouses.create', 'admin.settings.warehouses.edit', 'admin.settings.warehouses.view'],
-        'sort'  => 4,
-    ], [
-        'key'   => 'settings.warehouse.warehouses',
-        'name'  => 'admin::app.acl.warehouses',
-        'route' => 'admin.settings.warehouses.index',
-        'sort'  => 1,
-    ], [
-        'key'   => 'settings.warehouse.warehouses.create',
-        'name'  => 'admin::app.acl.create',
-        'route' => ['admin.settings.warehouses.create', 'admin.settings.warehouses.store'],
-        'sort'  => 1,
-    ], [
-        'key'   => 'settings.warehouse.warehouses.edit',
-        'name'  => 'admin::app.acl.edit',
-        'route' => ['admin.settings.warehouses.edit', 'admin.settings.warehouses.update'],
-        'sort'  => 2,
-    ], [
-        'key'   => 'settings.warehouse.warehouses.view',
-        'name'  => 'admin::app.acl.view',
-        'route' => 'admin.settings.warehouses.view',
-        'sort'  => 3,
-    ], [
-        'key'   => 'settings.warehouse.warehouses.delete',
-        'name'  => 'admin::app.acl.delete',
-        'route' => 'admin.settings.warehouses.delete',
-        'sort'  => 4,
-    ], [
         'key'   => 'settings.other_settings',
         'name'  => 'admin::app.acl.other-settings',
         'route' => 'admin.settings.tags.index',

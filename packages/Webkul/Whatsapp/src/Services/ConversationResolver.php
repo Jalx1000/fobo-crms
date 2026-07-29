@@ -3,10 +3,15 @@
 namespace Webkul\Whatsapp\Services;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Lead\Models\PipelineProxy;
+use Webkul\Lead\Models\SourceProxy;
+use Webkul\Lead\Models\TypeProxy;
+use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Models\ConversationProxy;
 
@@ -32,7 +37,7 @@ class ConversationResolver
                 ->where('provider_conversation_id', $providerConversationId)
                 ->first();
         } elseif ($contact->phone) {
-            $conversation = $model::where('wa_phone', PhoneNumber::normalize($contact->phone))->first();
+            $conversation = $this->findConversationByPhone($contact->phone, $gateway);
         } else {
             return null; // nothing to key on
         }
@@ -49,7 +54,7 @@ class ConversationResolver
             'provider_conversation_id' => $providerConversationId,
             'wa_name'                  => $contact->name,
             'person_id'                => $person?->id,
-            'lead_id'                  => $person ? optional($person->leads()->latest()->first())->id : null,
+            'lead_id'                  => $this->resolveOrCreateLeadId($person),
             'status'                   => $person ? 'open' : 'unassigned',
             'ai_enabled'               => true, // new conversations start with the agent on
         ]);
@@ -80,8 +85,18 @@ class ConversationResolver
         if (! $conversation->person_id) {
             if ($person = $this->resolveOrCreatePerson($contact)) {
                 $updates['person_id'] = $person->id;
-                $updates['lead_id'] = optional($person->leads()->latest()->first())->id;
+                $updates['lead_id'] = $this->resolveOrCreateLeadId($person);
                 $updates['status'] = 'open';
+            }
+        }
+
+        // Backfill a lead for a conversation that has a Person but never got one
+        // (created before auto-lead existed, or the contact had no lead yet).
+        if (! $conversation->lead_id && ! isset($updates['lead_id']) && $conversation->person_id) {
+            $person = PersonProxy::modelClass()::find($conversation->person_id);
+
+            if ($leadId = $this->resolveOrCreateLeadId($person)) {
+                $updates['lead_id'] = $leadId;
             }
         }
 
@@ -102,6 +117,112 @@ class ConversationResolver
             null,
             (string) config('whatsapp.gateway'),
         );
+    }
+
+    /**
+     * Find a conversation for a phone, tolerant of whether the country code is
+     * present. A number stored without one ("+75640698") must still match the
+     * international form the provider sends ("+59175640698") — otherwise every
+     * inbound would spawn a duplicate conversation for the same contact.
+     *
+     * Exact (indexed) match first; then a trailing-digits match, the same fuzzy
+     * scheme resolvePerson() uses for Person.contact_numbers.
+     */
+    protected function findConversationByPhone(string $phone, string $gateway): ?Model
+    {
+        $model = ConversationProxy::modelClass();
+
+        $exact = $model::where('gateway', $gateway)
+            ->where('wa_phone', PhoneNumber::normalize($phone))
+            ->first();
+
+        if ($exact) {
+            return $exact;
+        }
+
+        $tail = PhoneNumber::tail($phone);
+
+        if (strlen($tail) < 7) {
+            return null;
+        }
+
+        return $model::where('gateway', $gateway)
+            ->where('wa_phone', 'like', '%'.$tail)
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
+     * The lead a conversation points at: the contact's most recent one, or a
+     * freshly opened lead when they have none. Off (config) leaves it null for a
+     * human to create from the profile drawer.
+     */
+    protected function resolveOrCreateLeadId(?Model $person): ?int
+    {
+        if (! $person) {
+            return null;
+        }
+
+        if ($existing = $person->leads()->latest()->first()) {
+            return $existing->id;
+        }
+
+        if (! config('whatsapp.auto_create_lead', true)) {
+            return null;
+        }
+
+        return optional($this->createLead($person))->id;
+    }
+
+    /**
+     * Open a lead for a WhatsApp contact — default pipeline + first stage,
+     * "WhatsApp" source. Mirrors the manual quick-create in ChatController so
+     * both paths land identical leads. Never lets a failure lose the message.
+     */
+    protected function createLead(Model $person): ?Model
+    {
+        try {
+            $pipeline = PipelineProxy::modelClass()::where('is_default', 1)->first()
+                ?? PipelineProxy::modelClass()::first();
+
+            if (! $pipeline) {
+                return null;
+            }
+
+            $stage = $pipeline->stages()->orderBy('sort_order')->first();
+            $source = SourceProxy::modelClass()::firstOrCreate(['name' => 'WhatsApp']);
+            $type = TypeProxy::modelClass()::first();
+
+            Event::dispatch('lead.create.before');
+
+            $lead = app(LeadRepository::class)->create([
+                'entity_type'            => 'leads',
+                'title'                  => 'WhatsApp - '.($person->name ?: 'Contacto'),
+                'lead_value'             => 0,
+                'person'                 => ['id' => $person->id],
+                'lead_pipeline_id'       => $pipeline->id,
+                'lead_pipeline_stage_id' => $stage?->id,
+                'lead_source_id'         => $source->id,
+                'lead_type_id'           => optional($type)->id,
+                'status'                 => 1,
+            ]);
+
+            Event::dispatch('lead.create.after', $lead);
+
+            Log::info('WhatsApp: auto-created lead for a conversation', [
+                'lead_id'   => $lead->id,
+                'person_id' => $person->id,
+            ]);
+
+            return $lead;
+        } catch (Throwable $e) {
+            Log::warning('WhatsApp: could not auto-create lead', [
+                'person_id' => $person->id,
+                'error'     => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 
     /**

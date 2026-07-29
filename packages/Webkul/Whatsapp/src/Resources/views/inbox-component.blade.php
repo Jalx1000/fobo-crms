@@ -3,6 +3,69 @@
         .wa-scroll::-webkit-scrollbar { width: 6px; }
         .wa-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 3px; }
         .dark .wa-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); }
+
+        /* Image viewer — self-contained CSS (admin Tailwind build is prebuilt,
+           so new utility classes wouldn't be compiled). */
+        .wa-zoomable { cursor: zoom-in; }
+        .wa-viewer {
+            position: fixed; inset: 0; z-index: 70; display: flex;
+            align-items: center; justify-content: center;
+            background: rgba(0,0,0,.92); backdrop-filter: blur(4px);
+            -webkit-user-select: none; user-select: none;
+        }
+        .wa-viewer__img {
+            max-height: 86vh; max-width: 92vw; border-radius: 10px;
+            object-fit: contain; box-shadow: 0 25px 60px -15px rgba(0,0,0,.7);
+            transition: transform .15s ease;
+        }
+        .wa-viewer__img.is-grab { cursor: grab; }
+        .wa-viewer__img.is-grabbing { cursor: grabbing; transition: none; }
+        .wa-toolbar {
+            position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+            z-index: 10; display: flex; align-items: center; gap: 2px; padding: 6px;
+            border-radius: 16px; border: 1px solid rgba(255,255,255,.12);
+            background: rgba(24,28,36,.82); backdrop-filter: blur(10px);
+            box-shadow: 0 8px 28px rgba(0,0,0,.45); color: rgba(255,255,255,.92);
+        }
+        .wa-tbtn {
+            display: flex; align-items: center; justify-content: center;
+            height: 38px; width: 38px; border-radius: 11px; color: inherit;
+            background: transparent; border: 0; cursor: pointer; transition: background .15s;
+        }
+        .wa-tbtn:hover { background: rgba(255,255,255,.14); }
+        .wa-tbtn:focus-visible { outline: 2px solid rgba(255,255,255,.55); outline-offset: 1px; }
+        .wa-tbtn--close:hover { background: rgba(239,68,68,.85); }
+        .wa-tsep { margin: 0 4px; height: 22px; width: 1px; background: rgba(255,255,255,.14); }
+        .wa-tpct {
+            min-width: 46px; text-align: center; font-size: 12px; font-weight: 600;
+            color: rgba(255,255,255,.72); font-variant-numeric: tabular-nums;
+        }
+        .wa-vicon { height: 20px; width: 20px; display: block; }
+        .wa-nav {
+            position: absolute; top: 50%; transform: translateY(-50%); z-index: 10;
+            display: flex; align-items: center; justify-content: center;
+            height: 46px; width: 46px; border-radius: 9999px; cursor: pointer;
+            border: 1px solid rgba(255,255,255,.12); background: rgba(24,28,36,.72);
+            backdrop-filter: blur(10px); box-shadow: 0 8px 28px rgba(0,0,0,.45);
+            color: rgba(255,255,255,.92); transition: background .15s;
+        }
+        .wa-nav:hover { background: rgba(24,28,36,.98); }
+        .wa-nav--prev { left: 18px; }
+        .wa-nav--next { right: 18px; }
+        .wa-counter {
+            position: absolute; top: 18px; right: 18px; z-index: 10;
+            border-radius: 9999px; border: 1px solid rgba(255,255,255,.12);
+            background: rgba(24,28,36,.82); backdrop-filter: blur(10px);
+            padding: 6px 13px; font-size: 12px; font-weight: 600;
+            color: rgba(255,255,255,.82); font-variant-numeric: tabular-nums;
+        }
+        .wa-caption {
+            position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+            z-index: 10; max-width: 80vw; white-space: pre-wrap; word-break: break-word;
+            border-radius: 12px; border: 1px solid rgba(255,255,255,.12);
+            background: rgba(24,28,36,.82); backdrop-filter: blur(10px);
+            padding: 9px 16px; text-align: center; font-size: 14px; color: rgba(255,255,255,.92);
+        }
     </style>
 
     <script type="text/x-template" id="v-whatsapp-inbox-template">
@@ -110,23 +173,29 @@
                             <div v-if="msg.type === 'text'" class="whitespace-pre-wrap break-words" v-html="formatText(msg.text)"></div>
 
                             <div v-else-if="msg.type === 'image'">
-                                <img :src="msg.media.url" class="max-h-56 rounded-md" alt="imagen">
+                                <img v-if="msg.media" :src="msg.media.url" @click="openLightbox(msg.media.url, chatImageUrls())"
+                                     class="wa-zoomable max-h-56 rounded-md" alt="imagen"
+                                     title="Ampliar imagen">
+                                <div v-else class="italic text-gray-500">🖼️ Imagen</div>
                                 <div v-if="msg.text" class="mt-1 whitespace-pre-wrap break-words">@{{ msg.text }}</div>
                             </div>
 
                             <div v-else-if="msg.type === 'sticker'">
-                                <img :src="msg.media.url" class="h-28 w-28 object-contain" alt="sticker">
+                                <img v-if="msg.media" :src="msg.media.url" class="h-28 w-28 object-contain" alt="sticker">
+                                <div v-else class="italic text-gray-500">Sticker</div>
                             </div>
 
                             <div v-else-if="msg.type === 'audio'" class="min-w-[220px]">
-                                <audio controls :src="msg.media.url" class="w-full"></audio>
+                                <audio v-if="msg.media" controls :src="msg.media.url" class="w-full"></audio>
+                                <div v-else class="italic text-gray-500">🎵 Audio</div>
                             </div>
 
                             <div v-else-if="msg.type === 'video'">
-                                <video controls :src="msg.media.url" class="max-h-56 rounded-md"></video>
+                                <video v-if="msg.media" controls :src="msg.media.url" class="max-h-56 rounded-md"></video>
+                                <div v-else class="italic text-gray-500">🎬 Video</div>
                             </div>
 
-                            <a v-else-if="msg.type === 'document'" :href="msg.media.url" target="_blank"
+                            <a v-else-if="msg.type === 'document' && msg.media" :href="msg.media.url" target="_blank"
                                class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
                                 <span class="icon-file text-xl"></span>
                                 <span class="flex flex-col">
@@ -134,13 +203,14 @@
                                     <span class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.media.meta }}</span>
                                 </span>
                             </a>
+                            <div v-else-if="msg.type === 'document'" class="italic text-gray-500">📄 Documento</div>
 
                             <div v-else-if="msg.type === 'location'" class="min-w-[200px]">
                                 <div class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
                                     <span class="icon-map text-xl"></span>
                                     <span class="flex flex-col">
                                         <span class="font-medium">Ubicación</span>
-                                        <span class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.location.lat }}, @{{ msg.location.lng }}</span>
+                                        <span v-if="msg.location" class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.location.lat }}, @{{ msg.location.lng }}</span>
                                     </span>
                                 </div>
                             </div>
@@ -149,8 +219,8 @@
                                 <div class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
                                     <span class="icon-user text-xl"></span>
                                     <span class="flex flex-col">
-                                        <span class="font-medium">@{{ msg.contact.name }}</span>
-                                        <span class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.contact.phone }}</span>
+                                        <span class="font-medium">@{{ msg.contact ? msg.contact.name : 'Contacto' }}</span>
+                                        <span v-if="msg.contact" class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.contact.phone }}</span>
                                     </span>
                                 </div>
                             </div>
@@ -516,9 +586,10 @@
                         <!-- Imágenes -->
                         <template v-else-if="profileTab === 'imagenes'">
                             <div v-if="profile.images.length" class="grid grid-cols-3 gap-1.5">
-                                <a v-for="(img, i) in profile.images" :key="'img-' + i" :href="img.url" target="_blank" :title="img.date">
-                                    <img :src="img.url" class="h-20 w-full rounded-md object-cover transition hover:opacity-80" alt="imagen compartida">
-                                </a>
+                                <button v-for="(img, i) in profile.images" :key="'img-' + i" type="button"
+                                        @click="openLightbox(img.url, profile.images.map(x => x.url))" :title="img.date">
+                                    <img :src="img.url" class="wa-zoomable h-20 w-full rounded-md object-cover transition hover:opacity-80" alt="imagen compartida">
+                                </button>
                             </div>
                             <p v-else class="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-xs text-gray-400 dark:border-gray-700">
                                 Sin imágenes compartidas en la conversación.
@@ -637,6 +708,66 @@
                     </div>
                 </template>
             </aside>
+
+            <!-- Image viewer: zoom / rotate / pan / navigate -->
+            <Teleport to="body">
+                <div v-if="viewer.open" @click="closeLightbox" @wheel.prevent="viewerWheel"
+                     class="wa-viewer" role="dialog" aria-modal="true" aria-label="Visor de imagen">
+
+                    <!-- toolbar -->
+                    <div class="wa-toolbar" @click.stop>
+                        <button type="button" class="wa-tbtn" @click="viewerZoom(-0.25)" aria-label="Alejar" title="Alejar (−)">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                        </button>
+                        <span class="wa-tpct">@{{ Math.round(viewer.scale * 100) }}%</span>
+                        <button type="button" class="wa-tbtn" @click="viewerZoom(0.25)" aria-label="Acercar" title="Acercar (+)">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/></svg>
+                        </button>
+
+                        <span class="wa-tsep"></span>
+
+                        <button type="button" class="wa-tbtn" @click="viewerRotate(-90)" aria-label="Rotar a la izquierda" title="Rotar izquierda">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                        </button>
+                        <button type="button" class="wa-tbtn" @click="viewerRotate(90)" aria-label="Rotar a la derecha" title="Rotar derecha">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                        </button>
+                        <button type="button" class="wa-tbtn" @click="viewerReset" aria-label="Restablecer vista" title="Ajustar / Restablecer">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M8 21H5a2 2 0 0 1-2-2v-3m18 0v3a2 2 0 0 1-2 2h-3"/></svg>
+                        </button>
+
+                        <span class="wa-tsep"></span>
+
+                        <a class="wa-tbtn" :href="viewer.list[viewer.index]" download target="_blank" @click.stop aria-label="Descargar imagen" title="Descargar">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </a>
+                        <button type="button" class="wa-tbtn wa-tbtn--close" @click="closeLightbox" aria-label="Cerrar visor" title="Cerrar (Esc)">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </div>
+
+                    <!-- counter -->
+                    <div v-if="viewer.list.length > 1" class="wa-counter" @click.stop>
+                        @{{ viewer.index + 1 }} / @{{ viewer.list.length }}
+                    </div>
+
+                    <!-- prev / next -->
+                    <button v-if="viewer.list.length > 1" type="button" class="wa-nav wa-nav--prev" @click.stop="viewerPrev" aria-label="Anterior">
+                        <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                    </button>
+                    <button v-if="viewer.list.length > 1" type="button" class="wa-nav wa-nav--next" @click.stop="viewerNext" aria-label="Siguiente">
+                        <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </button>
+
+                    <!-- image -->
+                    <img class="wa-viewer__img" :class="viewer.scale > 1 ? (viewer.dragging ? 'is-grabbing' : 'is-grab') : ''"
+                         :src="viewer.list[viewer.index]" :style="viewerStyle()" @click.stop @mousedown="viewerDragStart"
+                         alt="imagen ampliada" draggable="false">
+
+                    <!-- caption -->
+                    <div v-if="viewerCaption()" class="wa-caption" @click.stop>@{{ viewerCaption() }}</div>
+                </div>
+            </Teleport>
 
             <!-- Product picker: fills the producto/precio variables of a quick reply -->
             <Teleport to="body">
@@ -803,6 +934,19 @@
                     messages: [],
                     draft: '',
                     isLoading: false,
+                    // Full-screen image viewer with zoom / rotate / pan / nav.
+                    viewer: {
+                        open: false,
+                        list: [],      // urls to navigate with ‹ ›
+                        index: 0,
+                        scale: 1,
+                        rotation: 0,
+                        tx: 0,         // pan offset
+                        ty: 0,
+                        dragging: false,
+                        startX: 0,
+                        startY: 0,
+                    },
                     aiEnabled: false,
                     replyingTo: null,
                     showAttach: false,
@@ -952,8 +1096,19 @@
                 });
                 this.visibilityObserver.observe(this.$el);
 
-                // Esc closes the profile drawer and any open picker.
+                // Keyboard: while the viewer is open it captures nav/zoom keys;
+                // otherwise Esc closes the drawer/pickers.
                 this.escHandler = (event) => {
+                    if (this.viewer.open) {
+                        if (event.key === 'Escape')     { this.closeLightbox(); return; }
+                        if (event.key === 'ArrowLeft')  { this.viewerPrev(); return; }
+                        if (event.key === 'ArrowRight') { this.viewerNext(); return; }
+                        if (event.key === '+' || event.key === '=') { this.viewerZoom(0.25); return; }
+                        if (event.key === '-')          { this.viewerZoom(-0.25); return; }
+                        if (event.key.toLowerCase() === 'r') { this.viewerRotate(90); return; }
+                        return;
+                    }
+
                     if (event.key !== 'Escape') return;
                     this.showEmoji = false;
                     this.showAttach = false;
@@ -1381,6 +1536,97 @@
                 statusTick(status) {
                     // Text-presentation glyphs (︎), not emoji icons.
                     return { queued: '◷', sent: '✓', delivered: '✓✓', read: '✓✓', failed: '⚠︎' }[status] || '';
+                },
+
+                // ---- Image viewer ----------------------------------------
+                // Every image message in the thread, for ‹ › navigation.
+                chatImageUrls() {
+                    return this.messages
+                        .filter(m => m.type === 'image' && m.media && m.media.url)
+                        .map(m => m.media.url);
+                },
+
+                openLightbox(url, list = null) {
+                    if (!url) return;
+                    const urls = (Array.isArray(list) && list.length) ? list : [url];
+                    const index = Math.max(0, urls.indexOf(url));
+                    this.viewer = {
+                        open: true, list: urls, index,
+                        scale: 1, rotation: 0, tx: 0, ty: 0,
+                        dragging: false, startX: 0, startY: 0,
+                    };
+                },
+
+                closeLightbox() {
+                    this.viewer.open = false;
+                },
+
+                // Caption for the image being viewed (image messages can carry
+                // one). Gallery images have none, so this stays hidden there.
+                viewerCaption() {
+                    const url = this.viewer.list[this.viewer.index];
+                    const m = this.messages.find(x => x.media && x.media.url === url && x.text);
+                    return m ? m.text : null;
+                },
+
+                viewerStyle() {
+                    const v = this.viewer;
+                    return {
+                        transform: `translate(${v.tx}px, ${v.ty}px) scale(${v.scale}) rotate(${v.rotation}deg)`,
+                        transition: v.dragging ? 'none' : 'transform .15s ease',
+                    };
+                },
+
+                viewerZoom(delta) {
+                    this.viewer.scale = Math.min(6, Math.max(0.25, +(this.viewer.scale + delta).toFixed(2)));
+                    if (this.viewer.scale === 1) { this.viewer.tx = 0; this.viewer.ty = 0; }
+                },
+
+                viewerWheel(event) {
+                    this.viewerZoom(event.deltaY < 0 ? 0.2 : -0.2);
+                },
+
+                viewerRotate(deg) {
+                    this.viewer.rotation += deg;
+                },
+
+                viewerReset() {
+                    Object.assign(this.viewer, { scale: 1, rotation: 0, tx: 0, ty: 0 });
+                },
+
+                viewerPrev() {
+                    if (this.viewer.list.length < 2) return;
+                    this.viewer.index = (this.viewer.index - 1 + this.viewer.list.length) % this.viewer.list.length;
+                    this.viewerReset();
+                },
+
+                viewerNext() {
+                    if (this.viewer.list.length < 2) return;
+                    this.viewer.index = (this.viewer.index + 1) % this.viewer.list.length;
+                    this.viewerReset();
+                },
+
+                // Drag to pan while zoomed in. Document-level listeners so the
+                // drag keeps tracking even if the cursor leaves the image.
+                viewerDragStart(event) {
+                    if (this.viewer.scale <= 1) return;
+                    event.preventDefault();
+                    this.viewer.dragging = true;
+                    this.viewer.startX = event.clientX - this.viewer.tx;
+                    this.viewer.startY = event.clientY - this.viewer.ty;
+
+                    this._viewerDrag = (e) => {
+                        if (!this.viewer.dragging) return;
+                        this.viewer.tx = e.clientX - this.viewer.startX;
+                        this.viewer.ty = e.clientY - this.viewer.startY;
+                    };
+                    this._viewerDragEnd = () => {
+                        this.viewer.dragging = false;
+                        document.removeEventListener('mousemove', this._viewerDrag);
+                        document.removeEventListener('mouseup', this._viewerDragEnd);
+                    };
+                    document.addEventListener('mousemove', this._viewerDrag);
+                    document.addEventListener('mouseup', this._viewerDragEnd);
                 },
 
                 formatText(s) {
