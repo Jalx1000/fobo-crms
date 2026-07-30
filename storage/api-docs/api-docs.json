@@ -311,6 +311,57 @@
                 ]
             }
         },
+        "/api/v1/whatsapp/conversations/{id}/handoff": {
+            "post": {
+                "tags": [
+                    "WhatsApp"
+                ],
+                "summary": "Hand the conversation over to a human advisor",
+                "operationId": "whatsappAgentHandoff",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "reason": {
+                                        "type": "string",
+                                        "example": "El cliente pide hablar con una persona",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Handoff open; the agent must stop replying"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Conversation not found"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
         "/api/v1/activities": {
             "get": {
                 "tags": [

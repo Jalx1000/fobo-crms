@@ -117,7 +117,26 @@
       "Bash(awk '/function createEvent|function updateEvent/{f=1} f{print NR\": \"$0} f&&/^    }/{print \"---\"; f=0}' packages/Webkul/Admin/src/Services/ShareMeDataService.php)",
       "Bash(echo \"---exit:$?---\")",
       "Bash(grep -v \"Warning\\\\|dynamic property\\\\|^$\")",
-      "Bash(grep -v \"Warning\\\\|dynamic property\\\\|SMD-DEBUG\\\\|^$\")"
+      "Bash(grep -v \"Warning\\\\|dynamic property\\\\|SMD-DEBUG\\\\|^$\")",
+      "Bash(awk '{print $1\"  \"$2}')",
+      "Bash(./vendor/bin/pint packages/Webkul/Whatsapp --test)",
+      "Bash(./vendor/bin/pint packages/Webkul/Whatsapp)",
+      "Bash(./vendor/bin/pest tests/Feature/WhatsappOutboundMediaTest.php)",
+      "Bash(xargs -r ls -la)",
+      "Bash(awk '{print $1, $11, $12, $13}')",
+      "Bash(grep -n 'AttachmentStorageException $e' packages/Webkul/Whatsapp/src/Http/Controllers/InboxController.php)",
+      "Bash(awk '/\\\\$plan = \\\\$attachments->planCaption/,/->dispatch\\\\\\(\\\\\\);/' packages/Webkul/Whatsapp/src/Http/Controllers/InboxController.php)",
+      "Bash(./vendor/bin/pint packages/Webkul/Whatsapp config/filesystems.php --test)",
+      "Bash(curl -s -o /dev/null -w \"unpkg leaflet.js: HTTP %{http_code} \\(%{size_download} bytes\\)\\\\n\" --max-time 12 https://unpkg.com/leaflet@1.9.4/dist/leaflet.js)",
+      "Bash(curl -s -o /dev/null -w \"unpkg leaflet.css: HTTP %{http_code}\\\\n\" --max-time 12 https://unpkg.com/leaflet@1.9.4/dist/leaflet.css)",
+      "Bash(npm -v)",
+      "Bash(git status *)",
+      "Bash(sed -n '/Schema::create/,/}\\);/p' packages/Webkul/Email/src/Database/Migrations/2021_05_24_075618_create_emails_table.php)",
+      "Bash(sed -n '/Schema::create/,/}\\);/p' packages/Webkul/Email/src/Database/Migrations/2021_05_25_072700_create_email_attachments_table.php)",
+      "Bash(curl -s -o /dev/null -w \"login: HTTP %{http_code}\\\\n\" --max-time 20 -L https://imprimir.sofopolis.com/admin/login)",
+      "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Services packages/Webkul/Admin/src/Http/Controllers packages/Webkul/Admin/src/Routes --test)",
+      "Bash(git restore *)",
+      "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Services/EntityFiles.php packages/Webkul/Admin/src/Http/Controllers/Lead/FileController.php packages/Webkul/Admin/src/Http/Controllers/Contact/Persons/FileController.php packages/Webkul/Admin/src/Routes/Admin/contacts-routes.php packages/Webkul/Admin/src/Routes/Admin/leads-routes.php --test)"
     ]
   }
 }

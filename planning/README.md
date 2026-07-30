@@ -110,6 +110,16 @@ timestamps.
 
 **Total estimado: 5 semanas** (1 dev full-time; con front+back en paralelo se comprime a ~3-4).
 
+## Continuación: omnicanal
+
+La evolución a **bandeja omnicanal** (WhatsApp + Messenger + Instagram, multi-cuenta y
+multi-tenant) se planifica aparte en **[`omnicanal/`](omnicanal/README.md)**.
+
+Ese plan **deroga** la decisión #1 de esta tabla (un solo proveedor) y la restricción de despliegue
+declarada en [`arquitectura.md`](arquitectura.md#restricción-de-despliegue-define-el-diseño)
+("una instalación = un proveedor activo, sin multi-tenant"). Este documento describe el diseño
+vigente hasta hoy; `omnicanal/` lo reemplaza a partir de su Sprint 0.
+
 ## Definición de Hecho (global)
 - Código pasa `./vendor/bin/pint`.
 - Tests Pest verdes para la lógica nueva.
