@@ -31,13 +31,31 @@ function makeRole(string $name): int
     ]);
 }
 
+/**
+ * A role that is NOT in handoff.exclude_roles, so advisors built by default are
+ * valid assignees. Reusing role #1 would silently make them administrators,
+ * which the routing now refuses.
+ */
+function salesRoleId(): int
+{
+    // Looked up per call, never memoised: DatabaseTransactions rolls each test
+    // back, so a cached id would point at a role that no longer exists.
+    $excluded = array_filter((array) config('whatsapp.handoff.exclude_roles', []));
+
+    $existing = DB::table('roles')
+        ->when($excluded, fn ($q) => $q->whereNotIn('name', $excluded))
+        ->value('id');
+
+    return $existing ?? makeRole('Ventas Test '.uniqid());
+}
+
 function makeAdvisor(string $name, int $status = 1, ?int $roleId = null): int
 {
     return DB::table('users')->insertGetId([
         'name'       => $name,
         'email'      => 'advisor'.uniqid().'@test.local',
         'password'   => bcrypt('secret'),
-        'role_id'    => $roleId ?? DB::table('roles')->value('id') ?? 1,
+        'role_id'    => $roleId ?? salesRoleId(),
         'status'     => $status,
         'created_at' => now(),
         'updated_at' => now(),
@@ -127,6 +145,27 @@ it('leaves the handoff in the pool when nobody owns the contact', function () {
 
     expect($result['conversation']->handoff_state)->toBe(Conversation::HANDOFF_REQUESTED)
         ->and($result['conversation']->assigned_user_id)->toBeNull()
+        ->and($result['conversation']->handoffPooled())->toBeTrue();
+});
+
+it('pools the handoff when the lead owner is a managing role', function () {
+    Queue::fake();
+
+    $adminRole = makeRole('Administrador '.uniqid());
+    config(['whatsapp.handoff.exclude_roles' => [DB::table('roles')->where('id', $adminRole)->value('name')]]);
+
+    // Most leads here are owned by an admin. Assigning to them would park the
+    // conversation on someone who does not attend WhatsApp, and it would never
+    // show up in the sales pool.
+    $manager = makeAdvisor('Jefe dueño del lead', roleId: $adminRole);
+    $person = makePerson();
+    $lead = makeLead($person, $manager);
+
+    $conversation = makeConversation(['person_id' => $person, 'lead_id' => $lead]);
+
+    $result = handoffService()->request($conversation);
+
+    expect($result['conversation']->assigned_user_id)->toBeNull()
         ->and($result['conversation']->handoffPooled())->toBeTrue();
 });
 

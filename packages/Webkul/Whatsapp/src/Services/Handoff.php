@@ -218,11 +218,17 @@ class Handoff
             return null;
         }
 
-        $isActive = UserProxy::modelClass()::where('id', $candidate)
-            ->where('status', 1)
-            ->exists();
+        $query = UserProxy::modelClass()::where('id', $candidate)->where('status', 1);
 
-        return $isActive ? (int) $candidate : null;
+        // Same rule as the pool mailing list: a role that manages rather than
+        // attends is not a valid assignee. Most leads are owned by an admin, so
+        // without this nearly every handoff would land on someone who does not
+        // answer WhatsApp — and never reach the sales pool.
+        if ($roles = array_filter((array) config('whatsapp.handoff.exclude_roles', []))) {
+            $query->whereHas('role', fn ($q) => $q->whereNotIn('name', $roles));
+        }
+
+        return $query->exists() ? (int) $candidate : null;
     }
 
     /**
