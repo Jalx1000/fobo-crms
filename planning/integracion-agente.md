@@ -3,6 +3,9 @@
 Guía para el equipo que construye el agente LangChain. Describe cómo el CRM le
 **manda eventos** y cómo el agente **responde texto**.
 
+Para que el agente **suelte** la conversación cuando el cliente pide hablar con una
+persona, ver [`derivacion-asesor.md`](./derivacion-asesor.md).
+
 Base URL: `https://imprimir.sofopolis.com`
 
 ## El flujo en una imagen
