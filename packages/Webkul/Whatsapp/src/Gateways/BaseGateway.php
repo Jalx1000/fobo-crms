@@ -4,8 +4,14 @@ namespace Webkul\Whatsapp\Gateways;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
+use Webkul\Whatsapp\Exceptions\UnsupportedMessageException;
 use Webkul\Whatsapp\Gateways\Contracts\Gateway;
+use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
+use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
+use Webkul\Whatsapp\Gateways\Dto\SendResult;
+use Webkul\Whatsapp\Models\Conversation;
 
 /**
  * Shared plumbing for drivers. Every comparison is constant-time.
@@ -36,6 +42,39 @@ abstract class BaseGateway implements Gateway
     public function downloadMedia(?string $mediaId): ?array
     {
         return null;
+    }
+
+    /**
+     * Default: text only. A driver that declares 'image' (or any other media
+     * type) in capabilities() must override this, or the composer offers a
+     * button that fails at send time.
+     */
+    public function sendMedia(Conversation $conversation, OutboundMedia $media, ?string $replyToProviderId = null): SendResult
+    {
+        throw UnsupportedMessageException::type($this->key(), $media->type);
+    }
+
+    /**
+     * Default: no location support.
+     */
+    public function sendLocation(Conversation $conversation, OutboundLocation $location, ?string $replyToProviderId = null): SendResult
+    {
+        throw UnsupportedMessageException::type($this->key(), 'location');
+    }
+
+    /**
+     * Absolute filesystem path of a media file staged on the `public` disk.
+     * Drivers stream from here instead of loading the bytes into the queue.
+     */
+    protected function mediaPath(OutboundMedia $media): string
+    {
+        $path = Storage::disk('public')->path($media->path);
+
+        if (! is_readable($path)) {
+            throw new RuntimeException(sprintf('El archivo adjunto ya no está disponible en el servidor [%s].', $media->path));
+        }
+
+        return $path;
     }
 
     /**

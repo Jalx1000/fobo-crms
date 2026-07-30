@@ -40,6 +40,19 @@ return [
             'root'       => storage_path('app/public'),
             'url'        => env('APP_URL').'/storage',
             'visibility' => 'public',
+
+            // PHP-FPM runs as www-data and the queue worker as root, and both
+            // write here (outbound attachments vs inbound WhatsApp media). The
+            // default 0755 means whichever one creates a conversation's folder
+            // locks the other out of it. Group-writable + the setgid bit on the
+            // tree (see below) is what keeps both able to write.
+            //
+            //   chgrp -R www-data storage/app/public
+            //   find storage/app/public -type d -exec chmod 2775 {} \;
+            'permissions' => [
+                'file' => ['public' => 0664, 'private' => 0600],
+                'dir'  => ['public' => 0775, 'private' => 0700],
+            ],
         ],
 
         's3' => [

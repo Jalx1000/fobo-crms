@@ -109,6 +109,76 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Outbound media
+    |--------------------------------------------------------------------------
+    | Meta's own limits, mirrored here so an oversized or unsupported file is
+    | rejected in the composer with a clear message instead of coming back as an
+    | opaque 400 from Graph three seconds later. Sizes in kilobytes (Laravel's
+    | `max:` unit). Do NOT raise these above Meta's values — the API is the one
+    | enforcing them.
+    |
+    | https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media
+    */
+    'media' => [
+        'image' => [
+            'max_kb' => 5120,   // 5 MB
+            'mimes'  => ['image/jpeg', 'image/png'],
+        ],
+
+        'audio' => [
+            'max_kb' => 16384,  // 16 MB
+            'mimes'  => ['audio/aac', 'audio/amr', 'audio/mpeg', 'audio/mp4', 'audio/ogg'],
+        ],
+
+        'video' => [
+            // Only H.264 + AAC. Meta transcodes nothing: a .mp4 with another
+            // codec uploads fine and then fails to play on the handset.
+            'max_kb' => 16384,  // 16 MB
+            'mimes'  => ['video/mp4', 'video/3gp', 'video/3gpp'],
+        ],
+
+        'document' => [
+            'max_kb' => 102400, // 100 MB
+            'mimes'  => [
+                'application/pdf',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.ms-excel',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.ms-powerpoint',
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                'text/plain',
+                'text/csv',
+            ],
+        ],
+
+        'sticker' => [
+            // Static only. Animated stickers get 500 KB, but there is no way to
+            // tell the two apart before uploading, so the strict limit wins.
+            'max_kb' => 100,
+            'mimes'  => ['image/webp'],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Saved locations
+    |--------------------------------------------------------------------------
+    | Addresses the team sends over and over (branch, workshop, pickup point).
+    | They show as one-click buttons in the composer's location panel; the
+    | advisor can still type coordinates by hand for anything else.
+    */
+    'locations' => [
+        // [
+        //     'name'      => 'Sucursal Central',
+        //     'address'   => 'Av. Ejemplo 123, Santa Cruz',
+        //     'latitude'  => -17.783330,
+        //     'longitude' => -63.182140,
+        // ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | AI Agent
     |--------------------------------------------------------------------------
     | Global default for the AI agent switch and the outbound webhook the

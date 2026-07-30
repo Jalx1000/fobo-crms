@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
+use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
+use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
 use Webkul\Whatsapp\Gateways\Dto\WebhookSecurity;
@@ -88,4 +90,26 @@ interface Gateway
      * provider_conversation_id (its lead id).
      */
     public function sendText(Conversation $conversation, string $body, ?string $replyToProviderId = null): SendResult;
+
+    /**
+     * Send an attachment (image/audio/video/document/sticker).
+     *
+     * The file already lives on the `public` disk — the driver reads it from
+     * there and does whatever its provider needs (Cloud API uploads it first and
+     * addresses the result by media id).
+     *
+     * Drivers that cannot send media inherit the throwing default from
+     * BaseGateway; declaring the type in capabilities() is what makes it
+     * reachable from the composer.
+     *
+     * @throws \Webkul\Whatsapp\Exceptions\UnsupportedMessageException
+     */
+    public function sendMedia(Conversation $conversation, OutboundMedia $media, ?string $replyToProviderId = null): SendResult;
+
+    /**
+     * Send a location pin.
+     *
+     * @throws \Webkul\Whatsapp\Exceptions\UnsupportedMessageException
+     */
+    public function sendLocation(Conversation $conversation, OutboundLocation $location, ?string $replyToProviderId = null): SendResult;
 }

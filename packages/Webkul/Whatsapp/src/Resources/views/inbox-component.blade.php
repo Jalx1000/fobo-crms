@@ -229,15 +229,19 @@
                             </a>
                             <div v-else-if="msg.type === 'document'" class="italic text-gray-500">📄 Documento</div>
 
-                            <div v-else-if="msg.type === 'location'" class="min-w-[200px]">
+                            <component :is="msg.location ? 'a' : 'div'" v-else-if="msg.type === 'location'"
+                                       :href="msg.location ? msg.location.url : null"
+                                       :target="msg.location ? '_blank' : null"
+                                       class="block min-w-[200px]">
                                 <div class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
                                     <span class="icon-map text-xl"></span>
-                                    <span class="flex flex-col">
-                                        <span class="font-medium">Ubicación</span>
-                                        <span v-if="msg.location" class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.location.lat }}, @{{ msg.location.lng }}</span>
+                                    <span class="flex min-w-0 flex-col">
+                                        <span class="truncate font-medium">@{{ (msg.location && msg.location.name) || 'Ubicación' }}</span>
+                                        <span v-if="msg.location && msg.location.address" class="truncate text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.location.address }}</span>
+                                        <span v-if="msg.location" class="text-[11px] text-gray-400">@{{ msg.location.lat.toFixed(5) }}, @{{ msg.location.lng.toFixed(5) }}</span>
                                     </span>
                                 </div>
-                            </div>
+                            </component>
 
                             <div v-else-if="msg.type === 'contact'" class="min-w-[200px]">
                                 <div class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
@@ -290,6 +294,36 @@
                     <button type="button" aria-label="Cancelar respuesta"
                             class="ml-2 rounded text-gray-500 transition hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:text-gray-200"
                             @click="replyingTo = null">✕</button>
+                </div>
+
+                <!-- Rejected before uploading: size/format come from Meta's own
+                     table, so the advisor finds out here and not 3s later. -->
+                <div v-if="attachError" class="mb-2 flex items-start gap-2 rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                    <span class="icon-error mt-px"></span>
+                    <span class="flex-1">@{{ attachError }}</span>
+                    <button type="button" aria-label="Descartar" @click="attachError = null">✕</button>
+                </div>
+
+                <!-- Staged attachment, waiting on send -->
+                <div v-if="attachment" class="mb-2 flex items-center gap-2.5 rounded-md border border-gray-200 bg-white px-2.5 py-2 dark:border-gray-700 dark:bg-gray-800">
+                    <img v-if="attachment.preview" :src="attachment.preview" alt=""
+                         class="h-11 w-11 shrink-0 rounded object-cover">
+                    <span v-else class="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-gray-100 text-xl dark:bg-gray-700"
+                          :class="attachIcon(attachment.type)"></span>
+
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-xs font-medium text-gray-800 dark:text-gray-100">@{{ attachment.name }}</p>
+                        <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                            @{{ attachTypeLabel(attachment.type) }} · @{{ humanSize(attachment.size) }}
+                        </p>
+                        <div v-if="uploading" class="mt-1 h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                            <div class="h-full rounded-full bg-brandColor transition-all" :style="{ width: uploadProgress + '%' }"></div>
+                        </div>
+                    </div>
+
+                    <button v-if="!uploading" type="button" aria-label="Quitar adjunto"
+                            class="rounded text-gray-400 transition hover:text-red-500"
+                            @click="clearAttachment">✕</button>
                 </div>
 
                 <!-- Mensaje / Nota interna: the note works even with the agent on
@@ -457,27 +491,37 @@
                     <div v-if="canAttach" class="js-pop relative">
                         <button type="button" @click="showAttach = !showAttach"
                                 aria-label="Adjuntar archivo"
+                                title="Adjuntar archivo"
                                 class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-700">
                             <span class="icon-attachment text-xl"></span>
                         </button>
-                        <div v-if="showAttach" class="absolute bottom-11 left-0 z-10 w-40 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                            <button v-if="canSend('image')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="mockAttach('image')">
-                                <span class="icon-image"></span> Imagen
+                        <div v-if="showAttach" class="absolute bottom-11 left-0 z-10 w-44 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                            <button v-for="opt in attachOptions" :key="opt.type" type="button"
+                                    class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    @click="pickFile(opt.type)">
+                                <span :class="opt.icon"></span> @{{ opt.label }}
                             </button>
-                            <button v-if="canSend('document')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="mockAttach('document')">
-                                <span class="icon-file"></span> Documento
-                            </button>
-                            <button v-if="canSend('audio')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="mockAttach('audio')">
-                                <span class="icon-microphone"></span> Audio
+                            <button v-if="canSend('location')" type="button"
+                                    class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    @click="openLocation">
+                                <span class="icon-map"></span> Ubicación
                             </button>
                         </div>
+
+                        <!-- One input per type: `accept` is what keeps the OS
+                             picker from offering files Meta would reject. -->
+                        <input v-for="opt in attachOptions" :key="'in-' + opt.type"
+                               :ref="'file-' + opt.type" type="file" class="hidden"
+                               :accept="opt.accept"
+                               @change="stageFile(opt.type, $event)">
                     </div>
+
 
                     <textarea
                         ref="msgInput"
                         v-model="draft"
                         rows="1"
-                        placeholder="Escribe un mensaje… (/ para respuestas rápidas)"
+                        :placeholder="composerPlaceholder"
                         title="Enter envía · Shift+Enter salto de línea"
                         @input="autoGrow"
                         @keydown.enter.exact.prevent="send"
@@ -488,7 +532,7 @@
                         class="max-h-28 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                     ></textarea>
 
-                    <button type="button" @click="send" :disabled="!draft.trim()"
+                    <button type="button" @click="send" :disabled="!canSubmit"
                             aria-label="Enviar mensaje"
                             title="Enviar"
                             class="flex h-9 w-9 items-center justify-center rounded-full bg-brandColor text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:opacity-40">
@@ -840,6 +884,99 @@
             </Teleport>
 
             <!-- Product picker: fills the producto/precio variables of a quick reply -->
+            <!-- Location picker. Teleported like the other modals: the inbox is
+                 also embedded in a 440px card on the person/lead view, where an
+                 inline map would have nowhere to go. -->
+            <Teleport to="body">
+                <x-admin::modal ref="locationModal">
+                    <x-slot:header>
+                        <h3 class="text-base font-semibold dark:text-white">Enviar ubicación</h3>
+                    </x-slot>
+
+                    <x-slot:content>
+                        <!-- Saved pins: recenter the map rather than sending
+                             straight away, so the advisor always confirms
+                             visually before the customer gets a wrong address. -->
+                        <div v-if="savedLocations.length" class="mb-3 flex flex-wrap gap-1.5">
+                            <button v-for="(place, i) in savedLocations" :key="'loc-' + i" type="button"
+                                    class="flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-1 text-xs transition hover:border-brandColor hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                                    @click="useSavedLocation(place)">
+                                <span class="icon-map text-sm text-brandColor"></span>
+                                <span class="font-medium text-gray-700 dark:text-gray-200">@{{ place.name || 'Ubicación' }}</span>
+                            </button>
+                        </div>
+
+                        <div class="mb-2 flex flex-wrap items-center gap-2">
+                            <button type="button"
+                                    class="flex items-center gap-1.5 rounded-md bg-brandColor px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-40"
+                                    :disabled="locating" @click="requestGps">
+                                <span class="icon-map text-sm"></span>
+                                @{{ locating ? 'Buscando…' : 'Usar mi ubicación' }}
+                            </button>
+
+                            <span v-if="locationForm.accuracy" class="text-[11px] text-gray-500 dark:text-gray-400">
+                                Precisión aprox. @{{ Math.round(locationForm.accuracy) }} m
+                            </span>
+                        </div>
+
+                        <div v-if="mapError" class="mb-2 rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:bg-amber-900/25 dark:text-amber-200">
+                            @{{ mapError }}
+                        </div>
+
+                        <!-- The map itself. The height is an INLINE STYLE, not a
+                             Tailwind class, on purpose: Leaflet renders into
+                             whatever box it is given, so a purged utility class
+                             would collapse the container to 0px and the map would
+                             vanish silently — no error, just nothing. This
+                             dimension is functional, so it must not depend on the
+                             CSS build being in sync with this file. -->
+                        <div class="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                            <div ref="mapCanvas" style="height: 16rem" class="w-full bg-gray-100 dark:bg-gray-800"></div>
+
+                            <div v-if="mapLoading"
+                                 class="absolute inset-0 flex items-center justify-center bg-white/70 dark:bg-gray-900/70">
+                                <x-admin::spinner />
+                            </div>
+                        </div>
+
+                        <p class="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                            Arrastrá el pin (o tocá el mapa) para ajustar el punto exacto.
+                        </p>
+
+                        <div class="mt-2 grid grid-cols-2 gap-2">
+                            <label class="text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                                Latitud
+                                <input v-model="locationForm.latitude" type="text" inputmode="decimal"
+                                       @change="syncMapFromInputs"
+                                       class="mt-0.5 w-full rounded-md border border-gray-300 px-2 py-1 text-xs font-normal dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                            </label>
+                            <label class="text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                                Longitud
+                                <input v-model="locationForm.longitude" type="text" inputmode="decimal"
+                                       @change="syncMapFromInputs"
+                                       class="mt-0.5 w-full rounded-md border border-gray-300 px-2 py-1 text-xs font-normal dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                            </label>
+                        </div>
+
+                        <input v-model="locationForm.label" type="text" placeholder="Nombre del lugar (opcional)"
+                               class="mt-2 w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                        <input v-model="locationForm.address" type="text" placeholder="Dirección (opcional)"
+                               class="mt-1.5 w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+
+                        <div v-if="locationError" class="mt-2 rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700 dark:bg-red-900/25 dark:text-red-300">
+                            @{{ locationError }}
+                        </div>
+                    </x-slot>
+
+                    <x-slot:footer>
+                        <button type="button" class="primary-button"
+                                :disabled="locationSending || !hasPin" @click="sendLocation()">
+                            @{{ locationSending ? 'Enviando…' : 'Enviar ubicación' }}
+                        </button>
+                    </x-slot>
+                </x-admin::modal>
+            </Teleport>
+
             <Teleport to="body">
                 <x-admin::modal ref="productModal">
                     <x-slot:header>
@@ -991,6 +1128,8 @@
                 useMock: { type: Boolean, default: true },
                 threadUrl: { type: String, default: '' },
                 sendUrl: { type: String, default: '' },
+                sendMediaUrl: { type: String, default: '' },
+                sendLocationUrl: { type: String, default: '' },
                 agentUrlBase: { type: String, default: '' },
                 quickRepliesUrl: { type: String, default: '' },
                 personUrlBase: { type: String, default: '' },
@@ -1024,7 +1163,25 @@
                     pollTimer: null,
                     // What the active provider can do. Conservative default:
                     // text only, until the server says otherwise.
-                    capabilities: { send: ['text'], receive: [] },
+                    capabilities: { send: ['text'], receive: [], captionable: [] },
+                    // Meta's per-type limits, from the thread payload. Empty
+                    // until the first poll answers, which is why pickFile()
+                    // tolerates a missing entry.
+                    mediaLimits: {},
+                    // Staged attachment, waiting on the advisor to hit send. The
+                    // preview is an object URL so nothing is uploaded twice.
+                    attachment: null,
+                    attachError: null,
+                    uploading: false,
+                    uploadProgress: 0,
+                    // Location picker (Leaflet map + browser GPS)
+                    savedLocations: [],
+                    locationForm: { latitude: '', longitude: '', label: '', address: '', accuracy: null },
+                    locationSending: false,
+                    locationError: null,
+                    locating: false,
+                    mapLoading: false,
+                    mapError: null,
                     // WhatsApp 24h window; refreshed by every poll.
                     window: { applies: false, open: true, seconds_left: null },
                     conversationId: null,
@@ -1086,7 +1243,37 @@
                 },
 
                 canAttach() {
-                    return ['image', 'document', 'audio'].some(type => this.canSend(type));
+                    return this.attachOptions.length > 0 || this.canSend('location');
+                },
+
+                // Built from capabilities, so a gateway that only relays text
+                // (Kommo) shows nothing and Cloud API shows all four.
+                attachOptions() {
+                    return [
+                        { type: 'image',    label: 'Imagen',    icon: 'icon-image',      accept: 'image/jpeg,image/png' },
+                        { type: 'document', label: 'Documento', icon: 'icon-file',       accept: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv' },
+                        { type: 'video',    label: 'Video',     icon: 'icon-video',      accept: 'video/mp4,video/3gpp' },
+                        { type: 'audio',    label: 'Audio',     icon: 'icon-microphone', accept: 'audio/mpeg,audio/mp4,audio/aac,audio/amr,audio/ogg' },
+                    ].filter(opt => this.canSend(opt.type));
+                },
+
+                // A staged file is enough on its own — the text is optional.
+                canSubmit() {
+                    if (this.uploading) return false;
+                    return this.attachment !== null || this.draft.trim().length > 0;
+                },
+
+                // Nothing to send until the map has a pin.
+                hasPin() {
+                    return this.locationForm.latitude !== '' && this.locationForm.longitude !== '';
+                },
+
+                composerPlaceholder() {
+                    if (!this.attachment) return 'Escribe un mensaje… (/ para respuestas rápidas)';
+
+                    return this.captionAllowed(this.attachment.type)
+                        ? 'Agregá un pie de foto (opcional)…'
+                        : 'WhatsApp no permite texto junto a este archivo';
                 },
 
                 windowLabel() {
@@ -1141,6 +1328,16 @@
                 composerMode() {
                     this.focusComposer();
                 },
+            },
+
+            created() {
+                // Deliberately NOT in data(): a Leaflet map wrapped in Vue's
+                // reactive proxy misbehaves (identity checks fail internally) and
+                // walking its object graph on every tick is pure waste. These
+                // live on the instance instead.
+                this.map = null;
+                this.marker = null;
+                this.leafletPromise = null;
             },
 
             mounted() {
@@ -1207,6 +1404,11 @@
                 if (this.visibilityObserver) this.visibilityObserver.disconnect();
                 if (this.escHandler) document.removeEventListener('keydown', this.escHandler);
                 if (this.docClickHandler) document.removeEventListener('click', this.docClickHandler);
+                // Switching conversations remounts the inbox; a staged image
+                // would leak its object URL otherwise, and Leaflet would leave
+                // its window listeners behind.
+                this.clearAttachment();
+                this.destroyMap();
             },
 
             methods: {
@@ -1331,8 +1533,9 @@
                     // The mock showcases every type; real capabilities come from
                     // the server, which only reports what a driver implements.
                     this.capabilities = {
-                        send: ['text', 'image', 'document', 'audio', 'reply'],
-                        receive: ['text', 'image', 'document', 'audio'],
+                        send: ['text', 'image', 'document', 'audio', 'video', 'location', 'reply', 'emoji'],
+                        receive: ['text', 'image', 'document', 'audio', 'video', 'location'],
+                        captionable: ['image', 'video', 'document'],
                     };
                     this.scrollToBottom();
                 },
@@ -1361,6 +1564,8 @@
                         .then(res => {
                             if (res.data?.server_time) this.since = res.data.server_time;
                             if (res.data?.capabilities) this.capabilities = res.data.capabilities;
+                            if (res.data?.media) this.mediaLimits = res.data.media;
+                            if (res.data?.locations) this.savedLocations = res.data.locations;
                             if (res.data?.window) this.window = res.data.window;
                             if (res.data?.conversation?.id) this.conversationId = res.data.conversation.id;
                             if (res.data?.conversation?.gateway) this.gateway = res.data.conversation.gateway;
@@ -1398,6 +1603,12 @@
                     // "/" picker open: Enter inserts the highlighted match, not a send.
                     if (this.qrMatches.length) {
                         this.insertQuickReply(this.qrMatches[this.qrIndex] ?? this.qrMatches[0]);
+                        return;
+                    }
+
+                    // A staged file takes over: the draft becomes its caption.
+                    if (this.attachment) {
+                        this.uploadAttachment();
                         return;
                     }
 
@@ -1675,18 +1886,392 @@
                         .finally(() => { this.noteSaving = false; });
                 },
 
-                mockAttach(type) {
+                // ---- Attachments -----------------------------------------
+                pickFile(type) {
                     this.showAttach = false;
-                    const samples = {
-                        image: { type: 'image', media: { url: 'https://placehold.co/320x200/075E54/ffffff?text=Adjunto' } },
-                        document: { type: 'document', media: { url: '#', filename: 'archivo.pdf', meta: 'PDF · 64 KB' } },
-                        audio: { type: 'audio', media: { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' } },
+                    this.attachError = null;
+
+                    // v-for refs come back as arrays in Vue 3.
+                    const input = this.$refs['file-' + type];
+                    const el = Array.isArray(input) ? input[0] : input;
+
+                    if (el) {
+                        el.value = ''; // re-picking the same file must still fire @change
+                        el.click();
+                    }
+                },
+
+                /**
+                 * Validate against Meta's limits and stage the file locally. The
+                 * upload itself waits for the send button, so the advisor can
+                 * still write a caption or change their mind.
+                 */
+                stageFile(type, event) {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+
+                    const limits = this.mediaLimits[type];
+
+                    if (limits?.max_kb && file.size > limits.max_kb * 1024) {
+                        this.attachError = `El archivo pesa ${this.humanSize(file.size)} y WhatsApp permite hasta ${this.humanSize(limits.max_kb * 1024)} para ${this.attachTypeLabel(type).toLowerCase()}.`;
+                        return;
+                    }
+
+                    // Browsers report an empty type for some files; let the
+                    // server have the final word rather than blocking blindly.
+                    if (limits?.mimes?.length && file.type && !limits.mimes.includes(file.type)) {
+                        this.attachError = `WhatsApp no acepta «${file.type}» como ${this.attachTypeLabel(type).toLowerCase()}.`;
+                        return;
+                    }
+
+                    this.clearAttachment();
+
+                    this.attachment = {
+                        type,
+                        file,
+                        name: file.name,
+                        size: file.size,
+                        // Object URL, revoked in clearAttachment — otherwise
+                        // every staged image leaks until a full page reload.
+                        preview: type === 'image' ? URL.createObjectURL(file) : null,
                     };
-                    this.messages.push({
-                        id: Date.now(), direction: 'outbound', sender: 'human',
-                        time: this.now(), date: this.today(), status: 'sent', ...samples[type],
+
+                    this.$nextTick(() => this.$refs.msgInput?.focus());
+                },
+
+                clearAttachment() {
+                    if (this.attachment?.preview) URL.revokeObjectURL(this.attachment.preview);
+                    this.attachment = null;
+                    this.uploadProgress = 0;
+                },
+
+                uploadAttachment() {
+                    if (!this.attachment || this.uploading) return;
+
+                    const staged = this.attachment;
+                    const caption = this.draft.trim();
+                    const replyId = this.replyingTo?.id ?? null;
+
+                    const form = new FormData();
+                    form.append('type', staged.type);
+                    form.append('file', staged.file);
+                    form.append('phone', this.context.phone ?? '');
+                    if (this.context.name) form.append('name', this.context.name);
+                    if (this.context.personId) form.append('person_id', this.context.personId);
+                    if (this.context.leadId) form.append('lead_id', this.context.leadId);
+                    if (this.conversationId) form.append('conversation_id', this.conversationId);
+                    if (caption) form.append('caption', caption);
+                    if (replyId) form.append('reply_to_id', replyId);
+
+                    this.uploading = true;
+                    this.uploadProgress = 0;
+                    this.attachError = null;
+
+                    this.$axios.post(this.sendMediaUrl, form, {
+                            headers: { 'Content-Type': 'multipart/form-data' },
+                            onUploadProgress: e => {
+                                if (e.total) this.uploadProgress = Math.round((e.loaded * 100) / e.total);
+                            },
+                        })
+                        .then(res => {
+                            if (res.data?.message) this.messages.push(res.data.message);
+                            // Audio/sticker captions come back as their own text
+                            // message; the server decides whether there is one.
+                            if (res.data?.follow_up) this.messages.push(res.data.follow_up);
+
+                            this.draft = '';
+                            this.replyingTo = null;
+                            this.clearAttachment();
+                            this.$nextTick(() => {
+                                if (this.$refs.msgInput) this.$refs.msgInput.style.height = 'auto';
+                            });
+                            this.scrollToBottom();
+                        })
+                        .catch(err => {
+                            const errors = err.response?.data?.errors;
+                            this.attachError = errors?.file?.[0]
+                                || err.response?.data?.message
+                                || 'No se pudo enviar el archivo.';
+                        })
+                        .finally(() => { this.uploading = false; });
+                },
+
+                captionAllowed(type) {
+                    return (this.capabilities?.captionable ?? []).includes(type);
+                },
+
+                attachIcon(type) {
+                    return {
+                        image: 'icon-image', document: 'icon-file',
+                        video: 'icon-video', audio: 'icon-microphone',
+                    }[type] || 'icon-file';
+                },
+
+                attachTypeLabel(type) {
+                    return {
+                        image: 'Imagen', document: 'Documento',
+                        video: 'Video', audio: 'Audio', sticker: 'Sticker',
+                    }[type] || type;
+                },
+
+                humanSize(bytes) {
+                    if (!bytes) return '0 KB';
+                    if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+                    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+                },
+
+                // ---- Location --------------------------------------------
+                openLocation() {
+                    this.showAttach = false;
+                    this.locationError = null;
+                    this.mapError = null;
+                    this.$refs.locationModal.open();
+
+                    // The modal mounts its content on open, so the map container
+                    // only has a size after the next tick.
+                    this.$nextTick(() => this.initMap());
+                },
+
+                /**
+                 * Leaflet is pulled from the CDN the first time the picker is
+                 * opened — the inbox is inline Blade JS outside the Vite bundle,
+                 * and most sessions never send a location at all.
+                 */
+                loadLeaflet() {
+                    if (window.L) return Promise.resolve(window.L);
+                    if (this.leafletPromise) return this.leafletPromise;
+
+                    this.leafletPromise = new Promise((resolve, reject) => {
+                        const css = document.createElement('link');
+                        css.rel = 'stylesheet';
+                        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                        document.head.appendChild(css);
+
+                        const script = document.createElement('script');
+                        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                        script.onload = () => resolve(window.L);
+                        script.onerror = () => reject(new Error('No se pudo cargar el mapa.'));
+                        document.head.appendChild(script);
                     });
-                    this.scrollToBottom();
+
+                    return this.leafletPromise;
+                },
+
+                initMap() {
+                    this.mapLoading = true;
+
+                    this.loadLeaflet()
+                        .then(L => {
+                            const el = this.$refs.mapCanvas;
+
+                            // Never fail silently here: a missing (or zero-sized)
+                            // container looks exactly like "the map just doesn't
+                            // appear", with nothing in the console to go on.
+                            if (!el) {
+                                this.mapError = 'No se pudo montar el mapa en la página.';
+                                return;
+                            }
+
+                            if (!el.offsetHeight) {
+                                this.mapError = 'El contenedor del mapa quedó sin alto; avisá al equipo técnico.';
+                                return;
+                            }
+
+                            // Start on the last pin, a saved location, or a wide
+                            // view — never on a hardcoded foreign city.
+                            const start = this.hasPin
+                                ? [Number(this.locationForm.latitude), Number(this.locationForm.longitude)]
+                                : (this.savedLocations[0]
+                                    ? [this.savedLocations[0].latitude, this.savedLocations[0].longitude]
+                                    : null);
+
+                            // Closing the modal with the X does not run
+                            // closeLocation(), so a previous map/marker can still
+                            // be around. Dropping both together matters: keeping
+                            // a stale marker would leave setPin() writing to a
+                            // marker that belongs to a map no longer on screen.
+                            this.destroyMap();
+
+                            this.map = L.map(el).setView(start ?? [0, 0], start ? 16 : 2);
+
+                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                maxZoom: 19,
+                                attribution: '© OpenStreetMap',
+                            }).addTo(this.map);
+
+                            // Tapping the map moves the pin too — on a phone that
+                            // is far easier than dragging a small marker.
+                            this.map.on('click', e => this.setPin(e.latlng.lat, e.latlng.lng));
+
+                            if (start) this.setPin(start[0], start[1], { recenter: false });
+
+                            // Leaflet measures the container on creation; inside a
+                            // modal that is mid-transition it reads zero and the
+                            // tiles come out grey. Re-measured across the modal's
+                            // 300ms enter transition so it settles either way.
+                            [50, 350].forEach(delay => setTimeout(() => this.map?.invalidateSize(), delay));
+
+                            // Opening the picker with no pin yet: ask for GPS
+                            // straight away, which is the common case.
+                            if (!start) this.requestGps();
+                        })
+                        .catch(e => { this.mapError = e.message; })
+                        .finally(() => { this.mapLoading = false; });
+                },
+
+                /**
+                 * Place (or move) the draggable marker and mirror its coordinates
+                 * into the form. Single source of truth for the pin.
+                 */
+                setPin(lat, lng, { recenter = true } = {}) {
+                    if (!this.map || !window.L) return;
+
+                    if (!this.marker) {
+                        this.marker = window.L.marker([lat, lng], { draggable: true }).addTo(this.map);
+
+                        // Dragging is the whole point: GPS indoors drifts badly,
+                        // so the advisor corrects the pin by hand.
+                        this.marker.on('dragend', () => {
+                            const p = this.marker.getLatLng();
+                            this.writeCoords(p.lat, p.lng);
+                            // A hand-placed pin is exact; the GPS margin no
+                            // longer describes it.
+                            this.locationForm.accuracy = null;
+                        });
+                    } else {
+                        this.marker.setLatLng([lat, lng]);
+                    }
+
+                    this.writeCoords(lat, lng);
+
+                    if (recenter) this.map.setView([lat, lng], Math.max(this.map.getZoom(), 16));
+                },
+
+                // 5 decimals ≈ 1 m, which is well past what WhatsApp renders.
+                writeCoords(lat, lng) {
+                    this.locationForm.latitude = Number(lat).toFixed(6);
+                    this.locationForm.longitude = Number(lng).toFixed(6);
+                    this.locationError = null;
+                },
+
+                /**
+                 * Ask the browser for GPS. The permission prompt is the browser's
+                 * own; all we can do is explain the outcome.
+                 */
+                requestGps() {
+                    if (!navigator.geolocation) {
+                        this.mapError = 'Este navegador no soporta geolocalización.';
+                        return;
+                    }
+
+                    this.locating = true;
+                    this.mapError = null;
+
+                    navigator.geolocation.getCurrentPosition(
+                        position => {
+                            this.locationForm.accuracy = position.coords.accuracy;
+                            this.setPin(position.coords.latitude, position.coords.longitude);
+                            this.locating = false;
+                        },
+                        error => {
+                            this.locating = false;
+                            this.mapError = {
+                                1: 'Bloqueaste el acceso a la ubicación. Habilitalo en el candado de la barra de direcciones, o movés el pin a mano.',
+                                2: 'No se pudo obtener la ubicación. Movés el pin a mano sobre el mapa.',
+                                3: 'La ubicación tardó demasiado. Probá de nuevo o movés el pin a mano.',
+                            }[error.code] || 'No se pudo obtener la ubicación.';
+                        },
+                        // The picker is used indoors on desktops too, where a
+                        // high-accuracy fix can hang for a long time.
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+                    );
+                },
+
+                /**
+                 * A saved pin recenters the map instead of sending immediately —
+                 * the advisor still confirms visually before the customer gets it.
+                 */
+                useSavedLocation(place) {
+                    this.locationForm.label = place.name || '';
+                    this.locationForm.address = place.address || '';
+                    this.locationForm.accuracy = null;
+                    this.setPin(place.latitude, place.longitude);
+                },
+
+                /**
+                 * Typed/pasted coordinates move the pin. Tolerates a "lat, lng"
+                 * pair pasted straight from Google Maps into the latitude box.
+                 */
+                syncMapFromInputs() {
+                    let lat = String(this.locationForm.latitude).trim();
+                    let lng = String(this.locationForm.longitude).trim();
+
+                    if (lat.includes(',')) {
+                        [lat, lng] = lat.split(',').map(v => v.trim());
+                    }
+
+                    if (!lat || !lng || isNaN(Number(lat)) || isNaN(Number(lng))) return;
+
+                    this.locationForm.accuracy = null;
+                    this.setPin(Number(lat), Number(lng));
+                },
+
+                /**
+                 * Send whatever the pin is currently on.
+                 */
+                sendLocation() {
+                    if (this.locationSending || !this.hasPin) return;
+
+                    const payload = {
+                        latitude: Number(this.locationForm.latitude),
+                        longitude: Number(this.locationForm.longitude),
+                        label: this.locationForm.label || null,
+                        address: this.locationForm.address || null,
+                    };
+
+                    this.locationSending = true;
+                    this.locationError = null;
+
+                    this.$axios.post(this.sendLocationUrl, {
+                            phone: this.context.phone,
+                            name: this.context.name,
+                            person_id: this.context.personId,
+                            lead_id: this.context.leadId,
+                            conversation_id: this.conversationId,
+                            reply_to_id: this.replyingTo?.id ?? null,
+                            ...payload,
+                        })
+                        .then(res => {
+                            if (res.data?.message) this.messages.push(res.data.message);
+                            this.replyingTo = null;
+                            this.closeLocation();
+                            this.scrollToBottom();
+                        })
+                        .catch(err => {
+                            this.locationError = err.response?.data?.message || 'No se pudo enviar la ubicación.';
+                        })
+                        .finally(() => { this.locationSending = false; });
+                },
+
+                /**
+                 * Tear the map down on close. Leaflet keeps listeners on window
+                 * and a live tile pipeline; reopening without this stacks a
+                 * second map on the same container.
+                 */
+                closeLocation() {
+                    this.$refs.locationModal?.close();
+                    this.destroyMap();
+                    this.locationForm = { latitude: '', longitude: '', label: '', address: '', accuracy: null };
+                    this.locationError = null;
+                    this.mapError = null;
+                },
+
+                destroyMap() {
+                    if (this.map) {
+                        this.map.remove();
+                        this.map = null;
+                    }
+                    this.marker = null;
                 },
 
                 statusTick(status) {

@@ -5,20 +5,27 @@ namespace Webkul\Whatsapp\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Webkul\Activity\Models\ActivityProxy;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Lead\Models\LeadProxy;
+use Webkul\Whatsapp\Exceptions\AttachmentStorageException;
 use Webkul\Whatsapp\Exceptions\HandoffConflictException;
 use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
+use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\ConversationResolver;
 use Webkul\Whatsapp\Services\Handoff;
+use Webkul\Whatsapp\Services\OutboundAttachment;
 use Webkul\Whatsapp\Services\PhoneNumber;
 
 class InboxController extends Controller
@@ -79,6 +86,10 @@ class InboxController extends Controller
             'messages'     => $messages->values(),
             'server_time'  => $serverTime->toDateTimeString(),
             'capabilities' => $gateway->capabilities()->toArray(),
+            // Meta's per-type size/format table and the team's saved pins. Both
+            // are static config the composer needs to validate before uploading.
+            'media'        => config('whatsapp.media'),
+            'locations'    => $this->savedLocations(),
             'window'       => MessagingWindow::compute(
                 $gateway->messagingWindowHours(),
                 $conversation?->last_inbound_at,
@@ -251,26 +262,10 @@ class InboxController extends Controller
             'reply_to_id' => 'nullable|integer',
         ]);
 
-        // Defense in depth: the UI locks the composer while the agent is on, but
-        // reject here too so a human can never talk over the agent.
         $existing = $this->existingConversation($request);
 
-        if ($existing && $existing->aiEffective()) {
-            return response()->json([
-                'message' => 'El agente está activo en esta conversación. Desactivalo para escribir a mano.',
-            ], 422);
-        }
-
-        // Writing on an unclaimed conversation IS claiming it — otherwise the
-        // pool would keep advertising it as unattended while someone is already
-        // answering. Writing on a conversation assigned to someone else is not
-        // blocked: supervisors and stand-ins need to be able to step in.
-        if ($existing && $existing->handoffPooled() && $this->userId()) {
-            try {
-                $this->handoff->claim($existing, $this->userId());
-            } catch (HandoffConflictException) {
-                // Someone claimed it a moment ago; the message still goes out.
-            }
+        if ($blocked = $this->guardOutbound($existing)) {
+            return $blocked;
         }
 
         $message = DB::transaction(function () use ($existing, $data, $resolver) {
@@ -297,6 +292,243 @@ class InboxController extends Controller
         SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
 
         return response()->json(['message' => $this->transform($message->load('replyTo'))]);
+    }
+
+    /**
+     * Queue an outbound attachment (image/audio/video/document/sticker).
+     *
+     * The file is stored before the provider ever sees it, so the thread shows
+     * it right away and a failed delivery still leaves the advisor looking at
+     * what they tried to send.
+     */
+    public function sendMedia(
+        Request $request,
+        ConversationResolver $resolver,
+        OutboundAttachment $attachments,
+    ): JsonResponse {
+        $data = $request->validate([
+            'phone'       => 'required|string',
+            'name'        => 'nullable|string',
+            'type'        => ['required', Rule::in(array_keys((array) config('whatsapp.media')))],
+            'file'        => 'required|file',
+            'caption'     => 'nullable|string',
+            'reply_to_id' => 'nullable|integer',
+        ]);
+
+        $existing = $this->existingConversation($request);
+
+        // Capabilities is what the composer renders from, so a type that gets
+        // here without being listed means the UI is stale — not a valid send.
+        $gateway = $existing ? $this->gateways->for($existing) : $this->gateways->active();
+
+        if (! $gateway->capabilities()->canSend($data['type'])) {
+            return response()->json([
+                'message' => 'Este canal no puede enviar archivos de tipo '.$data['type'].'.',
+            ], 422);
+        }
+
+        // Size and format come from Meta's own table (config/whatsapp.media) and
+        // are checked per type: a 20 MB image is fine as a document but not as
+        // an image. Rejecting here turns an opaque Graph 400 into a clear error.
+        $limits = (array) config('whatsapp.media.'.$data['type']);
+
+        Validator::make($request->all(), [
+            'file' => [
+                'file',
+                'max:'.$limits['max_kb'],
+                ...(($limits['mimes'] ?? []) ? ['mimetypes:'.implode(',', $limits['mimes'])] : []),
+            ],
+        ], [
+            'file.max'       => 'El archivo supera el límite de WhatsApp para '.$data['type'].' ('.round($limits['max_kb'] / 1024, 1).' MB).',
+            'file.mimetypes' => 'WhatsApp no acepta este formato como '.$data['type'].'.',
+        ])->validate();
+
+        if ($blocked = $this->guardOutbound($existing)) {
+            return $blocked;
+        }
+
+        // Audio and sticker take no caption; the service decides where the
+        // advisor's text goes instead.
+        $plan = $attachments->planCaption($data['type'], $data['caption'] ?? null);
+
+        try {
+            [$message, $followUp] = DB::transaction(function () use ($existing, $data, $plan, $resolver, $attachments, $request) {
+                $conversation = $existing
+                    ?? $resolver->findOrCreate($data['phone'], $data['name'] ?? null);
+
+                $file = $attachments->stage($request->file('file'), $conversation->id);
+
+                $message = MessageProxy::modelClass()::create([
+                    'conversation_id' => $conversation->id,
+                    'direction'       => 'outbound',
+                    'type'            => $data['type'],
+                    'body'            => $plan['caption'],
+                    'media_path'      => $file['url'],
+                    'media_mime'      => $file['mime'],
+                    'media_name'      => $file['name'],
+                    'reply_to_id'     => $data['reply_to_id'] ?? null,
+                    'status'          => 'queued',
+                    'sender'          => 'human',
+                    // Disk-relative path for the gateway: media_path is a public URL
+                    // and the driver needs to read the bytes off the disk.
+                    'payload'         => ['media_disk_path' => $file['path']],
+                ]);
+
+                $followUp = $plan['follow_up']
+                    ? MessageProxy::modelClass()::create([
+                        'conversation_id' => $conversation->id,
+                        'direction'       => 'outbound',
+                        'type'            => 'text',
+                        'body'            => $plan['follow_up'],
+                        'status'          => 'queued',
+                        'sender'          => 'human',
+                    ])
+                    : null;
+
+                $conversation->forceFill(['last_message_at' => now()])->save();
+
+                return [$message, $followUp];
+            });
+        } catch (AttachmentStorageException $e) {
+            // The transaction rolled back, so no orphan message row survives.
+            // Logged as the infrastructure problem it is, but answered as a 422
+            // so the advisor sees something actionable in the composer instead
+            // of a bare "Server Error".
+            Log::error('WhatsApp: no se pudo guardar un adjunto saliente.', [
+                'conversation' => $existing?->id,
+                'type'         => $data['type'],
+                'error'        => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'No se pudo guardar el archivo en el servidor. Avisá al equipo técnico (permisos de storage).',
+            ], 422);
+        }
+
+        // Chained, not two independent dispatches: the caption has to land after
+        // the file, and parallel workers give no ordering guarantee.
+        $jobs = array_filter([
+            new SendMessage($message->id),
+            $followUp ? new SendMessage($followUp->id) : null,
+        ]);
+
+        Bus::chain($jobs)->onQueue(config('whatsapp.queue'))->dispatch();
+
+        return response()->json([
+            'message'   => $this->transform($message->load('replyTo')),
+            'follow_up' => $followUp ? $this->transform($followUp) : null,
+        ]);
+    }
+
+    /**
+     * Queue an outbound location pin.
+     */
+    public function sendLocation(Request $request, ConversationResolver $resolver): JsonResponse
+    {
+        $data = $request->validate([
+            'phone'       => 'required|string',
+            'name'        => 'nullable|string',
+            'latitude'    => 'required|numeric|between:-90,90',
+            'longitude'   => 'required|numeric|between:-180,180',
+            // The pin's own label/address — distinct from `name`, which is the
+            // contact name used to resolve the conversation.
+            'label'       => 'nullable|string|max:1000',
+            'address'     => 'nullable|string|max:1000',
+            'reply_to_id' => 'nullable|integer',
+        ]);
+
+        $existing = $this->existingConversation($request);
+
+        $gateway = $existing ? $this->gateways->for($existing) : $this->gateways->active();
+
+        if (! $gateway->capabilities()->canSend('location')) {
+            return response()->json(['message' => 'Este canal no puede enviar ubicaciones.'], 422);
+        }
+
+        if ($blocked = $this->guardOutbound($existing)) {
+            return $blocked;
+        }
+
+        $location = new OutboundLocation(
+            latitude: (float) $data['latitude'],
+            longitude: (float) $data['longitude'],
+            name: $data['label'] ?? null,
+            address: $data['address'] ?? null,
+        );
+
+        $message = DB::transaction(function () use ($existing, $data, $location, $resolver) {
+            $conversation = $existing
+                ?? $resolver->findOrCreate($data['phone'], $data['name'] ?? null);
+
+            $message = MessageProxy::modelClass()::create([
+                'conversation_id' => $conversation->id,
+                'direction'       => 'outbound',
+                'type'            => 'location',
+                // Keeps the conversation-list preview from going blank.
+                'body'            => $location->label(),
+                'reply_to_id'     => $data['reply_to_id'] ?? null,
+                'status'          => 'queued',
+                'sender'          => 'human',
+                'payload'         => ['location' => $location->toArray()],
+            ]);
+
+            $conversation->forceFill(['last_message_at' => now()])->save();
+
+            return $message;
+        });
+
+        SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
+
+        return response()->json(['message' => $this->transform($message->load('replyTo'))]);
+    }
+
+    /**
+     * Saved locations for the composer's location panel. Static config, so it
+     * rides along with the thread payload rather than costing its own endpoint.
+     */
+    protected function savedLocations(): array
+    {
+        return collect(config('whatsapp.locations', []))
+            ->map(fn ($place) => [
+                'name'      => $place['name'] ?? null,
+                'address'   => $place['address'] ?? null,
+                'latitude'  => (float) ($place['latitude'] ?? 0),
+                'longitude' => (float) ($place['longitude'] ?? 0),
+            ])
+            ->filter(fn ($place) => $place['latitude'] || $place['longitude'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Shared pre-flight for every outbound path (text, media, location).
+     *
+     * Returns a JsonResponse when the send must be refused, null when it may
+     * proceed — and claims the conversation as a side effect.
+     */
+    protected function guardOutbound($existing): ?JsonResponse
+    {
+        // Defense in depth: the UI locks the composer while the agent is on, but
+        // reject here too so a human can never talk over the agent.
+        if ($existing && $existing->aiEffective()) {
+            return response()->json([
+                'message' => 'El agente está activo en esta conversación. Desactivalo para escribir a mano.',
+            ], 422);
+        }
+
+        // Writing on an unclaimed conversation IS claiming it — otherwise the
+        // pool would keep advertising it as unattended while someone is already
+        // answering. Writing on a conversation assigned to someone else is not
+        // blocked: supervisors and stand-ins need to be able to step in.
+        if ($existing && $existing->handoffPooled() && $this->userId()) {
+            try {
+                $this->handoff->claim($existing, $this->userId());
+            } catch (HandoffConflictException) {
+                // Someone claimed it a moment ago; the message still goes out.
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -479,10 +711,64 @@ class InboxController extends Controller
                 'filename' => $message->media_name,
                 'meta'     => $message->media_mime,
             ] : null,
+            // The thread renders these two from structured data, not from a
+            // file. Both live in `payload`: outbound writes it directly, inbound
+            // gets the provider's raw node.
+            'location'  => $this->locationOf($message),
+            'contact'   => $this->contactOf($message),
             'replyTo'   => $message->replyTo ? [
                 'author'  => $message->replyTo->direction === 'inbound' ? 'Cliente' : 'Agente',
                 'preview' => \Illuminate\Support\Str::limit((string) $message->replyTo->body, 60),
             ] : null,
+        ];
+    }
+
+    /**
+     * Coordinates of a location message, from either shape of `payload`:
+     * ['location' => …] for what we sent, the provider's raw node for what we
+     * received. Without this the thread renders an empty "Ubicación" card.
+     */
+    protected function locationOf($message): ?array
+    {
+        if ($message->type !== 'location') {
+            return null;
+        }
+
+        $node = $message->payload['location'] ?? null;
+
+        if (! is_array($node) || ! isset($node['latitude'], $node['longitude'])) {
+            return null;
+        }
+
+        return [
+            'lat'     => (float) $node['latitude'],
+            'lng'     => (float) $node['longitude'],
+            'name'    => $node['name'] ?? null,
+            'address' => $node['address'] ?? null,
+            // Deep link so the advisor can actually open the pin.
+            'url'     => sprintf('https://www.google.com/maps?q=%s,%s', $node['latitude'], $node['longitude']),
+        ];
+    }
+
+    /**
+     * Name and phone of a shared contact card (inbound only for now).
+     */
+    protected function contactOf($message): ?array
+    {
+        if ($message->type !== 'contact') {
+            return null;
+        }
+
+        // Cloud API pluralizes on the wire: contacts[] even for a single card.
+        $card = $message->payload['contacts'][0] ?? null;
+
+        if (! is_array($card)) {
+            return null;
+        }
+
+        return [
+            'name'  => $card['name']['formatted_name'] ?? 'Contacto',
+            'phone' => $card['phones'][0]['phone'] ?? null,
         ];
     }
 }

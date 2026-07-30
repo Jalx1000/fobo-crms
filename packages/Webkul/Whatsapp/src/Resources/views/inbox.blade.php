@@ -27,6 +27,8 @@
         :use-mock="{{ config('whatsapp.ui.use_mock') ? 'true' : 'false' }}"
         thread-url="{{ route('admin.whatsapp.thread') }}"
         send-url="{{ route('admin.whatsapp.send') }}"
+        send-media-url="{{ route('admin.whatsapp.send-media') }}"
+        send-location-url="{{ route('admin.whatsapp.send-location') }}"
         agent-url-base="{{ url(config('app.admin_path').'/whatsapp/conversations') }}"
         quick-replies-url="{{ route('admin.whatsapp.quick-replies.index') }}"
         person-url-base="{{ url(config('app.admin_path').'/whatsapp/persons') }}"
