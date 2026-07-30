@@ -88,6 +88,7 @@
             <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : 'all'" :extra-types="[
                 ['name' => 'quotes', 'label' => trans('admin::app.leads.view.tabs.quotes')],
                 ['name' => 'whatsapp', 'label' => 'WhatsApp'],
+                ['name' => 'archivos', 'label' => 'Archivos'],
                 ['name' => 'description', 'label' => trans('admin::app.leads.view.tabs.description')],
                 ['name' => 'products', 'label' => trans('admin::app.leads.view.tabs.products')],
             ]">
@@ -99,6 +100,15 @@
                 {{-- WhatsApp Inbox --}}
                 <x-slot:whatsapp>
                     @include('whatsapp::inbox')
+                </x-slot>
+
+                {{-- Files of THIS deal only. The whole history lives on the
+                     contact's own Archivos tab. --}}
+                <x-slot:archivos>
+                    <x-admin::entity-files
+                        :endpoint="route('admin.leads.files.index', $lead->id)"
+                        empty-hint="Los archivos de WhatsApp, adjuntos de email y actividades de esta oportunidad aparecen acá. El historial completo del cliente está en su ficha de contacto."
+                    />
                 </x-slot>
 
                 {{-- Historial IA --}}

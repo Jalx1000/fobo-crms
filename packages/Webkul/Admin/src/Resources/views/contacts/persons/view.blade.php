@@ -92,11 +92,20 @@
                 :endpoint="route('admin.contacts.persons.activities.index', $person->id)"
                 :extra-types="[
                     ['name' => 'whatsapp', 'label' => 'WhatsApp'],
+                    ['name' => 'archivos', 'label' => 'Archivos'],
                     ['name' => 'historial', 'label' => 'Historial IA'],
                 ]"
             >
                 <x-slot:whatsapp>
                     @include('whatsapp::inbox')
+                </x-slot>
+
+                {{-- Full file history: this contact's own activities plus every
+                     file of every lead they own. --}}
+                <x-slot:archivos>
+                    <x-admin::entity-files
+                        :endpoint="route('admin.contacts.persons.files.index', $person->id)"
+                    />
                 </x-slot>
 
                 <x-slot:historial>

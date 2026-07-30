@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Webkul\Admin\Http\Controllers\Lead\ActivityController;
 use Webkul\Admin\Http\Controllers\Lead\EmailController;
+use Webkul\Admin\Http\Controllers\Lead\FileController;
 use Webkul\Admin\Http\Controllers\Lead\LeadController;
 use Webkul\Admin\Http\Controllers\Lead\QuoteController;
 use Webkul\Admin\Http\Controllers\Lead\TagController;
@@ -44,6 +45,10 @@ Route::controller(LeadController::class)->prefix('leads')->group(function () {
 
     Route::controller(ActivityController::class)->prefix('{id}/activities')->group(function () {
         Route::get('', 'index')->name('admin.leads.activities.index');
+    });
+
+    Route::controller(FileController::class)->prefix('{id}/files')->group(function () {
+        Route::get('', 'index')->name('admin.leads.files.index');
     });
 
     Route::controller(TagController::class)->prefix('{id}/tags')->group(function () {
