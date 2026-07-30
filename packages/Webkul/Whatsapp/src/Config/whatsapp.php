@@ -123,6 +123,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Handoff (derivación a un asesor)
+    |--------------------------------------------------------------------------
+    | When the AI agent (or an advisor) hands a conversation to a human, the
+    | customer is told nothing — the handoff is internal. So the notification
+    | below is the backup signal; the primary one is the "Sin asesor" chip in
+    | the inbox list.
+    |
+    | pool_emails: who to email when the conversation lands in the pool because
+    | the contact has no owner. Comma-separated. Left empty, pooled handoffs are
+    | only visible in the inbox (logged as a warning).
+    */
+    'handoff' => [
+        'notify'      => env('WHATSAPP_HANDOFF_NOTIFY', true),
+        'pool_emails' => array_filter(array_map(
+            'trim',
+            explode(',', (string) env('WHATSAPP_HANDOFF_POOL_EMAILS', ''))
+        )),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Front-end
     |--------------------------------------------------------------------------
     | While the backend endpoints are being built (Sprints 0-2) the inbox

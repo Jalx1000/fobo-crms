@@ -11,6 +11,7 @@ use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\AgentPayload;
+use Webkul\Whatsapp\Services\Handoff;
 
 /**
  * Token-authenticated API for the external AI agent: read the conversation for
@@ -21,6 +22,7 @@ class AgentController extends Controller
     public function __construct(
         protected GatewayManager $gateways,
         protected AgentPayload $payloads,
+        protected Handoff $handoff,
     ) {}
 
     /**
@@ -47,6 +49,60 @@ class AgentController extends Controller
             'gateway'         => $conversation->gateway,
             'contact'         => $this->payloads->contact($conversation),
             'history'         => $this->payloads->history($conversation),
+            // Lets the workflow check before asking for a handoff again, which
+            // is what keeps an eager LLM from mailing the team on every message.
+            'handoff'         => $this->handoff->toArray($conversation),
+        ]);
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/api/v1/whatsapp/conversations/{id}/handoff",
+     *     operationId="whatsappAgentHandoff",
+     *     tags={"WhatsApp"},
+     *     summary="Hand the conversation over to a human advisor",
+     *     security={ {"sanctum_admin": {} }},
+     *
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *
+     *     @OA\RequestBody(@OA\JsonContent(
+     *
+     *         @OA\Property(property="reason", type="string", nullable=true, example="El cliente pide hablar con una persona")
+     *     )),
+     *
+     *     @OA\Response(response=200, description="Handoff open; the agent must stop replying"),
+     *     @OA\Response(response=401, description="Unauthenticated"),
+     *     @OA\Response(response=404, description="Conversation not found")
+     * )
+     *
+     * Always 200, never 409 on a repeat call: for n8n a second request is a
+     * successful no-op, and an error status would just make the workflow retry
+     * in a loop.
+     */
+    public function handoff(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        // actorUserId stays null on purpose: the sanctum token belongs to a real
+        // user, but the actor here is the bot. Crediting the token's owner would
+        // put a human's name on the lead timeline for something they never did.
+        $result = $this->handoff->request(
+            conversation: $conversation,
+            reason: $data['reason'] ?? null,
+            source: 'ai',
+            actorUserId: null,
+        );
+
+        return response()->json([
+            'handoff' => $this->handoff->toArray($result['conversation'], null, $result['changed']),
+            'agent'   => [
+                'enabled'   => $result['conversation']->ai_enabled,
+                'effective' => $result['conversation']->aiEffective(),
+            ],
         ]);
     }
 
@@ -81,6 +137,17 @@ class AgentController extends Controller
         ]);
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        // The agent's reply travels a long way: CRM → webhook → n8n thinks →
+        // POST back here. A handoff can happen anywhere in that gap, so refuse
+        // the late reply instead of letting the AI talk over the advisor. This
+        // is the mirror image of the guard InboxController::send() already has.
+        if ($conversation->handoffOpen() || ! $conversation->aiEffective()) {
+            return response()->json([
+                'message' => 'Esta conversación fue derivada a un asesor. El agente ya no debe responder.',
+                'handoff' => $this->handoff->toArray($conversation),
+            ], 409);
+        }
 
         $window = MessagingWindow::compute(
             $this->gateways->for($conversation)->messagingWindowHours(),

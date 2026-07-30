@@ -124,9 +124,22 @@
                                         </span>
                                     </div>
 
-                                    <div v-if="c.stage || (!c.person_id && !c.lead_id)" class="mt-1 flex items-center gap-1.5">
+                                    <div v-if="c.stage || c.handoff || (!c.person_id && !c.lead_id)" class="mt-1 flex items-center gap-1.5">
+                                        <!-- With nothing sent to the customer and no
+                                             in-app notifications in Krayin, this badge
+                                             is the team's real-time signal. -->
+                                        <span v-if="isPooled(c)"
+                                              class="shrink-0 rounded-full bg-red-100 px-1.5 py-px text-[10px] font-bold text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                                              :title="'Sin asesor · ' + waitingLabel(c)">
+                                            Sin asesor @{{ waitingLabel(c) }}
+                                        </span>
+                                        <span v-else-if="c.handoff === 'assigned'"
+                                              class="shrink-0 rounded-full bg-amber-100 px-1.5 py-px text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                                              title="Derivada a un asesor">
+                                            @{{ c.handoff_mine ? 'Mía' : 'Derivada' }}
+                                        </span>
                                         <span v-if="c.stage" class="truncate rounded-full bg-sky-100 px-1.5 py-px text-[10px] font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">@{{ c.stage }}</span>
-                                        <span v-if="!c.person_id && !c.lead_id" class="rounded bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Sin asignar</span>
+                                        <span v-if="!c.person_id && !c.lead_id" class="rounded bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Sin contacto</span>
                                         <button v-if="!c.person_id && !c.lead_id" type="button"
                                                 class="hidden rounded px-1.5 py-px text-[10px] font-medium text-brandColor hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor group-hover:inline-block dark:hover:bg-gray-800"
                                                 title="Crear contacto en el CRM con este número"
@@ -208,7 +221,12 @@
                         filters: [
                             { value: 'all', label: 'Todas' },
                             { value: 'unread', label: 'No leídas' },
-                            { value: 'unassigned', label: 'Sin asignar' },
+                            // "Sin asesor" = derived, nobody claimed it.
+                            // "Sin contacto" = no person/lead linked. Two very
+                            // different things; the labels must not blur them.
+                            { value: 'pool', label: 'Sin asesor' },
+                            { value: 'mine', label: 'Míos' },
+                            { value: 'unassigned', label: 'Sin contacto' },
                         ],
                         stages: [],
                         stageFilter: null,
@@ -234,7 +252,21 @@
                 },
 
                 mounted() {
-                    this.load();
+                    // ?conversation=<id> is how the handoff email links straight
+                    // to the thread instead of dumping the advisor on the list.
+                    const deepLink = parseInt(new URLSearchParams(window.location.search).get('conversation'), 10);
+
+                    this.load().then(() => {
+                        if (!deepLink) return;
+
+                        const match = this.conversations.find(c => c.id === deepLink);
+
+                        // It may not be on the first page (or may be filtered
+                        // out), so fall back to selecting it by id alone — the
+                        // thread endpoint only needs that.
+                        this.select(match ?? { id: deepLink, name: 'Conversación', person_id: null, lead_id: null, phone: null });
+                    });
+
                     this.$axios.get(this.stagesUrl)
                         .then(res => { this.stages = res.data?.stages ?? []; })
                         .catch(() => {});
@@ -248,12 +280,34 @@
                 },
 
                 methods: {
+                    // One place to build the query, so a new filter never gets
+                    // added to load() and forgotten in loadMore().
+                    listParams(page) {
+                        return { search: this.search || null, filter: this.filter, stage: this.stageFilter, page };
+                    },
+
+                    // Derived and unclaimed: whoever takes it first owns it.
+                    isPooled(c) {
+                        return c.handoff === 'requested' && !c.handoff_mine;
+                    },
+
+                    // How long the customer has been waiting. Nobody told them
+                    // anything, so the age is the whole point of the badge.
+                    waitingLabel(c) {
+                        if (!c.handoff_requested_at) return '';
+
+                        const minutes = Math.floor((Date.now() - new Date(c.handoff_requested_at)) / 60000);
+                        if (minutes < 1) return 'recién';
+                        if (minutes < 60) return `${minutes}m`;
+
+                        const hours = Math.floor(minutes / 60);
+                        return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
+                    },
+
                     load(background = false) {
                         if (!background) this.listLoading = true;
 
-                        return this.$axios.get(this.conversationsUrl, {
-                                params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, page: 1 },
-                            })
+                        return this.$axios.get(this.conversationsUrl, { params: this.listParams(1) })
                             .then(res => {
                                 this.conversations = res.data?.data ?? [];
                                 this.page = res.data?.current_page ?? 1;
@@ -264,9 +318,7 @@
                     },
 
                     loadMore() {
-                        this.$axios.get(this.conversationsUrl, {
-                                params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, page: this.page + 1 },
-                            })
+                        this.$axios.get(this.conversationsUrl, { params: this.listParams(this.page + 1) })
                             .then(res => {
                                 this.conversations.push(...(res.data?.data ?? []));
                                 this.page = res.data?.current_page ?? this.page + 1;

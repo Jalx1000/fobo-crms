@@ -103,20 +103,44 @@
                                   title="Fuera de la ventana de 24h">
                                 Ventana cerrada
                             </span>
+
+                            <!-- handoff state -->
+                            <span v-if="handoff.pooled"
+                                  class="rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                                  title="Derivada y sin asesor asignado">
+                                Sin asesor
+                            </span>
+                            <span v-else-if="handoff.open"
+                                  class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                                  :title="'Derivada a ' + (handoff.assigned_user ? handoff.assigned_user.name : 'un asesor')">
+                                @{{ handoff.is_mine ? 'Mía' : (handoff.assigned_user ? handoff.assigned_user.name : 'Derivada') }}
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                <!-- AI agent switch -->
-                <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-300"
-                       :class="agentToggling ? 'opacity-50 pointer-events-none' : ''">
-                    <span>Agente IA</span>
-                    <span class="relative inline-flex h-5 w-9 items-center">
-                        <input type="checkbox" :checked="aiEnabled" @change="toggleAgent($event.target.checked)" class="peer sr-only">
-                        <span class="h-5 w-9 rounded-full bg-gray-300 transition peer-checked:bg-brandColor dark:bg-gray-600"></span>
-                        <span class="absolute left-0.5 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4"></span>
-                    </span>
-                </label>
+                <div class="flex items-center gap-3">
+                    <!-- Derive to a human. Hidden once one is already open: the
+                         banner above the composer drives it from there. -->
+                    <button v-if="conversationId && !handoff.open"
+                            type="button"
+                            :disabled="handoffBusy"
+                            class="rounded-md border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/20"
+                            @click="requestHandoff()">
+                        Derivar a asesor
+                    </button>
+
+                    <!-- AI agent switch -->
+                    <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-300"
+                           :class="agentToggling ? 'opacity-50 pointer-events-none' : ''">
+                        <span>Agente IA</span>
+                        <span class="relative inline-flex h-5 w-9 items-center">
+                            <input type="checkbox" :checked="aiEnabled" @change="toggleAgent($event.target.checked)" class="peer sr-only">
+                            <span class="h-5 w-9 rounded-full bg-gray-300 transition peer-checked:bg-brandColor dark:bg-gray-600"></span>
+                            <span class="absolute left-0.5 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4"></span>
+                        </span>
+                    </label>
+                </div>
             </div>
 
             <!-- Messages -->
@@ -310,6 +334,52 @@
                 </template>
 
                 <template v-else>
+
+                <!-- Deliberately OUTSIDE the v-if/v-else-if chain below: that
+                     chain ends in the composer, so a banner joining it would hide
+                     the very text box the handoff exists to unlock. -->
+                <div v-if="handoff.open" class="mb-2 rounded-md px-3 py-2 text-xs"
+                     :class="handoff.pooled
+                        ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
+                        : 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300'">
+                    <div class="flex items-center justify-between gap-2">
+                        <span>
+                            <template v-if="handoff.pooled">
+                                El cliente pidió un asesor y <strong>nadie la tomó todavía</strong>.
+                            </template>
+                            <template v-else-if="handoff.is_mine">
+                                Esta derivación es tuya. El agente IA no va a responder.
+                            </template>
+                            <template v-else>
+                                Derivada a <strong>@{{ handoff.assigned_user ? handoff.assigned_user.name : 'otro asesor' }}</strong>. Podés escribir igual si necesitás intervenir.
+                            </template>
+                        </span>
+
+                        <span class="flex shrink-0 items-center gap-2">
+                            <button v-if="handoff.pooled" type="button" :disabled="handoffBusy"
+                                    class="rounded bg-red-600 px-2 py-1 font-semibold text-white transition hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-40"
+                                    @click="claimHandoff()">
+                                Tomar conversación
+                            </button>
+                            <button v-else type="button" :disabled="handoffBusy"
+                                    class="rounded border border-current px-2 py-1 font-semibold transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40"
+                                    @click="resolveHandoff()">
+                                Cerrar derivación
+                            </button>
+                        </span>
+                    </div>
+
+                    <div v-if="handoff.reason" class="mt-1 opacity-90">
+                        Motivo: @{{ handoff.reason }}
+                    </div>
+
+                    <!-- Default is to hand the conversation back to the agent, so
+                         a closed handoff never leaves it silently unattended. -->
+                    <label v-if="!handoff.pooled" class="mt-1.5 flex cursor-pointer items-center gap-1.5">
+                        <input type="checkbox" v-model="handoffReactivateAi" class="h-3 w-3 rounded border-gray-300">
+                        <span>Al cerrar, devolver la conversación al agente IA</span>
+                    </label>
+                </div>
 
                 <div v-if="!context.phone" class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
                     Este contacto no tiene número de WhatsApp. Asigna un teléfono para poder chatear.
@@ -960,6 +1030,12 @@
                     conversationId: null,
                     agentToggling: false,
                     agentNote: false,
+                    // Handoff to a human; refreshed by every poll, like `window`.
+                    handoff: { state: null, open: false, pooled: false, reason: null, assigned_user: null, is_mine: false },
+                    handoffBusy: false,
+                    // Closing a handoff gives the conversation back to the agent
+                    // unless the advisor unticks this.
+                    handoffReactivateAi: true,
                     // Internal note composer (notes are Krayin note-activities)
                     composerMode: 'mensaje',
                     noteDraft: '',
@@ -1151,14 +1227,90 @@
                     this.$axios.patch(`${this.agentUrlBase}/${this.conversationId}/agent`, { enabled })
                         .then(res => {
                             this.aiEnabled = res.data?.agent?.effective ?? enabled;
+                            this.applyHandoff(res.data);
                             // Show the reminder only when the human just took over.
                             this.agentNote = !this.aiEnabled;
                             if (this.aiEnabled) this.showAttach = false;
                             // The composer just unlocked: put the caret there.
                             if (!this.aiEnabled) this.focusComposer();
                         })
-                        .catch(() => {})
+                        .catch(err => {
+                            // Rejected (422 = handoff open). The checkbox is
+                            // uncontrolled, so Vue will not re-render it when
+                            // aiEnabled did not actually change: put it back by
+                            // hand or the switch lies about the real state.
+                            this.applyHandoff(err.response?.data);
+                            this.syncAgentCheckbox();
+                            this.notifyError(err, 'No se pudo cambiar el estado del agente.');
+                        })
                         .finally(() => { this.agentToggling = false; });
+                },
+
+                /**
+                 * The one place the handoff block from any endpoint is applied.
+                 */
+                applyHandoff(data) {
+                    if (data?.handoff) this.handoff = data.handoff;
+                    if (data?.agent) this.aiEnabled = data.agent.effective;
+                },
+
+                syncAgentCheckbox() {
+                    const input = this.$el?.querySelector?.('input[type=checkbox].peer');
+                    if (input) input.checked = this.aiEnabled;
+                },
+
+                notifyError(err, fallback) {
+                    const message = err?.response?.data?.message || fallback;
+                    if (this.$emitter) this.$emitter.emit('add-flash', { type: 'error', message });
+                    else alert(message);
+                },
+
+                requestHandoff() {
+                    if (!this.conversationId || this.handoffBusy) return;
+
+                    const reason = window.prompt('¿Por qué derivás esta conversación? (opcional)') ?? '';
+
+                    this.handoffBusy = true;
+                    this.$axios.post(`${this.agentUrlBase}/${this.conversationId}/handoff`, { reason })
+                        .then(res => {
+                            this.applyHandoff(res.data);
+                            this.agentNote = false; // the handoff banner says it better
+                            this.focusComposer();
+                        })
+                        .catch(err => this.notifyError(err, 'No se pudo derivar la conversación.'))
+                        .finally(() => { this.handoffBusy = false; });
+                },
+
+                claimHandoff() {
+                    if (!this.conversationId || this.handoffBusy) return;
+
+                    this.handoffBusy = true;
+                    this.$axios.post(`${this.agentUrlBase}/${this.conversationId}/handoff/claim`)
+                        .then(res => {
+                            this.applyHandoff(res.data);
+                            this.focusComposer();
+                        })
+                        .catch(err => {
+                            // 409 = someone got there first. The response carries
+                            // the winning state, so the banner self-corrects.
+                            this.applyHandoff(err.response?.data);
+                            this.notifyError(err, 'No se pudo tomar la conversación.');
+                        })
+                        .finally(() => { this.handoffBusy = false; });
+                },
+
+                resolveHandoff() {
+                    if (!this.conversationId || this.handoffBusy) return;
+
+                    this.handoffBusy = true;
+                    this.$axios.post(`${this.agentUrlBase}/${this.conversationId}/handoff/resolve`,
+                        { reactivate_ai: this.handoffReactivateAi })
+                        .then(res => {
+                            this.applyHandoff(res.data);
+                            this.agentNote = !this.aiEnabled;
+                        })
+                        .catch(err => this.notifyError(err, 'No se pudo cerrar la derivación.'))
+                        .finally(() => { this.handoffBusy = false; });
                 },
 
                 loadMock() {
@@ -1213,6 +1365,10 @@
                             if (res.data?.conversation?.id) this.conversationId = res.data.conversation.id;
                             if (res.data?.conversation?.gateway) this.gateway = res.data.conversation.gateway;
                             if (res.data?.agent) this.aiEnabled = res.data.agent.effective;
+                            // Sent on every poll and independent of the `since`
+                            // cursor, so the banner updates even when no message
+                            // came in — a handoff produces none.
+                            if (res.data?.handoff) this.handoff = res.data.handoff;
 
                             const incoming = res.data?.messages ?? [];
                             if (!incoming.length) return;

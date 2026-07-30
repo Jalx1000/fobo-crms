@@ -33,4 +33,5 @@ Route::prefix('api/v1/whatsapp')
     ->group(function () {
         Route::get('conversations/{id}/messages', [AgentController::class, 'messages']);
         Route::post('conversations/{id}/messages', [AgentController::class, 'send']);
+        Route::post('conversations/{id}/handoff', [AgentController::class, 'handoff']);
     });

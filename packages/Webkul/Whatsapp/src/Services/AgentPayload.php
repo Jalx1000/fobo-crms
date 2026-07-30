@@ -13,7 +13,10 @@ use Webkul\Whatsapp\Models\Message;
  */
 class AgentPayload
 {
-    public function __construct(protected GatewayManager $gateways) {}
+    public function __construct(
+        protected GatewayManager $gateways,
+        protected Handoff $handoff,
+    ) {}
 
     /**
      * The `message.received` event for an inbound message.
@@ -36,6 +39,7 @@ class AgentPayload
                 'timestamp' => optional($message->created_at)->toIso8601String(),
             ],
             'history' => $this->history($conversation),
+            'handoff' => $this->handoff->toArray($conversation),
             'window'  => [
                 'open'       => $window->open,
                 'expires_at' => $window->expiresAt?->toIso8601String(),

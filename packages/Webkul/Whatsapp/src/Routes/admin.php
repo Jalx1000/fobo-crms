@@ -21,6 +21,12 @@ Route::controller(InboxController::class)
         Route::post('send', 'send')->name('send');
         Route::patch('conversations/{id}/agent', 'toggleAgent')->name('agent');
         Route::post('conversations/{id}/notes', 'storeNote')->name('notes.store');
+
+        // Derivación a un asesor humano.
+        Route::post('conversations/{id}/handoff', 'requestHandoff')->name('handoff.request');
+        Route::post('conversations/{id}/handoff/claim', 'claimHandoff')->name('handoff.claim');
+        Route::post('conversations/{id}/handoff/resolve', 'resolveHandoff')->name('handoff.resolve');
+        Route::post('conversations/{id}/handoff/reassign', 'reassignHandoff')->name('handoff.reassign');
     });
 
 Route::controller(ChatController::class)

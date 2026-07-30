@@ -11,17 +11,22 @@ use Webkul\Activity\Models\ActivityProxy;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Lead\Models\LeadProxy;
+use Webkul\Whatsapp\Exceptions\HandoffConflictException;
 use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\ConversationResolver;
+use Webkul\Whatsapp\Services\Handoff;
 use Webkul\Whatsapp\Services\PhoneNumber;
 
 class InboxController extends Controller
 {
-    public function __construct(protected GatewayManager $gateways) {}
+    public function __construct(
+        protected GatewayManager $gateways,
+        protected Handoff $handoff,
+    ) {}
 
     /**
      * Return the conversation, its messages (incremental via the `since` cursor)
@@ -84,6 +89,10 @@ class InboxController extends Controller
                 'enabled'   => $conversation?->ai_enabled,
                 'effective' => $conversation ? $conversation->aiEffective() : (bool) config('whatsapp.ai.enabled'),
             ],
+            // Sent on every poll, like `window` and `capabilities`, and
+            // independent of the `since` cursor: a handoff produces no message,
+            // so an empty incremental poll still has to refresh the banner.
+            'handoff'      => $this->handoff->toArray($conversation, $this->userId()),
         ]);
     }
 
@@ -100,14 +109,134 @@ class InboxController extends Controller
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
 
+        // Switching the agent back on with a handoff open would let it talk over
+        // the advisor who owns the conversation. Closing the handoff is the way
+        // back. Turning it *off* is always allowed.
+        if ($data['enabled'] && $conversation->handoffOpen()) {
+            return response()->json([
+                'message' => 'Hay una derivación abierta. Cerrala antes de reactivar el agente IA.',
+                'agent'   => $this->agentBlock($conversation),
+                'handoff' => $this->handoff->toArray($conversation, $this->userId()),
+            ], 422);
+        }
+
         $conversation->update(['ai_enabled' => $data['enabled']]);
 
         return response()->json([
-            'agent' => [
-                'enabled'   => $conversation->ai_enabled,
-                'effective' => $conversation->aiEffective(),
-            ],
+            'agent'   => $this->agentBlock($conversation),
+            'handoff' => $this->handoff->toArray($conversation, $this->userId()),
         ]);
+    }
+
+    /**
+     * Derive the conversation to a human, from the inbox.
+     *
+     * `assign_to_me` covers the "I'll take it myself" case, skipping the owner
+     * routing entirely.
+     */
+    public function requestHandoff(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            'reason'       => 'nullable|string|max:500',
+            'assign_to_me' => 'nullable|boolean',
+        ]);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        $result = $this->handoff->request(
+            conversation: $conversation,
+            reason: $data['reason'] ?? null,
+            source: 'human',
+            actorUserId: $this->userId(),
+            assignTo: ($data['assign_to_me'] ?? false) ? $this->userId() : null,
+        );
+
+        return $this->handoffResponse($result['conversation'], $result['changed']);
+    }
+
+    /**
+     * Take a pooled conversation. 409 when another advisor got there first.
+     */
+    public function claimHandoff(string $id): JsonResponse
+    {
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        try {
+            $conversation = $this->handoff->claim($conversation, $this->userId());
+        } catch (HandoffConflictException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'handoff' => $this->handoff->toArray($conversation->refresh(), $this->userId()),
+            ], 409);
+        }
+
+        return $this->handoffResponse($conversation);
+    }
+
+    /**
+     * Close the handoff. Hands the conversation back to the AI agent unless the
+     * advisor unticks the box.
+     */
+    public function resolveHandoff(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate(['reactivate_ai' => 'nullable|boolean']);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        try {
+            $conversation = $this->handoff->resolve(
+                $conversation,
+                $this->userId(),
+                $data['reactivate_ai'] ?? true,
+            );
+        } catch (HandoffConflictException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return $this->handoffResponse($conversation);
+    }
+
+    /**
+     * Pass an open handoff to another advisor.
+     */
+    public function reassignHandoff(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate(['user_id' => 'required|integer|exists:users,id']);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        try {
+            $conversation = $this->handoff->reassign($conversation, (int) $data['user_id'], $this->userId());
+        } catch (HandoffConflictException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return $this->handoffResponse($conversation);
+    }
+
+    /**
+     * Every handoff endpoint answers with the same shape, so the front-end can
+     * apply them all through one code path.
+     */
+    protected function handoffResponse($conversation, ?bool $changed = null): JsonResponse
+    {
+        return response()->json([
+            'handoff' => $this->handoff->toArray($conversation, $this->userId(), $changed),
+            'agent'   => $this->agentBlock($conversation),
+        ]);
+    }
+
+    protected function agentBlock($conversation): array
+    {
+        return [
+            'enabled'   => $conversation?->ai_enabled,
+            'effective' => $conversation ? $conversation->aiEffective() : (bool) config('whatsapp.ai.enabled'),
+        ];
+    }
+
+    protected function userId(): ?int
+    {
+        return auth()->guard('user')->id();
     }
 
     /**
@@ -130,6 +259,18 @@ class InboxController extends Controller
             return response()->json([
                 'message' => 'El agente está activo en esta conversación. Desactivalo para escribir a mano.',
             ], 422);
+        }
+
+        // Writing on an unclaimed conversation IS claiming it — otherwise the
+        // pool would keep advertising it as unattended while someone is already
+        // answering. Writing on a conversation assigned to someone else is not
+        // blocked: supervisors and stand-ins need to be able to step in.
+        if ($existing && $existing->handoffPooled() && $this->userId()) {
+            try {
+                $this->handoff->claim($existing, $this->userId());
+            } catch (HandoffConflictException) {
+                // Someone claimed it a moment ago; the message still goes out.
+            }
         }
 
         $message = DB::transaction(function () use ($existing, $data, $resolver) {

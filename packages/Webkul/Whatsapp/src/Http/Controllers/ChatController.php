@@ -96,9 +96,21 @@ class ChatController extends Controller
             });
         }
 
+        // Columns stay fully qualified: paginate() wraps this in a count(*) over
+        // the joinSub, where a bare column name would be ambiguous.
+        $openStates = ConversationProxy::modelClass()::HANDOFF_OPEN_STATES;
+
         match ($request->input('filter')) {
             'unassigned' => $query->whereNull('person_id')->whereNull('lead_id'),
             'unread'     => $query->where('unread_count', '>', 0),
+            // Every conversation waiting on a human, mine or not — this is what
+            // lets a supervisor spot one that has been sitting for hours.
+            'handoff'    => $query->whereIn('whatsapp_conversations.handoff_state', $openStates),
+            // Derived and unclaimed: the team pool.
+            'pool'       => $query->where('whatsapp_conversations.handoff_state', ConversationProxy::modelClass()::HANDOFF_REQUESTED)
+                ->whereNull('whatsapp_conversations.assigned_user_id'),
+            'mine'       => $query->where('whatsapp_conversations.assigned_user_id', auth()->guard('user')->id())
+                ->whereIn('whatsapp_conversations.handoff_state', $openStates),
             default      => null,
         };
 
@@ -129,7 +141,15 @@ class ChatController extends Controller
                 'unread_count' => (int) $c->unread_count,
                 'ai_enabled'   => $c->aiEffective(),
                 'stage'        => $c->stage_name,
-                'preview'      => $c->last_direction
+                // Free: already on the row. Drives the badge and, more
+                // importantly, the "Sin asesor" counter — with no notice sent to
+                // the customer and no in-app notifications in Krayin, this list
+                // is the only signal the team gets in real time.
+                'handoff'      => $c->handoff_state,
+                'handoff_mine' => $c->assigned_user_id !== null
+                    && (int) $c->assigned_user_id === (int) auth()->guard('user')->id(),
+                'handoff_requested_at' => optional($c->handoff_requested_at)->toIso8601String(),
+                'preview'              => $c->last_direction
                     ? ($c->last_direction === 'outbound' ? '↩ ' : '').Str::limit((string) $c->last_body, 60)
                     : null,
                 'last_message_at' => optional($c->last_message_at)->toIso8601String(),
