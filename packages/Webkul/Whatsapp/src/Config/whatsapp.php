@@ -130,12 +130,36 @@ return [
     | below is the backup signal; the primary one is the "Sin asesor" chip in
     | the inbox list.
     |
-    | pool_emails: who to email when the conversation lands in the pool because
-    | the contact has no owner. Comma-separated. Left empty, pooled handoffs are
-    | only visible in the inbox (logged as a warning).
+    | Who gets the mail comes from the CRM's own users — the address they log in
+    | with — so there is no second list to keep in sync with the staff:
+    |
+    | - assigned  → the advisor who owns it.
+    | - pooled    → every active user, narrowed to a group when pool_group_id is
+    |               set, minus exclude_user_ids (the API/bot account has a
+    |               mailbox nobody reads).
+    |
+    | pool_emails only adds extra addresses on top (a shared sales mailbox).
     */
     'handoff' => [
-        'notify'      => env('WHATSAPP_HANDOFF_NOTIFY', true),
+        'notify' => env('WHATSAPP_HANDOFF_NOTIFY', true),
+
+        // Krayin user group that covers the pool. Null = every active user.
+        'pool_group_id' => env('WHATSAPP_HANDOFF_POOL_GROUP_ID'),
+
+        // Roles that manage rather than attend. They are not the ones who have
+        // to answer an unclaimed conversation, and mailing them on every one is
+        // noise. Role NAMES, comma-separated.
+        'exclude_roles' => array_filter(array_map(
+            'trim',
+            explode(',', (string) env('WHATSAPP_HANDOFF_EXCLUDE_ROLES', 'Administrador,Supervisores,Sistema'))
+        )),
+
+        // User ids never worth mailing, comma-separated.
+        'exclude_user_ids' => array_filter(array_map(
+            'intval',
+            array_filter(array_map('trim', explode(',', (string) env('WHATSAPP_HANDOFF_EXCLUDE_USERS', ''))))
+        )),
+
         'pool_emails' => array_filter(array_map(
             'trim',
             explode(',', (string) env('WHATSAPP_HANDOFF_POOL_EMAILS', ''))

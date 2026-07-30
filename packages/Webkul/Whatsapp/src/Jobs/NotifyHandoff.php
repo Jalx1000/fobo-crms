@@ -73,11 +73,11 @@ class NotifyHandoff implements ShouldQueue
     }
 
     /**
-     * Assigned → that advisor. Pooled → the configured team addresses.
+     * Assigned → that advisor's address. Pooled → the team's.
      *
-     * The pool list comes from config on purpose. Deriving it from roles would
-     * mean a mail to every user who can see WhatsApp — dozens of people, on
-     * every pooled conversation.
+     * Both come from the CRM's own users: the address to write to is the one
+     * the person already logs in with, so nobody has to keep a second list in
+     * sync with the staff.
      *
      * @return array<int, string>
      */
@@ -89,8 +89,41 @@ class NotifyHandoff implements ShouldQueue
             return $email ? [$email] : [];
         }
 
-        return array_values(array_filter(
-            array_map('trim', (array) config('whatsapp.handoff.pool_emails', []))
-        ));
+        return $this->poolRecipients();
+    }
+
+    /**
+     * The team that covers unclaimed conversations: every active user, narrowed
+     * to a Krayin group when one is configured, minus the accounts explicitly
+     * excluded (the API/bot user has a mailbox nobody reads).
+     *
+     * @return array<int, string>
+     */
+    protected function poolRecipients(): array
+    {
+        $query = UserProxy::modelClass()::query()
+            ->where('status', 1)
+            ->whereNotNull('email');
+
+        if ($groupId = config('whatsapp.handoff.pool_group_id')) {
+            $query->whereHas('groups', fn ($q) => $q->where('groups.id', $groupId));
+        }
+
+        if ($excluded = array_filter((array) config('whatsapp.handoff.exclude_user_ids', []))) {
+            $query->whereNotIn('id', $excluded);
+        }
+
+        // Roles that manage rather than attend: mailing them on every unclaimed
+        // conversation is noise, and it is not their job to answer it.
+        if ($roles = array_filter((array) config('whatsapp.handoff.exclude_roles', []))) {
+            $query->whereHas('role', fn ($q) => $q->whereNotIn('name', $roles));
+        }
+
+        $emails = $query->pluck('email')->all();
+
+        // Extra addresses (a shared sales mailbox, say) on top of the users.
+        $extra = array_map('trim', (array) config('whatsapp.handoff.pool_emails', []));
+
+        return array_values(array_unique(array_filter(array_merge($emails, $extra))));
     }
 }

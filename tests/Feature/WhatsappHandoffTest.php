@@ -21,13 +21,23 @@ function handoffService(): Handoff
     return app(Handoff::class);
 }
 
-function makeAdvisor(string $name, int $status = 1): int
+function makeRole(string $name): int
+{
+    return DB::table('roles')->insertGetId([
+        'name'            => $name,
+        'permission_type' => 'custom',
+        'created_at'      => now(),
+        'updated_at'      => now(),
+    ]);
+}
+
+function makeAdvisor(string $name, int $status = 1, ?int $roleId = null): int
 {
     return DB::table('users')->insertGetId([
         'name'       => $name,
         'email'      => 'advisor'.uniqid().'@test.local',
         'password'   => bcrypt('secret'),
-        'role_id'    => DB::table('roles')->value('id') ?? 1,
+        'role_id'    => $roleId ?? DB::table('roles')->value('id') ?? 1,
         'status'     => $status,
         'created_at' => now(),
         'updated_at' => now(),
@@ -531,14 +541,101 @@ it('emails the assigned advisor', function () {
     Mail::assertSent(HandoffRequested::class);
 });
 
-it('emails the configured pool addresses when nobody owns the contact', function () {
+it('emails the active CRM users when nobody owns the contact', function () {
     Mail::fake();
-    config(['whatsapp.handoff.pool_emails' => ['ventas@test.local']]);
+
+    $salesRole = makeRole('Ventas '.uniqid());
+
+    config([
+        'whatsapp.handoff.pool_emails'      => [],
+        'whatsapp.handoff.pool_group_id'    => null,
+        'whatsapp.handoff.exclude_user_ids' => [],
+        'whatsapp.handoff.exclude_roles'    => [],
+    ]);
+
+    $advisor = makeAdvisor('Pool Advisor', roleId: $salesRole);
+    $email = DB::table('users')->where('id', $advisor)->value('email');
 
     $conversation = makeConversation();
     handoffService()->request($conversation);
 
-    Mail::assertSent(HandoffRequested::class, fn ($mail) => $mail->hasTo('ventas@test.local'));
+    // The address is the one they log in with — no second list to maintain.
+    Mail::assertSent(HandoffRequested::class, fn ($mail) => $mail->hasTo($email));
+});
+
+it('leaves managing roles out of the pool', function () {
+    Mail::fake();
+
+    $adminRole = makeRole('Administrador '.uniqid());
+    $salesRole = makeRole('Ventas '.uniqid());
+
+    config([
+        'whatsapp.handoff.pool_emails'      => [],
+        'whatsapp.handoff.pool_group_id'    => null,
+        'whatsapp.handoff.exclude_user_ids' => [],
+        'whatsapp.handoff.exclude_roles'    => [DB::table('roles')->where('id', $adminRole)->value('name')],
+    ]);
+
+    $manager = makeAdvisor('Jefa', roleId: $adminRole);
+    $seller = makeAdvisor('Vendedor', roleId: $salesRole);
+
+    $managerEmail = DB::table('users')->where('id', $manager)->value('email');
+    $sellerEmail = DB::table('users')->where('id', $seller)->value('email');
+
+    handoffService()->request(makeConversation());
+
+    // Answering an unclaimed conversation is not a manager's job.
+    Mail::assertSent(HandoffRequested::class, fn ($mail) => $mail->hasTo($sellerEmail) && ! $mail->hasTo($managerEmail));
+});
+
+it('skips deactivated and excluded users in the pool', function () {
+    Mail::fake();
+
+    $salesRole = makeRole('Ventas '.uniqid());
+
+    $inactive = makeAdvisor('Inactive Advisor', status: 0, roleId: $salesRole);
+    $excluded = makeAdvisor('Bot Account', roleId: $salesRole);
+    makeAdvisor('Vendedora activa', roleId: $salesRole);
+
+    config([
+        'whatsapp.handoff.pool_emails'      => [],
+        'whatsapp.handoff.pool_group_id'    => null,
+        'whatsapp.handoff.exclude_roles'    => [],
+        'whatsapp.handoff.exclude_user_ids' => [$excluded],
+    ]);
+
+    $inactiveEmail = DB::table('users')->where('id', $inactive)->value('email');
+    $excludedEmail = DB::table('users')->where('id', $excluded)->value('email');
+
+    handoffService()->request(makeConversation());
+
+    Mail::assertSent(HandoffRequested::class, fn ($mail) => ! $mail->hasTo($inactiveEmail) && ! $mail->hasTo($excludedEmail));
+});
+
+it('restricts the pool to a user group when one is configured', function () {
+    Mail::fake();
+
+    $salesRole = makeRole('Ventas '.uniqid());
+
+    $inGroup = makeAdvisor('Grouped Advisor', roleId: $salesRole);
+    $outside = makeAdvisor('Ungrouped Advisor', roleId: $salesRole);
+
+    $groupId = DB::table('groups')->value('id');
+    DB::table('user_groups')->insert(['user_id' => $inGroup, 'group_id' => $groupId]);
+
+    config([
+        'whatsapp.handoff.pool_emails'      => [],
+        'whatsapp.handoff.pool_group_id'    => $groupId,
+        'whatsapp.handoff.exclude_roles'    => [],
+        'whatsapp.handoff.exclude_user_ids' => [],
+    ]);
+
+    $inEmail = DB::table('users')->where('id', $inGroup)->value('email');
+    $outEmail = DB::table('users')->where('id', $outside)->value('email');
+
+    handoffService()->request(makeConversation());
+
+    Mail::assertSent(HandoffRequested::class, fn ($mail) => $mail->hasTo($inEmail) && ! $mail->hasTo($outEmail));
 });
 
 it('renders the handoff email', function () {
@@ -558,12 +655,20 @@ it('renders the handoff email', function () {
 
 it('does not fail when there is nobody to email', function () {
     Mail::fake();
-    config(['whatsapp.handoff.pool_emails' => []]);
 
-    $conversation = makeConversation();
+    // An empty group is the realistic way to end up with no recipients.
+    config([
+        'whatsapp.handoff.pool_emails'   => [],
+        'whatsapp.handoff.pool_group_id' => DB::table('groups')->insertGetId([
+            'name'       => 'Grupo vacío '.uniqid(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]),
+    ]);
 
-    $result = handoffService()->request($conversation);
+    $result = handoffService()->request(makeConversation());
 
+    // The handoff still happens; only the backup signal is missing.
     expect($result['changed'])->toBeTrue();
     Mail::assertNothingSent();
 });
