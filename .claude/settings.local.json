@@ -136,7 +136,13 @@
       "Bash(curl -s -o /dev/null -w \"login: HTTP %{http_code}\\\\n\" --max-time 20 -L https://imprimir.sofopolis.com/admin/login)",
       "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Services packages/Webkul/Admin/src/Http/Controllers packages/Webkul/Admin/src/Routes --test)",
       "Bash(git restore *)",
-      "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Services/EntityFiles.php packages/Webkul/Admin/src/Http/Controllers/Lead/FileController.php packages/Webkul/Admin/src/Http/Controllers/Contact/Persons/FileController.php packages/Webkul/Admin/src/Routes/Admin/contacts-routes.php packages/Webkul/Admin/src/Routes/Admin/leads-routes.php --test)"
+      "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Services/EntityFiles.php packages/Webkul/Admin/src/Http/Controllers/Lead/FileController.php packages/Webkul/Admin/src/Http/Controllers/Contact/Persons/FileController.php packages/Webkul/Admin/src/Routes/Admin/contacts-routes.php packages/Webkul/Admin/src/Routes/Admin/leads-routes.php --test)",
+      "Bash(awk '/Quotes Attributes/,/Warehouses Attributes/' packages/Webkul/Installer/src/Database/Seeders/Attribute/AttributeSeeder.php)",
+      "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Database/Migrations/2026_08_10_120000_make_quote_billing_address_optional.php packages/Webkul/Installer/src/Database/Seeders/Attribute/AttributeSeeder.php)",
+      "Bash(perl -pi -e 's/#E9EFFC/{{ \\\\$brandTint }}/g; s/#000DBB/{{ \\\\$brandColor }}/g; s/#000dbb/{{ \\\\$brandColor }}/g;' packages/Webkul/Admin/src/Resources/views/quotes/pdf.blade.php)",
+      "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Config/core_config.php packages/Webkul/Admin/src/Database/Migrations/2026_08_10_130000_create_quote_brand_attribute.php)",
+      "Bash(./vendor/bin/pint packages/Webkul/Whatsapp/src/Services/OutboundAttachment.php)",
+      "Bash(./vendor/bin/pest)"
     ]
   }
 }

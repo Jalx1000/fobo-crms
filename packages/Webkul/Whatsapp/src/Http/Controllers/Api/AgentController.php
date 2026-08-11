@@ -51,7 +51,7 @@ class AgentController extends Controller
             'history'         => $this->payloads->history($conversation),
             // Lets the workflow check before asking for a handoff again, which
             // is what keeps an eager LLM from mailing the team on every message.
-            'handoff'         => $this->handoff->toArray($conversation),
+            'handoff'         => $this->handoff->toAgentArray($conversation),
         ]);
     }
 
@@ -98,7 +98,7 @@ class AgentController extends Controller
         );
 
         return response()->json([
-            'handoff' => $this->handoff->toArray($result['conversation'], null, $result['changed']),
+            'handoff' => $this->handoff->toAgentArray($result['conversation'], $result['changed']),
             'agent'   => [
                 'enabled'   => $result['conversation']->ai_enabled,
                 'effective' => $result['conversation']->aiEffective(),
@@ -145,7 +145,7 @@ class AgentController extends Controller
         if ($conversation->handoffOpen() || ! $conversation->aiEffective()) {
             return response()->json([
                 'message' => 'Esta conversación fue derivada a un asesor. El agente ya no debe responder.',
-                'handoff' => $this->handoff->toArray($conversation),
+                'handoff' => $this->handoff->toAgentArray($conversation),
             ], 409);
         }
 

@@ -83,6 +83,7 @@ Respuesta:
     "source": "ai",
     "requested_at": "2026-07-30T09:14:22-04:00",
     "assigned_user": null,
+    "assigned_user_name": null,
     "assigned_at": null,
     "changed": true
   },
@@ -90,12 +91,26 @@ Respuesta:
 }
 ```
 
+Y una vez que un asesor la reclama:
+
+```json
+"assigned_user": 138,
+"assigned_user_name": "Ana Pérez",
+"assigned_at": "2026-07-30T09:20:01-04:00"
+```
+
 | Campo | Qué significa |
 |---|---|
 | `state` | `requested` (nadie la tomó) · `assigned` (tiene asesor) · `resolved` (cerrada) |
 | `pooled` | `true` = quedó en el pool del equipo, la toma el primero que llegue |
-| `assigned_user` | El asesor, o `null` si está en el pool |
+| `assigned_user` | **`int \| null`** — ID del asesor, `null` si está en el pool |
+| `assigned_user_name` | **`string \| null`** — nombre del asesor, `null` si está en el pool |
 | `changed` | `false` = ya había una derivación abierta, no se hizo nada nuevo |
+
+> Este doc mostraba antes **solo** el caso `null`, sin decir de qué tipo era el campo
+> poblado. El agente lo tipó `int` y el CRM mandaba un objeto: el resultado fue que
+> el agente dejó de responder en cuanto alguien tomaba una conversación. Ver
+> [`contrato-handoff-agente.md`](./contrato-handoff-agente.md).
 
 Es el mismo `reason` que ve el asesor en el banner del inbox y en el mail. Escribilo
 para una persona, no para un log.
@@ -155,7 +170,7 @@ El evento `message.received` ya trae el bloque:
   "contact": { "phone": "+591...", "person_id": 7, "lead_id": 11 },
   "message": { "text": "quiero hablar con alguien", "...": "..." },
   "history": [ /* ... */ ],
-  "handoff": { "state": null, "open": false, "assigned_user": null },
+  "handoff": { "state": null, "open": false, "assigned_user": null, "assigned_user_name": null },
   "window": { "open": true, "expires_at": "..." }
 }
 ```

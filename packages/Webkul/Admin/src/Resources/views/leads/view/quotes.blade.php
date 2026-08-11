@@ -144,7 +144,7 @@
                 {!! view_render_event('admin.leads.view.quotes.table.after', ['lead' => $lead]) !!}
 
                 <div v-else>
-                    <div class="grid justify-center justify-items-center gap-3.5 py-12 min-h-[100vh]">
+                    <div class="grid justify-center justify-items-center gap-3.5 py-12 ">
                         <img
                             class="dark:mix-blend-exclusion dark:invert"
                             src="{{ vite()->asset('images/empty-placeholders/quotes.svg') }}"

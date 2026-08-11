@@ -39,7 +39,7 @@ class AgentPayload
                 'timestamp' => optional($message->created_at)->toIso8601String(),
             ],
             'history' => $this->history($conversation),
-            'handoff' => $this->handoff->toArray($conversation),
+            'handoff' => $this->handoff->toAgentArray($conversation),
             'window'  => [
                 'open'       => $window->open,
                 'expires_at' => $window->expiresAt?->toIso8601String(),

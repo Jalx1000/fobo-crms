@@ -4,11 +4,82 @@
         .wa-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 3px; }
         .dark .wa-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); }
 
+        /* Order picker in the header. Same reason as the viewer below: the admin
+           CSS ships only .z-10/.z-20, so `z-30` (or `z-3000`) compiles to
+           nothing and the panel loses to the message area, which comes later in
+           the DOM and is positioned. 500 clears every in-page layer while
+           staying under the 10001+ band the admin uses for modals/overlays. */
+        .wa-orderchip { max-width: 280px; padding-top: 2px; padding-bottom: 2px; }
+        /* `truncate` only collapses inside a flex item that may shrink. */
+        .wa-orderchip > span { min-width: 0; }
+        .wa-orderpop {
+            position: absolute; left: 0; top: 100%; z-index: 500;
+            margin-top: 4px; width: 330px; max-width: calc(100vw - 2rem);
+            border-radius: 8px; border: 1px solid rgb(229 231 235);
+            background: #fff; box-shadow: 0 10px 30px -8px rgba(0,0,0,.28);
+        }
+        .dark .wa-orderpop { border-color: rgb(55 65 81); background: rgb(17 24 39); }
+
+        /* The build also ships no fractional spacing (py-1.5, gap-0.5, …) and no
+           slash-opacity colors, so the panel's insides are hand-written too. */
+        .wa-orderpop__head {
+            border-bottom: 1px solid #f3f4f6; padding: 6px 12px; font-size: 11px;
+            font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #9ca3af;
+        }
+        .dark .wa-orderpop__head { border-color: #1f2937; }
+        .wa-orderpop__empty { padding: 20px 12px; text-align: center; font-size: 12px; color: #9ca3af; }
+        .wa-orderpop__list { max-height: 208px; overflow-y: auto; }
+
+        .wa-orderrow {
+            display: flex; flex-direction: column; gap: 2px; width: 100%;
+            padding: 6px 12px; text-align: left; cursor: pointer;
+            border: 0; border-bottom: 1px solid #f3f4f6; background: transparent;
+        }
+        .dark .wa-orderrow { border-color: #1f2937; }
+        .wa-orderrow:hover { background: #f9fafb; }
+        .dark .wa-orderrow:hover { background: #1f2937; }
+        .wa-orderrow.is-current { background: rgba(0,0,0,.045); }
+        .dark .wa-orderrow.is-current { background: rgba(255,255,255,.06); }
+        .wa-orderrow:disabled { opacity: .5; cursor: default; }
+        .wa-orderrow__name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+        .wa-orderrow__dot { flex: none; height: 6px; width: 6px; border-radius: 9999px; background: #d1d5db; }
+        .dark .wa-orderrow__dot { background: #4b5563; }
+        .wa-orderrow.is-current .wa-orderrow__dot { background: var(--brand-color); }
+        .wa-orderrow__title {
+            font-size: 12px; font-weight: 500; color: #1f2937;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .dark .wa-orderrow__title { color: #e5e7eb; }
+        .wa-orderrow__meta {
+            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+            padding-left: 12px; font-size: 10px; color: #6b7280;
+        }
+        .dark .wa-orderrow__meta { color: #9ca3af; }
+
+        .wa-tag { border-radius: 9999px; padding: 0 6px; font-weight: 500; background: #e0f2fe; color: #0369a1; }
+        .dark .wa-tag { background: rgba(12,74,110,.45); color: #7dd3fc; }
+        .wa-tag--muted { background: #f3f4f6; color: #6b7280; }
+        .dark .wa-tag--muted { background: #1f2937; color: #9ca3af; }
+
+        .wa-orderpop__stages { border-top: 1px solid #f3f4f6; padding: 8px; }
+        .dark .wa-orderpop__stages { border-color: #1f2937; }
+        .wa-orderpop__stageshead { margin: 0 0 4px 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #9ca3af; }
+        .wa-stages { display: flex; flex-wrap: wrap; gap: 4px; }
+        .wa-stagebtn {
+            border: 0; cursor: pointer; border-radius: 9999px; padding: 2px 8px;
+            font-size: 11px; font-weight: 500; background: #f3f4f6; color: #4b5563;
+        }
+        .dark .wa-stagebtn { background: #1f2937; color: #d1d5db; }
+        .wa-stagebtn:hover { background: #e5e7eb; }
+        .dark .wa-stagebtn:hover { background: #374151; }
+        .wa-stagebtn.is-current { background: var(--brand-color); color: #fff; }
+        .wa-stagebtn:disabled { opacity: .5; cursor: default; }
+
         /* Image viewer — self-contained CSS (admin Tailwind build is prebuilt,
            so new utility classes wouldn't be compiled). */
         .wa-zoomable { cursor: zoom-in; }
         .wa-viewer {
-            position: fixed; inset: 0; z-index: 70; display: flex;
+            position: fixed; inset: 0; z-index: 10002; display: flex;
             align-items: center; justify-content: center;
             background: rgba(0,0,0,.92); backdrop-filter: blur(4px);
             -webkit-user-select: none; user-select: none;
@@ -116,6 +187,72 @@
                                 @{{ handoff.is_mine ? 'Mía' : (handoff.assigned_user ? handoff.assigned_user.name : 'Derivada') }}
                             </span>
                         </div>
+
+                        <!-- Which order this chat is about + its stage. @click.stop
+                             everywhere: the whole header block opens the profile drawer. -->
+                        <div v-if="order && conversationId" class="js-pop relative mt-1" @click.stop>
+                            <button type="button"
+                                    class="wa-orderchip flex items-center gap-1 rounded-full border border-gray-300 px-2 text-xs text-gray-600 transition hover:border-brandColor hover:text-brandColor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:border-gray-700 dark:text-gray-300"
+                                    :title="order.lead_id ? 'Cambiar pedido o etapa' : 'Vincular la conversación a un pedido'"
+                                    @click="toggleOrderPicker">
+                                <span class="icon-bookmark text-sm"></span>
+
+                                <template v-if="order.lead_id">
+                                    <span class="truncate">@{{ order.title }}</span>
+                                    <span v-if="order.stage" class="wa-tag shrink-0">@{{ order.stage }}</span>
+                                </template>
+                                <span v-else-if="order.count" class="truncate text-amber-700 dark:text-amber-300">Elegir pedido (@{{ order.count }})</span>
+                                <span v-else class="truncate">Sin pedido</span>
+
+                                <span class="icon-down-arrow shrink-0 text-sm"></span>
+                            </button>
+
+                            <div v-if="orderPickerOpen" class="wa-orderpop">
+                                <p class="wa-orderpop__head">¿De qué pedido es este chat?</p>
+
+                                <div v-if="orderLoading" class="wa-orderpop__empty">Cargando pedidos…</div>
+
+                                <div v-else-if="!orderLeads.length" class="wa-orderpop__empty">
+                                    <p class="mb-2">Este cliente no tiene pedidos.</p>
+                                    <button type="button" class="text-xs font-semibold text-brandColor hover:opacity-80" @click="newOrderFromPicker">
+                                        + Crear pedido
+                                    </button>
+                                </div>
+
+                                <div v-else class="wa-scroll wa-orderpop__list">
+                                    <button v-for="lead in orderLeads" :key="lead.id" type="button"
+                                            :disabled="orderSaving"
+                                            class="wa-orderrow"
+                                            :class="lead.id === order.lead_id ? 'is-current' : ''"
+                                            @click="bindOrder(lead)">
+                                        <span class="wa-orderrow__name">
+                                            <span class="wa-orderrow__dot"></span>
+                                            <span class="wa-orderrow__title">@{{ lead.title }}</span>
+                                        </span>
+                                        <!-- Titles repeat: date + value + stage are what tell them apart. -->
+                                        <span class="wa-orderrow__meta">
+                                            <span v-if="lead.stage" class="wa-tag">@{{ lead.stage }}</span>
+                                            <span v-if="lead.value" class="font-semibold">$@{{ lead.value }}</span>
+                                            <span>@{{ lead.created_at }}</span>
+                                            <span v-if="!lead.is_open" class="wa-tag wa-tag--muted">cerrado</span>
+                                        </span>
+                                    </button>
+                                </div>
+
+                                <div v-if="boundLead && boundLead.stages.length" class="wa-orderpop__stages">
+                                    <p class="wa-orderpop__stageshead">Mover a</p>
+                                    <div class="wa-stages">
+                                        <button v-for="s in boundLead.stages" :key="s.id" type="button"
+                                                :disabled="orderSaving"
+                                                class="wa-stagebtn"
+                                                :class="s.id === boundLead.stage_id ? 'is-current' : ''"
+                                                @click="setOrderStage(s)">
+                                            @{{ s.name }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -217,17 +354,21 @@
                             <div v-else-if="msg.type === 'video'">
                                 <video v-if="msg.media" controls :src="msg.media.url" class="max-h-56 rounded-md"></video>
                                 <div v-else class="italic text-gray-500">🎬 Video</div>
+                                <div v-if="msg.text" class="mt-1 whitespace-pre-wrap break-words">@{{ msg.text }}</div>
                             </div>
 
-                            <a v-else-if="msg.type === 'document' && msg.media" :href="msg.media.url" target="_blank"
-                               class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
-                                <span class="icon-file text-xl"></span>
-                                <span class="flex flex-col">
-                                    <span class="font-medium">@{{ msg.media.filename || 'Documento' }}</span>
-                                    <span class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.media.meta }}</span>
-                                </span>
-                            </a>
-                            <div v-else-if="msg.type === 'document'" class="italic text-gray-500">📄 Documento</div>
+                            <div v-else-if="msg.type === 'document'">
+                                <a v-if="msg.media" :href="msg.media.url" target="_blank"
+                                   class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
+                                    <span class="icon-file text-xl"></span>
+                                    <span class="flex flex-col">
+                                        <span class="font-medium">@{{ msg.media.filename || 'Documento' }}</span>
+                                        <span class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.media.meta }}</span>
+                                    </span>
+                                </a>
+                                <div v-else class="italic text-gray-500">📄 Documento</div>
+                                <div v-if="msg.text" class="mt-1 whitespace-pre-wrap break-words">@{{ msg.text }}</div>
+                            </div>
 
                             <component :is="msg.location ? 'a' : 'div'" v-else-if="msg.type === 'location'"
                                        :href="msg.location ? msg.location.url : null"
@@ -795,17 +936,32 @@
                             </div>
 
                             <div v-if="profile.leads.length" class="flex flex-col gap-2">
-                                <a v-for="lead in profile.leads" :key="lead.id" :href="lead.url" target="_blank"
-                                   class="group rounded-lg border border-gray-200 p-2.5 transition hover:border-brandColor hover:shadow-sm dark:border-gray-800 dark:hover:border-brandColor">
-                                    <div class="flex items-center justify-between gap-2">
+                                <!-- The card is a div, not an <a>: the stage <select> must not
+                                     live inside a link (invalid markup + the click navigates). -->
+                                <div v-for="lead in profile.leads" :key="lead.id"
+                                     class="group rounded-lg border border-gray-200 p-2.5 transition hover:border-brandColor hover:shadow-sm dark:border-gray-800 dark:hover:border-brandColor">
+                                    <a :href="lead.url" target="_blank" class="flex items-center justify-between gap-2">
                                         <span class="truncate text-sm font-medium text-gray-800 group-hover:text-brandColor dark:text-gray-200 dark:group-hover:text-brandColor">@{{ lead.title }}</span>
                                         <span v-if="lead.value" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">$@{{ lead.value }}</span>
+                                    </a>
+
+                                    <div class="mt-1.5 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                        <select v-if="lead.stages && lead.stages.length"
+                                                :value="lead.stage_id"
+                                                :disabled="leadStageSaving === lead.id"
+                                                :title="'Etapa de ' + lead.title"
+                                                :aria-label="'Etapa de ' + lead.title"
+                                                @change="changeLeadStage(lead, $event)"
+                                                class="max-w-[60%] shrink rounded-full border-0 bg-sky-100 py-px pl-2 pr-6 text-[11px] font-medium text-sky-700 transition hover:bg-sky-200 focus:outline-none focus:ring-2 focus:ring-brandColor disabled:cursor-wait disabled:opacity-60 dark:bg-sky-900/40 dark:text-sky-300 dark:hover:bg-sky-900/60">
+                                            <option v-for="stage in lead.stages" :key="stage.id" :value="stage.id">@{{ stage.name }}</option>
+                                        </select>
+
+                                        <span v-else-if="lead.stage" class="rounded-full bg-sky-100 px-2 py-px font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">@{{ lead.stage }}</span>
+
+                                        <span v-if="leadStageSaving === lead.id" class="text-brandColor">Guardando…</span>
+                                        <span v-else>@{{ lead.created_at }}</span>
                                     </div>
-                                    <div class="mt-1 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                                        <span v-if="lead.stage" class="rounded-full bg-sky-100 px-2 py-px font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">@{{ lead.stage }}</span>
-                                        <span>@{{ lead.created_at }}</span>
-                                    </div>
-                                </a>
+                                </div>
                             </div>
 
                             <p v-else-if="!leadFormOpen" class="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-xs text-gray-400 dark:border-gray-700">
@@ -1133,6 +1289,7 @@
                 agentUrlBase: { type: String, default: '' },
                 quickRepliesUrl: { type: String, default: '' },
                 personUrlBase: { type: String, default: '' },
+                leadUrlBase: { type: String, default: '' },
                 productsUrl: { type: String, default: '' },
                 // Page mode: fill the parent instead of a bordered 440px card.
                 fullHeight: { type: Boolean, default: false },
@@ -1220,6 +1377,13 @@
                     leadFormOpen: false,
                     leadForm: { title: '', value: '' },
                     leadSaving: false,
+                    leadStageSaving: null, // id of the lead whose stage is in flight
+                    // Order (lead) this conversation is about — header chip + picker
+                    order: null,
+                    orderPickerOpen: false,
+                    orderLeads: [],
+                    orderLoading: false,
+                    orderSaving: false,
                     // Product picker for the producto/precio variables
                     products: [],
                     productSearch: '',
@@ -1240,6 +1404,14 @@
                 initials() {
                     return (this.context.name || '?')
                         .split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+                },
+
+                // The bound order, resolved against the picker list — that's where
+                // the stage options live, so "Mover a" only shows once it's loaded.
+                boundLead() {
+                    if (! this.order?.lead_id) return null;
+
+                    return this.orderLeads.find(l => l.id === this.order.lead_id) ?? null;
                 },
 
                 canAttach() {
@@ -1386,6 +1558,7 @@
                     this.showEmoji = false;
                     this.showAttach = false;
                     this.profileOpen = false;
+                    this.orderPickerOpen = false;
                 };
                 document.addEventListener('keydown', this.escHandler);
 
@@ -1394,6 +1567,7 @@
                     if (!event.target.closest('.js-pop')) {
                         this.showEmoji = false;
                         this.showAttach = false;
+                        this.orderPickerOpen = false;
                     }
                 };
                 document.addEventListener('click', this.docClickHandler);
@@ -1574,6 +1748,10 @@
                             // cursor, so the banner updates even when no message
                             // came in — a handoff produces none.
                             if (res.data?.handoff) this.handoff = res.data.handoff;
+                            // Same deal as handoff: no message is produced when the
+                            // lead moves stage from the kanban, so the chip has to
+                            // ride the poll to stay honest.
+                            if (res.data?.order !== undefined) this.syncOrder(res.data.order);
 
                             const incoming = res.data?.messages ?? [];
                             if (!incoming.length) return;
@@ -1721,6 +1899,8 @@
                             // Refresh the sidebar so the new lead shows up.
                             this.profile = null;
                             this.fetchProfile();
+                            // …and the header picker, which caches its own list.
+                            this.orderLeads = [];
                         })
                         .catch(err => {
                             this.$emitter.emit('add-flash', {
@@ -1729,6 +1909,172 @@
                             });
                         })
                         .finally(() => { this.leadSaving = false; });
+                },
+
+                /**
+                 * Inline stage change from the "Pedidos" tab.
+                 *
+                 * Optimistic: the pill shows the new stage immediately and rolls
+                 * back to the previous one if the request fails — otherwise the
+                 * <select> would keep displaying a stage the CRM never saved.
+                 */
+                changeLeadStage(lead, event) {
+                    const stageId = Number(event.target.value);
+                    const previousId = lead.stage_id;
+                    const previousName = lead.stage;
+
+                    if (! stageId || stageId === previousId || this.leadStageSaving || ! this.leadUrlBase) {
+                        event.target.value = previousId; // keep the DOM in sync when we bail out
+                        return;
+                    }
+
+                    lead.stage_id = stageId;
+                    lead.stage = (lead.stages.find(s => s.id === stageId) || {}).name || previousName;
+                    this.leadStageSaving = lead.id;
+
+                    this.$axios.patch(`${this.leadUrlBase}/${lead.id}/stage`, {
+                            lead_pipeline_stage_id: stageId,
+                        })
+                        .then(res => {
+                            lead.stage = res.data?.stage?.name ?? lead.stage;
+
+                            // The Info tab shows the same lead: keep both in sync.
+                            if (this.profile?.active_lead?.id === lead.id) {
+                                this.profile.active_lead.stage = lead.stage;
+                            }
+
+                            // …and so does the header chip, when it's the bound order.
+                            if (this.order?.lead_id === lead.id) {
+                                this.order.stage = lead.stage;
+                                this.order.stage_id = stageId;
+                            }
+
+                            this.$emitter.emit('add-flash', { type: 'success', message: res.data.message });
+                        })
+                        .catch(err => {
+                            lead.stage_id = previousId;
+                            lead.stage = previousName;
+
+                            this.$emitter.emit('add-flash', {
+                                type: 'error',
+                                message: err.response?.data?.message || 'No se pudo cambiar la etapa.',
+                            });
+                        })
+                        .finally(() => { this.leadStageSaving = null; });
+                },
+
+                /**
+                 * Merge the `order` block from the poll. Skipped while a bind or
+                 * stage change is in flight, so a 4s poll started before the PATCH
+                 * landed can't overwrite what the advisor just chose.
+                 */
+                syncOrder(order) {
+                    if (this.orderSaving) return;
+
+                    this.order = order;
+
+                    // Keep the "Mover a" highlight honest when the stage changed
+                    // somewhere else (kanban, lead view, another advisor).
+                    const bound = order?.lead_id
+                        ? this.orderLeads.find(l => l.id === order.lead_id)
+                        : null;
+
+                    if (bound && order.stage_id) {
+                        bound.stage_id = order.stage_id;
+                        bound.stage = order.stage;
+                    }
+                },
+
+                toggleOrderPicker() {
+                    this.orderPickerOpen = ! this.orderPickerOpen;
+
+                    if (this.orderPickerOpen && ! this.orderLeads.length) this.loadOrderLeads();
+                },
+
+                loadOrderLeads() {
+                    if (! this.context.personId || ! this.personUrlBase) return;
+
+                    this.orderLoading = true;
+                    this.$axios.get(`${this.personUrlBase}/${this.context.personId}/leads`)
+                        .then(res => { this.orderLeads = res.data?.leads ?? []; })
+                        .catch(() => {
+                            this.$emitter.emit('add-flash', { type: 'error', message: 'No se pudieron cargar los pedidos.' });
+                        })
+                        .finally(() => { this.orderLoading = false; });
+                },
+
+                /**
+                 * Point the conversation at an order. Persisted on the conversation,
+                 * so notes, the AI payload and the list badge all follow it.
+                 * The panel stays open: binding and then moving the stage is the
+                 * whole point of the control.
+                 */
+                bindOrder(lead) {
+                    if (this.orderSaving || ! this.conversationId) return;
+
+                    if (lead.id === this.order?.lead_id) return; // already bound
+
+                    this.orderSaving = true;
+                    this.$axios.patch(`${this.agentUrlBase}/${this.conversationId}/lead`, { lead_id: lead.id })
+                        .then(res => {
+                            this.order = res.data.order;
+                            this.$emitter.emit('add-flash', { type: 'success', message: res.data.message });
+                        })
+                        .catch(err => {
+                            this.$emitter.emit('add-flash', {
+                                type: 'error',
+                                message: err.response?.data?.message || 'No se pudo vincular el pedido.',
+                            });
+                        })
+                        .finally(() => { this.orderSaving = false; });
+                },
+
+                // Move the bound order to another stage, from the header.
+                setOrderStage(stage) {
+                    if (this.orderSaving || ! this.order?.lead_id) return;
+
+                    if (stage.id === this.boundLead?.stage_id) {
+                        this.orderPickerOpen = false;
+                        return;
+                    }
+
+                    this.orderSaving = true;
+                    this.$axios.patch(`${this.leadUrlBase}/${this.order.lead_id}/stage`, {
+                            lead_pipeline_stage_id: stage.id,
+                        })
+                        .then(res => {
+                            const name = res.data?.stage?.name ?? stage.name;
+
+                            this.order.stage = name;
+                            this.order.stage_id = stage.id;
+
+                            if (this.boundLead) {
+                                this.boundLead.stage = name;
+                                this.boundLead.stage_id = stage.id;
+                            }
+
+                            // The drawer may be open on the same lead behind us.
+                            const inDrawer = this.profile?.leads?.find(l => l.id === this.order.lead_id);
+                            if (inDrawer) { inDrawer.stage = name; inDrawer.stage_id = stage.id; }
+
+                            this.orderPickerOpen = false;
+                            this.$emitter.emit('add-flash', { type: 'success', message: res.data.message });
+                        })
+                        .catch(err => {
+                            this.$emitter.emit('add-flash', {
+                                type: 'error',
+                                message: err.response?.data?.message || 'No se pudo cambiar la etapa.',
+                            });
+                        })
+                        .finally(() => { this.orderSaving = false; });
+                },
+
+                // No orders yet: hand off to the drawer's quick-create form.
+                newOrderFromPicker() {
+                    this.orderPickerOpen = false;
+                    this.profileTab = 'pedidos';
+                    this.leadFormOpen = true;
+                    this.openProfile();
                 },
 
                 // Arrow-key navigation inside the "/" picker.

@@ -166,6 +166,26 @@ it('only lets image, video and document carry a caption', function () {
     expect(Capabilities::isCaptionable('audio'))->toBeFalse();
 });
 
+it('sends the advisor text as a follow-up message when the file cannot carry it', function () {
+    $attachments = new OutboundAttachment;
+
+    // Audio y sticker no aceptan caption, pero el texto no se descarta: sale
+    // como mensaje propio encolado detras del archivo.
+    expect($attachments->planCaption('audio', 'hola')['follow_up'])->toBe('hola')
+        ->and($attachments->planCaption('sticker', 'hola')['follow_up'])->toBe('hola')
+        // Los que si aceptan caption no duplican el texto en un segundo mensaje.
+        ->and($attachments->planCaption('image', 'hola')['follow_up'])->toBeNull()
+        ->and($attachments->planCaption('document', 'hola')['follow_up'])->toBeNull();
+});
+
+it('adds nothing extra when the advisor attaches a file without typing', function () {
+    $attachments = new OutboundAttachment;
+
+    expect($attachments->planCaption('audio', null))->toBe(['caption' => null, 'follow_up' => null])
+        // Solo espacios equivale a no haber escrito nada.
+        ->and($attachments->planCaption('audio', '   '))->toBe(['caption' => null, 'follow_up' => null]);
+});
+
 it('refuses to report success when the file could not be written', function () {
     Storage::fake('public');
 

@@ -1,3 +1,50 @@
+@php
+    use Illuminate\Support\Facades\Storage;
+    use Illuminate\Support\Str;
+
+    // La marca elegida en la cotizacion decide el logo y el color del PDF.
+    // `marca` es un atributo de tipo select, asi que devuelve el id de la fila
+    // en attribute_options; el nombre de esa opcion, en slug, es la clave de
+    // configuracion ("Magia Verde" -> magia_verde_logo / magia_verde_color).
+    $brandSlug = null;
+
+    if ($brandOptionId = $quote->marca) {
+        $brandOption = \Webkul\Attribute\Models\AttributeOptionProxy::modelClass()::find($brandOptionId);
+
+        $brandSlug = $brandOption ? Str::slug($brandOption->name, '_') : null;
+    }
+
+    // Cotizaciones viejas (sin marca) y opciones renombradas caen al azul
+    // historico y sin logo, en lugar de romper la impresion.
+    $brandColor = $brandSlug
+        ? core()->getConfigData("general.settings.quote_brands.{$brandSlug}_color")
+        : null;
+
+    if (! preg_match('/^#[0-9a-f]{6}$/i', (string) $brandColor)) {
+        $brandColor = '#000DBB';
+    }
+
+    // Tinte claro para fondos de tabla y bordes: el #E9EFFC del diseno original
+    // es justamente el azul de marca mezclado con ~92% de blanco.
+    [$r, $g, $b] = sscanf($brandColor, '#%02x%02x%02x');
+
+    $brandTint = sprintf(
+        '#%02X%02X%02X',
+        (int) round($r + (255 - $r) * 0.92),
+        (int) round($g + (255 - $g) * 0.92),
+        (int) round($b + (255 - $b) * 0.92)
+    );
+
+    // El logo va embebido como data URI: dompdf lo resuelve sin depender de que
+    // el servidor pueda hacerse una request HTTP a si mismo.
+    $brandLogo = $brandSlug
+        ? core()->getConfigData("general.settings.quote_brands.{$brandSlug}_logo")
+        : null;
+
+    $brandLogoSrc = $brandLogo && Storage::exists($brandLogo)
+        ? 'data:'.Storage::mimeType($brandLogo).';base64,'.base64_encode(Storage::get($brandLogo))
+        : null;
+@endphp
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html
     lang="{{ $locale = app()->getLocale() }}"
@@ -60,13 +107,15 @@
             }
 
             .page-header {
-                border-bottom: 1px solid #E9EFFC;
+                border-bottom: 1px solid {{ $brandTint }};
                 text-align: center;
                 font-size: 24px;
                 text-transform: uppercase;
-                color: #000DBB;
+                color: {{ $brandColor }};
                 padding: 24px 0;
                 margin: 0;
+                display:flex;
+                justify-content: space-between;
             }
 
             .logo-container {
@@ -102,8 +151,8 @@
             }
             
             table thead th {
-                background-color: #E9EFFC;
-                color: #000DBB;
+                background-color: {{ $brandTint }};
+                color: {{ $brandColor }};
                 padding: 6px 18px;
                 text-align: left;
             }
@@ -114,7 +163,7 @@
 
             table tbody td {
                 padding: 9px 18px;
-                border-bottom: 1px solid #E9EFFC;
+                border-bottom: 1px solid {{ $brandTint }};
                 text-align: left;
                 vertical-align: top;
             }
@@ -133,7 +182,7 @@
                 width: 250px;
                 padding-top: 5px;
                 padding-bottom: 5px;
-                background-color: #E9EFFC;
+                background-color: {{ $brandTint }};
                 white-space: nowrap;
             }
 
@@ -162,9 +211,25 @@
     <body dir="{{ $locale }}">
         <div class="page">
             <!-- Header -->
-            <div class="page-header">
-                <b>@lang('admin::app.quotes.index.pdf.title')</b>
-            </div>
+        <table style="width:100%; border-collapse:collapse; border-bottom:1px solid {{ $brandTint }};">
+        <tr>
+            <td style="width:33%; text-align:left;">
+                @if ($brandLogoSrc)
+                    <img src="{{ $brandLogoSrc }}"
+                         alt="{{ $brandOption->name }}"
+                         style="max-width:140px; max-height:60px;">
+                @endif
+            </td>
+
+            <td style="width:34%; text-align:center;">
+                <b style="font-size:24px; color:{{ $brandColor }};">
+                    @lang('admin::app.quotes.index.pdf.title')
+                </b>
+            </td>
+
+            <td style="width:33%;"></td>
+        </tr>
+        </table>
 
             <div class="page-content">
                 <!-- Invoice Information -->

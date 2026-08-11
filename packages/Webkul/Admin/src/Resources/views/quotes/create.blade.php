@@ -1,12 +1,38 @@
 @php
     $quote = app('\Webkul\Quote\Repositories\QuoteRepository')->getModel();
 
+    // Politica comercial: las cotizaciones vencen a los 7 dias. Es un valor por
+    // defecto, no una imposicion: el asesor puede cambiar la fecha en el formulario.
+    $quote->fill([
+        'expired_at' => \Carbon\Carbon::today()->addDays(7),
+    ]);
+
+    // La direccion de facturacion ya no es obligatoria. Para que el PDF no quede
+    // con un bloque en blanco, los campos de texto arrancan con un guion. Pais y
+    // estado quedan vacios a proposito: son <select> y un "-" no es una opcion
+    // valida, se veria como un desplegable roto.
+    $dashedAddress = [
+        'address'  => '-',
+        'city'     => '-',
+        'postcode' => '-',
+        'country'  => '',
+        'state'    => '',
+    ];
+
     if (isset($lead)) {
+        $organizationAddress = $lead->person->organization
+            ? (array) $lead->person->organization->address
+            : [];
+
         $quote->fill([
             'person_id'       => $lead->person_id,
             'user_id'         => $lead->user_id,
-            'billing_address' => $lead->person->organization ? $lead->person->organization->address : null
+            'billing_address' => $organizationAddress
+                ? array_merge($dashedAddress, array_filter($organizationAddress, fn ($v) => $v !== null && $v !== ''))
+                : $dashedAddress,
         ]);
+    } else {
+        $quote->fill(['billing_address' => $dashedAddress]);
     }
 @endphp
 

@@ -81,8 +81,10 @@ class OutboundAttachment
             return ['caption' => $text, 'follow_up' => null];
         }
 
-        // TODO(usuario): audio y sticker no aceptan caption. Decidí qué pasa con
-        // el texto que el asesor escribió. Ver la nota en la conversación.
-        return ['caption' => null, 'follow_up' => null];
+        // Audio y sticker: el texto viaja como un mensaje aparte, encolado justo
+        // detras del archivo. Descartarlo seria peor de lo que parece — el asesor
+        // ve su texto salir del compositor y asume que llego, sin ninguna senal
+        // de lo contrario.
+        return ['caption' => null, 'follow_up' => $text];
     }
 }

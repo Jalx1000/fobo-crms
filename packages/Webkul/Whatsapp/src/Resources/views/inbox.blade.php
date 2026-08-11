@@ -32,6 +32,7 @@
         agent-url-base="{{ url(config('app.admin_path').'/whatsapp/conversations') }}"
         quick-replies-url="{{ route('admin.whatsapp.quick-replies.index') }}"
         person-url-base="{{ url(config('app.admin_path').'/whatsapp/persons') }}"
+        lead-url-base="{{ url(config('app.admin_path').'/whatsapp/leads') }}"
         products-url="{{ route('admin.whatsapp.products') }}"
     ></v-whatsapp-inbox>
 </div>

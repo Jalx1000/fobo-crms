@@ -203,6 +203,34 @@ return [
             ],
         ],
     ], [
+        'key'    => 'general.settings.quote_brands',
+        'name'   => 'Marcas en cotizaciones',
+        'info'   => 'Logo y color con los que se imprime el PDF de cada marca. La marca se elige al crear la cotización.',
+        'sort'   => 4,
+        'fields' => [
+            [
+                'name'       => 'imprimir_logo',
+                'title'      => 'Logo Imprimir',
+                'type'       => 'image',
+                'validation' => 'mimes:jpeg,jpg,png',
+            ], [
+                'name'    => 'imprimir_color',
+                'title'   => 'Color Imprimir',
+                'type'    => 'color',
+                'default' => '#000DBB',
+            ], [
+                'name'       => 'magia_verde_logo',
+                'title'      => 'Logo Magia Verde',
+                'type'       => 'image',
+                'validation' => 'mimes:jpeg,jpg,png',
+            ], [
+                'name'    => 'magia_verde_color',
+                'title'   => 'Color Magia Verde',
+                'type'    => 'color',
+                'default' => '#1B7F3B',
+            ],
+        ],
+    ], [
         'key'  => 'general.magic_ai',
         'name' => 'admin::app.configuration.index.magic-ai.title',
         'info' => 'admin::app.configuration.index.magic-ai.info',

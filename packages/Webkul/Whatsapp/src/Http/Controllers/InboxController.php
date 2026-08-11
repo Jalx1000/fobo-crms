@@ -104,6 +104,71 @@ class InboxController extends Controller
             // independent of the `since` cursor: a handoff produces no message,
             // so an empty incremental poll still has to refresh the banner.
             'handoff'      => $this->handoff->toArray($conversation, $this->userId()),
+            // Which order this chat is about. Deliberately tiny (5 scalars): it
+            // rides every 4s poll so the header stays right when somebody moves
+            // the lead from the kanban. The full picker list is fetched on demand.
+            'order'        => $this->orderBlock($conversation),
+        ]);
+    }
+
+    /**
+     * The order (lead) the conversation is bound to, for the header chip.
+     *
+     * `lead_id` may be null: the FK is ON DELETE SET NULL, and most conversations
+     * start unbound. `count` tells the UI whether there is anything to pick from,
+     * so it can offer "elegir pedido" instead of a dead chip.
+     */
+    protected function orderBlock($conversation): ?array
+    {
+        if (! $conversation || ! $conversation->person_id) {
+            return null;
+        }
+
+        $lead = $conversation->lead_id
+            ? LeadProxy::modelClass()::with('stage')->find($conversation->lead_id)
+            : null;
+
+        return [
+            'lead_id'  => $lead?->id,
+            'title'    => $lead?->title,
+            'stage'    => $lead?->stage->name ?? null,
+            'stage_id' => $lead?->lead_pipeline_stage_id,
+            'count'    => LeadProxy::modelClass()::where('person_id', $conversation->person_id)->count(),
+        ];
+    }
+
+    /**
+     * Bind the conversation to one of the contact's orders.
+     *
+     * This is the fix for the drift: ConversationResolver picks a lead once, at
+     * ingestion (`person->leads()->latest()`), and every order opened afterwards
+     * is invisible to the chat. Here the advisor re-points it explicitly, and it
+     * sticks — notes, the AI payload and the list badge all follow `lead_id`.
+     */
+    public function setLead(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate(['lead_id' => 'nullable|integer']);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        if (! empty($data['lead_id'])) {
+            $lead = LeadProxy::modelClass()::findOrFail($data['lead_id']);
+
+            // Never let a chat point at another contact's order.
+            if ($conversation->person_id && (int) $lead->person_id !== (int) $conversation->person_id) {
+                return response()->json([
+                    'message' => 'Ese pedido pertenece a otro contacto.',
+                ], 422);
+            }
+
+            $conversation->update(['lead_id' => $lead->id]);
+        } else {
+            $conversation->update(['lead_id' => null]);
+        }
+
+        return response()->json([
+            'message' => 'Pedido de la conversación actualizado.',
+            'order'   => $this->orderBlock($conversation->refresh()),
         ]);
     }
 

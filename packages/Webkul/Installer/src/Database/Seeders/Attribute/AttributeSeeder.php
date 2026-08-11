@@ -418,7 +418,7 @@ class AttributeSeeder extends Seeder
                 'lookup_type'     => null,
                 'validation'      => null,
                 'sort_order'      => '4',
-                'is_required'     => '1',
+                'is_required'     => '0',
                 'is_unique'       => '0',
                 'quick_add'       => '1',
                 'is_user_defined' => '0',

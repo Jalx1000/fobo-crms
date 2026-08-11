@@ -22,6 +22,7 @@ Route::controller(InboxController::class)
         Route::post('send-media', 'sendMedia')->name('send-media');
         Route::post('send-location', 'sendLocation')->name('send-location');
         Route::patch('conversations/{id}/agent', 'toggleAgent')->name('agent');
+        Route::patch('conversations/{id}/lead', 'setLead')->name('conversation.lead');
         Route::post('conversations/{id}/notes', 'storeNote')->name('notes.store');
 
         // Derivación a un asesor humano.
@@ -39,7 +40,9 @@ Route::controller(ChatController::class)
         Route::get('conversations', 'conversations')->name('conversations');
         Route::post('conversations/{id}/link-person', 'linkPerson')->name('link-person');
         Route::get('persons/{id}', 'person')->name('person');
+        Route::get('persons/{id}/leads', 'personLeads')->name('person.leads.index');
         Route::post('persons/{id}/leads', 'storeLead')->name('person.leads');
+        Route::patch('leads/{id}/stage', 'updateLeadStage')->name('lead.stage');
         Route::get('products', 'products')->name('products');
         Route::get('stages', 'stages')->name('stages');
     });

@@ -281,6 +281,30 @@ class Handoff
         return $payload;
     }
 
+    /**
+     * The same block, shaped for the external AI agent.
+     *
+     * The inbox needs the advisor's name, so toArray() models `assigned_user`
+     * as an object. The agent's schema types that same key as an integer, so
+     * once somebody claimed a conversation the agent rejected the whole event
+     * (pydantic ValidationError) and stopped replying — while still answering
+     * 200, which is why nothing ever failed loudly on our side.
+     *
+     * The id keeps the agreed key and the name travels beside it, so the agent
+     * loses nothing. See planning/contrato-handoff-agente.md.
+     */
+    public function toAgentArray(?Conversation $conversation, ?bool $changed = null): array
+    {
+        $payload = $this->toArray($conversation, null, $changed);
+
+        $user = $payload['assigned_user'] ?? null;
+
+        $payload['assigned_user'] = is_array($user) ? ($user['id'] ?? null) : $user;
+        $payload['assigned_user_name'] = is_array($user) ? ($user['name'] ?? null) : null;
+
+        return $payload;
+    }
+
     protected function notify(Conversation $conversation, ?int $userId): void
     {
         if (! config('whatsapp.handoff.notify', true)) {

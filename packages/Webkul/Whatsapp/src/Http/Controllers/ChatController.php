@@ -75,7 +75,19 @@ class ChatController extends Controller
                     ->orderByDesc('id')->limit(1),
                 'last_direction'
             )
-            // Stage of the contact's active (or latest) lead, for the row badge.
+            // Stage of the order this conversation is BOUND to. Takes precedence
+            // over the guess below, so the row badge and the thread header can
+            // never disagree about which order they are talking about.
+            ->selectSub(
+                DB::table('leads')
+                    ->join('lead_pipeline_stages', 'lead_pipeline_stages.id', '=', 'leads.lead_pipeline_stage_id')
+                    ->whereColumn('leads.id', 'whatsapp_conversations.lead_id')
+                    ->limit(1)
+                    ->select('lead_pipeline_stages.name'),
+                'stage_name_bound'
+            )
+            // Fallback for the unbound majority: the contact's active (or latest)
+            // lead. A guess — that is exactly why binding exists.
             ->selectSub(
                 DB::table('leads')
                     ->join('lead_pipeline_stages', 'lead_pipeline_stages.id', '=', 'leads.lead_pipeline_stage_id')
@@ -140,7 +152,7 @@ class ChatController extends Controller
                 'lead_id'      => $c->lead_id,
                 'unread_count' => (int) $c->unread_count,
                 'ai_enabled'   => $c->aiEffective(),
-                'stage'        => $c->stage_name,
+                'stage'        => $c->stage_name_bound ?? $c->stage_name,
                 // Free: already on the row. Drives the badge and, more
                 // importantly, the "Sin asesor" counter — with no notice sent to
                 // the customer and no in-app notifications in Krayin, this list
@@ -182,7 +194,9 @@ class ChatController extends Controller
             'organization',
             'user',
             'tags',
-            'leads' => fn ($q) => $q->with('stage')->orderByDesc('id')->limit(10),
+            // pipeline.stages feeds the inline stage selector in the drawer: each
+            // lead only ever moves within the stages of its OWN pipeline.
+            'leads' => fn ($q) => $q->with(['stage', 'pipeline.stages'])->orderByDesc('id')->limit(10),
         ])->findOrFail($id);
 
         // WhatsApp footprint of this contact (across all their conversations).
@@ -291,6 +305,7 @@ class ChatController extends Controller
                         : null,
                 ],
                 'active_lead'     => $activeLead ? [
+                    'id'        => $activeLead->id,
                     'title'     => $activeLead->title,
                     'stage'     => $activeLead->stage->name ?? null,
                     'value'     => $activeLead->lead_value ? number_format((float) $activeLead->lead_value, 2) : null,
@@ -324,11 +339,55 @@ class ChatController extends Controller
                     'id'         => $lead->id,
                     'title'      => $lead->title,
                     'stage'      => $lead->stage->name ?? null,
+                    'stage_id'   => $lead->lead_pipeline_stage_id,
+                    'stages'     => collect($lead->pipeline?->stages ?? [])
+                        ->sortBy('sort_order')
+                        ->map(fn ($stage) => ['id' => $stage->id, 'name' => $stage->name])
+                        ->values(),
                     'value'      => $lead->lead_value ? number_format((float) $lead->lead_value, 2) : null,
                     'created_at' => optional($lead->created_at)->format('d/m/Y'),
                     'url'        => route('admin.leads.view', $lead->id),
                 ])->values(),
             ],
+        ]);
+    }
+
+    /**
+     * The contact's orders, for the header picker.
+     *
+     * Kept separate from person(): that one is a heavy drawer payload (media,
+     * links, products) and this is fetched every time the picker opens.
+     *
+     * Titles collide in practice — several "Cotización WhatsApp - <nombre>" for
+     * the same contact on the same day — so value, date and stage travel too:
+     * without them the advisor cannot tell the rows apart.
+     */
+    public function personLeads(string $id): JsonResponse
+    {
+        $person = PersonProxy::modelClass()::findOrFail($id);
+
+        $leads = $person->leads()
+            ->with(['stage', 'pipeline.stages'])
+            ->orderByRaw('(status = 1) desc')
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get();
+
+        return response()->json([
+            'leads' => $leads->map(fn ($lead) => [
+                'id'         => $lead->id,
+                'title'      => $lead->title,
+                'is_open'    => (int) $lead->status === 1,
+                'stage'      => $lead->stage->name ?? null,
+                'stage_id'   => $lead->lead_pipeline_stage_id,
+                'stages'     => collect($lead->pipeline?->stages ?? [])
+                    ->sortBy('sort_order')
+                    ->map(fn ($stage) => ['id' => $stage->id, 'name' => $stage->name])
+                    ->values(),
+                'value'      => $lead->lead_value ? number_format((float) $lead->lead_value, 2) : null,
+                'created_at' => optional($lead->created_at)->format('d/m/Y'),
+                'url'        => route('admin.leads.view', $lead->id),
+            ])->values(),
         ]);
     }
 
@@ -372,6 +431,49 @@ class ChatController extends Controller
         return response()->json([
             'message' => 'Lead creado y vinculado al cliente.',
             'lead'    => ['id' => $lead->id, 'title' => $lead->title],
+        ]);
+    }
+
+    /**
+     * Move a lead to another stage straight from the WhatsApp profile drawer,
+     * so the advisor never has to leave the conversation to update the pipeline.
+     *
+     * The target stage is resolved inside the lead's OWN pipeline — an id from
+     * another pipeline is rejected instead of silently relocating the lead.
+     * The repository takes care of the derived fields (closed_at, confirmed_at,
+     * first_stage_change_at) and `lead.update.after` keeps automations running.
+     */
+    public function updateLeadStage(Request $request, string $id, LeadRepository $leads): JsonResponse
+    {
+        $request->validate([
+            'lead_pipeline_stage_id' => 'required|integer',
+        ]);
+
+        $lead = $leads->findOrFail($id);
+
+        $stage = $lead->pipeline
+            ?->stages()
+            ->where('lead_pipeline_stages.id', $request->input('lead_pipeline_stage_id'))
+            ->first();
+
+        if (! $stage) {
+            return response()->json([
+                'message' => 'La etapa seleccionada no pertenece al pipeline del pedido.',
+            ], 422);
+        }
+
+        Event::dispatch('lead.update.before', $lead->id);
+
+        $lead = $leads->update([
+            'entity_type'            => 'leads',
+            'lead_pipeline_stage_id' => $stage->id,
+        ], $lead->id, ['lead_pipeline_stage_id']);
+
+        Event::dispatch('lead.update.after', $lead);
+
+        return response()->json([
+            'message' => 'Etapa actualizada.',
+            'stage'   => ['id' => $stage->id, 'name' => $stage->name],
         ]);
     }
 

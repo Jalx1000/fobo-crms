@@ -14,6 +14,7 @@
             agent-url-base="{{ url(config('app.admin_path').'/whatsapp/conversations') }}"
             quick-replies-url="{{ route('admin.whatsapp.quick-replies.index') }}"
             person-url-base="{{ url(config('app.admin_path').'/whatsapp/persons') }}"
+            lead-url-base="{{ url(config('app.admin_path').'/whatsapp/leads') }}"
             products-url="{{ route('admin.whatsapp.products') }}"
             stages-url="{{ route('admin.whatsapp.stages') }}"
         >
@@ -185,6 +186,7 @@
                         :agent-url-base="agentUrlBase"
                         :quick-replies-url="quickRepliesUrl"
                         :person-url-base="personUrlBase"
+                        :lead-url-base="leadUrlBase"
                         :products-url="productsUrl"
                     ></v-whatsapp-inbox>
 
@@ -214,6 +216,7 @@
                     agentUrlBase: { type: String, required: true },
                     quickRepliesUrl: { type: String, required: true },
                     personUrlBase: { type: String, required: true },
+                    leadUrlBase: { type: String, required: true },
                     productsUrl: { type: String, required: true },
                     stagesUrl: { type: String, required: true },
                 },
