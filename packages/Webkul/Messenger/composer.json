@@ -1,24 +1,19 @@
 {
-    "name": "messenger/messenger",
-    "description": "messenger",
+    "name": "webkul/messenger",
+    "description": "Facebook Messenger channel for the Krayin messaging inbox.",
     "license": "MIT",
-    "authors": [
-        {
-            "name": "Webkul",
-            "email": "example@webkul.com"
-        }
-    ],
     "require": {
+        "php": "^8.1"
     },
     "autoload": {
         "psr-4": {
-            "Webkul\Messenger\\Webkul\Messenger\\": "src/"
+            "Webkul\\Messenger\\": "src/"
         }
     },
     "extra": {
         "laravel": {
             "providers": [
-                "Webkul\\Webkul\Messenger\\Providers\\Webkul\MessengerServiceProvider"
+                "Webkul\\Messenger\\Providers\\MessengerServiceProvider"
             ],
             "aliases": {}
         }

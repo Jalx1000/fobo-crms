@@ -39,10 +39,17 @@ class Conversation extends Model implements ConversationContract
      * @var array
      */
     protected $fillable = [
+        // Which channel this thread lives on — the key of a registered gateway
+        // ('cloud_api', 'kommo', 'messenger'). Every read and every reply is
+        // resolved through it, so a thread is always answered where it arrived.
         'gateway',
         'wa_phone',
         'provider_conversation_id',
+        // Which of OUR accounts holds it (a Messenger page id), for channels
+        // that can serve several. Null on single-account channels.
+        'provider_account_id',
         'wa_name',
+        'avatar_url',
         'ai_enabled',
         'status',
         'last_message_at',
@@ -77,7 +84,28 @@ class Conversation extends Model implements ConversationContract
      */
     public function aiEffective(): bool
     {
+        // El canal manda. Con la IA apagada a nivel canal ninguna conversacion
+        // la usa, ni siquiera una que tenga ai_enabled = true en su fila: el
+        // switch del inbox no puede habilitar un canal que el despliegue
+        // bloqueo. Sin esto, apagar MESSENGER_AI_ENABLED no frenaba los hilos
+        // que ya estaban encendidos.
+        if (! $this->channelAiAllowed()) {
+            return false;
+        }
+
         return $this->ai_enabled ?? (bool) config('whatsapp.ai.enabled');
+    }
+
+    /**
+     * Si el canal admite agente IA.
+     *
+     * Se declara por gateway (`ai_default`). Los canales que no lo declaran
+     * quedan permitidos, que es como se comportaba antes de existir esta
+     * puerta: WhatsApp no cambia.
+     */
+    public function channelAiAllowed(): bool
+    {
+        return (bool) config("whatsapp.gateways.{$this->gateway}.ai_default", true);
     }
 
     /**

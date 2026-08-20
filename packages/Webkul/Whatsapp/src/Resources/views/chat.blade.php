@@ -58,6 +58,27 @@
                             </button>
                         </div>
 
+                        <!-- channel filter: only worth showing once more than one
+                             channel is connected, otherwise it is dead furniture -->
+                        <div v-if="channels.length > 1" class="wa-scroll flex gap-1.5 overflow-x-auto pb-0.5">
+                            <button type="button"
+                                    class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
+                                    :class="!channelFilter
+                                        ? 'bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-900'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'"
+                                    @click="channelFilter = null; load()">
+                                Todos los canales
+                            </button>
+                            <button v-for="ch in channels" :key="ch.key" type="button"
+                                    class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
+                                    :class="channelFilter === ch.key
+                                        ? channelChipActive(ch.key)
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'"
+                                    @click="channelFilter = ch.key; load()">
+                                @{{ ch.label }}
+                            </button>
+                        </div>
+
                         <!-- stage filter: chips from the default pipeline -->
                         <div v-if="stages.length" class="wa-scroll flex gap-1.5 overflow-x-auto pb-0.5">
                             <button type="button"
@@ -101,14 +122,30 @@
                                 <!-- selected accent -->
                                 <span v-if="selected?.id === c.id" class="absolute inset-y-0 left-0 w-1 bg-brandColor"></span>
 
-                                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-medium"
-                                     :class="avatarColor(c.name)">
-                                    @{{ initials(c.name) }}
+                                <div class="relative shrink-0">
+                                    <img v-if="c.avatar_url" :src="c.avatar_url" alt=""
+                                         class="h-11 w-11 rounded-full object-cover">
+                                    <div v-else class="flex h-11 w-11 items-center justify-center rounded-full text-sm font-medium"
+                                         :class="avatarColor(c.name)">
+                                        @{{ initials(c.name) }}
+                                    </div>
                                 </div>
 
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-baseline justify-between gap-2">
-                                        <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">@{{ c.name }}</span>
+                                        <span class="flex min-w-0 items-baseline gap-1.5">
+                                            <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">@{{ c.name }}</span>
+                                            <!-- Where this conversation came from. Shown
+                                                 only when the install has more than one
+                                                 channel — with a single one it would be
+                                                 noise on every row. -->
+                                            <span v-if="channels.length > 1"
+                                                  class="shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium"
+                                                  :class="channelChipActive(c.channel)"
+                                                  :title="'Canal: ' + (c.channel_label || c.channel)">
+                                                @{{ c.channel_label || c.channel }}
+                                            </span>
+                                        </span>
                                         <span class="shrink-0 text-[11px]"
                                               :class="c.unread_count ? 'font-semibold text-brandColor' : 'text-gray-400'">
                                             @{{ relativeTime(c.last_message_at) }}
@@ -239,6 +276,10 @@
                         ],
                         stages: [],
                         stageFilter: null,
+                        // Channels come from the backend registry, so the UI
+                        // never assumes which ones this install has connected.
+                        channels: [],
+                        channelFilter: null,
                         page: 1,
                         lastPage: 1,
                         listLoading: false,
@@ -256,6 +297,8 @@
                             leadId: this.selected.lead_id,
                             name: this.selected.name,
                             phone: this.selected.phone,
+                            channel: this.selected.channel,
+                            channelLabel: this.selected.channel_label,
                         };
                     },
                 },
@@ -292,7 +335,24 @@
                     // One place to build the query, so a new filter never gets
                     // added to load() and forgotten in loadMore().
                     listParams(page) {
-                        return { search: this.search || null, filter: this.filter, stage: this.stageFilter, page };
+                        return {
+                            search: this.search || null,
+                            filter: this.filter,
+                            stage: this.stageFilter,
+                            channel: this.channelFilter,
+                            page,
+                        };
+                    },
+
+                    // Colour per channel, so the eye separates WhatsApp from
+                    // Messenger without reading the label. Falls back to a
+                    // neutral chip for any channel added later.
+                    channelChipActive(channel) {
+                        return {
+                            cloud_api: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+                            kommo:     'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+                            messenger: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+                        }[channel] ?? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
                     },
 
                     // Derived and unclaimed: whoever takes it first owns it.
@@ -321,6 +381,7 @@
                                 this.conversations = res.data?.data ?? [];
                                 this.page = res.data?.current_page ?? 1;
                                 this.lastPage = res.data?.last_page ?? 1;
+                                this.channels = res.data?.channels ?? [];
                             })
                             .catch(() => {})
                             .finally(() => { this.listLoading = false; });

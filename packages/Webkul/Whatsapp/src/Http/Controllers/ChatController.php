@@ -15,15 +15,21 @@ use Webkul\Lead\Models\SourceProxy;
 use Webkul\Lead\Models\TypeProxy;
 use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Product\Models\ProductProxy;
+use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
 
 /**
- * Standalone WhatsApp page: the conversation list pane. The thread itself is
+ * Standalone messaging page: the conversation list pane. The thread itself is
  * served by InboxController (shared with the person/lead embedded inbox).
+ *
+ * The list is multi-channel: WhatsApp and Messenger threads sit side by side,
+ * each row carrying the channel it belongs to.
  */
 class ChatController extends Controller
 {
+    public function __construct(protected GatewayManager $gateways) {}
+
     /**
      * The two-pane chat page.
      */
@@ -39,25 +45,38 @@ class ChatController extends Controller
     {
         $messageModel = MessageProxy::modelClass();
 
+        // Channels that address contacts by phone number. Only these may be
+        // collapsed into one another.
+        $phoneChannels = $this->gateways->keysInFamily(GatewayManager::DEFAULT_FAMILY);
+        $placeholders = implode(',', array_fill(0, max(count($phoneChannels), 1), '?'));
+
         $query = ConversationProxy::modelClass()::query()
             ->with('person:id,name')
             ->select('whatsapp_conversations.*')
-            // One row per real contact. Old conversations from a decommissioned
-            // gateway can carry the same number in another format (with/without
-            // country code), so identity is the LAST 8 DIGITS of wa_phone (the
-            // local number). Keep only the best: active gateway first, linked to
-            // a person first, most recent first.
+            // One row per real contact, WITHIN a channel family. Old
+            // conversations from a decommissioned WhatsApp provider can carry
+            // the same number in another format (with/without country code), so
+            // identity there is the LAST 8 DIGITS of wa_phone (the local
+            // number). Keep only the best: default provider first, linked to a
+            // person first, most recent first.
+            //
+            // Channels outside that family are never merged: a Messenger PSID
+            // is not a phone, and collapsing one against a number that happens
+            // to share 8 digits made whole conversations vanish from the list.
             ->joinSub(
                 DB::table('whatsapp_conversations')->selectRaw(
                     "id as ranked_id, ROW_NUMBER() OVER (
-                        PARTITION BY COALESCE(
-                            NULLIF(RIGHT(REGEXP_REPLACE(COALESCE(wa_phone, ''), '[^0-9]', ''), 8), ''),
-                            CONCAT('p', person_id),
-                            CONCAT('c', id)
-                        )
+                        PARTITION BY CASE
+                            WHEN gateway IN ({$placeholders}) THEN COALESCE(
+                                NULLIF(RIGHT(REGEXP_REPLACE(COALESCE(wa_phone, ''), '[^0-9]', ''), 8), ''),
+                                CONCAT('p', person_id),
+                                CONCAT('c', id)
+                            )
+                            ELSE CONCAT(gateway, ':', id)
+                        END
                         ORDER BY (gateway = ?) DESC, (person_id IS NOT NULL) DESC, last_message_at DESC, id DESC
                     ) as rn",
-                    [(string) config('whatsapp.gateway')]
+                    [...($phoneChannels ?: ['']), (string) config('whatsapp.gateway')]
                 ),
                 'ranked',
                 fn ($join) => $join->on('ranked.ranked_id', '=', 'whatsapp_conversations.id')
@@ -108,6 +127,12 @@ class ChatController extends Controller
             });
         }
 
+        // Narrow to one channel. Unknown keys are ignored rather than returning
+        // an empty list, so a stale bookmark still shows the inbox.
+        if ($this->gateways->has($channel = (string) $request->input('channel'))) {
+            $query->where('whatsapp_conversations.gateway', $channel);
+        }
+
         // Columns stay fully qualified: paginate() wraps this in a count(*) over
         // the joinSub, where a bare column name would be ambiguous.
         $openStates = ConversationProxy::modelClass()::HANDOFF_OPEN_STATES;
@@ -148,11 +173,17 @@ class ChatController extends Controller
                 'name'         => $c->person->name ?? $c->wa_name ?? $c->wa_phone ?? 'Sin nombre',
                 'phone'        => $c->wa_phone,
                 'gateway'      => $c->gateway,
-                'person_id'    => $c->person_id,
-                'lead_id'      => $c->lead_id,
-                'unread_count' => (int) $c->unread_count,
-                'ai_enabled'   => $c->aiEffective(),
-                'stage'        => $c->stage_name_bound ?? $c->stage_name,
+                // What the row badge renders. Without it the list cannot say
+                // where a conversation came from, which is exactly how a
+                // Messenger thread ends up looking like a WhatsApp one.
+                'channel'       => $c->gateway,
+                'channel_label' => $this->gateways->label($c->gateway),
+                'avatar_url'    => $c->avatar_url,
+                'person_id'     => $c->person_id,
+                'lead_id'       => $c->lead_id,
+                'unread_count'  => (int) $c->unread_count,
+                'ai_enabled'    => $c->aiEffective(),
+                'stage'         => $c->stage_name_bound ?? $c->stage_name,
                 // Free: already on the row. Drives the badge and, more
                 // importantly, the "Sin asesor" counter — with no notice sent to
                 // the customer and no in-app notifications in Krayin, this list
@@ -168,6 +199,9 @@ class ChatController extends Controller
             ]),
             'current_page' => $conversations->currentPage(),
             'last_page'    => $conversations->lastPage(),
+            // Drives the channel filter. Sent with the list so the UI never
+            // hardcodes a channel the installation may not have.
+            'channels'     => $this->gateways->channels(),
         ]);
     }
 

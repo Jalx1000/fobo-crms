@@ -3,6 +3,7 @@
 namespace Webkul\Contact\Repositories;
 
 use Illuminate\Container\Container;
+use Illuminate\Support\Str;
 // use Illuminate\Support\Facades\DB;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
@@ -196,13 +197,28 @@ class PersonRepository extends Repository
             $data['emails'][0]['value'] ?? null,
         ]);
 
-        $data['unique_id'] = implode('|', $uniqueIdParts);
-
         if (isset($data['contact_numbers'])) {
-            $data['contact_numbers'] = collect($data['contact_numbers'])->filter(fn ($number) => ! is_null($number['value']))->toArray();
+            // values(): filter() preserves keys, so dropping an empty first row
+            // would leave the array starting at index 1 and the lookup below
+            // would fail on a person whose first phone field was left blank.
+            $data['contact_numbers'] = collect($data['contact_numbers'])
+                ->filter(fn ($number) => ! is_null($number['value'] ?? null))
+                ->values()
+                ->toArray();
 
-            $data['unique_id'] .= '|'.$data['contact_numbers'][0]['value'];
+            if (isset($data['contact_numbers'][0]['value'])) {
+                $uniqueIdParts[] = $data['contact_numbers'][0]['value'];
+            }
         }
+
+        // unique_id exists to de-duplicate people by their identifying data, and
+        // the column is UNIQUE. A contact with none of it — someone who wrote
+        // from a channel that carries no phone or email, like Messenger — can
+        // be de-duplicated against nothing, so it gets a value of its own
+        // instead of colliding with the next such contact on an empty string.
+        $data['unique_id'] = $uniqueIdParts
+            ? implode('|', $uniqueIdParts)
+            : (string) Str::uuid();
 
         return $data;
     }

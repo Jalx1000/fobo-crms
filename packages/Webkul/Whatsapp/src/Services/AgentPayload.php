@@ -54,7 +54,11 @@ class AgentPayload
     public function contact(Conversation $conversation): array
     {
         return [
+            // Null on channels that do not use phone numbers (Messenger). The
+            // agent is told which channel it is answering on so it can adapt
+            // its wording instead of assuming WhatsApp.
             'phone'     => $conversation->wa_phone,
+            'channel'   => $conversation->gateway,
             'name'      => $conversation->wa_name,
             'person_id' => $conversation->person_id,
             'lead_id'   => $conversation->lead_id,

@@ -18,28 +18,47 @@ $cloud = [
 return [
     /*
     |--------------------------------------------------------------------------
-    | Active gateway
+    | Default WhatsApp provider
     |--------------------------------------------------------------------------
-    | One provider per installation. Switching providers = change this + redeploy.
+    | Which WhatsApp provider new outbound conversations are opened on. It does
+    | NOT disable the others: every registered channel keeps receiving, and each
+    | conversation is always answered through the channel it arrived on.
     */
     'gateway' => env('WHATSAPP_GATEWAY', 'cloud_api'),
 
     /*
     |--------------------------------------------------------------------------
-    | Gateway registry
+    | Channel registry
     |--------------------------------------------------------------------------
     | Each driver receives its own config array. The core never reads these
-    | keys directly — only the driver does.
+    | keys directly — only the driver does. Two entries are core:
+    |
+    | - label:  what the inbox shows on the badge. Users never see the raw key.
+    | - family: channels that address the same identity (a phone number). The
+    |           list may collapse duplicates within a family — a contact
+    |           migrated from Kommo to Cloud API is one person — but never
+    |           across families, where the same digits mean nothing alike.
+    |
+    | Other modules add their own channel here from their service provider's
+    | register() (see Webkul\Messenger).
     */
     'gateways' => [
         'cloud_api' => array_merge($cloud, [
-            'driver' => \Webkul\Whatsapp\Gateways\CloudApi\CloudApiGateway::class,
+            'driver'      => \Webkul\Whatsapp\Gateways\CloudApi\CloudApiGateway::class,
+            'label'       => 'WhatsApp',
+            'family'      => 'whatsapp',
+            'lead_source' => 'WhatsApp',
         ]),
 
         'kommo' => [
-            'driver'    => \Webkul\Whatsapp\Gateways\Kommo\KommoGateway::class,
-            'subdomain' => env('KOMMO_SUBDOMAIN'),
-            'token'     => env('KOMMO_TOKEN'),
+            'driver'      => \Webkul\Whatsapp\Gateways\Kommo\KommoGateway::class,
+            'label'       => 'WhatsApp (Kommo)',
+            'family'      => 'whatsapp',
+            // Same source as Cloud API on purpose: the customer wrote on
+            // WhatsApp; which provider carried it is our plumbing, not theirs.
+            'lead_source' => 'WhatsApp',
+            'subdomain'   => env('KOMMO_SUBDOMAIN'),
+            'token'       => env('KOMMO_TOKEN'),
 
             // Kommo signs nothing, so this secret in the webhook URL is the
             // only thing standing between the inbox and forged messages.

@@ -3,56 +3,80 @@
 namespace Webkul\Messenger\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Route;
+use Webkul\Messenger\Console\Commands\ConnectPage;
+use Webkul\Messenger\Gateways\MessengerGateway;
 
+/**
+ * Messenger is not an inbox of its own: it is one more channel of the shared
+ * messaging inbox owned by Webkul\Whatsapp. This provider therefore registers
+ * exactly two things — the channel and its webhook — and nothing that would
+ * duplicate a store, a menu entry or an API.
+ */
 class MessengerServiceProvider extends ServiceProvider
 {
-    /**
-     * Bootstrap services.
-     *
-     * @return void
-     */
-    public function boot()
+    public function boot(): void
     {
-        $this->loadMigrationsFrom(__DIR__ . '/../Database/Migrations');
+        $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 
-        Route::middleware(['web', 'admin_locale', 'user'])
-            ->prefix(config('app.admin_path'))
-            ->group(__DIR__ . '/../Routes/web.php');
+        // Public webhook endpoint (Meta calls it; no session/CSRF).
+        $this->loadRoutesFrom(__DIR__.'/../Routes/api.php');
 
-        $this->loadTranslationsFrom(__DIR__ . '/../Resources/lang', 'messenger');
+        if ($this->app->runningInConsole()) {
+            // The webhook URL and its security posture are reported by the
+            // inbox's own command: `php artisan whatsapp:webhook-info messenger`.
+            $this->commands([ConnectPage::class]);
+        }
+    }
 
-        $this->loadViewsFrom(__DIR__ . '/../Resources/views', 'messenger');
+    public function register(): void
+    {
+        $this->mergeConfigFrom(dirname(__DIR__).'/Config/messenger.php', 'messenger');
 
-        Event::listen('admin.layout.head.after', function($viewRenderEventManager) {
-            $viewRenderEventManager->addTemplate('messenger::components.layouts.style');
-        });
+        $this->registerChannel();
     }
 
     /**
-     * Register services.
+     * Declare Messenger in the inbox's channel registry.
      *
-     * @return void
-     */
-    public function register()
-    {
-        $this->registerConfig();
-    }
-
-    /**
-     * Register package config.
+     * Done at register() — like any mergeConfigFrom — so the entry exists
+     * before anything resolves a driver, and so `config:cache` captures it.
      *
-     * @return void
+     * Precedence matters: the keys that define what this channel *is* are
+     * written LAST, so they win. An earlier version of this module wrote the
+     * entry from boot() with a different shape, and a `config:cache` built back
+     * then survives on disk — letting a stale cached entry silently override
+     * the driver, the family or the AI default of the running code.
+     * Credentials still come from config/messenger.php and the environment.
      */
-    protected function registerConfig()
+    protected function registerChannel(): void
     {
-        $this->mergeConfigFrom(
-            dirname(__DIR__) . '/Config/menu.php', 'menu.admin'
-        );
+        $key = 'whatsapp.gateways.messenger';
 
-        $this->mergeConfigFrom(
-            dirname(__DIR__) . '/Config/acl.php', 'acl'
-        );
+        config([$key => array_merge(
+            (array) config($key, []),
+            (array) config('messenger', []),
+            [
+                'driver' => MessengerGateway::class,
+                'label'  => 'Messenger',
+
+                // Its own family: a PSID is not a phone number, so a Messenger
+                // thread must never be merged with a WhatsApp one.
+                'family' => 'messenger',
+
+                // Leads opened from a Messenger thread report this source, so
+                // the pipeline shows what the channel is actually bringing in.
+                'lead_source' => 'Messenger',
+
+                // Interruptor del canal, no solo el valor inicial: en false el
+                // agente IA no corre en NINGUNA conversacion de Messenger, y el
+                // switch del inbox queda bloqueado (ver Conversation::aiEffective
+                // e InboxController::toggleAgent).
+                //
+                // Arranca apagado a proposito: el agente esta escrito y probado
+                // para WhatsApp, y soltarlo en un canal que nadie valido es una
+                // decision que toma una persona.
+                'ai_default' => env('MESSENGER_AI_ENABLED', false),
+            ],
+        )]);
     }
 }

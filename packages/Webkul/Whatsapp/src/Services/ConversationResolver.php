@@ -13,6 +13,7 @@ use Webkul\Lead\Models\SourceProxy;
 use Webkul\Lead\Models\TypeProxy;
 use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
+use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Models\ConversationProxy;
 
 class ConversationResolver
@@ -20,13 +21,21 @@ class ConversationResolver
     /**
      * Resolve the conversation for an inbound message.
      *
-     * Identity is provider-dependent: Cloud API gives a phone, Kommo gives its
-     * lead id (and the phone only after a lookup, which may fail). Match on
-     * whichever is available, preferring the provider's own id since it is
-     * exact.
+     * Identity is channel-dependent: Cloud API gives a phone, Kommo gives its
+     * lead id (and the phone only after a lookup, which may fail), Messenger
+     * gives a page-scoped id and never a phone. Match on whichever is
+     * available, preferring the provider's own id since it is exact.
+     *
+     * @param  string|null  $providerAccountId  Which of our accounts received it
+     *                                          (a Messenger page), so the reply
+     *                                          goes back out the same way.
      */
-    public function resolve(ContactIdentity $contact, ?string $providerConversationId, string $gateway): ?Model
-    {
+    public function resolve(
+        ContactIdentity $contact,
+        ?string $providerConversationId,
+        string $gateway,
+        ?string $providerAccountId = null,
+    ): ?Model {
         $model = ConversationProxy::modelClass();
 
         if ($providerConversationId) {
@@ -43,20 +52,28 @@ class ConversationResolver
         }
 
         if ($conversation) {
-            return $this->backfill($conversation, $contact, $providerConversationId);
+            return $this->backfill($conversation, $contact, $providerConversationId, $providerAccountId);
         }
 
-        $person = $this->resolveOrCreatePerson($contact);
+        $person = $this->resolveOrCreatePerson($contact, $gateway);
 
         return $model::create([
             'gateway'                  => $gateway,
+            // Only phone channels have one. Writing a channel id here would
+            // make a PSID look like a number to every phone-based lookup.
             'wa_phone'                 => PhoneNumber::normalize($contact->phone) ?: null,
             'provider_conversation_id' => $providerConversationId,
+            'provider_account_id'      => $providerAccountId,
             'wa_name'                  => $contact->name,
+            'avatar_url'               => $contact->avatarUrl,
             'person_id'                => $person?->id,
-            'lead_id'                  => $this->resolveOrCreateLeadId($person),
+            'lead_id'                  => $this->resolveOrCreateLeadId($person, $gateway),
             'status'                   => $person ? 'open' : 'unassigned',
-            'ai_enabled'               => true, // new conversations start with the agent on
+            // Whether the AI agent takes new conversations on this channel.
+            // Declared per channel: an agent written and tested for WhatsApp
+            // must not start answering a channel nobody trained it on just
+            // because that channel was plugged in.
+            'ai_enabled'               => (bool) config("whatsapp.gateways.{$gateway}.ai_default", true),
         ]);
     }
 
@@ -64,16 +81,28 @@ class ConversationResolver
      * Fill in details we learn later (the provider id on a phone-matched
      * conversation, a name, or a Person once the number gets registered).
      */
-    protected function backfill(Model $conversation, ContactIdentity $contact, ?string $providerConversationId): Model
-    {
+    protected function backfill(
+        Model $conversation,
+        ContactIdentity $contact,
+        ?string $providerConversationId,
+        ?string $providerAccountId = null,
+    ): Model {
         $updates = [];
 
         if ($providerConversationId && ! $conversation->provider_conversation_id) {
             $updates['provider_conversation_id'] = $providerConversationId;
         }
 
+        if ($providerAccountId && ! $conversation->provider_account_id) {
+            $updates['provider_account_id'] = $providerAccountId;
+        }
+
         if ($contact->name && ! $conversation->wa_name) {
             $updates['wa_name'] = $contact->name;
+        }
+
+        if ($contact->avatarUrl && ! $conversation->avatar_url) {
+            $updates['avatar_url'] = $contact->avatarUrl;
         }
 
         if ($contact->phone && ! $conversation->wa_phone) {
@@ -83,9 +112,9 @@ class ConversationResolver
         // A conversation may have been created before the phone was known (Kommo
         // does not send it), so it can still be waiting for its Person.
         if (! $conversation->person_id) {
-            if ($person = $this->resolveOrCreatePerson($contact)) {
+            if ($person = $this->resolveOrCreatePerson($contact, $conversation->gateway)) {
                 $updates['person_id'] = $person->id;
-                $updates['lead_id'] = $this->resolveOrCreateLeadId($person);
+                $updates['lead_id'] = $this->resolveOrCreateLeadId($person, $conversation->gateway);
                 $updates['status'] = 'open';
             }
         }
@@ -95,7 +124,7 @@ class ConversationResolver
         if (! $conversation->lead_id && ! isset($updates['lead_id']) && $conversation->person_id) {
             $person = PersonProxy::modelClass()::find($conversation->person_id);
 
-            if ($leadId = $this->resolveOrCreateLeadId($person)) {
+            if ($leadId = $this->resolveOrCreateLeadId($person, $conversation->gateway)) {
                 $updates['lead_id'] = $leadId;
             }
         }
@@ -157,7 +186,7 @@ class ConversationResolver
      * freshly opened lead when they have none. Off (config) leaves it null for a
      * human to create from the profile drawer.
      */
-    protected function resolveOrCreateLeadId(?Model $person): ?int
+    protected function resolveOrCreateLeadId(?Model $person, string $gateway): ?int
     {
         if (! $person) {
             return null;
@@ -171,15 +200,16 @@ class ConversationResolver
             return null;
         }
 
-        return optional($this->createLead($person))->id;
+        return optional($this->createLead($person, $gateway))->id;
     }
 
     /**
-     * Open a lead for a WhatsApp contact — default pipeline + first stage,
-     * "WhatsApp" source. Mirrors the manual quick-create in ChatController so
-     * both paths land identical leads. Never lets a failure lose the message.
+     * Open a lead for a messaging contact — default pipeline + first stage, and
+     * the channel's own source so the pipeline reports where the demand came
+     * from. Mirrors the manual quick-create in ChatController so both paths land
+     * identical leads. Never lets a failure lose the message.
      */
-    protected function createLead(Model $person): ?Model
+    protected function createLead(Model $person, string $gateway): ?Model
     {
         try {
             $pipeline = PipelineProxy::modelClass()::where('is_default', 1)->first()
@@ -190,14 +220,14 @@ class ConversationResolver
             }
 
             $stage = $pipeline->stages()->orderBy('sort_order')->first();
-            $source = SourceProxy::modelClass()::firstOrCreate(['name' => 'WhatsApp']);
+            $source = SourceProxy::modelClass()::firstOrCreate(['name' => $this->leadSource($gateway)]);
             $type = TypeProxy::modelClass()::first();
 
             Event::dispatch('lead.create.before');
 
             $lead = app(LeadRepository::class)->create([
                 'entity_type'            => 'leads',
-                'title'                  => 'WhatsApp - '.($person->name ?: 'Contacto'),
+                'title'                  => $this->leadSource($gateway).' - '.($person->name ?: 'Contacto'),
                 'lead_value'             => 0,
                 'person'                 => ['id' => $person->id],
                 'lead_pipeline_id'       => $pipeline->id,
@@ -226,28 +256,47 @@ class ConversationResolver
     }
 
     /**
-     * The Person behind an incoming number: the one already in the CRM, or a
-     * newly registered one when the number is unknown.
+     * The Person behind an incoming message: the one already in the CRM, or a
+     * newly registered one.
+     *
+     * Only a phone number identifies a human across channels. A page-scoped id
+     * (Messenger) is meaningless anywhere else, so a channel without a phone
+     * never *matches* an existing contact — it registers a new one and leaves
+     * merging to a human, which is the only safe direction to be wrong in:
+     * a duplicate contact can be merged, a wrongly merged one cannot be undone.
      */
-    public function resolveOrCreatePerson(ContactIdentity $contact): ?Model
+    public function resolveOrCreatePerson(ContactIdentity $contact, string $gateway): ?Model
     {
-        if (! $contact->phone) {
-            return null;
-        }
-
-        if ($person = $this->resolvePerson($contact->phone)) {
+        if ($contact->phone && $person = $this->resolvePerson($contact->phone)) {
             return $person;
         }
 
-        if (! config('whatsapp.auto_create_person')) {
+        if ($contact->isEmpty() || ! config('whatsapp.auto_create_person')) {
             return null;
         }
 
-        return $this->createPerson($contact);
+        // On a phone channel a missing number means "not known YET" — Kommo
+        // delivers it in a second call that can fail or lag. Registering a
+        // phone-less Person now would produce a duplicate the moment the number
+        // arrives and matches a real contact, so we wait: backfill() links the
+        // conversation as soon as the phone shows up.
+        if (! $contact->phone && $this->family($gateway) === GatewayManager::DEFAULT_FAMILY) {
+            return null;
+        }
+
+        return $this->createPerson($contact, $gateway);
     }
 
     /**
-     * Register a Person for a number nobody has in the CRM yet.
+     * The family of a channel — 'whatsapp' for the phone-based providers.
+     */
+    protected function family(string $gateway): string
+    {
+        return app(GatewayManager::class)->family($gateway);
+    }
+
+    /**
+     * Register a Person for a contact nobody has in the CRM yet.
      *
      * Goes through PersonRepository so Krayin builds unique_id and stores custom
      * attribute values exactly as it does for a contact created by hand.
@@ -255,36 +304,56 @@ class ConversationResolver
      * Never lets a failure here lose the message: the conversation is still
      * created, just unassigned.
      */
-    protected function createPerson(ContactIdentity $contact): ?Model
+    protected function createPerson(ContactIdentity $contact, string $gateway): ?Model
     {
-        // Stored without the leading "+", matching how the CRM already holds numbers.
-        $digits = PhoneNumber::digits($contact->phone);
+        // Stored without the leading "+", matching how the CRM already holds
+        // numbers. Empty for a channel that has none.
+        $digits = $contact->phone ? PhoneNumber::digits($contact->phone) : null;
 
         try {
             $person = app(PersonRepository::class)->create([
                 // PersonRepository hands this straight to the attribute layer,
                 // which keys custom attributes off entity_type.
-                'entity_type'     => 'persons',
-                'name'            => $contact->name ?: $digits,
-                'emails'          => [], // NOT NULL in the schema; a WhatsApp contact has none
-                'contact_numbers' => [['label' => 'work', 'value' => $digits]],
+                'entity_type' => 'persons',
+                // A nameless Messenger contact still needs a label a human can
+                // recognise in a list; the raw PSID is not one.
+                'name'        => $contact->name
+                    ?: ($digits ?: $this->leadSource($gateway).' '.substr((string) $contact->providerId, -6)),
+                'emails' => [], // NOT NULL in the schema; a messaging contact has none
+                // Only ever a real phone number. A channel id (a Messenger
+                // PSID) written here would be matched against phone tails by
+                // resolvePerson() and could bind a stranger to the wrong
+                // contact, so a phone-less channel sends no numbers at all.
+                ...($digits ? ['contact_numbers' => [['label' => 'work', 'value' => $digits]]] : []),
             ]);
 
-            Log::info('WhatsApp: registered a new person for an unknown number', [
+            Log::info('Messaging: registered a new person for an unknown contact', [
                 'person_id' => $person->id,
                 'name'      => $person->name,
+                'channel'   => $gateway,
                 'phone'     => $digits,
             ]);
 
             return $person;
         } catch (Throwable $e) {
-            Log::warning('WhatsApp: could not auto-create person', [
-                'phone' => $digits,
-                'error' => $e->getMessage(),
+            Log::warning('Messaging: could not auto-create person', [
+                'channel' => $gateway,
+                'phone'   => $digits,
+                'error'   => $e->getMessage(),
             ]);
 
             return null;
         }
+    }
+
+    /**
+     * Name of the lead source a channel opens leads under. Declared per channel
+     * in the registry so the pipeline reports "Messenger" and "WhatsApp"
+     * separately, while both Kommo and Cloud API stay a single "WhatsApp".
+     */
+    protected function leadSource(string $gateway): string
+    {
+        return (string) config("whatsapp.gateways.{$gateway}.lead_source", 'WhatsApp');
     }
 
     /**

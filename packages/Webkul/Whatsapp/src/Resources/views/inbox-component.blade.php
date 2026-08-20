@@ -161,7 +161,18 @@
                         <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">@{{ context.name }}</div>
                         <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                             <span v-if="context.phone">@{{ context.phone }}</span>
+                            <!-- A channel that does not use phone numbers is not
+                                 a contact missing one: saying "Sin número" there
+                                 sends advisors hunting for a phone that will
+                                 never exist. Name the channel instead. -->
+                            <span v-else-if="!usesPhone"
+                                  class="rounded-full px-1.5 py-0.5 text-[11px] font-medium"
+                                  :class="channelChip">@{{ channelLabel }}</span>
                             <span v-else class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Sin número</span>
+
+                            <span v-if="context.phone && channelKey !== 'cloud_api'"
+                                  class="rounded-full px-1.5 py-0.5 text-[11px] font-medium"
+                                  :class="channelChip">@{{ channelLabel }}</span>
 
                             <!-- 24h WhatsApp window -->
                             <span v-if="window.applies && window.open"
@@ -556,7 +567,7 @@
                     </label>
                 </div>
 
-                <div v-if="!context.phone" class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                <div v-if="!context.phone && usesPhone" class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
                     Este contacto no tiene número de WhatsApp. Asigna un teléfono para poder chatear.
                 </div>
 
@@ -821,7 +832,7 @@
                                 </div>
                             </div>
 
-                            <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Actividad en WhatsApp</p>
+                            <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Actividad en @{{ channelLabel }}</p>
                             <div class="flex flex-col divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
                                 <div class="flex items-center justify-between px-2.5 py-1.5 text-xs">
                                     <span class="text-gray-500 dark:text-gray-400">Primer contacto</span>
@@ -833,7 +844,7 @@
                                 </div>
                                 <div class="flex items-center justify-between px-2.5 py-1.5 text-xs">
                                     <span class="text-gray-500 dark:text-gray-400">Canal</span>
-                                    <span class="rounded-full bg-gray-100 px-2 py-0.5 font-medium capitalize text-gray-700 dark:bg-gray-800 dark:text-gray-300">@{{ gateway || 'WhatsApp' }}</span>
+                                    <span class="rounded-full px-2 py-0.5 font-medium" :class="channelChip">@{{ channelLabel }}</span>
                                 </div>
                             </div>
                         </template>
@@ -1393,6 +1404,9 @@
                     // Smart scroll: don't yank the user while reading history
                     newBelow: false,
                     gateway: null,
+                    // The channel this thread lives on, as reported by the
+                    // backend: {key, label}. Never inferred in the UI.
+                    channel: null,
                     // Emoji picker (only offered when the gateway supports it)
                     showEmoji: false,
                     emojis: ['😀','😄','😅','😂','🙂','😉','😊','😍','😘','🤔','😐','😕','😢','😭','😡','🥳','😎','🤝','👍','👎','👏','🙏','💪','👋','❤️','💚','🔥','✨','🎉','✅','❌','⚠️','📌','📎','📄','📷','🕐','📅','💰','🛒','📦','🚚','🏠','📍','☎️','💬','➡️','⭐'],
@@ -1404,6 +1418,33 @@
                 initials() {
                     return (this.context.name || '?')
                         .split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+                },
+
+                // ── Channel ────────────────────────────────────────────────
+                // The thread endpoint reports which channel this conversation
+                // lives on. The context passed by the list is only a fallback
+                // for the first render, before the first poll answers.
+                channelKey() {
+                    return this.channel?.key ?? this.context.channel ?? this.gateway ?? null;
+                },
+
+                channelLabel() {
+                    return this.channel?.label ?? this.context.channelLabel ?? 'WhatsApp';
+                },
+
+                // Whether this channel addresses people by phone number. Drives
+                // what the header shows and whether a missing phone is a problem
+                // at all — on Messenger it never is.
+                usesPhone() {
+                    return (this.channel?.family ?? 'whatsapp') === 'whatsapp';
+                },
+
+                channelChip() {
+                    return {
+                        cloud_api: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+                        kommo:     'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+                        messenger: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+                    }[this.channelKey] ?? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
                 },
 
                 // The bound order, resolved against the picker list — that's where
@@ -1743,6 +1784,7 @@
                             if (res.data?.window) this.window = res.data.window;
                             if (res.data?.conversation?.id) this.conversationId = res.data.conversation.id;
                             if (res.data?.conversation?.gateway) this.gateway = res.data.conversation.gateway;
+                            if (res.data?.channel) this.channel = res.data.channel;
                             if (res.data?.agent) this.aiEnabled = res.data.agent.effective;
                             // Sent on every poll and independent of the `since`
                             // cursor, so the banner updates even when no message
@@ -1824,6 +1866,7 @@
 
                     this.$axios.post(this.sendUrl, {
                             phone: this.context.phone,
+                            conversation_id: this.conversationId,
                             person_id: this.context.personId,
                             lead_id: this.context.leadId,
                             name: this.context.name,

@@ -86,6 +86,16 @@ class InboxController extends Controller
             'messages'     => $messages->values(),
             'server_time'  => $serverTime->toDateTimeString(),
             'capabilities' => $gateway->capabilities()->toArray(),
+            // Which channel this thread lives on, already labelled. The header
+            // and the profile drawer render it verbatim — no key ever reaches
+            // the screen, and no channel is assumed to be WhatsApp.
+            'channel'      => [
+                'key'    => $gateway->key(),
+                'label'  => $this->gateways->label($gateway->key()),
+                // Phone-based or not. The composer asks this instead of testing
+                // for a hardcoded channel name.
+                'family' => $this->gateways->family($gateway->key()),
+            ],
             // Meta's per-type size/format table and the team's saved pins. Both
             // are static config the composer needs to validate before uploading.
             'media'        => config('whatsapp.media'),
@@ -184,6 +194,17 @@ class InboxController extends Controller
         $data = $request->validate(['enabled' => 'required|boolean']);
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        // El canal tiene la IA bloqueada por configuracion. Dejar guardar el
+        // switch en true daria un inbox que miente: la fila diria "encendido" y
+        // el agente no se ejecutaria nunca.
+        if ($data['enabled'] && ! $conversation->channelAiAllowed()) {
+            return response()->json([
+                'message' => 'El agente IA está deshabilitado para este canal. Se habilita desde la configuración del servidor, no por conversación.',
+                'agent'   => $this->agentBlock($conversation),
+                'handoff' => $this->handoff->toArray($conversation, $this->userId()),
+            ], 422);
+        }
 
         // Switching the agent back on with a handoff open would let it talk over
         // the advisor who owns the conversation. Closing the handoff is the way
@@ -307,6 +328,9 @@ class InboxController extends Controller
         return [
             'enabled'   => $conversation?->ai_enabled,
             'effective' => $conversation ? $conversation->aiEffective() : (bool) config('whatsapp.ai.enabled'),
+            // Para que el inbox pueda mostrar el switch deshabilitado en vez de
+            // dejar que el asesor lo toque y se coma un 422.
+            'channel_allowed' => $conversation ? $conversation->channelAiAllowed() : true,
         ];
     }
 
@@ -320,16 +344,20 @@ class InboxController extends Controller
      */
     public function send(Request $request, ConversationResolver $resolver): JsonResponse
     {
+        // A channel without phone numbers (Messenger) addresses the thread
+        // directly, so the phone is only required when there is nothing else to
+        // resolve the conversation with.
         $data = $request->validate([
-            'phone'       => 'required|string',
-            'name'        => 'nullable|string',
-            'text'        => 'required|string',
-            'reply_to_id' => 'nullable|integer',
+            'phone'           => 'required_without_all:conversation_id,person_id,lead_id|nullable|string',
+            'conversation_id' => 'nullable|integer',
+            'name'            => 'nullable|string',
+            'text'            => 'required|string',
+            'reply_to_id'     => 'nullable|integer',
         ]);
 
         $existing = $this->existingConversation($request);
 
-        if ($blocked = $this->guardOutbound($existing)) {
+        if ($blocked = $this->guardOutbound($existing) ?? $this->guardAddressable($existing, $data)) {
             return $blocked;
         }
 
@@ -372,12 +400,13 @@ class InboxController extends Controller
         OutboundAttachment $attachments,
     ): JsonResponse {
         $data = $request->validate([
-            'phone'       => 'required|string',
-            'name'        => 'nullable|string',
-            'type'        => ['required', Rule::in(array_keys((array) config('whatsapp.media')))],
-            'file'        => 'required|file',
-            'caption'     => 'nullable|string',
-            'reply_to_id' => 'nullable|integer',
+            'phone'           => 'required_without_all:conversation_id,person_id,lead_id|nullable|string',
+            'conversation_id' => 'nullable|integer',
+            'name'            => 'nullable|string',
+            'type'            => ['required', Rule::in(array_keys((array) config('whatsapp.media')))],
+            'file'            => 'required|file',
+            'caption'         => 'nullable|string',
+            'reply_to_id'     => 'nullable|integer',
         ]);
 
         $existing = $this->existingConversation($request);
@@ -408,7 +437,7 @@ class InboxController extends Controller
             'file.mimetypes' => 'WhatsApp no acepta este formato como '.$data['type'].'.',
         ])->validate();
 
-        if ($blocked = $this->guardOutbound($existing)) {
+        if ($blocked = $this->guardOutbound($existing) ?? $this->guardAddressable($existing, $data)) {
             return $blocked;
         }
 
@@ -597,6 +626,26 @@ class InboxController extends Controller
     }
 
     /**
+     * There has to be somewhere to send it.
+     *
+     * A new conversation can only be opened by phone number, and only phone
+     * channels have one. Without an existing thread and without a phone, the
+     * message has no addressee — say so instead of failing deep inside the
+     * resolver with a type error.
+     */
+    protected function guardAddressable($existing, array $data): ?JsonResponse
+    {
+        if ($existing || ! empty($data['phone'])) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => 'No se puede iniciar una conversación nueva sin un número de teléfono. '
+                .'Este canal solo permite responder conversaciones existentes.',
+        ], 422);
+    }
+
+    /**
      * Store an internal team note on the conversation.
      *
      * The note is a native Krayin activity (type=note) attached to the
@@ -724,7 +773,15 @@ class InboxController extends Controller
         }
 
         if ($phone = $request->input('phone')) {
-            $exact = $model::where('wa_phone', PhoneNumber::normalize($phone))->first();
+            // Phone lookups only ever consider phone channels. A channel keyed
+            // by something else (a Messenger PSID) must never be reached by
+            // digits, or a contact's WhatsApp thread and a stranger's Messenger
+            // thread can resolve to each other.
+            $phoneChannels = $this->gateways->keysInFamily(GatewayManager::DEFAULT_FAMILY);
+
+            $exact = $model::whereIn('gateway', $phoneChannels)
+                ->where('wa_phone', PhoneNumber::normalize($phone))
+                ->first();
 
             if ($exact) {
                 return $exact;
@@ -735,7 +792,10 @@ class InboxController extends Controller
             $tail = PhoneNumber::tail($phone);
 
             return strlen($tail) >= 7
-                ? $model::where('wa_phone', 'like', '%'.$tail)->orderByDesc('id')->first()
+                ? $model::whereIn('gateway', $phoneChannels)
+                    ->where('wa_phone', 'like', '%'.$tail)
+                    ->orderByDesc('id')
+                    ->first()
                 : null;
         }
 

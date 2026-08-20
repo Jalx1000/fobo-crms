@@ -74,7 +74,12 @@ class IngestInboundPayload implements ShouldQueue
             return;
         }
 
-        $conversation = $resolver->resolve($inbound->contact, $inbound->providerConversationId, $this->gatewayKey);
+        $conversation = $resolver->resolve(
+            $inbound->contact,
+            $inbound->providerConversationId,
+            $this->gatewayKey,
+            $inbound->providerAccountId,
+        );
 
         if (! $conversation) {
             return;
@@ -82,9 +87,14 @@ class IngestInboundPayload implements ShouldQueue
 
         $media = $this->storeMedia($inbound, $gateway, $conversation->id);
 
+        // An echo is something the team already sent, from the provider's own
+        // app. It belongs in the thread as history, but it is not a customer
+        // message: it must not reopen the window, add to unread, or wake the AI.
+        $isEcho = $inbound->isEcho();
+
         $created = $model::create([
             'conversation_id' => $conversation->id,
-            'direction'       => 'inbound',
+            'direction'       => $isEcho ? 'outbound' : 'inbound',
             'type'            => $inbound->type,
             'body'            => $inbound->body,
             'media_path'      => $media['path'] ?? null,
@@ -92,16 +102,20 @@ class IngestInboundPayload implements ShouldQueue
             'media_name'      => $media['name'] ?? $inbound->mediaFilename,
             'wa_message_id'   => $inbound->providerMessageId,
             'reply_to_id'     => $this->resolveReplyTo($inbound->replyToProviderId),
-            'status'          => 'delivered',
-            'sender'          => 'contact',
+            'status'          => $isEcho ? 'sent' : 'delivered',
+            'sender'          => $isEcho ? 'human' : 'contact',
             'payload'         => $inbound->raw,
         ]);
 
-        $conversation->forceFill([
+        $conversation->forceFill(array_filter([
             'last_message_at' => now(),
-            'last_inbound_at' => now(), // reopens the 24h messaging window
-            'unread_count'    => $conversation->unread_count + 1,
-        ])->save();
+            'last_inbound_at' => $isEcho ? null : now(), // reopens the 24h messaging window
+            'unread_count'    => $isEcho ? null : $conversation->unread_count + 1,
+        ], fn ($value) => $value !== null))->save();
+
+        if ($isEcho) {
+            return;
+        }
 
         // Hand the message to the AI agent — but only while it is enabled for
         // this conversation. Off = a human is handling it.

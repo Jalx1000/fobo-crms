@@ -390,7 +390,7 @@ return [
             'delete-success' => 'Cotización eliminada con éxito.',
             'delete-failed'  => 'No se puede eliminar la cotización.',
             'datagrid'       => [
-                'subject'      => 'Asunto',
+                'subject'      => 'Empresa',
                 'sales-person' => 'Vendedor',
                 'expired-at'   => 'Vence en',
                 'created-at'   => 'Creado en',
@@ -433,7 +433,7 @@ return [
             'quote-info-info'   => 'Introduce la información básica de la cotización.',
             'address-info'      => 'Información de la Dirección',
             'address-info-info' => 'Información sobre la dirección relacionada con la cotización.',
-            'quote-items'       => 'Artículos de la Cotización',
+            'quote-items'       => 'Productos de la Cotización',
             'search-products'   => 'Buscar Productos',
             'link-to-lead'      => 'Vincular a pedido',
             'quote-item-info'   => 'Agregar Solicitud de Producto para esta cotización.',

@@ -142,7 +142,11 @@
       "Bash(perl -pi -e 's/#E9EFFC/{{ \\\\$brandTint }}/g; s/#000DBB/{{ \\\\$brandColor }}/g; s/#000dbb/{{ \\\\$brandColor }}/g;' packages/Webkul/Admin/src/Resources/views/quotes/pdf.blade.php)",
       "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Config/core_config.php packages/Webkul/Admin/src/Database/Migrations/2026_08_10_130000_create_quote_brand_attribute.php)",
       "Bash(./vendor/bin/pint packages/Webkul/Whatsapp/src/Services/OutboundAttachment.php)",
-      "Bash(./vendor/bin/pest)"
+      "Bash(./vendor/bin/pest)",
+      "Bash(./vendor/bin/pint --test packages/Webkul/Messenger packages/Webkul/Whatsapp tests/Feature/MessengerChannelTest.php)",
+      "Bash(./vendor/bin/pint packages/Webkul/Messenger packages/Webkul/Whatsapp tests/Feature/MessengerChannelTest.php)",
+      "Bash(grep -E '^DB_|^APP_ENV|^APP_URL' /etc/easypanel/projects/heaven/imprimir_laravel/code/.env)",
+      "Bash(./vendor/bin/pest --filter=\"registers a CRM contact|waits for the phone\")"
     ]
   }
 }
