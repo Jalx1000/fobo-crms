@@ -54,6 +54,42 @@ class OutboundAttachment
     }
 
     /**
+     * Store bytes we generated ourselves (a rendered quote PDF, a report) under
+     * the same layout as an uploaded file.
+     *
+     * Same contract as stage(), so the caller builds the message row and the
+     * gateway reads the file identically no matter where it came from.
+     *
+     * @return array{path: string, url: string, mime: string|null, name: string}
+     */
+    public function stageContents(
+        string $contents,
+        string $filename,
+        string $mime,
+        int $conversationId,
+    ): array {
+        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+
+        $path = 'whatsapp/media/'.$conversationId.'/'.Str::random(24).($extension ? '.'.$extension : '');
+
+        // Same reason as in stage(): put() returns false rather than throwing,
+        // and a message row pointing at a file that was never written only
+        // surfaces seconds later in the worker as a misleading error.
+        if (Storage::disk('public')->put($path, $contents) === false
+            || ! Storage::disk('public')->exists($path)
+        ) {
+            throw AttachmentStorageException::couldNotWrite($path);
+        }
+
+        return [
+            'path' => $path,
+            'url'  => Storage::disk('public')->url($path),
+            'mime' => $mime,
+            'name' => $filename,
+        ];
+    }
+
+    /**
      * Decide where the advisor's text goes when they attach a file AND type a
      * message.
      *

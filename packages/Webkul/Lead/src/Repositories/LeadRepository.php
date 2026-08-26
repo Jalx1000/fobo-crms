@@ -25,6 +25,10 @@ class LeadRepository extends Repository
         'user.name',
         'person_id',
         'person.name',
+        // El tablero kanban busca por aca (RequestCriteria), no por la DataGrid:
+        // sin esta entrada, buscar un numero en el kanban no devuelve nada
+        // aunque el listado si lo encuentre.
+        'person.contact_numbers',
         'lead_source_id',
         'lead_type_id',
         'lead_pipeline_id',

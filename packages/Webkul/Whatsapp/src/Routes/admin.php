@@ -21,6 +21,11 @@ Route::controller(InboxController::class)
         Route::post('send', 'send')->name('send');
         Route::post('send-media', 'sendMedia')->name('send-media');
         Route::post('send-location', 'sendLocation')->name('send-location');
+
+        // Plantillas aprobadas (HSM): lo unico que WhatsApp acepta con la
+        // ventana de 24h cerrada.
+        Route::get('templates', 'templates')->name('templates');
+        Route::post('send-template', 'sendTemplate')->name('send-template');
         Route::patch('conversations/{id}/agent', 'toggleAgent')->name('agent');
         Route::patch('conversations/{id}/lead', 'setLead')->name('conversation.lead');
         Route::post('conversations/{id}/notes', 'storeNote')->name('notes.store');

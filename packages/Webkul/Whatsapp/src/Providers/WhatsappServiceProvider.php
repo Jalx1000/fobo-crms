@@ -8,6 +8,7 @@ use Illuminate\Support\ServiceProvider;
 use Webkul\Whatsapp\Console\Commands\KommoCheck;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
+use Webkul\Whatsapp\Console\Commands\WabaId;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
 
 class WhatsappServiceProvider extends ServiceProvider
@@ -34,6 +35,7 @@ class WhatsappServiceProvider extends ServiceProvider
                 KommoCheck::class,
                 NormalizePhones::class,
                 RepairGateway::class,
+                WabaId::class,
                 WebhookInfo::class,
             ]);
         }

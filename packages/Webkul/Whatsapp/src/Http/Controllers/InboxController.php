@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Throwable;
 use Webkul\Activity\Models\ActivityProxy;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Contact\Models\PersonProxy;
@@ -27,6 +28,7 @@ use Webkul\Whatsapp\Services\ConversationResolver;
 use Webkul\Whatsapp\Services\Handoff;
 use Webkul\Whatsapp\Services\OutboundAttachment;
 use Webkul\Whatsapp\Services\PhoneNumber;
+use Webkul\Whatsapp\Services\TemplateCatalog;
 
 class InboxController extends Controller
 {
@@ -580,6 +582,221 @@ class InboxController extends Controller
      * Saved locations for the composer's location panel. Static config, so it
      * rides along with the thread payload rather than costing its own endpoint.
      */
+    /**
+     * Las plantillas aprobadas entre las que puede elegir el asesor.
+     *
+     * Nunca rompe el inbox: si falta la cuenta o Meta no responde, devuelve
+     * lista vacía y el motivo, y el composer degrada a "no hay plantillas" en
+     * lugar de dejar la conversación inutilizable.
+     */
+    public function templates(Request $request, TemplateCatalog $catalog): JsonResponse
+    {
+        // La capacidad se evalúa contra el canal de ESTA conversación, no contra
+        // el activo de la instalación: un hilo de Messenger no tiene plantillas
+        // por más que Cloud API sea el canal por defecto.
+        if (! $this->gatewayFor($request)->capabilities()->canSend('template')) {
+            return response()->json(['templates' => [], 'reason' => 'Este canal no envía plantillas.']);
+        }
+
+        try {
+            return response()->json(['templates' => $catalog->all()]);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['templates' => [], 'reason' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Enviar una plantilla aprobada — lo único que WhatsApp acepta una vez
+     * cerrada la ventana de 24h.
+     */
+    public function sendTemplate(
+        Request $request,
+        ConversationResolver $resolver,
+        TemplateCatalog $catalog,
+        OutboundAttachment $attachments,
+    ): JsonResponse {
+        $data = $request->validate([
+            'phone'           => 'required_without_all:conversation_id,person_id,lead_id|nullable|string',
+            'conversation_id' => 'nullable|integer',
+            'name'            => 'nullable|string',
+            'template'        => 'required|string',
+            'language'        => 'required|string',
+            'variables'       => 'array',
+            'variables.*'     => 'string',
+            // Solo para plantillas cuyo encabezado es un archivo. Se valida
+            // contra los límites del tipo más abajo, cuando ya sabemos cuál es.
+            'file'            => 'nullable|file',
+        ]);
+
+        $existing = $this->existingConversation($request);
+
+        if ($blocked = $this->guardOutbound($existing) ?? $this->guardAddressable($existing, $data)) {
+            return $blocked;
+        }
+
+        $template = $catalog->find($data['template'], $data['language']);
+
+        if (! $template) {
+            return response()->json(['message' => 'Esa plantilla ya no está disponible.'], 422);
+        }
+
+        // El encabezado multimedia es un parámetro obligatorio: sin el archivo,
+        // Meta responde 132012 ("parameter format does not match"), que no dice
+        // en ninguna parte que falta un adjunto.
+        $headerType = $this->headerMediaType($template);
+
+        if ($headerType && ! $request->hasFile('file')) {
+            return response()->json([
+                'message' => 'Esta plantilla lleva un archivo en el encabezado. Adjuntalo para poder enviarla.',
+            ], 422);
+        }
+
+        if ($headerType && $blocked = $this->guardMediaLimits($request, $headerType)) {
+            return $blocked;
+        }
+
+        if (($template['header_variables'] ?? 0) > 0) {
+            return response()->json([
+                'message' => 'Esta plantilla usa variables en el encabezado, que todavía no se pueden completar desde el chat.',
+            ], 422);
+        }
+
+        $variables = array_values($data['variables'] ?? []);
+
+        // Meta completa los placeholders por posición y rechaza el mensaje
+        // entero cuando la cantidad no coincide, así que se corta acá con un
+        // motivo que se puede leer.
+        if (count($variables) !== $template['variables']) {
+            return response()->json([
+                'message' => 'La plantilla necesita '.$template['variables'].' variable(s) y llegaron '.count($variables).'.',
+            ], 422);
+        }
+
+        if (in_array('', array_map('trim', $variables), true)) {
+            return response()->json(['message' => 'Completá todas las variables.'], 422);
+        }
+
+        try {
+            $message = DB::transaction(function () use ($existing, $data, $request, $resolver, $attachments, $template, $variables, $headerType) {
+                $conversation = $existing
+                    ?? $resolver->findOrCreate($data['phone'], $data['name'] ?? null);
+
+                $file = $headerType
+                    ? $attachments->stage($request->file('file'), $conversation->id)
+                    : null;
+
+                $message = MessageProxy::modelClass()::create([
+                    'conversation_id' => $conversation->id,
+                    'direction'       => 'outbound',
+                    // Con adjunto la fila se guarda con el tipo del archivo y no
+                    // como 'template': así el hilo y la pestaña Archivos la
+                    // renderizan como cualquier otro adjunto. Es la misma
+                    // convención que usa el envío de cotizaciones, y SendMessage
+                    // mira el payload antes que el tipo justamente por esto.
+                    'type'            => $headerType ?: 'template',
+                    // Vista legible para el hilo: el envío real usa el payload.
+                    'body'            => $this->renderTemplate($template['body'], $variables),
+                    'media_path'      => $file['url'] ?? null,
+                    'media_mime'      => $file['mime'] ?? null,
+                    'media_name'      => $file['name'] ?? null,
+                    'status'          => 'queued',
+                    'sender'          => 'human',
+                    'payload'         => array_filter([
+                        // La forma la impone OutboundTemplate::fromArray(), que
+                        // es quien reconstruye esto en el worker. Con otras
+                        // claves el envío sale sin nombre de plantilla y falla en
+                        // la cola, no acá.
+                        'template' => [
+                            'name'        => $template['name'],
+                            'language'    => $template['language'],
+                            'body_params' => $variables,
+                        ],
+                        // Ruta relativa al disco: media_path es una URL pública y
+                        // el driver necesita leer los bytes.
+                        'media_disk_path' => $file['path'] ?? null,
+                    ]),
+                ]);
+
+                $conversation->forceFill(['last_message_at' => now()])->save();
+
+                return $message;
+            });
+        } catch (AttachmentStorageException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
+
+        return response()->json(['message' => $this->transform($message)]);
+    }
+
+    /**
+     * El tipo de archivo que exige el encabezado, o null si es de texto.
+     *
+     * Meta nombra los formatos en mayúscula y el CRM los tipos en minúscula; la
+     * traducción vive acá y no en el catálogo, que solo refleja lo que Meta dice.
+     */
+    protected function headerMediaType(array $template): ?string
+    {
+        $format = strtolower((string) ($template['header_format'] ?? ''));
+
+        return in_array($format, ['image', 'document', 'video'], true) ? $format : null;
+    }
+
+    /**
+     * Los límites de tamaño y formato de Meta para ese tipo de archivo.
+     *
+     * Mismo control que sendMedia(): un archivo que Meta rechaza produce un 400
+     * opaco desde Graph, y acá se convierte en un motivo que se puede leer.
+     */
+    protected function guardMediaLimits(Request $request, string $type): ?JsonResponse
+    {
+        $limits = (array) config('whatsapp.media.'.$type);
+
+        $validator = Validator::make($request->all(), [
+            'file' => [
+                'file',
+                'max:'.($limits['max_kb'] ?? 5120),
+                ...(($limits['mimes'] ?? []) ? ['mimetypes:'.implode(',', $limits['mimes'])] : []),
+            ],
+        ], [
+            'file.max'       => 'El archivo supera el límite de WhatsApp para '.$type.' ('.round(($limits['max_kb'] ?? 5120) / 1024, 1).' MB).',
+            'file.mimetypes' => 'WhatsApp no acepta este formato como '.$type.'.',
+        ]);
+
+        return $validator->fails()
+            ? response()->json(['message' => $validator->errors()->first('file')], 422)
+            : null;
+    }
+
+    /**
+     * Reemplaza los placeholders numerados por los valores, para el preview que
+     * queda guardado en el mensaje.
+     */
+    protected function renderTemplate(string $body, array $variables): string
+    {
+        foreach ($variables as $i => $value) {
+            $body = str_replace('{{'.($i + 1).'}}', $value, $body);
+        }
+
+        return $body;
+    }
+
+    /**
+     * El driver que corresponde: el de la conversación cuando existe, el activo
+     * cuando todavía se está por abrir una.
+     */
+    protected function gatewayFor(Request $request)
+    {
+        $conversation = $this->existingConversation($request);
+
+        return $conversation
+            ? $this->gateways->for($conversation)
+            : $this->gateways->active();
+    }
+
     protected function savedLocations(): array
     {
         return collect(config('whatsapp.locations', []))

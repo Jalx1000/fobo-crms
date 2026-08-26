@@ -12,6 +12,9 @@
         <!-- Date Filters -->
         @include('admin::leads.index.date-filters')
 
+        <!-- Channel Filter -->
+        @include('admin::leads.index.platform-filter')
+
         {!! view_render_event('admin.leads.index.kanban.toolbar.filter.before') !!}
 
         <!-- Filter -->

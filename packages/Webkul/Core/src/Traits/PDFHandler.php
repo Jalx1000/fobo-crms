@@ -19,6 +19,24 @@ trait PDFHandler
             $fileName = Str::random(32);
         }
 
+        $contents = $this->generatePDF($html);
+
+        return response()->streamDownload(fn () => print ($contents), $fileName.'.pdf', [
+            'Content-Type' => 'application/pdf',
+        ]);
+    }
+
+    /**
+     * Render the same PDF as downloadPDF(), but return the raw bytes instead of
+     * a response.
+     *
+     * Needed by anything that has to hand the file to somewhere other than the
+     * browser — attaching a quote to a WhatsApp message, mailing it, archiving
+     * it. Kept here so there is a single definition of "what our PDFs look
+     * like": the RTL branch, the paper size and the font all stay in one place.
+     */
+    protected function generatePDF(string $html): string
+    {
         $html = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
 
         if (in_array($direction = app()->getLocale(), ['ar', 'he'])) {
@@ -35,13 +53,13 @@ trait PDFHandler
 
             $mPDF->WriteHTML($this->adjustArabicAndPersianContent($html));
 
-            return response()->streamDownload(fn () => print ($mPDF->Output('', 'S')), $fileName.'.pdf');
+            return (string) $mPDF->Output('', 'S');
         }
 
-        return PDF::loadHTML($this->adjustArabicAndPersianContent($html))
+        return (string) PDF::loadHTML($this->adjustArabicAndPersianContent($html))
             ->setPaper('A4', 'portrait')
             ->set_option('defaultFont', 'Courier')
-            ->download($fileName.'.pdf');
+            ->output();
     }
 
     /**

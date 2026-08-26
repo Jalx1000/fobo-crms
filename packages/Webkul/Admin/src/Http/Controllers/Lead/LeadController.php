@@ -30,6 +30,7 @@ use Webkul\Lead\Repositories\TypeRepository;
 use Webkul\Lead\Services\MagicAIService;
 use Webkul\Tag\Repositories\TagRepository;
 use Webkul\User\Repositories\UserRepository;
+use Webkul\Whatsapp\Support\ContactChannel;
 
 class LeadController extends Controller
 {
@@ -318,6 +319,17 @@ class LeadController extends Controller
             if ($userIds = bouncer()->getAuthorizedUserIds()) {
                 $query->whereIn('leads.user_id', $userIds);
             }
+
+            /**
+             * Narrow the board to one messaging channel.
+             *
+             * The kanban does not go through the DataGrid, so it cannot use the
+             * joined `platform` column the grids filter on — the same rule is
+             * applied here as a constraint instead, from the same definition, so
+             * a contact can never read as WhatsApp on the board and Messenger on
+             * the grid.
+             */
+            ContactChannel::applyFilter($query, request()->query('platform'), 'leads.person_id');
 
             if ($dateRange) {
                 /**
@@ -835,6 +847,26 @@ class LeadController extends Controller
                         'value' => 'id',
                     ],
                 ],
+            ],
+            [
+                // El tablero define sus columnas por separado de LeadDataGrid:
+                // agregar una al listado no la hace aparecer acá. `person.*`
+                // funciona porque RequestCriteria resuelve la relación, y el
+                // campo tiene que estar además en $fieldSearchable del
+                // repositorio o lo descarta en silencio.
+                'index'                 => 'person.contact_numbers',
+                'label'                 => trans('admin::app.leads.index.kanban.columns.phone'),
+                'type'                  => 'string',
+                'searchable'            => false,
+                // Texto libre y no `in`: los números se guardan en un JSON junto
+                // con su etiqueta, así que una igualdad exacta nunca acierta.
+                'search_field'          => 'like',
+                'filterable'            => true,
+                'filterable_type'       => null,
+                'filterable_options'    => [],
+                'allow_multiple_values' => true,
+                'sortable'              => false,
+                'visibility'            => true,
             ],
             [
                 'index'                 => 'lead_type_id',

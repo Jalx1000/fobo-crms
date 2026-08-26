@@ -117,6 +117,20 @@
                                             {!! view_render_event('admin.leads.view.quotes.table.table_body.dropdown.item.after', ['lead' => $lead]) !!}
                                         @endif
 
+                                        @if (bouncer()->hasPermission('quotes.whatsapp'))
+                                            {!! view_render_event('admin.leads.view.quotes.table.table_body.dropdown.item.before', ['lead' => $lead]) !!}
+
+                                            <x-admin::dropdown.menu.item @click="sendQuoteOverWhatsapp(quote)">
+                                                <div class="flex items-center gap-2">
+                                                    <span class="icon-sent text-2xl"></span>
+
+                                                    @lang('admin::app.leads.view.quotes.whatsapp')
+                                                </div>
+                                            </x-admin::dropdown.menu.item>
+
+                                            {!! view_render_event('admin.leads.view.quotes.table.table_body.dropdown.item.after', ['lead' => $lead]) !!}
+                                        @endif
+
                                         @if (bouncer()->hasPermission('quotes.delete'))
                                             {!! view_render_event('admin.leads.view.quotes.table.table_body.dropdown.item.before', ['lead' => $lead]) !!}
 
@@ -186,6 +200,26 @@
             },
 
             methods: {
+                /**
+                 * Queue the quote PDF into the contact's WhatsApp thread.
+                 *
+                 * Confirmed first, because it reaches the customer: unlike Edit
+                 * or Download, there is no undo once it leaves.
+                 */
+                sendQuoteOverWhatsapp(quote) {
+                    this.$emitter.emit('open-confirm-modal', {
+                        agree: () => {
+                            this.$axios.post("{{ route('admin.quotes.index') }}/" + quote.id + "/whatsapp")
+                                .then(response => {
+                                    this.$emitter.emit('add-flash', { type: 'success', message: response.data.message });
+                                })
+                                .catch(error => {
+                                    this.$emitter.emit('add-flash', { type: 'error', message: error.response.data.message });
+                                });
+                        }
+                    });
+                },
+
                 removeQuote(quote) {
                     this.$emitter.emit('open-confirm-modal', {
                         agree: () => {

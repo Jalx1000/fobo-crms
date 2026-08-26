@@ -450,8 +450,24 @@
                                 return;
                             }
 
-                            params['search'] += `title:${column.value.join(',')};`;
-                            params['searchFields'] += `title:like;`;
+                            /**
+                             * La caja libre busca en los tres lugares donde
+                             * alguien buscaria un lead: el titulo, el nombre del
+                             * contacto y su telefono. Antes miraba SOLO el
+                             * titulo, asi que escribir un numero o un nombre no
+                             * devolvia nada y parecia que el filtro no andaba.
+                             *
+                             * RequestCriteria combina los campos con OR (el
+                             * primero va con `where` y el resto con `orWhere`),
+                             * que es justo lo que una caja de busqueda tiene que
+                             * hacer.
+                             */
+                            const term = column.value.join(',');
+
+                            ['title', 'person.name', 'person.contact_numbers'].forEach((field) => {
+                                params['search'] += `${field}:${term};`;
+                                params['searchFields'] += `${field}:like;`;
+                            });
 
                             return;
                         }

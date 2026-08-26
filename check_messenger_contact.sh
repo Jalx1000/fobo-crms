@@ -2,8 +2,9 @@
 #
 # Diagnostico de un contacto de Messenger: por que no tiene nombre ni foto.
 #
-#   ./check_messenger_contact.sh          # usa el person 239
-#   ./check_messenger_contact.sh 412      # cualquier otro
+#   ./check_messenger_contact.sh 239               # por id de person
+#   ./check_messenger_contact.sh "Messenger 341809" # por nombre
+#   ./check_messenger_contact.sh 341809             # por sufijo del PSID
 #
 # Volca el Person, sus atributos, las conversaciones ligadas y la conexion de
 # la pagina; despues golpea Graph EN VIVO con el PSID real de ese contacto,
@@ -13,16 +14,46 @@
 
 set -euo pipefail
 
-PERSON_ID="${1:-240}" php artisan tinker <<'PHP'
-$id = (int) getenv('PERSON_ID');
+TARGET="${1:-239}" php artisan tinker <<'PHP'
+$target = trim((string) getenv('TARGET'));
 
-$p = Webkul\Contact\Models\Person::with('attribute_values')->find($id);
+$personModel = Webkul\Contact\Models\Person::class;
+$convModel   = Webkul\Whatsapp\Models\Conversation::class;
+
+$p = null;
+
+// 1. Id de person exacto.
+if (ctype_digit($target) && strlen($target) <= 9) {
+    $p = $personModel::with('attribute_values')->find((int) $target);
+}
+
+// 2. Nombre exacto o parcial ("Messenger 341809").
+if (! $p) {
+    $p = $personModel::with('attribute_values')->where('name', 'like', '%'.$target.'%')->first();
+}
+
+// 3. Sufijo del PSID: se busca la conversacion y de ahi el person.
+if (! $p) {
+    $conv = $convModel::where('gateway', 'messenger')
+        ->where('provider_conversation_id', 'like', '%'.preg_replace('/\D+/', '', $target))
+        ->first();
+
+    if ($conv?->person_id) {
+        $p = $personModel::with('attribute_values')->find($conv->person_id);
+    } elseif ($conv) {
+        echo "Conversacion #{$conv->id} encontrada, pero NO tiene person asociado.\n";
+        echo 'psid: '.var_export($conv->provider_conversation_id, true)."\n";
+    }
+}
 
 if (! $p) {
-    echo "No existe el person {$id}\n";
+    echo "No se encontro nada para: {$target}\n";
+    echo "Proba con el id de person, el nombre completo, o los ultimos digitos del PSID.\n";
 
     return;
 }
+
+$id = $p->id;
 
 echo "=== PERSON {$id} ===\n";
 echo 'name ........ '.var_export($p->name, true)."\n";
@@ -30,17 +61,12 @@ echo 'unique_id ... '.var_export($p->unique_id, true)."\n";
 echo 'org_id ...... '.var_export($p->organization_id, true)."\n";
 echo "creado ...... {$p->created_at}\n";
 
-// Un nombre tipo "Messenger 4f8a2c" es el respaldo que arma ConversationResolver
-// cuando la busqueda de perfil no devolvio nada. Si aparece asi, Graph fallo
-// en el momento en que entro este contacto.
 if (preg_match('/^(Messenger|WhatsApp) [0-9a-z]{4,8}$/i', (string) $p->name)) {
     echo "            ^^^ es el NOMBRE DE RESPALDO: el perfil no se pudo leer\n";
 }
 
 echo "\n=== ATRIBUTOS ===\n";
 
-// Sobre el modelo, no sobre el trait: PHP 8.3 deprecio leer una propiedad
-// estatica directamente desde el trait.
 $typeFields = Webkul\Contact\Models\Person::$attributeTypeFields;
 
 foreach ($p->attribute_values as $v) {
@@ -57,12 +83,10 @@ foreach ($p->attribute_values as $v) {
 
 echo "\n=== CONVERSACIONES ===\n";
 
-$convs = Webkul\Whatsapp\Models\Conversation::where('person_id', $id)->get();
+$convs = $convModel::where('person_id', $id)->get();
 
 if ($convs->isEmpty()) {
     echo "NINGUNA - el person no esta ligado a ningun hilo.\n";
-    echo "El nombre y la foto de Messenger viven en la conversacion, asi que\n";
-    echo "sin hilo asociado no hay de donde sacarlos.\n";
 
     return;
 }
@@ -72,7 +96,6 @@ foreach ($convs as $c) {
     echo "gateway .................. {$c->gateway}\n";
     echo 'wa_name .................. '.var_export($c->wa_name, true)."   <-- el NOMBRE real\n";
     echo 'avatar_url ............... '.var_export($c->avatar_url, true)."   <-- la FOTO\n";
-    echo 'wa_phone ................. '.var_export($c->wa_phone, true)."\n";
     echo 'provider_conversation_id . '.var_export($c->provider_conversation_id, true)."   <-- el PSID\n";
     echo 'provider_account_id ...... '.var_export($c->provider_account_id, true)."   <-- la pagina\n";
     echo 'lead_id .................. '.var_export($c->lead_id, true)."\n";
@@ -85,18 +108,13 @@ foreach ($convs as $c) {
         continue;
     }
 
-    // La conexion que deberia haber servido este hilo. El fallback a la primera
-    // existe para instalaciones de una sola pagina, donde provider_account_id
-    // puede venir vacio en hilos viejos.
-    $conn = Webkul\Messenger\Models\SocialConnection::where('channel', 'messenger')
-        ->where('account_id', $c->provider_account_id)
-        ->first()
-        ?? Webkul\Messenger\Models\SocialConnection::where('channel', 'messenger')->first();
+    $conn = Webkul\Messenger\Models\SocialConnection::where('channel', 'messenger')->where('account_id', $c->provider_account_id)->first();
+    $conn = $conn ?: Webkul\Messenger\Models\SocialConnection::where('channel', 'messenger')->first();
 
     echo "\n--- CONEXION ---\n";
 
     if (! $conn) {
-        echo "NINGUNA conexion de Messenger cargada. Corre: php artisan messenger:connect-page\n";
+        echo "NINGUNA conexion de Messenger cargada.\n";
 
         continue;
     }
@@ -105,14 +123,12 @@ foreach ($convs as $c) {
     echo 'account_id ...... '.var_export($conn->account_id, true)."\n";
     echo 'coincide? ....... '.($conn->account_id === (string) $c->provider_account_id ? 'SI' : '*** NO - token de otra pagina ***')."\n";
     echo 'tiene token? .... '.($conn->access_token ? 'si' : '*** NO ***')."\n";
+    echo "token guardado .. {$conn->updated_at}   <-- anterior a la aprobacion = token viejo\n";
 
     if (! $conn->access_token || ! $c->provider_conversation_id) {
         continue;
     }
 
-    // Los tres juegos por separado: si first_name,last_name pasa pero agregarle
-    // profile_pic da 400, el campo de la foto esta tumbando la request entera y
-    // por eso se pierde tambien el nombre.
     echo "\n--- GRAPH EN VIVO ---\n";
 
     $url = 'https://graph.facebook.com/'.config('messenger.graph_version').'/'.$c->provider_conversation_id;

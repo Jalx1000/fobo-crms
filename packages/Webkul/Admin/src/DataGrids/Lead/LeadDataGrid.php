@@ -14,6 +14,7 @@ use Webkul\Lead\Repositories\StageRepository;
 use Webkul\Lead\Repositories\TypeRepository;
 use Webkul\Tag\Repositories\TagRepository;
 use Webkul\User\Repositories\UserRepository;
+use Webkul\Whatsapp\Support\ContactChannel;
 
 class LeadDataGrid extends DataGrid
 {
@@ -93,6 +94,7 @@ class LeadDataGrid extends DataGrid
                 'users.name as sales_person',
                 'persons.id as person_id',
                 'persons.name as person_name',
+                'persons.contact_numbers',
                 'tags.name as tag_name',
                 'lead_pipelines.rotten_days as pipeline_rotten_days',
                 'lead_pipelines.name as pipeline_name',
@@ -108,6 +110,16 @@ class LeadDataGrid extends DataGrid
             ->leftJoin('lead_tags', 'leads.id', '=', 'lead_tags.lead_id')
             ->leftJoin('tags', 'tags.id', '=', 'lead_tags.tag_id')
             ->groupBy('leads.id');
+
+        // Which messaging channel this lead's contact is reachable on. One row
+        // per contact by construction, so it adds no rows to the GROUP BY above.
+        //
+        // NOT the same question as lead_source_name, which stays: the source
+        // says where the lead came from when it was created, this says where we
+        // can write to them today. A lead entered by hand has no source at all.
+        $queryBuilder->addSelect(ContactChannel::selectColumn());
+
+        ContactChannel::joinTo($queryBuilder, 'leads.person_id');
 
         /**
          * In "all pipelines" mode we list leads from every city, so we skip the
@@ -157,6 +169,8 @@ class LeadDataGrid extends DataGrid
         $this->addFilter('lead_source_name', 'lead_sources.id');
         // $this->addFilter('lead_type_name', 'lead_types.id');
         $this->addFilter('person_name', 'persons.name');
+        $this->addFilter('contact_numbers', 'persons.contact_numbers');
+        $this->addFilter('platform', ContactChannel::column());
         // $this->addFilter('type', 'lead_pipeline_stages.code');
         $this->addFilter('stage', 'lead_pipeline_stages.id');
         $this->addFilter('tag_name', 'tags.name');
@@ -217,6 +231,18 @@ class LeadDataGrid extends DataGrid
         ]);
 
         $this->addColumn([
+            'index'              => 'platform',
+            'label'              => trans('admin::app.common.channel'),
+            'type'               => 'string',
+            'searchable'         => false,
+            'sortable'           => true,
+            'filterable'         => true,
+            'filterable_type'    => 'dropdown',
+            'filterable_options' => ContactChannel::options(),
+            'closure'            => fn ($row) => ContactChannel::label($row->platform ?? null),
+        ]);
+
+        $this->addColumn([
             'index'      => 'lead_value',
             'label'      => trans('admin::app.leads.index.datagrid.lead-value'),
             'type'       => 'string',
@@ -245,10 +271,22 @@ class LeadDataGrid extends DataGrid
         ]);
 
         $this->addColumn([
+            'index'      => 'contact_numbers',
+            'label'      => trans('admin::app.leads.index.datagrid.phone'),
+            'type'       => 'string',
+            // Los numeros viven en un JSON dentro de persons, sin orden estable,
+            // asi que ordenar por esta columna no significaria nada.
+            'sortable'   => false,
+            'filterable' => true,
+            'searchable' => true,
+            'closure'    => fn ($row) => collect(json_decode($row->contact_numbers, true) ?? [])->pluck('value')->join(', '),
+        ]);
+
+        $this->addColumn([
             'index'              => 'person_name',
             'label'              => trans('admin::app.leads.index.datagrid.contact-person'),
             'type'               => 'string',
-            'searchable'         => false,
+            'searchable'         => true,
             'sortable'           => true,
             'filterable'         => true,
             'filterable_type'    => 'searchable_dropdown',

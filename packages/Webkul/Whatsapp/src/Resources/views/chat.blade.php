@@ -11,6 +11,8 @@
             send-url="{{ route('admin.whatsapp.send') }}"
             send-media-url="{{ route('admin.whatsapp.send-media') }}"
             send-location-url="{{ route('admin.whatsapp.send-location') }}"
+            templates-url="{{ route('admin.whatsapp.templates') }}"
+            send-template-url="{{ route('admin.whatsapp.send-template') }}"
             agent-url-base="{{ url(config('app.admin_path').'/whatsapp/conversations') }}"
             quick-replies-url="{{ route('admin.whatsapp.quick-replies.index') }}"
             person-url-base="{{ url(config('app.admin_path').'/whatsapp/persons') }}"
@@ -220,6 +222,8 @@
                         :send-url="sendUrl"
                         :send-media-url="sendMediaUrl"
                         :send-location-url="sendLocationUrl"
+                        :templates-url="templatesUrl"
+                        :send-template-url="sendTemplateUrl"
                         :agent-url-base="agentUrlBase"
                         :quick-replies-url="quickRepliesUrl"
                         :person-url-base="personUrlBase"
@@ -250,6 +254,8 @@
                     sendUrl: { type: String, required: true },
                     sendMediaUrl: { type: String, required: true },
                     sendLocationUrl: { type: String, required: true },
+                    templatesUrl: { type: String, default: '' },
+                    sendTemplateUrl: { type: String, default: '' },
                     agentUrlBase: { type: String, required: true },
                     quickRepliesUrl: { type: String, required: true },
                     personUrlBase: { type: String, required: true },

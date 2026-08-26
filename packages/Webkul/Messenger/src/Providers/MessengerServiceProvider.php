@@ -3,6 +3,7 @@
 namespace Webkul\Messenger\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Webkul\Messenger\Console\Commands\BackfillProfiles;
 use Webkul\Messenger\Console\Commands\ConnectPage;
 use Webkul\Messenger\Gateways\MessengerGateway;
 
@@ -24,7 +25,7 @@ class MessengerServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             // The webhook URL and its security posture are reported by the
             // inbox's own command: `php artisan whatsapp:webhook-info messenger`.
-            $this->commands([ConnectPage::class]);
+            $this->commands([ConnectPage::class, BackfillProfiles::class]);
         }
     }
 

@@ -10,6 +10,7 @@ use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Contact\Repositories\OrganizationRepository;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\DataGrid\DataGrid;
+use Webkul\Whatsapp\Support\ContactChannel;
 
 class PersonDataGrid extends DataGrid
 {
@@ -94,6 +95,13 @@ class PersonDataGrid extends DataGrid
             )
             ->leftJoin('organizations', 'persons.organization_id', '=', 'organizations.id');
 
+        // Which messaging channel this contact is reachable on. Joined as one
+        // row per contact, so it cannot duplicate the listing — this grid has no
+        // GROUP BY to fall back on.
+        $queryBuilder->addSelect(ContactChannel::selectColumn());
+
+        ContactChannel::joinTo($queryBuilder, 'persons.id');
+
         if ($userIds = bouncer()->getAuthorizedUserIds()) {
             $queryBuilder->whereIn('persons.user_id', $userIds);
         }
@@ -157,6 +165,7 @@ class PersonDataGrid extends DataGrid
 
         $this->addFilter('id', 'persons.id');
         $this->addFilter('person_name', 'persons.name');
+        $this->addFilter('platform', ContactChannel::column());
         $this->addFilter('organization', 'organizations.name');
 
         return $queryBuilder;
@@ -203,6 +212,18 @@ class PersonDataGrid extends DataGrid
             'filterable' => true,
             'searchable' => true,
             'closure'    => fn ($row) => collect(json_decode($row->contact_numbers, true) ?? [])->pluck('value')->join(', '),
+        ]);
+
+        $this->addColumn([
+            'index'              => 'platform',
+            'label'              => trans('admin::app.common.channel'),
+            'type'               => 'string',
+            'searchable'         => false,
+            'sortable'           => true,
+            'filterable'         => true,
+            'filterable_type'    => 'dropdown',
+            'filterable_options' => ContactChannel::options(),
+            'closure'            => fn ($row) => ContactChannel::label($row->platform ?? null),
         ]);
 
         $this->addColumn([

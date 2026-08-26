@@ -9,6 +9,11 @@
 */
 $cloud = [
     'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+    // La cuenta (WABA) dueña de ese numero. Solo hace falta para LEER el
+    // catalogo de plantillas: los envios se direccionan por phone_number_id.
+    // Tiene que ser el WABA de ESE numero — un par desalineado devuelve 132001
+    // o "Unsupported post request". `php artisan whatsapp:waba-id` lo descubre.
+    'waba_id'         => env('WHATSAPP_WABA_ID'),
     'token'           => env('WHATSAPP_TOKEN'),
     'app_secret'      => env('WHATSAPP_APP_SECRET'),
     'verify_token'    => env('WHATSAPP_VERIFY_TOKEN'),
@@ -95,6 +100,35 @@ return [
     | Dedicated queue (Redis) for inbound ingestion and outbound sending jobs.
     */
     'queue' => env('WHATSAPP_QUEUE', 'whatsapp'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Approved templates (HSM)
+    |--------------------------------------------------------------------------
+    | Once the 24h service window closes, WhatsApp only accepts templates that
+    | Meta approved beforehand. They are created and approved by hand in
+    | WhatsApp Manager — the CRM never creates them — so all we keep here is the
+    | pointer.
+    |
+    | `language` must be the EXACT code the template was approved under. It is
+    | not a preference and there is no fallback: a mismatch comes back as 132001
+    | and the message is lost.
+    |
+    | Categoría esperada: Utility. Si Meta la reclasifica a Marketing, el envío
+    | pasa a cobrarse también dentro de la ventana — revisar el texto aprobado.
+    */
+    'templates' => [
+        // Minutos que se cachea el catalogo leido de Meta. El catalogo casi no
+        // cambia y el inbox lo pide en cada conversacion.
+        'cache_minutes' => env('WHATSAPP_TEMPLATES_CACHE_MINUTES', 30),
+
+        // Cotización enviada como PDF adjunto en el header.
+        // Body: {{1}} contacto, {{2}} asunto, {{3}} total, {{4}} validez.
+        'quote' => [
+            'name'     => env('WHATSAPP_TEMPLATE_QUOTE', 'cotizacion_documento'),
+            'language' => env('WHATSAPP_TEMPLATE_QUOTE_LANG', 'es'),
+        ],
+    ],
 
     /*
     |--------------------------------------------------------------------------

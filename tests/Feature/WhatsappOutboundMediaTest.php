@@ -212,3 +212,57 @@ it('stages an upload on the public disk and reports both paths', function () {
         ->and($staged['name'])->toBe('diseño.png')
         ->and($staged['url'])->toContain($staged['path']);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Failed delivery receipts
+|--------------------------------------------------------------------------
+| Meta accepts plenty of sends it later cannot deliver: the API answers 200 with
+| a message id and the only account of what went wrong arrives in the receipt.
+| Dropping it leaves a row marked failed with nothing to act on.
+*/
+
+function failedReceipt(array $errors): Webkul\Whatsapp\Gateways\Dto\StatusUpdate
+{
+    return cloudGateway()->parseWebhook([
+        'entry' => [[
+            'changes' => [[
+                'value' => [
+                    'statuses' => [[
+                        'id'     => 'wamid.FAILED',
+                        'status' => 'failed',
+                        'errors' => $errors,
+                    ]],
+                ],
+            ]],
+        ]],
+    ])->statuses[0];
+}
+
+it('keeps the reason Meta gives for a failed delivery', function () {
+    $status = failedReceipt([[
+        'code'       => 131026,
+        'title'      => 'Message Undeliverable',
+        'error_data' => ['details' => 'Message could not be delivered.'],
+    ]]);
+
+    expect($status->status)->toBe('failed')
+        // The numeric code leads, because Meta's documentation is indexed by it.
+        ->and($status->error)->toBe('131026: Message Undeliverable — Message could not be delivered.');
+});
+
+it('still reports the details when the payload carries no code', function () {
+    // Guards the positional bug: with a plain list the details would slide up
+    // into the title's slot and read as "Template Paused: Quality dropped" —
+    // two different things joined as if one labelled the other.
+    $status = failedReceipt([[
+        'title'      => 'Template Paused',
+        'error_data' => ['details' => 'Quality dropped.'],
+    ]]);
+
+    expect($status->error)->toBe('Template Paused — Quality dropped.');
+});
+
+it('reports nothing rather than guessing when there is no error block', function () {
+    expect(failedReceipt([])->error)->toBeNull();
+});

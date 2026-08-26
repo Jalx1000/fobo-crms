@@ -585,11 +585,22 @@
                                     </div>
 
                                     <div class="mb-2 mt-1.5 grid">
+                                        <!--
+                                            `change` ademas de `keyup.enter`: sin
+                                            el, escribir el valor y apretar
+                                            "Aplicar filtros" no filtraba nada,
+                                            porque el texto solo se convierte en
+                                            valor aplicado al confirmarlo y el
+                                            click no confirmaba. El panel del
+                                            listado ya usaba `change`, y por eso
+                                            el mismo filtro andaba ahi y no aca.
+                                        -->
                                         <input
                                             type="text"
                                             class="block w-full rounded-md border bg-white px-2 py-1.5 text-sm leading-6 text-gray-600 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
                                             :name="column.index"
                                             :placeholder="column.label"
+                                            @change="addFilter($event, column)"
                                             @keyup.enter="addFilter($event, column)"
                                         />
                                     </div>

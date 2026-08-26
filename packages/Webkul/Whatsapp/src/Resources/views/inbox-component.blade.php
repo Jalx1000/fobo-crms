@@ -405,6 +405,15 @@
                                 </div>
                             </div>
 
+                            <!-- Una plantilla se guarda con el cuerpo ya
+                                 resuelto, asi que se lee como el cliente la
+                                 recibio; la etiqueta aclara que no fue texto
+                                 libre. Sin esta rama caia en "no soportado". -->
+                            <div v-else-if="msg.type === 'template'" class="whitespace-pre-wrap break-words">
+                                <span class="mb-1 inline-block rounded bg-black/10 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide dark:bg-white/10">Plantilla</span>
+                                <div v-html="formatText(msg.text)"></div>
+                            </div>
+
                             <div v-else class="italic text-gray-500">Tipo no soportado</div>
 
                             <!-- why it failed: the agent is who needs this, not the log -->
@@ -567,6 +576,107 @@
                     </label>
                 </div>
 
+                <!--
+                    Panel de plantillas aprobadas (HSM).
+                    Vive fuera del composer a proposito: el caso que lo justifica
+                    es justamente cuando el composer esta bloqueado por la
+                    ventana de 24h cerrada.
+                -->
+                <div v-if="showTemplates"
+                     class="mb-2 rounded-md border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+                    <div class="mb-2 flex items-center justify-between">
+                        <p class="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                            @{{ selectedTemplate ? selectedTemplate.name : 'Plantillas aprobadas' }}
+                        </p>
+                        <button type="button" aria-label="Cerrar plantillas"
+                                class="rounded text-gray-400 transition hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:text-gray-200"
+                                @click="closeTemplates">✕</button>
+                    </div>
+
+                    <!-- Listado -->
+                    <template v-if="! selectedTemplate">
+                        <p v-if="! templatesLoaded" class="text-xs text-gray-500 dark:text-gray-400">Cargando…</p>
+
+                        <p v-else-if="! templates.length" class="text-xs text-gray-500 dark:text-gray-400">
+                            @{{ templatesReason || 'No hay plantillas aprobadas disponibles.' }}
+                        </p>
+
+                        <div v-else class="max-h-56 overflow-y-auto">
+                            <button v-for="tpl in templates" :key="tpl.name + tpl.language" type="button"
+                                    class="mb-1 flex w-full flex-col items-start rounded px-2 py-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
+                                    :class="templateBlocked(tpl)
+                                        ? 'cursor-not-allowed opacity-50'
+                                        : 'hover:bg-gray-100 dark:hover:bg-gray-700'"
+                                    :disabled="!! templateBlocked(tpl)"
+                                    :title="templateBlocked(tpl) || ''"
+                                    @click="pickTemplate(tpl)">
+                                <span class="flex items-center gap-1.5">
+                                    <span class="text-xs font-semibold text-gray-800 dark:text-gray-100">@{{ tpl.name }}</span>
+                                    <span class="rounded bg-gray-200 px-1 text-[10px] uppercase text-gray-600 dark:bg-gray-600 dark:text-gray-200">@{{ tpl.language }}</span>
+                                    <!-- Las MARKETING se cobran por mensaje, tambien dentro de la ventana -->
+                                    <span v-if="tpl.category === 'MARKETING'"
+                                          class="rounded bg-amber-100 px-1 text-[10px] font-semibold uppercase text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">con costo</span>
+                                </span>
+                                <span class="w-full truncate text-xs text-gray-500 dark:text-gray-400">@{{ tpl.body }}</span>
+                                <span v-if="templateBlocked(tpl)" class="text-[10px] text-amber-600 dark:text-amber-400">
+                                    @{{ templateBlocked(tpl) }}
+                                </span>
+                                <span v-else-if="tpl.requires_media_header" class="text-[10px] text-gray-400 dark:text-gray-500">
+                                    Requiere adjuntar un archivo
+                                </span>
+                            </button>
+                        </div>
+                    </template>
+
+                    <!-- Variables + preview -->
+                    <template v-else>
+                        <div v-for="(v, i) in templateVars" :key="'tplvar-' + i" class="mb-2">
+                            <label class="mb-0.5 block text-[11px] font-medium text-gray-500 dark:text-gray-400"
+                                   :for="'tplvar-' + i">
+                                Variable @{{ i + 1 }}
+                            </label>
+                            <input v-model="templateVars[i]" type="text" :id="'tplvar-' + i"
+                                   class="block w-full rounded-md border bg-white px-2 py-1 text-sm text-gray-600 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                        </div>
+
+                        <!-- Encabezado con archivo: obligatorio para Meta, asi
+                             que el boton de enviar queda deshabilitado sin el. -->
+                        <div v-if="selectedTemplate.requires_media_header" class="mb-2">
+                            <label class="mb-0.5 block text-[11px] font-medium text-gray-500 dark:text-gray-400" for="tpl-header-file">
+                                Archivo del encabezado (@{{ selectedTemplate.header_format }})
+                            </label>
+                            <input type="file" id="tpl-header-file"
+                                   :accept="headerAccept()"
+                                   class="block w-full text-xs text-gray-600 file:mr-2 file:rounded file:border-0 file:bg-gray-200 file:px-2 file:py-1 file:text-xs file:font-semibold hover:file:bg-gray-300 dark:text-gray-300 dark:file:bg-gray-700 dark:file:text-gray-200"
+                                   @change="stageTemplateFile">
+                            <p v-if="templateFile" class="mt-0.5 truncate text-[11px] text-gray-500 dark:text-gray-400">
+                                @{{ templateFile.name }}
+                            </p>
+                        </div>
+
+                        <p class="mb-2 whitespace-pre-wrap rounded bg-gray-50 px-2 py-1.5 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+                            @{{ templatePreview() }}
+                        </p>
+
+                        <div class="flex items-center gap-2">
+                            <button type="button"
+                                    class="rounded bg-brandColor px-3 py-1 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                                    :disabled="! templateReady() || templateSending"
+                                    @click="sendTemplate">
+                                @{{ templateSending ? 'Enviando…' : 'Enviar' }}
+                            </button>
+
+                            <button type="button" class="text-xs text-gray-500 underline dark:text-gray-400"
+                                    @click="selectedTemplate = null">Volver</button>
+                        </div>
+                    </template>
+
+                    <p v-if="templateError"
+                       class="mt-2 rounded border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+                        @{{ templateError }}
+                    </p>
+                </div>
+
                 <div v-if="!context.phone && usesPhone" class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
                     Este contacto no tiene número de WhatsApp. Asigna un teléfono para poder chatear.
                 </div>
@@ -577,7 +687,10 @@
                 </div>
 
                 <div v-else-if="window.applies && !window.open" class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
-                    Ventana de 24h cerrada. WhatsApp no permite texto libre hasta que el cliente vuelva a escribir (o usar una plantilla aprobada).
+                    Ventana de 24h cerrada. WhatsApp no permite texto libre hasta que el cliente vuelva a escribir.
+                    <button v-if="canSend('template') && !showTemplates" type="button"
+                            class="font-semibold underline"
+                            @click="openTemplates">Enviar una plantilla aprobada</button>
                 </div>
 
                 <template v-else>
@@ -657,6 +770,13 @@
                                     class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     @click="openLocation">
                                 <span class="icon-map"></span> Ubicación
+                            </button>
+                            <!-- Tambien con la ventana abierta: una plantilla
+                                 sirve igual para arrancar un tema formal. -->
+                            <button v-if="canSend('template')" type="button"
+                                    class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    @click="openTemplates">
+                                <span class="icon-sent"></span> Plantilla
                             </button>
                         </div>
 
@@ -1297,6 +1417,8 @@
                 sendUrl: { type: String, default: '' },
                 sendMediaUrl: { type: String, default: '' },
                 sendLocationUrl: { type: String, default: '' },
+                templatesUrl: { type: String, default: '' },
+                sendTemplateUrl: { type: String, default: '' },
                 agentUrlBase: { type: String, default: '' },
                 quickRepliesUrl: { type: String, default: '' },
                 personUrlBase: { type: String, default: '' },
@@ -1366,6 +1488,19 @@
                     noteDraft: '',
                     noteSaving: false,
                     noteError: null,
+                    // Plantillas aprobadas (HSM). Lo unico enviable con la
+                    // ventana de 24h cerrada, asi que el panel se abre aparte
+                    // del composer normal.
+                    showTemplates: false,
+                    templates: [],
+                    templatesLoaded: false,
+                    templatesReason: null,
+                    selectedTemplate: null,
+                    templateVars: [],
+                    // Archivo del encabezado, solo para plantillas que lo exigen.
+                    templateFile: null,
+                    templateError: null,
+                    templateSending: false,
                     // Quick replies (canned responses)
                     quickReplies: [],
                     qrSaving: false,
@@ -1456,7 +1591,9 @@
                 },
 
                 canAttach() {
-                    return this.attachOptions.length > 0 || this.canSend('location');
+                    return this.attachOptions.length > 0
+                        || this.canSend('location')
+                        || this.canSend('template');
                 },
 
                 // Built from capabilities, so a gateway that only relays text
@@ -1627,6 +1764,185 @@
             },
 
             methods: {
+                /**
+                 * Abrir el panel y traer el catalogo la primera vez.
+                 *
+                 * Se pide una sola vez por sesion: el catalogo lo cachea el
+                 * servidor 30 minutos, y volver a pedirlo en cada apertura solo
+                 * agrega latencia a un panel que se abre seguido.
+                 */
+                openTemplates() {
+                    this.showTemplates = true;
+                    this.templateError = null;
+
+                    if (this.templatesLoaded || !this.templatesUrl) return;
+
+                    this.$axios.get(this.templatesUrl, { params: this.addressParams() })
+                        .then(({ data }) => {
+                            this.templates = data.templates ?? [];
+                            this.templatesReason = data.reason ?? null;
+                        })
+                        .catch(() => {
+                            this.templatesReason = 'No se pudo leer el catálogo de plantillas.';
+                        })
+                        .finally(() => {
+                            this.templatesLoaded = true;
+                        });
+                },
+
+                closeTemplates() {
+                    this.showTemplates = false;
+                    this.selectedTemplate = null;
+                    this.templateVars = [];
+                    this.templateFile = null;
+                    this.templateError = null;
+                },
+
+                /**
+                 * Elegir una plantilla prepara un casillero por variable.
+                 *
+                 * Se dimensiona por `variables`, que el servidor calcula como el
+                 * placeholder mas alto: Meta completa por posicion, asi que un
+                 * cuerpo que usa los placeholders 1 y 3 necesita tres valores igual.
+                 */
+                /**
+                 * Por que esta plantilla no se puede mandar desde el chat, o
+                 * null si se puede.
+                 *
+                 * Un header multimedia es un parametro obligatorio y el composer
+                 * no tiene de donde sacar el archivo; la cotizacion si, y por eso
+                 * ese envio va por su propia accion.
+                 */
+                templateBlocked(tpl) {
+                    if (tpl.header_variables > 0) {
+                        return 'Usa variables en el encabezado, todavía no soportadas acá.';
+                    }
+
+                    return null;
+                },
+
+                /**
+                 * Que tipos de archivo ofrecer para el encabezado.
+                 *
+                 * Sale de las mismas listas que valida el servidor: el picker del
+                 * sistema no deberia ofrecer nada que Meta vaya a rechazar.
+                 */
+                headerAccept() {
+                    const format = (this.selectedTemplate?.header_format || '').toUpperCase();
+
+                    if (format === 'IMAGE') return 'image/jpeg,image/png';
+                    if (format === 'VIDEO') return 'video/mp4,video/3gpp';
+
+                    return 'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                },
+
+                stageTemplateFile($event) {
+                    this.templateFile = $event.target.files?.[0] ?? null;
+                    this.templateError = null;
+                },
+
+                pickTemplate(tpl) {
+                    if (this.templateBlocked(tpl)) return;
+
+                    this.selectedTemplate = tpl;
+                    this.templateVars = Array.from({ length: tpl.variables }, () => '');
+                    this.templateFile = null;
+                    this.templateError = null;
+                },
+
+                /**
+                 * El cuerpo con los valores puestos, tal como lo va a ver el
+                 * cliente. Los que faltan quedan sin reemplazar a proposito: se ve
+                 * que falta algo.
+                 */
+                templatePreview() {
+                    if (!this.selectedTemplate) return '';
+
+                    return this.templateVars.reduce(
+                        (body, value, i) => {
+                            // Las llaves se concatenan en vez de escribirse
+                            // pegadas: Blade compila una interpolacion doble en
+                            // cualquier parte del archivo, incluso dentro de un
+                            // <script> y de un comentario de JS.
+                            const token = '{' + '{' + (i + 1) + '}' + '}';
+
+                            return value ? body.split(token).join(value) : body;
+                        },
+                        this.selectedTemplate.body || ''
+                    );
+                },
+
+                templateReady() {
+                    if (! this.selectedTemplate) return false;
+
+                    // El encabezado multimedia es un parametro obligatorio, igual
+                    // que una variable vacia: sin el, Meta rechaza el mensaje
+                    // entero con 132012.
+                    if (this.selectedTemplate.requires_media_header && ! this.templateFile) return false;
+
+                    return this.templateVars.every(v => (v || '').trim() !== '');
+                },
+
+                sendTemplate() {
+                    if (!this.templateReady() || this.templateSending) return;
+
+                    this.templateSending = true;
+                    this.templateError = null;
+
+                    const fields = {
+                        ...this.addressParams(),
+                        template: this.selectedTemplate.name,
+                        language: this.selectedTemplate.language,
+                    };
+
+                    let body = { ...fields, variables: this.templateVars };
+                    let config = {};
+
+                    if (this.templateFile) {
+                        // Un archivo no viaja en JSON, asi que con adjunto el
+                        // cuerpo pasa a ser multipart y el array de variables se
+                        // manda indexado (variables[0], variables[1]...).
+                        const form = new FormData();
+
+                        Object.entries(fields).forEach(([k, v]) => {
+                            if (v !== null && v !== undefined) form.append(k, v);
+                        });
+
+                        this.templateVars.forEach((v, i) => form.append(`variables[${i}]`, v));
+                        form.append('file', this.templateFile);
+
+                        body = form;
+                        config = { headers: { 'Content-Type': 'multipart/form-data' } };
+                    }
+
+                    this.$axios.post(this.sendTemplateUrl, body, config)
+                        .then(({ data }) => {
+                            this.messages.push(data.message);
+                            this.closeTemplates();
+                            this.scrollToBottom();
+                        })
+                        .catch((error) => {
+                            // El cuerpo trae el motivo real (variables de mas,
+                            // plantilla dada de baja, agente activo). Sin esto,
+                            // todos los 422 se ven iguales.
+                            this.templateError = error?.response?.data?.message
+                                ?? 'No se pudo enviar la plantilla.';
+                        })
+                        .finally(() => {
+                            this.templateSending = false;
+                        });
+                },
+
+                /**
+                 * Como direccionar el envio. Un hilo abierto se direcciona por
+                 * id; uno que todavia no existe, por telefono.
+                 */
+                addressParams() {
+                    return this.conversationId
+                        ? { conversation_id: this.conversationId }
+                        : { phone: this.context.phone, name: this.context.name };
+                },
+
                 canSend(type) {
                     return (this.capabilities?.send ?? []).includes(type);
                 },

@@ -10,6 +10,7 @@ use Webkul\Whatsapp\Exceptions\UnsupportedMessageException;
 use Webkul\Whatsapp\Gateways\Contracts\Gateway;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
 use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
+use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Models\Conversation;
 
@@ -60,6 +61,18 @@ abstract class BaseGateway implements Gateway
     public function sendLocation(Conversation $conversation, OutboundLocation $location, ?string $replyToProviderId = null): SendResult
     {
         throw UnsupportedMessageException::type($this->key(), 'location');
+    }
+
+    /**
+     * Default: no template support.
+     *
+     * Keeping this here is what lets a new method land on the contract without
+     * touching Kommo or Messenger: they simply keep refusing, loudly, the same
+     * way they already refuse media.
+     */
+    public function sendTemplate(Conversation $conversation, OutboundTemplate $template, ?string $replyToProviderId = null): SendResult
+    {
+        throw UnsupportedMessageException::type($this->key(), 'template');
     }
 
     /**

@@ -16,6 +16,17 @@
                 </div>
         
                 <div class="flex items-center gap-x-2.5">
+                    @isset($templatesSentThisMonth)
+                        {{-- Solo Administrador: el envío por plantilla se cobra. --}}
+                        <span
+                            class="flex items-center gap-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                            title="@lang('admin::app.quotes.index.whatsapp.counter-hint')"
+                        >
+                            <span class="icon-sent text-base"></span>
+                            @lang('admin::app.quotes.index.whatsapp.counter', ['count' => $templatesSentThisMonth])
+                        </span>
+                    @endisset
+
                     <!-- Create button for Quote -->
                     <div class="flex items-center gap-x-2.5">
                         @if (bouncer()->hasPermission('quotes.create'))
@@ -52,6 +63,17 @@
                     </div>
 
                     <div class="flex items-center gap-x-2.5">
+                        @isset($templatesSentThisMonth)
+                            {{-- Solo Administrador: el envío por plantilla se cobra. --}}
+                            <span
+                                class="flex items-center gap-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                                title="@lang('admin::app.quotes.index.whatsapp.counter-hint')"
+                            >
+                                <span class="icon-sent text-base"></span>
+                                @lang('admin::app.quotes.index.whatsapp.counter', ['count' => $templatesSentThisMonth])
+                            </span>
+                        @endisset
+
                         <!-- Create button for person -->
                         <div class="flex items-center gap-x-2.5">
                             {!! view_render_event('admin.quotes.index.create_button.before') !!}

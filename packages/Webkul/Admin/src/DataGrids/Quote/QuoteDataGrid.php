@@ -5,6 +5,7 @@ namespace Webkul\Admin\DataGrids\Quote;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Webkul\DataGrid\DataGrid;
+use Webkul\Whatsapp\Support\ContactChannel;
 
 class QuoteDataGrid extends DataGrid
 {
@@ -30,10 +31,16 @@ class QuoteDataGrid extends DataGrid
                 'users.name as sales_person',
                 'persons.id as person_id',
                 'persons.name as person_name',
+                'persons.contact_numbers',
                 'quotes.expired_at as expired_quotes'
             )
             ->leftJoin('users', 'quotes.user_id', '=', 'users.id')
             ->leftJoin('persons', 'quotes.person_id', '=', 'persons.id');
+        // Which messaging channel this contact is reachable on. One row per
+        // contact by construction, so the listing cannot duplicate.
+        $queryBuilder->addSelect(ContactChannel::selectColumn());
+
+        ContactChannel::joinTo($queryBuilder, 'persons.id');
 
         if ($userIds = bouncer()->getAuthorizedUserIds()) {
             $queryBuilder->whereIn('quotes.user_id', $userIds);
@@ -43,6 +50,8 @@ class QuoteDataGrid extends DataGrid
         $this->addFilter('user', 'quotes.user_id');
         $this->addFilter('sales_person', 'users.name');
         $this->addFilter('person_name', 'persons.name');
+        $this->addFilter('contact_numbers', 'persons.contact_numbers');
+        $this->addFilter('platform', ContactChannel::column());
         $this->addFilter('expired_at', 'quotes.expired_at');
         $this->addFilter('created_at', 'quotes.created_at');
 
@@ -66,6 +75,7 @@ class QuoteDataGrid extends DataGrid
             'type'       => 'string',
             'filterable' => true,
             'sortable'   => true,
+            'searchable' => true,
         ]);
 
         $this->addColumn([
@@ -74,6 +84,7 @@ class QuoteDataGrid extends DataGrid
             'type'               => 'string',
             'sortable'           => true,
             'filterable'         => true,
+            'searchable'         => true,
             'filterable_type'    => 'searchable_dropdown',
             'filterable_options' => [
                 'repository' => \Webkul\User\Repositories\UserRepository::class,
@@ -90,6 +101,10 @@ class QuoteDataGrid extends DataGrid
             'type'               => 'string',
             'sortable'           => true,
             'filterable'         => true,
+            // El desplegable exige elegir un contacto exacto de una lista; la
+            // caja de busqueda de arriba es la que sirve para tipear medio
+            // nombre, y por eso esta columna tambien es searchable.
+            'searchable'         => true,
             'filterable_type'    => 'searchable_dropdown',
             'filterable_options' => [
                 'repository' => \Webkul\Contact\Repositories\PersonRepository::class,
@@ -151,6 +166,28 @@ class QuoteDataGrid extends DataGrid
         ]);
 
         $this->addColumn([
+            'index'      => 'contact_numbers',
+            'label'      => trans('admin::app.quotes.index.datagrid.phone'),
+            'type'       => 'string',
+            'sortable'   => false,
+            'filterable' => true,
+            'searchable' => true,
+            'closure'    => fn ($row) => collect(json_decode($row->contact_numbers, true) ?? [])->pluck('value')->join(', '),
+        ]);
+
+        $this->addColumn([
+            'index'              => 'platform',
+            'label'              => trans('admin::app.common.channel'),
+            'type'               => 'string',
+            'searchable'         => false,
+            'sortable'           => true,
+            'filterable'         => true,
+            'filterable_type'    => 'dropdown',
+            'filterable_options' => ContactChannel::options(),
+            'closure'            => fn ($row) => ContactChannel::label($row->platform ?? null),
+        ]);
+
+        $this->addColumn([
             'index'      => 'expired_at',
             'label'      => trans('admin::app.quotes.index.datagrid.expired-at'),
             'type'       => 'date',
@@ -193,6 +230,20 @@ class QuoteDataGrid extends DataGrid
                 'title'  => trans('admin::app.quotes.index.datagrid.print'),
                 'method' => 'GET',
                 'url'    => fn ($row) => route('admin.quotes.print', $row->id),
+            ]);
+        }
+
+        if (bouncer()->hasPermission('quotes.whatsapp')) {
+            // POST, so the datagrid routes it through its confirm modal and then
+            // flashes whatever the controller answers — which is exactly what we
+            // need: the send can be refused for several reasons the salesperson
+            // has to read (no number, 24h window closed).
+            $this->addAction([
+                'index'  => 'whatsapp',
+                'icon'   => 'icon-sent',
+                'title'  => trans('admin::app.quotes.index.datagrid.whatsapp'),
+                'method' => 'POST',
+                'url'    => fn ($row) => route('admin.quotes.whatsapp', $row->id),
             ]);
         }
 

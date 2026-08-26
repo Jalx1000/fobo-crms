@@ -8,6 +8,7 @@ use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
 use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
+use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
 use Webkul\Whatsapp\Gateways\Dto\WebhookSecurity;
@@ -112,4 +113,17 @@ interface Gateway
      * @throws \Webkul\Whatsapp\Exceptions\UnsupportedMessageException
      */
     public function sendLocation(Conversation $conversation, OutboundLocation $location, ?string $replyToProviderId = null): SendResult;
+
+    /**
+     * Send an approved template (HSM).
+     *
+     * This is the only message a WhatsApp channel accepts once the 24h service
+     * window has closed. Channels without a window (Messenger) never need it,
+     * and channels that proxy someone else's inbox (Kommo) cannot address Meta's
+     * template catalogue directly — both inherit the throwing default from
+     * BaseGateway.
+     *
+     * @throws \Webkul\Whatsapp\Exceptions\UnsupportedMessageException
+     */
+    public function sendTemplate(Conversation $conversation, OutboundTemplate $template, ?string $replyToProviderId = null): SendResult;
 }

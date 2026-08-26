@@ -141,7 +141,12 @@ class IngestInboundPayload implements ShouldQueue
             return;
         }
 
-        $message->update(['status' => $update->status]);
+        $message->update([
+            'status' => $update->status,
+            // Cleared on any successful receipt so a message that failed once and
+            // was retried does not keep showing a stale reason.
+            'error'  => $update->status === 'failed' ? $update->error : null,
+        ]);
     }
 
     protected function resolveReplyTo(?string $providerId): ?int

@@ -36,6 +36,7 @@ return [
         'edit'            => 'Edit',
         'view'            => 'View',
         'print'           => 'Print',
+        'send-whatsapp'   => 'Send via WhatsApp',
         'delete'          => 'Delete',
         'export'          => 'Export',
         'mass-delete'     => 'Mass Delete',
@@ -442,6 +443,7 @@ return [
                 'expired-at'     => 'Expired At',
                 'created-at'     => 'Created At',
                 'person'         => 'Person',
+                'phone'          => 'Phone',
                 'subtotal'       => 'Subtotal',
                 'discount'       => 'Discount',
                 'tax'            => 'Tax',
@@ -450,6 +452,21 @@ return [
                 'edit'           => 'Edit',
                 'delete'         => 'Delete',
                 'print'          => 'Print',
+                'whatsapp'       => 'Send via WhatsApp',
+            ],
+
+            'whatsapp' => [
+                'success'          => 'Quote sent over WhatsApp to :phone.',
+                'success-template' => 'Quote sent to :phone as a template, because the customer has not written in over 24 hours. This send is billed.',
+                'caption'          => "Here is your quote *:subject*.\nTotal: :total\n\nReply here if you have any questions.",
+                'no-person'        => 'This quote has no contact assigned, so there is nobody to send it to.',
+                'no-phone'         => ':person has no WhatsApp number on file and no open conversation.',
+                'template-missing' => 'The customer has not written in over 24 hours, so this must go as a template, but none is configured. Please contact the technical team (WHATSAPP_TEMPLATE_QUOTE).',
+                'storage-failed'   => 'The PDF could not be stored on the server. Please contact the technical team (storage permissions).',
+                'param-customer'   => 'customer',
+                'param-no-expiry'  => 'no expiry date',
+                'counter'          => ':count templates this month',
+                'counter-hint'     => 'Quotes sent over WhatsApp outside the 24h window. Each one is billed. Visible to Administrators only.',
             ],
 
             'pdf' => [
@@ -1876,6 +1893,9 @@ return [
     ],
 
     'common' => [
+        'channel'    => 'Platform',
+        'no-channel' => 'No channel',
+
         'custom-attributes' => [
             'add-more'             => 'Add More',
             'address'              => 'Address',
@@ -1929,6 +1949,7 @@ return [
                 'lead-value'          => 'Lead Value',
                 'lead-type'           => 'Lead Type',
                 'tag-name'            => 'Tag Name',
+                'phone'               => 'Phone',
                 'contact-person'      => 'Contact Person',
                 'stage'               => 'Stage',
                 'city'                => 'City',
@@ -1949,6 +1970,7 @@ return [
                 'create-lead-btn'        => 'Create Lead',
 
                 'columns' => [
+                    'phone'               => 'Phone',
                     'contact-person'      => 'Contact Person',
                     'id'                  => 'ID',
                     'lead-type'           => 'Lead Type',
@@ -1963,7 +1985,7 @@ return [
 
                 'toolbar' => [
                     'search' => [
-                        'title' => 'Search by Title',
+                        'title' => 'Search by subject, contact or phone',
                     ],
 
                     'filters' => [
@@ -2060,6 +2082,7 @@ return [
                 'delete'          => 'Delete',
                 'edit'            => 'Edit',
                 'download'        => 'Download',
+                'whatsapp'        => 'Send via WhatsApp',
                 'destroy-success' => 'Quote deleted successfully.',
                 'empty-title'     => 'No Quotes Found',
                 'empty-info'      => 'No Quotes Found for this Lead',

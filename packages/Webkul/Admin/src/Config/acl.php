@@ -52,10 +52,15 @@ return [
         'route' => 'admin.quotes.print',
         'sort'  => 3,
     ], [
+        'key'   => 'quotes.whatsapp',
+        'name'  => 'admin::app.acl.send-whatsapp',
+        'route' => 'admin.quotes.whatsapp',
+        'sort'  => 4,
+    ], [
         'key'   => 'quotes.delete',
         'name'  => 'admin::app.acl.delete',
         'route' => ['admin.quotes.delete', 'admin.quotes.mass_delete'],
-        'sort'  => 4,
+        'sort'  => 5,
     ], [
         'key'   => 'mail',
         'name'  => 'admin::app.acl.mail',

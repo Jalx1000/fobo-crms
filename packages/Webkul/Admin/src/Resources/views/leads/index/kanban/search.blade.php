@@ -25,7 +25,8 @@
                 placeholder="@lang('admin::app.leads.index.kanban.toolbar.search.title')"
                 autocomplete="off"
                 :value="getSearchedValues()"
-                @keyup.enter="search"
+                @input="searchDebounced"
+                @keyup.enter="searchNow"
             >
         </div>
     </script>
@@ -43,11 +44,21 @@
                     filters: {
                         columns: [],
                     },
+
+                    // Misma pausa que la caja de las grillas: el tablero y el
+                    // listado son la misma busqueda para quien la usa.
+                    searchDelay: 300,
+
+                    searchTimer: null,
                 };
             },
 
             mounted() {
                 this.filters.columns = this.applied.filters.columns.filter((column) => column.index === 'all');
+            },
+
+            beforeUnmount() {
+                clearTimeout(this.searchTimer);
             },
 
             methods: {
@@ -57,13 +68,43 @@
                  * @param {Event} $event
                  * @returns {void}
                  */
+                /**
+                 * Buscar cuando la persona deja de escribir. El valor se copia
+                 * ahora: el evento de Vue se recicla y leerlo dentro del
+                 * setTimeout puede devolver el texto de otra pulsacion.
+                 */
+                searchDebounced($event) {
+                    const requestedValue = $event.target.value;
+
+                    clearTimeout(this.searchTimer);
+
+                    this.searchTimer = setTimeout(
+                        () => this.search({ target: { value: requestedValue } }),
+                        this.searchDelay
+                    );
+                },
+
+                /**
+                 * Enter no espera, y cancela el temporizador para no buscar dos
+                 * veces.
+                 */
+                searchNow($event) {
+                    clearTimeout(this.searchTimer);
+
+                    this.search($event);
+                },
+
                 search($event) {
                     let requestedValue = $event.target.value;
 
                     let appliedColumn = this.filters.columns.find(column => column.index === 'all');
 
                     if (! requestedValue) {
-                        appliedColumn.value = [];
+                        // Vaciar la caja pasa a ser un camino habitual: sin
+                        // columna aplicada, tocar `.value` reventaria.
+                        if (appliedColumn) {
+                            appliedColumn.value = [];
+                        }
 
                         this.$emit('search', this.filters);
 

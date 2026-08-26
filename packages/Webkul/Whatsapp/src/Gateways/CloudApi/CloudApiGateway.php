@@ -2,6 +2,7 @@
 
 namespace Webkul\Whatsapp\Gateways\CloudApi;
 
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
@@ -13,6 +14,7 @@ use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
 use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
+use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\StatusUpdate;
 use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
@@ -36,7 +38,7 @@ class CloudApiGateway extends BaseGateway
         // Only what is implemented today. 'contact' is still receive-only: it
         // needs a vCard builder the composer has no UI for yet.
         return new Capabilities(
-            send: ['text', 'reply', 'emoji', 'image', 'audio', 'document', 'video', 'sticker', 'location'],
+            send: ['text', 'reply', 'emoji', 'template', 'image', 'audio', 'document', 'video', 'sticker', 'location'],
             receive: ['text', 'image', 'audio', 'document', 'video', 'sticker', 'location', 'contact'],
         );
     }
@@ -132,12 +134,52 @@ class CloudApiGateway extends BaseGateway
                         continue;
                     }
 
-                    $statuses[] = new StatusUpdate((string) $status['id'], (string) $status['status']);
+                    $statuses[] = new StatusUpdate(
+                        (string) $status['id'],
+                        (string) $status['status'],
+                        $this->statusError($status),
+                    );
                 }
             }
         }
 
         return new InboundBatch($messages, $statuses);
+    }
+
+    /**
+     * The reason Meta gives for a failed delivery receipt.
+     *
+     * Meta accepts plenty of sends that it later cannot deliver — an unreachable
+     * handset, a recipient who never accepted the current terms, a template
+     * paused after the fact. In all of those the API answered 200 with a message
+     * id, so the ONLY account of what went wrong arrives here, in the receipt.
+     *
+     * Shaped as "code: title — details" because the numeric code is what Meta's
+     * documentation is indexed by, and the text is what a human can act on.
+     */
+    protected function statusError(array $status): ?string
+    {
+        $error = $status['errors'][0] ?? null;
+
+        if (! is_array($error)) {
+            return null;
+        }
+
+        // Named rather than positional: with a positional list, a payload
+        // missing the code slides the details up into the title's slot and the
+        // result reads as "Template Paused: Quality dropped" — two different
+        // things joined as if one labelled the other.
+        $code = isset($error['code']) ? (string) $error['code'] : null;
+        $title = $error['title'] ?? null;
+        $details = $error['error_data']['details'] ?? ($error['message'] ?? null);
+
+        $label = implode(': ', array_filter([$code, $title]));
+
+        if (! $label) {
+            return $details ?: null;
+        }
+
+        return $details ? $label.' — '.$details : $label;
     }
 
     public function sendText(Conversation $conversation, string $body, ?string $replyToProviderId = null): SendResult
@@ -179,6 +221,102 @@ class CloudApiGateway extends BaseGateway
             'name'      => $location->name,
             'address'   => $location->address,
         ], fn ($value) => $value !== null && $value !== ''), $replyToProviderId);
+    }
+
+    /**
+     * Send an approved template.
+     *
+     * Same two steps as sendMedia when there is a header file: upload the bytes
+     * for a media id, then reference that id — a template header takes the very
+     * same media node as a normal document message.
+     *
+     * Body parameters are POSITIONAL: the first element is {{1}}. Meta does not
+     * validate meaning, only count, so a reordered array silently sends the
+     * total where the customer's name belongs.
+     */
+    public function sendTemplate(Conversation $conversation, OutboundTemplate $template, ?string $replyToProviderId = null): SendResult
+    {
+        if ($template->name === '' || $template->language === '') {
+            throw new RuntimeException(
+                'Cloud API: la plantilla no tiene nombre o idioma configurado; revisá WHATSAPP_TEMPLATE_*.'
+            );
+        }
+
+        $components = [];
+
+        if ($template->headerMedia) {
+            $components[] = [
+                'type'       => 'header',
+                'parameters' => [$this->headerParameter($template->headerMedia)],
+            ];
+        }
+
+        if ($template->bodyParams) {
+            $components[] = [
+                'type'       => 'body',
+                'parameters' => array_map(
+                    fn ($value) => ['type' => 'text', 'text' => (string) $value],
+                    $template->bodyParams,
+                ),
+            ];
+        }
+
+        try {
+            return $this->deliver($conversation, 'template', array_filter([
+                'name'       => $template->name,
+                'language'   => ['code' => $template->language],
+                'components' => $components,
+            ]), $replyToProviderId);
+        } catch (RequestException $e) {
+            // Graph's own text for these is a truncated JSON blob that tells the
+            // salesperson nothing they can act on. The two failures below are
+            // the ones that actually happen, and both are fixed in WhatsApp
+            // Manager rather than in the CRM.
+            throw new RuntimeException($this->templateFailureReason($e, $template), 0, $e);
+        }
+    }
+
+    /**
+     * Turn a Graph rejection of a template send into a sentence someone can act on.
+     */
+    protected function templateFailureReason(RequestException $e, OutboundTemplate $template): string
+    {
+        $code = (int) ($e->response?->json('error.code') ?? 0);
+        $sent = count($template->bodyParams);
+
+        return match ($code) {
+            // The template's approved body declares a different number of {{n}}
+            // placeholders than we filled in. Meta never says how many it wants,
+            // so the count we sent is the one useful fact we can add.
+            132000 => "La plantilla [{$template->name}] no espera la cantidad de variables que se enviaron ({$sent}). "
+                .'Revisá en WhatsApp Manager cuántos {{n}} tiene su cuerpo aprobado: tienen que ser exactamente los mismos.',
+
+            // Name and language are a pair; either being wrong looks the same.
+            132001 => "No existe una plantilla aprobada [{$template->name}] en idioma [{$template->language}]. "
+                .'Verificá el nombre y el código de idioma exactos en WhatsApp Manager (WHATSAPP_TEMPLATE_QUOTE / _LANG).',
+
+            default => $e->getMessage(),
+        };
+    }
+
+    /**
+     * The header parameter node for a template's media header.
+     *
+     * Only document headers carry a filename; without it the handset shows the
+     * opaque media id instead of "Cotizacion-12.pdf", exactly as in sendMedia().
+     */
+    protected function headerParameter(OutboundMedia $media): array
+    {
+        $node = ['id' => $this->uploadMedia($media)];
+
+        if ($media->type === 'document' && $media->filename) {
+            $node['filename'] = $media->filename;
+        }
+
+        return [
+            'type'        => $media->type,
+            $media->type  => $node,
+        ];
     }
 
     /**
