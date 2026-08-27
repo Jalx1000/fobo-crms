@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
+use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
+use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
 use Webkul\Whatsapp\Gateways\Dto\WebhookSecurity;
@@ -80,4 +82,32 @@ interface Gateway
      * provider_conversation_id (its lead id).
      */
     public function sendText(Conversation $conversation, string $body, ?string $replyToProviderId = null): SendResult;
+
+    /**
+     * Send one media file (photo, video or document).
+     *
+     * Drivers that cannot do this must throw UnsupportedCapability rather than
+     * degrade to a text message with a link: the caller needs to know the file
+     * did not arrive, and a silent downgrade reads as success.
+     *
+     * @throws \Webkul\Whatsapp\Gateways\UnsupportedCapability
+     */
+    public function sendMedia(Conversation $conversation, OutboundMedia $media): SendResult;
+
+    /**
+     * Send a geographic location.
+     *
+     * @throws \Webkul\Whatsapp\Gateways\UnsupportedCapability
+     */
+    public function sendLocation(Conversation $conversation, OutboundLocation $location): SendResult;
+
+    /**
+     * Upload a local file to the provider and return its media id, or null if
+     * the provider has no media store (then the driver sends by URL).
+     *
+     * Called when the asesor uploads the file, never at send time: a provider
+     * that has to fetch the image from this server mid-conversation turns a
+     * slow CRM into a message the customer never receives.
+     */
+    public function uploadMedia(string $absolutePath, string $mimeType): ?string;
 }

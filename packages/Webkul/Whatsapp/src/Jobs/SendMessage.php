@@ -9,7 +9,11 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Str;
 use Throwable;
+use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
+use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
+use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\GatewayManager;
+use Webkul\Whatsapp\Models\Message;
 use Webkul\Whatsapp\Models\MessageProxy;
 
 class SendMessage implements ShouldQueue
@@ -27,11 +31,7 @@ class SendMessage implements ShouldQueue
         }
 
         try {
-            $result = $gateways->for($message->conversation)->sendText(
-                $message->conversation,
-                (string) $message->body,
-                $message->replyTo?->wa_message_id,
-            );
+            $result = $this->despachar($gateways, $message);
 
             $message->update([
                 'wa_message_id' => $result->providerMessageId,
@@ -47,5 +47,41 @@ class SendMessage implements ShouldQueue
 
             report($e);
         }
+    }
+
+    /**
+     * Elige el método del gateway según el tipo del mensaje.
+     *
+     * Todo lo que el tipo necesita viaja en `payload`, resuelto por el CRM antes
+     * de encolar: para cuando este job corre, ya no hay que consultar el
+     * catálogo ni decidir qué foto mandar.
+     */
+    protected function despachar(GatewayManager $gateways, Message $message): SendResult
+    {
+        $gateway = $gateways->for($message->conversation);
+        $payload = (array) ($message->payload ?? []);
+
+        return match ($message->type) {
+            'location' => $gateway->sendLocation($message->conversation, new OutboundLocation(
+                latitude: (float) $payload['latitude'],
+                longitude: (float) $payload['longitude'],
+                name: $payload['name'] ?? null,
+                address: $payload['address'] ?? null,
+            )),
+
+            'image', 'video', 'document' => $gateway->sendMedia($message->conversation, new OutboundMedia(
+                kind: $message->type,
+                providerMediaId: $payload['provider_media_id'] ?? null,
+                url: $payload['url'] ?? null,
+                caption: $message->body,
+                filename: $message->media_name,
+            )),
+
+            default => $gateway->sendText(
+                $message->conversation,
+                (string) $message->body,
+                $message->replyTo?->wa_message_id,
+            ),
+        };
     }
 }

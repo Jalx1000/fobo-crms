@@ -46,3 +46,6 @@ node_modules/
 !/phpunit.xml
 # Build de Vite del admin: artefacto generado, se compila en cada servidor
 /public/admin/build
+
+# Dumps de base de datos: nunca al repo
+/backups

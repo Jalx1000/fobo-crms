@@ -9,7 +9,9 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Webkul\Whatsapp\Models\MessageProxy;
+use Webkul\Whatsapp\Repositories\HandoffRepository;
 use Webkul\Whatsapp\Services\AgentPayload;
 
 /**
@@ -27,7 +29,7 @@ class NotifyAgent implements ShouldQueue
 
     public function __construct(public int $messageId) {}
 
-    public function handle(AgentPayload $payloads): void
+    public function handle(AgentPayload $payloads, HandoffRepository $handoffs): void
     {
         $url = (string) config('whatsapp.ai.webhook_url');
 
@@ -48,9 +50,39 @@ class NotifyAgent implements ShouldQueue
             return;
         }
 
-        Http::withToken((string) config('whatsapp.ai.token'))
+        // Derivada a un asesor: el agente tiene que callarse, así que ni
+        // siquiera se entera de que llegó el mensaje.
+        if ($handoffs->abiertoDe($message->conversation->id)) {
+            return;
+        }
+
+        $response = Http::withToken((string) config('whatsapp.ai.token'))
             ->acceptJson()
-            ->post($url, $payloads->event($message))
-            ->throw();
+            ->post($url, $payloads->event($message));
+
+        if ($response->successful()) {
+            return;
+        }
+
+        /*
+        | El agente distingue dos familias de error y nosotros tenemos que
+        | respetarlas:
+        |
+        |  - 4xx (401 token malo, 422 payload irreparable): reintentar no cambia
+        |    nada. Tres reintentos idénticos solo agregan ruido y retrasan el
+        |    resto de la cola. Se descarta y se deja registro.
+        |  - 5xx: fallo transitorio del servicio del agente. Ahí sí, backoff.
+        */
+        if ($response->clientError()) {
+            Log::warning('WhatsApp: el agente rechazó el evento y no se reintenta.', [
+                'status'     => $response->status(),
+                'message_id' => $this->messageId,
+                'body'       => Str::limit($response->body(), 500),
+            ]);
+
+            return;
+        }
+
+        $response->throw();
     }
 }

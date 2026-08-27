@@ -11,6 +11,8 @@ use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
+use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
+use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\StatusUpdate;
 use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
@@ -33,7 +35,7 @@ class CloudApiGateway extends BaseGateway
     {
         // Only what is implemented today. Grows as sendMedia lands.
         return new Capabilities(
-            send: ['text', 'reply', 'emoji'],
+            send: ['text', 'reply', 'emoji', 'image', 'video', 'document', 'location'],
             receive: ['text', 'image', 'audio', 'document', 'video', 'sticker', 'location', 'contact'],
         );
     }
@@ -149,6 +151,95 @@ class CloudApiGateway extends BaseGateway
         $response = Http::withToken($this->required('token'))
             ->acceptJson()
             ->post($this->endpoint('messages'), $payload);
+
+        $response->throw();
+
+        $wamid = $response->json('messages.0.id');
+
+        if (! $wamid) {
+            throw new RuntimeException('Cloud API did not return a message id: '.$response->body());
+        }
+
+        return new SendResult($wamid);
+    }
+
+    /**
+     * Envía un archivo. Prefiere el media_id cacheado sobre el link.
+     *
+     * Con `media_id` el archivo ya está en el CDN de Meta y el envío es una
+     * referencia; con `link`, Meta tiene que descargarlo de este servidor en el
+     * momento del envío, y un CRM lento o recién reiniciado hace que la foto
+     * simplemente no llegue. Por eso el link es el plan B, no el plan A.
+     */
+    public function sendMedia(Conversation $conversation, OutboundMedia $media): SendResult
+    {
+        if (! $media->tieneDestino()) {
+            throw new RuntimeException('OutboundMedia sin media_id ni url.');
+        }
+
+        $objeto = filled($media->providerMediaId)
+            ? ['id' => $media->providerMediaId]
+            : ['link' => $media->url];
+
+        if (filled($media->caption) && $media->kind !== 'audio') {
+            $objeto['caption'] = $media->caption;
+        }
+
+        if ($media->kind === 'document' && filled($media->filename)) {
+            $objeto['filename'] = $media->filename;
+        }
+
+        return $this->enviar($conversation, [
+            'type'         => $media->kind,
+            $media->kind   => $objeto,
+        ]);
+    }
+
+    public function sendLocation(Conversation $conversation, OutboundLocation $location): SendResult
+    {
+        return $this->enviar($conversation, [
+            'type'     => 'location',
+            'location' => array_filter([
+                'latitude'  => $location->latitude,
+                'longitude' => $location->longitude,
+                'name'      => $location->name,
+                'address'   => $location->address,
+            ], fn ($v) => $v !== null),
+        ]);
+    }
+
+    /**
+     * Sube el archivo a Meta y devuelve su media_id.
+     *
+     * Meta lo retiene ~30 días; el llamador guarda la fecha de vencimiento y
+     * vuelve a subirlo antes de que caduque.
+     */
+    public function uploadMedia(string $absolutePath, string $mimeType): ?string
+    {
+        $response = Http::withToken($this->required('token'))
+            ->attach('file', file_get_contents($absolutePath), basename($absolutePath), ['Content-Type' => $mimeType])
+            ->post($this->endpoint('media'), [
+                'messaging_product' => 'whatsapp',
+                'type'              => $mimeType,
+            ]);
+
+        $response->throw();
+
+        return $response->json('id');
+    }
+
+    /**
+     * Parte común de todo envío: destinatario, POST y extracción del wamid.
+     */
+    protected function enviar(Conversation $conversation, array $payload): SendResult
+    {
+        $response = Http::withToken($this->required('token'))
+            ->acceptJson()
+            ->post($this->endpoint('messages'), array_merge([
+                'messaging_product' => 'whatsapp',
+                'recipient_type'    => 'individual',
+                'to'                => PhoneNumber::digits($conversation->wa_phone),
+            ], $payload));
 
         $response->throw();
 

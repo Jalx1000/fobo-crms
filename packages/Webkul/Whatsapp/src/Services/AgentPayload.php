@@ -6,6 +6,7 @@ use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Models\Conversation;
 use Webkul\Whatsapp\Models\Message;
+use Webkul\Whatsapp\Repositories\HandoffRepository;
 
 /**
  * Builds the contract the CRM sends to the external AI agent, and the shared
@@ -13,7 +14,10 @@ use Webkul\Whatsapp\Models\Message;
  */
 class AgentPayload
 {
-    public function __construct(protected GatewayManager $gateways) {}
+    public function __construct(
+        protected GatewayManager $gateways,
+        protected HandoffRepository $handoffs,
+    ) {}
 
     /**
      * The `message.received` event for an inbound message.
@@ -27,7 +31,11 @@ class AgentPayload
             'event'           => 'message.received',
             'conversation_id' => $conversation->id,
             'gateway'         => $conversation->gateway,
+            // Texto libre a propósito, no un enum: el agente atiende varios
+            // canales y no queremos redeployar el CRM para agregar uno.
+            'channel'         => $conversation->gateway,
             'ai_enabled'      => $conversation->aiEffective(),
+            'handoff'         => $this->handoff($conversation),
             'contact'         => $this->contact($conversation),
             'message'         => [
                 'id'        => $message->id,
@@ -44,6 +52,78 @@ class AgentPayload
                 'method' => 'POST',
                 'url'    => url("api/v1/whatsapp/conversations/{$conversation->id}/messages"),
             ],
+        ] + $this->captura($conversation);
+    }
+
+    /**
+     * Estado del handoff.
+     *
+     * Mientras `open` es true el agente no debe responder: la conversación la
+     * está atendiendo una persona. Es la misma señal que hace que el endpoint de
+     * envío devuelva 409.
+     *
+     * @return array{state: string, open: bool, asesor: ?string}
+     */
+    public function handoff(Conversation $conversation): array
+    {
+        $handoff = $this->handoffs->abiertoDe($conversation->id);
+
+        return [
+            'state'  => $handoff?->state ?? 'ninguno',
+            'open'   => (bool) $handoff,
+            'asesor' => $handoff?->asesor?->name,
+        ];
+    }
+
+    /**
+     * Señales de captura de teléfono (§7 del handoff del agente).
+     *
+     * `phone_required` dice que FALTA el número, no que haya que pedirlo ahora:
+     * cuándo y cómo pedirlo lo decide el agente, que es quien sabe si la
+     * conversación calificó. Los contadores los lleva el CRM para que
+     * sobrevivan a un reinicio del servicio del agente.
+     *
+     * @return array<string, bool|int>
+     */
+    public function captura(Conversation $conversation): array
+    {
+        $tope = (int) config('whatsapp.ai.phone_prompt_max', 3);
+        $intentos = (int) $conversation->phone_prompt_attempts;
+
+        return [
+            'phone_required'         => blank($conversation->wa_phone),
+            'phone_prompt_attempts'  => $intentos,
+            'phone_prompt_exhausted' => $conversation->phone_rechazado || $intentos >= $tope,
+        ];
+    }
+
+    /**
+     * Qué buscó, vio o consultó antes este contacto.
+     *
+     * Sirve para que el agente no vuelva a preguntar lo que ya sabe ni salude
+     * como si fuera la primera vez.
+     *
+     * @return array<string, mixed>
+     */
+    public function historial(Conversation $conversation): array
+    {
+        $person = $conversation->person;
+
+        $leads = $person
+            ? $person->leads()->with(['type', 'stage'])->latest('id')->limit(10)->get()
+            : collect();
+
+        return [
+            'conversation_id' => $conversation->id,
+            'contacto'        => $this->contact($conversation),
+            'primera_vez'     => $leads->isEmpty(),
+            'leads'           => $leads->map(fn ($lead) => [
+                'referencia' => 'Solicitud #'.$lead->id,
+                'titulo'     => $lead->title,
+                'tipo'       => $lead->type?->name,
+                'etapa'      => $lead->stage?->name,
+                'creado'     => optional($lead->created_at)->toIso8601String(),
+            ])->all(),
         ];
     }
 

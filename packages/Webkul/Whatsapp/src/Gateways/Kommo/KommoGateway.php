@@ -13,9 +13,12 @@ use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
+use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
+use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
 use Webkul\Whatsapp\Gateways\Dto\WebhookSecurity;
+use Webkul\Whatsapp\Gateways\UnsupportedCapability;
 use Webkul\Whatsapp\Models\Conversation;
 
 /**
@@ -230,5 +233,32 @@ class KommoGateway extends BaseGateway
     protected function url(string $path): string
     {
         return 'https://'.$this->required('subdomain').'.kommo.com'.$path;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Capacidades no soportadas
+    |--------------------------------------------------------------------------
+    | Kommo entrega el texto parkeándolo en un campo del lead y disparando un
+    | salesbot: no hay ruta para adjuntar un archivo ni una ubicación.
+    |
+    | Se lanza la excepción en vez de degradar a "te paso el link de la foto":
+    | un texto con una URL no es una foto, y hacer pasar uno por otra le haría
+    | creer al agente que el cliente vio algo que nunca vio.
+    */
+
+    public function sendMedia(Conversation $conversation, OutboundMedia $media): SendResult
+    {
+        throw UnsupportedCapability::para($this->key(), 'archivos');
+    }
+
+    public function sendLocation(Conversation $conversation, OutboundLocation $location): SendResult
+    {
+        throw UnsupportedCapability::para($this->key(), 'ubicaciones');
+    }
+
+    public function uploadMedia(string $absolutePath, string $mimeType): ?string
+    {
+        return null;
     }
 }

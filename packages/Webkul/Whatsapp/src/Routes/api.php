@@ -33,4 +33,12 @@ Route::prefix('api/v1/whatsapp')
     ->group(function () {
         Route::get('conversations/{id}/messages', [AgentController::class, 'messages']);
         Route::post('conversations/{id}/messages', [AgentController::class, 'send']);
+
+        Route::get('conversations/{id}/historial', [AgentController::class, 'historial']);
+        Route::post('conversations/{id}/telefono', [AgentController::class, 'telefono']);
+
+        // Cerrar el handoff lo hace el CRM cuando el asesor termina, no el
+        // agente. Abrirlo vive en el módulo Inmobiliaria, porque necesita
+        // resolver el asesor titular a partir del código del inmueble.
+        Route::delete('conversations/{id}/handoff', [AgentController::class, 'cerrarHandoff']);
     });
