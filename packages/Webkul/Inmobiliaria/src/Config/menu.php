@@ -6,6 +6,6 @@ return [
         'name'       => 'Inmuebles',
         'route'      => 'admin.inmuebles.index',
         'sort'       => 4,
-        'icon-class' => 'icon-warehouse',
+        'icon-class' => 'icon-product',
     ],
 ];

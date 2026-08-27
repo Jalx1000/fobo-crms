@@ -103,11 +103,33 @@ class InmuebleRequest extends FormRequest
     }
 
     /**
-     * El checkbox no manda nada cuando está desmarcado; sin esto, desmarcarlo
-     * nunca guardaría el false.
+     * Normaliza lo que manda el navegador antes de validar.
+     *
+     * Dos cosas que el formulario HTML hace y el modelo no tolera:
+     *
+     *  - Un checkbox desmarcado no manda nada. Sin el boolean explícito,
+     *    desmarcarlo nunca guardaría el false.
+     *  - Un campo numérico vacío manda `""`, no null. El cast `decimal` de
+     *    Eloquent revienta con "Unable to cast value to a decimal" al recibir
+     *    cadena vacía. Esta app no tiene el middleware ConvertEmptyStringsToNull
+     *    registrado (`app/Http/Kernel.php` solo trae TrimStrings), así que la
+     *    conversión hay que hacerla acá.
      */
     protected function prepareForValidation(): void
     {
-        $this->merge(['negociable' => $this->boolean('negociable')]);
+        $numericos = [
+            'precio', 'precio_anterior', 'latitud', 'longitud',
+            'dormitorios', 'banos', 'parqueos', 'm2_construidos', 'm2_terreno',
+        ];
+
+        $limpios = [];
+
+        foreach ($numericos as $campo) {
+            if ($this->has($campo) && $this->input($campo) === '') {
+                $limpios[$campo] = null;
+            }
+        }
+
+        $this->merge($limpios + ['negociable' => $this->boolean('negociable')]);
     }
 }

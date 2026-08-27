@@ -6,9 +6,11 @@
 <div class="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
     <p class="text-base font-semibold dark:text-white">Galería</p>
     <p class="mb-4 text-xs text-gray-500">
-        Podés subir todas las imágenes que quieras. El agente envía como máximo
-        {{ config('inmobiliaria.inmuebles.media_cantidad_max') }} por mensaje para no saturar el chat
-        del cliente, empezando por la portada.
+        Podés subir todas las imágenes que quieras, hasta <b>20 por vez</b>. El agente envía como
+        máximo {{ config('inmobiliaria.inmuebles.media_cantidad_max') }} por mensaje para no saturar
+        el chat del cliente, empezando por la portada.
+        <br>
+        Fotos hasta 15&nbsp;MB · planos (imagen o PDF) hasta 25&nbsp;MB · videos hasta 200&nbsp;MB.
     </p>
 
     <form method="POST" action="{{ route('admin.inmuebles.medias.store', $inmueble->id) }}"
@@ -19,7 +21,13 @@
             <span class="text-xs font-medium dark:text-gray-300">Tipo</span>
             <select name="tipo" id="tipo-media" class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
                     onchange="document.getElementById('campo-url').classList.toggle('hidden', this.value !== 'tour');
-                              document.getElementById('campo-archivos').classList.toggle('hidden', this.value === 'tour');">
+                              document.getElementById('campo-archivos').classList.toggle('hidden', this.value === 'tour');
+                              document.getElementById('input-archivos').accept = {
+                                  foto:  'image/jpeg,image/png,image/webp',
+                                  plano: 'image/jpeg,image/png,image/webp,application/pdf',
+                                  video: 'video/mp4,video/quicktime,video/webm',
+                                  tour:  ''
+                              }[this.value];">
                 <option value="foto">Fotos</option>
                 <option value="plano">Planos</option>
                 <option value="video">Video</option>
@@ -29,7 +37,8 @@
 
         <label class="flex flex-col gap-1" id="campo-archivos">
             <span class="text-xs font-medium dark:text-gray-300">Archivos</span>
-            <input type="file" name="archivos[]" multiple accept="image/*,video/mp4,application/pdf"
+            <input type="file" name="archivos[]" id="input-archivos" multiple
+                   accept="image/jpeg,image/png,image/webp"
                    class="rounded border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" />
         </label>
 

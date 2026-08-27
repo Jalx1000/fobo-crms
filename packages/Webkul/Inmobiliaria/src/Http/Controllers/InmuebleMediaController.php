@@ -37,14 +37,30 @@ class InmuebleMediaController extends Controller
 
     public function store(Request $request, Inmueble $inmueble): RedirectResponse
     {
+        /*
+        | Los límites van por tipo: una foto de 100 MB es un error de carga, pero
+        | un video de 100 MB es normal. Un solo tope obligaría a elegir entre
+        | rechazar videos legítimos o aceptar fotos sin comprimir.
+        */
+        $reglasPorTipo = [
+            'foto'  => 'mimes:jpg,jpeg,png,webp|max:15360',   //  15 MB
+            'plano' => 'mimes:jpg,jpeg,png,webp,pdf|max:25600', //  25 MB
+            'video' => 'mimes:mp4,mov,webm|max:204800',       // 200 MB
+            'tour'  => '',
+        ];
+
+        $tipo = $request->input('tipo');
+
         $datos = $request->validate([
-            'tipo'        => 'required|in:foto,video,plano,tour',
-            'archivos'    => 'required_without:url|array',
-            'archivos.*'  => 'file|max:20480|mimes:jpg,jpeg,png,webp,mp4,pdf',
-            'url'         => 'required_if:tipo,tour|nullable|url|max:500',
-            'caption'     => 'nullable|string|max:200',
+            'tipo'       => 'required|in:foto,video,plano,tour',
+            'archivos'   => 'required_without:url|array|max:20',
+            'archivos.*' => trim('file|'.($reglasPorTipo[$tipo] ?? 'max:15360'), '|'),
+            'url'        => 'required_if:tipo,tour|nullable|url|max:500',
+            'caption'    => 'nullable|string|max:200',
         ], [
-            'archivos.*.max'   => 'Cada archivo debe pesar menos de 20 MB.',
+            'archivos.max'     => 'Máximo 20 archivos por vez. Subilos en tandas.',
+            'archivos.*.max'   => 'Algún archivo supera el tamaño permitido para ese tipo.',
+            'archivos.*.mimes' => 'Formato no admitido para ese tipo de archivo.',
             'url.required_if'  => 'Un tour necesita la URL del recorrido virtual.',
         ]);
 

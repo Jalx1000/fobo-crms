@@ -33,6 +33,22 @@ return [
         'local' => [
             'driver' => 'local',
             'root'   => storage_path('app'),
+
+            /*
+             * Por defecto Flysystem crea los directorios privados en 0700, o
+             * sea escribibles solo por quien los creó. En este contenedor la web
+             * corre como www-data y la CLI (artisan, tinker, workers) como root,
+             * así que un directorio creado por uno deja al otro afuera: subir la
+             * galería de un inmueble fallaba con "Unable to create a directory".
+             *
+             * 0775 / 0664 mantiene los archivos fuera del alcance público —el
+             * disco sigue siendo privado y se sirve por ruta autenticada— pero
+             * permite que ambos usuarios los lean.
+             */
+            'permissions' => [
+                'file' => ['public' => 0664, 'private' => 0664],
+                'dir'  => ['public' => 0775, 'private' => 0775],
+            ],
         ],
 
         'public' => [
