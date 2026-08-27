@@ -17,19 +17,27 @@ return [
     | Operaciones y tipos
     |--------------------------------------------------------------------------
     | `operaciones` es un enum en la base: la lista es estable y gobierna cómo
-    | busca el agente. `tipos` es un string validado contra esta lista, porque
-    | va a crecer (quinta, penthouse, depósito) y no queremos una migración por
-    | cada tipo nuevo que venda la oficina.
+    | busca el agente, y coincide con el primer menú del flujo (comprar /
+    | alquilar / anticrético).
+    |
+    | `tipos` es un string validado contra esta lista, porque va a crecer
+    | (penthouse, depósito) sin necesitar una migración. Las claves son las
+    | mismas palabras que el agente muestra en su menú: si el menú dice "Lote",
+    | la API tiene que aceptar 'lote', o la búsqueda falla con 422 justo después
+    | de que el cliente eligió. `oficina` y `local` no están en el menú pero se
+    | venden igual, y entran por la opción "Otra propiedad".
     */
     'operaciones' => ['venta', 'alquiler', 'anticretico'],
 
     'tipos' => [
         'casa'         => 'Casa',
+        'quinta'       => 'Quinta',
         'departamento' => 'Departamento',
-        'terreno'      => 'Terreno',
+        'galpon'       => 'Galpón',
+        'lote'         => 'Lote / Terreno',
         'oficina'      => 'Oficina',
         'local'        => 'Local comercial',
-        'galpon'       => 'Galpón',
+        'otro'         => 'Otra propiedad',
     ],
 
     /*
@@ -139,6 +147,20 @@ return [
         'revalidar_antes'  => 3,    // re-subir cuando falten N días para vencer
         'url_firmada_ttl'  => 15,   // minutos de validez del link de fallback
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Asesor de guardia
+    |--------------------------------------------------------------------------
+    | A quién derivar cuando el cliente elige "Hablar con un asesor" al principio
+    | de la conversación, sin haber hablado de ningún inmueble todavía. Ahí no
+    | hay titular que resolver ni lead que consultar.
+    |
+    | En null, esa derivación devuelve 409 y el agente no puede cumplir lo que
+    | acaba de ofrecer en su menú. Ponerle un id es lo que hace que esa opción
+    | del menú funcione.
+    */
+    'asesor_por_defecto' => env('INMOBILIARIA_ASESOR_GUARDIA', 4),  // Sofia (rol Asesor)
 
     /*
     |--------------------------------------------------------------------------

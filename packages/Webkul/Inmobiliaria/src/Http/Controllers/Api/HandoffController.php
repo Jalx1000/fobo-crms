@@ -83,6 +83,16 @@ class HandoffController extends Controller
      */
     protected function fallback($conversation): ?int
     {
-        return $conversation->lead?->user_id;
+        // El dueño del lead, si la conversación ya generó uno.
+        if ($conversation->lead?->user_id) {
+            return $conversation->lead->user_id;
+        }
+
+        /*
+        | "Hablar con un asesor" es una opción del PRIMER menú del agente: ahí
+        | no hay inmueble ni lead todavía. Sin un asesor de guardia, esa opción
+        | devolvería 409 y el agente no podría cumplir lo que acaba de ofrecer.
+        */
+        return config('inmobiliaria.inmuebles.asesor_por_defecto');
     }
 }

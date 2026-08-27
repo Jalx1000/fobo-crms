@@ -223,10 +223,12 @@ class LeadController extends Controller
     protected function detalle(array $datos): string
     {
         $etiquetas = [
-            'operacion'       => 'Operación', 'tipo' => 'Tipo', 'zonas' => 'Zonas', 'zona' => 'Zona',
-            'presupuesto'     => 'Presupuesto', 'precio' => 'Precio pretendido', 'moneda' => 'Moneda',
-            'dormitorios_min' => 'Dormitorios mínimos', 'temperatura' => 'Temperatura',
-            'codigos_interes' => 'Inmuebles consultados', 'notas' => 'Notas',
+            'operacion'          => 'Operación', 'tipo' => 'Tipo', 'zonas' => 'Zonas', 'zona' => 'Zona',
+            'presupuesto'        => 'Presupuesto', 'precio' => 'Precio pretendido', 'moneda' => 'Moneda',
+            'dormitorios_min'    => 'Dormitorios mínimos', 'temperatura' => 'Temperatura',
+            'codigos_interes'    => 'Inmuebles consultados',
+            'visita_preferencia' => 'Disponibilidad que indicó el cliente',
+            'notas'              => 'Notas',
         ];
 
         $lineas = [];

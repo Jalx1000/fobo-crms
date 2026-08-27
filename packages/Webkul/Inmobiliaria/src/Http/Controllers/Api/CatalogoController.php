@@ -21,15 +21,18 @@ class CatalogoController extends Controller
     public function index(Request $request): JsonResponse
     {
         $filtros = $request->validate([
-            'operacion'       => 'nullable|string',
-            'tipo'            => 'nullable|string',
-            'zonas'           => 'nullable|array',
-            'zonas.*'         => 'string|max:120',
-            'precio_min'      => 'nullable|numeric|min:0',
-            'precio_max'      => 'nullable|numeric|min:0',
-            'moneda'          => 'nullable|in:USD,BOB',
-            'dormitorios_min' => 'nullable|integer|min:0',
-            'limite'          => 'nullable|integer|min:1',
+            'operacion'          => 'nullable|string',
+            'tipo'               => 'nullable|string',
+            'zonas'              => 'nullable|array',
+            'zonas.*'            => 'string|max:120',
+            'precio_min'         => 'nullable|numeric|min:0',
+            'precio_max'         => 'nullable|numeric|min:0',
+            'moneda'             => 'nullable|in:USD,BOB',
+            'dormitorios_min'    => 'nullable|integer|min:0',
+            'parqueos_min'       => 'nullable|integer|min:0',
+            'm2_terreno_min'     => 'nullable|numeric|min:0',
+            'm2_construidos_min' => 'nullable|numeric|min:0',
+            'limite'             => 'nullable|integer|min:1',
         ]);
 
         $resultados = $this->inmuebles->buscar($filtros);

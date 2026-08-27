@@ -57,8 +57,23 @@ class InmuebleRepository extends Repository
             });
         }
 
-        if (filled($filtros['dormitorios_min'] ?? null)) {
-            $query->where('dormitorios', '>=', (int) $filtros['dormitorios_min']);
+        /*
+        | Mínimos. Cuál importa depende del tipo: para una casa es dormitorios,
+        | para un lote es la superficie del terreno —un lote no tiene
+        | dormitorios y filtrar por ellos lo dejaría siempre afuera—. Se aplican
+        | solo los que vengan, así que cada tipo usa los suyos.
+        */
+        $minimos = [
+            'dormitorios_min'    => 'dormitorios',
+            'parqueos_min'       => 'parqueos',
+            'm2_terreno_min'     => 'm2_terreno',
+            'm2_construidos_min' => 'm2_construidos',
+        ];
+
+        foreach ($minimos as $filtro => $columna) {
+            if (filled($filtros[$filtro] ?? null)) {
+                $query->where($columna, '>=', $filtros[$filtro]);
+            }
         }
 
         $moneda = $filtros['moneda'] ?? $config['moneda_por_defecto'];
