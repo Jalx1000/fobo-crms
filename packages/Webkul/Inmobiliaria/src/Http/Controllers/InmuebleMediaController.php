@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Webkul\Inmobiliaria\Jobs\SubirMediaAlProveedor;
+use Webkul\Inmobiliaria\Models\Inmueble;
 use Webkul\Inmobiliaria\Repositories\InmuebleMediaRepository;
-use Webkul\Inmobiliaria\Repositories\InmuebleRepository;
 
 /**
  * Galería de un inmueble.
@@ -22,20 +22,21 @@ use Webkul\Inmobiliaria\Repositories\InmuebleRepository;
  *
  * Los archivos van al disco privado, no a `storage/app/public`: la galería no
  * debe ser visible para cualquiera que adivine la URL (riesgo R5).
+ *
+ * Nota sobre las firmas: el parámetro de ruta `{inmueble}` llega ya resuelto
+ * como modelo, no como id. Concord registra un route binding por cada modelo
+ * que un módulo declara, así que el nombre del parámetro alcanza para que
+ * Laravel inyecte la instancia — no hace falta type-hint para activarlo, pero
+ * sí para no recibir un modelo donde se declaró un int.
  */
 class InmuebleMediaController extends Controller
 {
     protected const DISCO = 'local';
 
-    public function __construct(
-        protected InmuebleRepository $inmuebles,
-        protected InmuebleMediaRepository $medias,
-    ) {}
+    public function __construct(protected InmuebleMediaRepository $medias) {}
 
-    public function store(Request $request, int $inmueble): RedirectResponse
+    public function store(Request $request, Inmueble $inmueble): RedirectResponse
     {
-        $inmueble = $this->inmuebles->findOrFail($inmueble);
-
         $datos = $request->validate([
             'tipo'        => 'required|in:foto,video,plano,tour',
             'archivos'    => 'required_without:url|array',
@@ -74,17 +75,17 @@ class InmuebleMediaController extends Controller
         return back();
     }
 
-    public function portada(int $inmueble, int $media): JsonResponse
+    public function portada(Inmueble $inmueble, int $media): JsonResponse
     {
         $registro = $this->medias->findOrFail($media);
 
-        abort_if($registro->inmueble_id !== $inmueble, 404);
+        abort_if($registro->inmueble_id !== $inmueble->id, 404);
 
         DB::transaction(function () use ($inmueble, $registro) {
             // Una sola portada por inmueble: es la primera foto que recibe el
             // cliente y no puede haber empate.
             $this->medias->getModel()->newQuery()
-                ->where('inmueble_id', $inmueble)
+                ->where('inmueble_id', $inmueble->id)
                 ->update(['es_portada' => false]);
 
             $registro->update(['es_portada' => true]);
@@ -93,7 +94,7 @@ class InmuebleMediaController extends Controller
         return response()->json(['message' => 'Portada actualizada.']);
     }
 
-    public function orden(Request $request, int $inmueble): JsonResponse
+    public function orden(Request $request, Inmueble $inmueble): JsonResponse
     {
         $datos = $request->validate([
             'orden'   => 'required|array',
@@ -104,7 +105,7 @@ class InmuebleMediaController extends Controller
             foreach ($datos['orden'] as $posicion => $id) {
                 $this->medias->getModel()->newQuery()
                     ->where('id', $id)
-                    ->where('inmueble_id', $inmueble)
+                    ->where('inmueble_id', $inmueble->id)
                     ->update(['orden' => $posicion]);
             }
         });
@@ -112,11 +113,11 @@ class InmuebleMediaController extends Controller
         return response()->json(['message' => 'Orden guardado.']);
     }
 
-    public function destroy(int $inmueble, int $media): JsonResponse
+    public function destroy(Inmueble $inmueble, int $media): JsonResponse
     {
         $registro = $this->medias->findOrFail($media);
 
-        abort_if($registro->inmueble_id !== $inmueble, 404);
+        abort_if($registro->inmueble_id !== $inmueble->id, 404);
 
         if ($registro->path && Storage::disk(self::DISCO)->exists($registro->path)) {
             Storage::disk(self::DISCO)->delete($registro->path);
