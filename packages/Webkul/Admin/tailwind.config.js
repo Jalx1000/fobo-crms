@@ -6,6 +6,10 @@ module.exports = {
         "./src/Resources/**/*.blade.php",
         "./src/Resources/**/*.js",
         path.resolve(__dirname, "../Whatsapp/src/Resources/**/*.blade.php"),
+        // Sin esto, las clases que solo aparecen en las vistas del modulo
+        // inmobiliario no se generan: el HTML sale bien y en pantalla no hay
+        // estilo. Fue la causa de que el area para soltar archivos no se viera.
+        path.resolve(__dirname, "../Inmobiliaria/src/Resources/**/*.blade.php"),
     ],
 
     theme: {
