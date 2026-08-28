@@ -13,6 +13,7 @@ use Illuminate\Support\Str;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Repositories\HandoffRepository;
 use Webkul\Whatsapp\Services\AgentPayload;
+use Webkul\Whatsapp\Services\PoliticaDeHandoff;
 
 /**
  * Notifies the external AI agent that an inbound message arrived, so it can
@@ -29,7 +30,7 @@ class NotifyAgent implements ShouldQueue
 
     public function __construct(public int $messageId) {}
 
-    public function handle(AgentPayload $payloads, HandoffRepository $handoffs): void
+    public function handle(AgentPayload $payloads, HandoffRepository $handoffs, PoliticaDeHandoff $politica): void
     {
         $url = (string) config('whatsapp.ai.webhook_url');
 
@@ -47,13 +48,42 @@ class NotifyAgent implements ShouldQueue
 
         // Re-check at run time: the human may have taken over since enqueue.
         if (! $message->conversation->aiEffective()) {
+            Log::info('WhatsApp: evento descartado, la IA está apagada en la conversación.', [
+                'message_id'      => $this->messageId,
+                'conversation_id' => $message->conversation->id,
+            ]);
+
             return;
         }
 
-        // Derivada a un asesor: el agente tiene que callarse, así que ni
-        // siquiera se entera de que llegó el mensaje.
-        if ($handoffs->abiertoDe($message->conversation->id)) {
-            return;
+        /*
+        | Derivada a un asesor: el agente tiene que callarse, así que ni siquiera
+        | se entera de que llegó el mensaje.
+        |
+        | Salvo que nadie la haya tomado. Un handoff vigente y sin dueño dejaba
+        | al cliente sin respuesta para siempre: el agente no recibía el evento,
+        | y como el cierre solo ocurre por API, nadie pedía el cierre tampoco.
+        | Pasado el plazo se devuelve la conversación y el evento sigue su curso.
+        */
+        if ($handoff = $handoffs->abiertoDe($message->conversation->id)) {
+            if (! $politica->debeDevolverAlAgente($handoff)) {
+                Log::info('WhatsApp: evento descartado, la conversación está derivada a un asesor.', [
+                    'message_id'      => $this->messageId,
+                    'conversation_id' => $message->conversation->id,
+                    'handoff_id'      => $handoff->id,
+                    'handoff_state'   => $handoff->state,
+                ]);
+
+                return;
+            }
+
+            $handoffs->cerrar($message->conversation->id);
+
+            Log::warning('WhatsApp: handoff sin tomar devuelto al agente por vencimiento.', [
+                'conversation_id' => $message->conversation->id,
+                'handoff_id'      => $handoff->id,
+                'opened_at'       => optional($handoff->opened_at)->toDateTimeString(),
+            ]);
         }
 
         $response = Http::withToken((string) config('whatsapp.ai.token'))

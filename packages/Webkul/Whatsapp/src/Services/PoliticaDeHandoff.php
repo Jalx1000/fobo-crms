@@ -28,8 +28,7 @@ class PoliticaDeHandoff
             return false;
         }
 
-        $minutos = (int) config('inmobiliaria.inmuebles.handoff.devolver_tras_minutos')
-            ?: (int) config('inmobiliaria.inmuebles.handoff.escalar_tras_minutos', 15);
+        $minutos = (int) config('inmobiliaria.inmuebles.handoff.devolver_tras_minutos', 60);
 
         return $handoff->opened_at?->addMinutes($minutos)->isPast() ?? false;
     }
