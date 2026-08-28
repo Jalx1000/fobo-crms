@@ -42,6 +42,85 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Características propias de cada tipo
+    |--------------------------------------------------------------------------
+    | Lo que no entra en los campos fijos y varía según qué se vende: la altura
+    | importa en un galpón y no en un departamento; el frente importa en un lote
+    | y no en una oficina.
+    |
+    | Se declaran acá para que el formulario ofrezca los campos correctos en vez
+    | de pedirle al asesor que invente el nombre de la clave. Sin esto, dos
+    | personas cargando el mismo dato escriben "altura", "altura_m" y "alto", y
+    | después no hay forma de compararlos.
+    |
+    | Agregar un campo es agregar una línea acá; no hace falta migración porque
+    | todo vive en la columna JSON `caracteristicas`.
+    */
+    'caracteristicas_por_tipo' => [
+        'casa' => [
+            'frente_m'                   => ['label' => 'Frente', 'sufijo' => 'm'],
+            'plantas'                    => ['label' => 'Plantas'],
+            'dormitorios_casa'           => ['label' => 'Dormitorios de la casa'],
+            'dormitorios_departamento'   => ['label' => 'Dormitorios del departamento'],
+            'departamento_independiente' => ['label' => '¿Tiene departamento independiente?', 'tipo' => 'boolean'],
+            'churrasquera'               => ['label' => '¿Tiene churrasquera?', 'tipo' => 'boolean'],
+            'ambientes'                  => ['label' => 'Ambientes', 'tipo' => 'lista'],
+        ],
+
+        'departamento' => [
+            'piso'          => ['label' => 'Piso'],
+            'ascensor'      => ['label' => '¿Tiene ascensor?', 'tipo' => 'boolean'],
+            'expensas'      => ['label' => 'Expensas mensuales'],
+            'amoblado'      => ['label' => '¿Amoblado?', 'tipo' => 'boolean'],
+            'amenities'     => ['label' => 'Amenities', 'tipo' => 'lista'],
+        ],
+
+        'quinta' => [
+            'frente_m'     => ['label' => 'Frente', 'sufijo' => 'm'],
+            'piscina'      => ['label' => '¿Tiene piscina?', 'tipo' => 'boolean'],
+            'churrasquera' => ['label' => '¿Tiene churrasquera?', 'tipo' => 'boolean'],
+            'ambientes'    => ['label' => 'Ambientes', 'tipo' => 'lista'],
+        ],
+
+        'galpon' => [
+            'altura_galpon_m'     => ['label' => 'Altura del galpón', 'sufijo' => 'm'],
+            'm2_galpon'           => ['label' => 'Superficie del galpón', 'sufijo' => 'm²'],
+            'm2_oficinas'         => ['label' => 'Superficie de oficinas', 'sufijo' => 'm²'],
+            'm2_parqueo_showroom' => ['label' => 'Superficie de parqueo / showroom', 'sufijo' => 'm²'],
+            'oficinas'            => ['label' => 'Cantidad de oficinas'],
+            'piso'                => ['label' => 'Tipo de piso'],
+            'a_estrenar'          => ['label' => '¿A estrenar?', 'tipo' => 'boolean'],
+            'ambientes'           => ['label' => 'Ambientes', 'tipo' => 'lista'],
+        ],
+
+        'lote' => [
+            'frente_m'       => ['label' => 'Frente', 'sufijo' => 'm'],
+            'fondo_m'        => ['label' => 'Fondo', 'sufijo' => 'm'],
+            'anillo'         => ['label' => 'Anillo'],
+            'sobre_avenida'  => ['label' => '¿Sobre avenida?', 'tipo' => 'boolean'],
+            'servicios'      => ['label' => 'Servicios disponibles', 'tipo' => 'lista'],
+            'papeles_al_dia' => ['label' => '¿Papeles al día?', 'tipo' => 'boolean'],
+        ],
+
+        'oficina' => [
+            'piso'      => ['label' => 'Piso'],
+            'ascensor'  => ['label' => '¿Tiene ascensor?', 'tipo' => 'boolean'],
+            'expensas'  => ['label' => 'Expensas mensuales'],
+            'ambientes' => ['label' => 'Ambientes', 'tipo' => 'lista'],
+        ],
+
+        'local' => [
+            'frente_m'       => ['label' => 'Frente', 'sufijo' => 'm'],
+            'vidriera'       => ['label' => '¿Tiene vidriera?', 'tipo' => 'boolean'],
+            'sobre_avenida'  => ['label' => '¿Sobre avenida?', 'tipo' => 'boolean'],
+            'rubro_anterior' => ['label' => 'Rubro anterior'],
+        ],
+
+        'otro' => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Estados posibles de un inmueble
     |--------------------------------------------------------------------------
     | El ciclo de vida completo. Es la lista maestra del enum de la migración.

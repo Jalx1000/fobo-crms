@@ -13,6 +13,10 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command('inbound-emails:process')->everyFiveMinutes();
+
+        // Derivaciones que nadie tomó: mientras tanto el cliente está esperando
+        // en silencio, porque el agente deja de responder al derivar.
+        $schedule->command('crm:escalar-handoffs')->everyFiveMinutes()->withoutOverlapping();
     }
 
     /**

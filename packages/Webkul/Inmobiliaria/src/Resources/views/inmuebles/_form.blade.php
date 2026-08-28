@@ -148,29 +148,60 @@
                 </div>
             </div>
 
-            {{-- Características específicas --}}
+            {{-- Características específicas del tipo --}}
             <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                 <p class="text-base font-semibold dark:text-white">Características del tipo</p>
                 <p class="mb-4 text-xs text-gray-500">
-                    Lo que no entra en los campos fijos: altura del galpón, m² de oficinas, frente del
-                    terreno. El agente las <b>muestra</b>, pero no filtra por ellas.
+                    Cambian según qué estés cargando: la altura importa en un galpón y el frente en un
+                    lote. El agente las <b>muestra</b> al cliente, pero no filtra por ellas.
                 </p>
 
-                <div id="caracteristicas" class="flex flex-col gap-2">
-                    @foreach ($caracteristicas + ['' => ''] as $clave => $valor)
-                        <div class="flex gap-2">
-                            <input name="caracteristicas[clave][]" value="{{ $clave }}" placeholder="altura_galpon_m"
-                                   class="w-1/3 rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" />
-                            <input name="caracteristicas[valor][]" value="{{ is_array($valor) ? implode(', ', $valor) : $valor }}" placeholder="6.5"
-                                   class="flex-1 rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" />
-                        </div>
-                    @endforeach
-                </div>
+                @foreach ($cfg['caracteristicas_por_tipo'] as $tipoClave => $campos)
+                    <div class="grid grid-cols-2 gap-4 max-sm:grid-cols-1"
+                         data-caracteristicas="{{ $tipoClave }}"
+                         @class(['hidden' => $v('tipo', 'casa') !== $tipoClave])>
+                        @forelse ($campos as $clave => $def)
+                            @php $valor = $caracteristicas[$clave] ?? null; @endphp
 
-                <button type="button" class="secondary-button mt-3" onclick="agregarCaracteristica()">
-                    Agregar característica
-                </button>
+                            @if (($def['tipo'] ?? 'texto') === 'boolean')
+                                <label class="col-span-2 flex items-center gap-2 max-sm:col-span-1">
+                                    {{-- El hidden hace que desmarcar guarde el "no", en vez de no
+                                         mandar nada y dejar el valor anterior. --}}
+                                    <input type="hidden" name="caracteristicas[{{ $tipoClave }}][{{ $clave }}]" value="">
+                                    <input type="checkbox"
+                                           name="caracteristicas[{{ $tipoClave }}][{{ $clave }}]"
+                                           value="1"
+                                           @checked(filled($valor) && $valor !== '0')
+                                           class="rounded border-gray-300" />
+                                    <span class="text-xs font-medium dark:text-gray-300">{{ $def['label'] }}</span>
+                                </label>
+                            @elseif (($def['tipo'] ?? 'texto') === 'lista')
+                                <label class="col-span-2 flex flex-col gap-1 max-sm:col-span-1">
+                                    <span class="text-xs font-medium dark:text-gray-300">{{ $def['label'] }}</span>
+                                    <textarea name="caracteristicas[{{ $tipoClave }}][{{ $clave }}]" rows="3"
+                                              placeholder="Uno por línea"
+                                              class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">{{ is_array($valor) ? implode("\n", $valor) : str_replace(', ', "\n", (string) $valor) }}</textarea>
+                                    <span class="text-xs text-gray-500">Uno por línea. Así se listan en la ficha.</span>
+                                </label>
+                            @else
+                                <label class="flex flex-col gap-1">
+                                    <span class="text-xs font-medium dark:text-gray-300">
+                                        {{ $def['label'] }}@if (! empty($def['sufijo'])) <span class="text-gray-400">({{ $def['sufijo'] }})</span>@endif
+                                    </span>
+                                    <input name="caracteristicas[{{ $tipoClave }}][{{ $clave }}]"
+                                           value="{{ is_array($valor) ? implode(', ', $valor) : $valor }}"
+                                           class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" />
+                                </label>
+                            @endif
+                        @empty
+                            <p class="col-span-2 text-xs text-gray-500 max-sm:col-span-1">
+                                Este tipo no tiene características propias definidas.
+                            </p>
+                        @endforelse
+                    </div>
+                @endforeach
             </div>
+
         </div>
 
         {{-- Columna lateral --}}
@@ -200,7 +231,8 @@
 
                     <label class="flex flex-col gap-1">
                         <span class="text-xs font-medium dark:text-gray-300">Tipo <span class="text-red-500">*</span></span>
-                        <select name="tipo" class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                        <select name="tipo" onchange="mostrarCaracteristicas(this.value)"
+                                class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                             @foreach ($cfg['tipos'] as $clave => $label)
                                 <option value="{{ $clave }}" @selected($v('tipo') === $clave)>{{ $label }}</option>
                             @endforeach
@@ -260,7 +292,7 @@
             </div>
 
             <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-                <p class="mb-4 text-base font-semibold dark:text-white">Métricas</p>
+                <p class="mb-4 text-base font-semibold dark:text-white">Detalles del inmueble</p>
 
                 <div class="grid grid-cols-2 gap-4">
                     @foreach ([
@@ -287,11 +319,27 @@
 
 @push('scripts')
 <script>
-    function agregarCaracteristica() {
-        const cont = document.getElementById('caracteristicas');
-        const fila = cont.lastElementChild.cloneNode(true);
-        fila.querySelectorAll('input').forEach(i => i.value = '');
-        cont.appendChild(fila);
+    /*
+     * Solo se envían las características del tipo elegido.
+     *
+     * El formulario dibuja los campos de todos los tipos y esconde los que no
+     * aplican; sin deshabilitarlos, cambiar de tipo dejaría guardadas las
+     * características del anterior. Es lo que hace que cambiar un lote a casa
+     * no arrastre el "fondo en metros".
+     */
+    function mostrarCaracteristicas(tipo) {
+        document.querySelectorAll('[data-caracteristicas]').forEach(bloque => {
+            const suyo = bloque.dataset.caracteristicas === tipo;
+
+            bloque.classList.toggle('hidden', ! suyo);
+            bloque.querySelectorAll('input, textarea').forEach(campo => campo.disabled = ! suyo);
+        });
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const select = document.querySelector('select[name="tipo"]');
+
+        if (select) mostrarCaracteristicas(select.value);
+    });
 </script>
 @endpush

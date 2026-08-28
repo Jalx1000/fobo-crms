@@ -41,6 +41,17 @@ class InmobiliariaServiceProvider extends ServiceProvider
             \Webkul\Inmobiliaria\Listeners\ComponerInmueblesDelLead::class,
         );
 
+        // Moneda y valor del cierre del lead.
+        Event::listen(
+            'admin.leads.view.stages.form_controls.modal.content.before',
+            [\Webkul\Inmobiliaria\Listeners\CierreEnMoneda::class, 'inyectarSelector'],
+        );
+
+        Event::listen(
+            'lead.update.after',
+            [\Webkul\Inmobiliaria\Listeners\CierreEnMoneda::class, 'guardar'],
+        );
+
         // Columna "Inmueble" en el listado de leads, por los eventos que el
         // DataGrid del core ya dispara.
         Event::listen(

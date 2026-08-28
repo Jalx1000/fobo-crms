@@ -45,11 +45,9 @@ class InmuebleController extends Controller
             fn () => $this->inmuebles->create($this->datos($request))
         );
 
-        session()->flash('success', "Inmueble {$inmueble->codigo} creado. Ahora podés cargar las fotos.");
+        session()->flash('success', "Inmueble {$inmueble->codigo} creado.");
 
-        // Al editar es donde vive la galería: crear y quedarse en el listado
-        // obligaría a buscar el inmueble recién creado para subirle imágenes.
-        return redirect()->route('admin.inmuebles.edit', $inmueble->id);
+        return redirect()->route('admin.inmuebles.index');
     }
 
     public function edit(int $id): View
@@ -90,7 +88,10 @@ class InmuebleController extends Controller
     {
         $datos = $request->validated();
 
-        $datos['caracteristicas'] = $this->caracteristicas($datos['caracteristicas'] ?? []);
+        $datos['caracteristicas'] = $this->caracteristicas(
+            $datos['caracteristicas'][$datos['tipo']] ?? [],
+            $datos['tipo'],
+        );
 
         // Un inmueble que pasa a disponible y nunca se publicó, se marca ahora:
         // es la fecha desde la que el agente lo puede ofrecer.
@@ -102,27 +103,36 @@ class InmuebleController extends Controller
     }
 
     /**
-     * Convierte los pares clave/valor del formulario en el JSON de la columna.
+     * Arma el JSON de características a partir de los campos del tipo elegido.
      *
-     * Descarta las filas sin clave: el formulario siempre manda una fila vacía
-     * al final para poder agregar otra.
+     * Los vacíos se descartan en vez de guardarse como cadena vacía: una ficha
+     * con "Altura: " es peor que una sin altura, porque el agente la muestra.
+     *
+     * Las listas se guardan como arreglo real —una línea, un ítem— para que la
+     * ficha las pueda enumerar. Antes, el editor libre las aplastaba en un
+     * string separado por comas y se perdía la estructura.
      *
      * @param  array<string, mixed>  $entrada
-     * @return array<string, string>|null
+     * @return array<string, mixed>|null
      */
-    protected function caracteristicas(array $entrada): ?array
+    protected function caracteristicas(array $entrada, string $tipo): ?array
     {
-        $claves = $entrada['clave'] ?? [];
-        $valores = $entrada['valor'] ?? [];
+        $definicion = config("inmobiliaria.inmuebles.caracteristicas_por_tipo.{$tipo}", []);
 
         $resultado = [];
 
-        foreach ($claves as $i => $clave) {
-            if (blank($clave)) {
+        foreach ($definicion as $clave => $def) {
+            $valor = $entrada[$clave] ?? null;
+
+            if (blank($valor)) {
                 continue;
             }
 
-            $resultado[trim($clave)] = trim((string) ($valores[$i] ?? ''));
+            $resultado[$clave] = match ($def['tipo'] ?? 'texto') {
+                'boolean' => true,
+                'lista'   => array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) $valor)))),
+                default   => trim((string) $valor),
+            };
         }
 
         return $resultado ?: null;

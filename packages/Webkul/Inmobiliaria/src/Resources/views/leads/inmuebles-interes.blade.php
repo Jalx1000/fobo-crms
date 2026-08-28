@@ -1,5 +1,5 @@
 @php
-    $portada = fn ($inmueble) => optional($inmueble->medias->firstWhere('tipo', 'foto'))->id;
+    $portada = fn ($inmueble) => optional($inmueble->portada())->id;
     $etiquetaTipo = fn ($inmueble) => config("inmobiliaria.inmuebles.tipos.{$inmueble->tipo}", ucfirst($inmueble->tipo));
 @endphp
 

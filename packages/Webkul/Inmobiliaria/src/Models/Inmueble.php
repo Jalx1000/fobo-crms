@@ -79,11 +79,29 @@ class Inmueble extends Model implements InmuebleContract
             ->withTimestamps();
     }
 
+    /**
+     * La galería, en el orden que fijó el asesor arrastrando.
+     *
+     * Ordena SOLO por `orden`, no por portada. Que la portada salga primero es
+     * una regla del envío —vive en `InmuebleMediaRepository::paraEnviar()`— y no
+     * de la galería: si también mandara acá, arrastrar la portada a otra
+     * posición no tendría efecto visible y parecería que no se guardó.
+     */
     public function medias(): HasMany
     {
         return $this->hasMany(InmuebleMediaProxy::modelClass(), 'inmueble_id')
-            ->orderByDesc('es_portada')
-            ->orderBy('orden');
+            ->orderBy('orden')
+            ->orderBy('id');
+    }
+
+    /**
+     * La foto que representa al inmueble donde no entra la galería completa.
+     */
+    public function portada()
+    {
+        $fotos = $this->medias->where('tipo', 'foto');
+
+        return $fotos->firstWhere('es_portada', true) ?? $fotos->first();
     }
 
     /**
