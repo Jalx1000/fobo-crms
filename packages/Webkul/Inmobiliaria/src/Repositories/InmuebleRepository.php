@@ -3,6 +3,7 @@
 namespace Webkul\Inmobiliaria\Repositories;
 
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Webkul\Core\Eloquent\Repository;
 
 class InmuebleRepository extends Repository
@@ -146,6 +147,74 @@ class InmuebleRepository extends Repository
             : 1;
 
         return $prefijo.str_pad((string) $siguiente, (int) $cfg['relleno'], '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Los inmuebles que le interesan a un lead.
+     *
+     * Vive acá y no como relación en el modelo Lead porque Lead es del core y
+     * este módulo no lo toca. El costo es una consulta explícita en vez de un
+     * `$lead->inmuebles`; la ganancia es que un upgrade de Krayin no pisa nada.
+     */
+    public function deLead(int $leadId): Collection
+    {
+        return $this->model->newQuery()
+            ->join('inmueble_lead', 'inmueble_lead.inmueble_id', '=', 'inmuebles.id')
+            ->where('inmueble_lead.lead_id', $leadId)
+            ->orderBy('inmueble_lead.id')
+            ->select('inmuebles.*', 'inmueble_lead.origen')
+            ->with('medias')
+            ->get();
+    }
+
+    /**
+     * Los mismos datos para varios leads de una vez.
+     *
+     * El panel del inbox lista hasta diez leads; pedirlos de a uno serían diez
+     * consultas para pintar una barra lateral.
+     *
+     * @param  array<int, int>  $leadIds
+     * @return \Illuminate\Support\Collection<int, \Illuminate\Support\Collection>
+     */
+    public function porLeads(array $leadIds)
+    {
+        if (empty($leadIds)) {
+            return collect();
+        }
+
+        return $this->model->newQuery()
+            ->join('inmueble_lead', 'inmueble_lead.inmueble_id', '=', 'inmuebles.id')
+            ->whereIn('inmueble_lead.lead_id', $leadIds)
+            ->orderBy('inmueble_lead.id')
+            ->select('inmuebles.*', 'inmueble_lead.lead_id', 'inmueble_lead.origen')
+            ->get()
+            ->groupBy('lead_id');
+    }
+
+    /**
+     * Vincula códigos de inmueble a un lead. Idempotente.
+     *
+     * Los códigos que no existen se ignoran en silencio a propósito: vienen de
+     * lo que el cliente escribió en WhatsApp, y un código mal tipeado no debe
+     * impedir que se registre la solicitud.
+     *
+     * @param  array<int, string>  $codigos
+     * @return int cuántos quedaron vinculados
+     */
+    public function vincularCodigos(int $leadId, array $codigos, string $origen = 'consultado'): int
+    {
+        $ids = $this->model->newQuery()
+            ->whereIn('codigo', array_filter(array_map('trim', $codigos)))
+            ->pluck('id');
+
+        foreach ($ids as $id) {
+            DB::table('inmueble_lead')->updateOrInsert(
+                ['lead_id' => $leadId, 'inmueble_id' => $id],
+                ['origen' => $origen, 'updated_at' => now(), 'created_at' => now()],
+            );
+        }
+
+        return $ids->count();
     }
 
     /**

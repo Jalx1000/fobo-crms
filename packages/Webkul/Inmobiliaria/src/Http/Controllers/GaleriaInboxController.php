@@ -36,6 +36,35 @@ class GaleriaInboxController extends Controller
         protected OutboundDelivery $delivery,
     ) {}
 
+    /**
+     * Qué inmuebles le interesan a cada lead del panel lateral.
+     *
+     * El inbox lo pide aparte en vez de que el módulo de WhatsApp lo incluya en
+     * su payload: ese módulo lo comparte otro tenant que no tiene catálogo
+     * inmobiliario, y no debe saber que los inmuebles existen.
+     */
+    public function deLeads(Request $request): JsonResponse
+    {
+        $datos = $request->validate([
+            'lead_ids'   => 'required|array|max:20',
+            'lead_ids.*' => 'integer',
+        ]);
+
+        $porLead = $this->inmuebles->porLeads($datos['lead_ids']);
+
+        return response()->json([
+            'inmuebles' => $porLead->map(fn ($items) => $items->map(fn ($i) => [
+                'codigo'  => $i->codigo,
+                'titulo'  => $i->titulo,
+                'zona'    => $i->zona,
+                'precio'  => (float) $i->precio,
+                'moneda'  => $i->moneda,
+                'estado'  => $i->estado,
+                'url'     => route('admin.inmuebles.edit', $i->id),
+            ])->values()),
+        ]);
+    }
+
     public function enviar(Request $request): JsonResponse
     {
         $datos = $request->validate([

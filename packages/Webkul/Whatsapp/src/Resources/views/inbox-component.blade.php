@@ -619,6 +619,23 @@
                                         <span v-if="lead.stage" class="rounded-full bg-sky-100 px-2 py-px font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">@{{ lead.stage }}</span>
                                         <span>@{{ lead.created_at }}</span>
                                     </div>
+
+                                    <!-- Inmuebles consultados: le recuerdan al asesor de qué venían
+                                         hablando, sin salir del chat. -->
+                                    <div v-if="inmueblesPorLead[lead.id]" class="mt-2 flex flex-col gap-1 border-t border-gray-100 pt-2 dark:border-gray-800">
+                                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                            Inmuebles de interés
+                                        </p>
+                                        <div v-for="inm in inmueblesPorLead[lead.id]" :key="inm.codigo"
+                                             class="flex items-baseline justify-between gap-2 text-[11px]">
+                                            <span class="truncate text-gray-700 dark:text-gray-300">
+                                                <b>@{{ inm.codigo }}</b> · @{{ inm.zona }}
+                                            </span>
+                                            <span class="shrink-0 tabular-nums text-gray-500">
+                                                @{{ inm.moneda }} @{{ Number(inm.precio).toLocaleString('es-BO') }}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </a>
                             </div>
 
@@ -791,6 +808,7 @@
                 sendUrl: { type: String, default: '' },
                 sendMediaUrl: { type: String, default: '' },
                 galeriaUrl: { type: String, default: '' },
+                inmueblesDeLeadsUrl: { type: String, default: '' },
                 agentUrlBase: { type: String, default: '' },
                 quickRepliesUrl: { type: String, default: '' },
                 personUrlBase: { type: String, default: '' },
@@ -808,6 +826,9 @@
                     replyingTo: null,
                     showAttach: false,
                     enviandoAdjunto: false,
+                    // Inmuebles consultados, por id de lead. Se piden aparte
+                    // porque el módulo de WhatsApp no conoce el catálogo.
+                    inmueblesPorLead: {},
                     since: null,
                     pollTimer: null,
                     // What the active provider can do. Conservative default:
@@ -1255,7 +1276,10 @@
 
                     this.profileLoading = true;
                     this.$axios.get(`${this.personUrlBase}/${this.context.personId}`)
-                        .then(res => { this.profile = res.data?.person ?? null; })
+                        .then(res => {
+                            this.profile = res.data?.person ?? null;
+                            this.cargarInmueblesDeLeads();
+                        })
                         .catch(() => {
                             this.$emitter.emit('add-flash', { type: 'error', message: 'No se pudo cargar el detalle del cliente.' });
                             this.profileOpen = false;
@@ -1414,6 +1438,28 @@
                  * Los mensajes se crean del lado del servidor —uno por foto— así
                  * que el hilo se recarga en vez de empujarlos a mano.
                  */
+                /*
+                 * Pide los inmuebles consultados de los leads que se están
+                 * mostrando. Va en una llamada aparte —y no dentro del perfil—
+                 * porque el módulo de WhatsApp lo comparte otro tenant que no
+                 * tiene catálogo inmobiliario y no debe saber que existe.
+                 */
+                cargarInmueblesDeLeads() {
+                    const ids = (this.profile?.leads || []).map(l => l.id);
+
+                    if (! ids.length || ! this.inmueblesDeLeadsUrl) {
+                        this.inmueblesPorLead = {};
+
+                        return;
+                    }
+
+                    this.$axios.post(this.inmueblesDeLeadsUrl, { lead_ids: ids })
+                        .then(res => { this.inmueblesPorLead = res.data?.inmuebles || {}; })
+                        // Silencioso a propósito: es información de apoyo. Un
+                        // error acá no debe tapar el panel del cliente.
+                        .catch(() => { this.inmueblesPorLead = {}; });
+                },
+
                 enviarGaleria() {
                     this.showAttach = false;
 

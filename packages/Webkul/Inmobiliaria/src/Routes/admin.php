@@ -46,5 +46,8 @@ Route::get('inmuebles/medias/{media}/archivo', [InmuebleMediaController::class, 
 | Vive acá y no en el módulo WhatsApp porque necesita resolver el inmueble por
 | su código, que es conocimiento del catálogo.
 */
+Route::post('inmuebles/de-leads', [\Webkul\Inmobiliaria\Http\Controllers\GaleriaInboxController::class, 'deLeads'])
+    ->name('admin.inmuebles.de-leads');
+
 Route::post('inmuebles/enviar-galeria', [\Webkul\Inmobiliaria\Http\Controllers\GaleriaInboxController::class, 'enviar'])
     ->name('admin.inmuebles.enviar-galeria');

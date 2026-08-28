@@ -2,6 +2,7 @@
 
 namespace Webkul\Inmobiliaria\Providers;
 
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Webkul\Inmobiliaria\Console\Commands\RollbackInmobiliaria;
@@ -31,6 +32,25 @@ class InmobiliariaServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 
         $this->loadViewsFrom(__DIR__.'/../Resources/views', 'inmobiliaria');
+
+        // La ficha del lead muestra los inmuebles consultados. Se engancha al
+        // punto de extensión del core en vez de editar su vista.
+        Event::listen(
+            'admin.leads.view.left.after',
+            [\Webkul\Inmobiliaria\Listeners\InmueblesDelLead::class, 'handle'],
+        );
+
+        // Columna "Inmueble" en el listado de leads, por los eventos que el
+        // DataGrid del core ya dispara.
+        Event::listen(
+            'datagrid.lead_data_grid.query_builder.set.after',
+            [\Webkul\Inmobiliaria\Listeners\ColumnaInmuebleEnLeads::class, 'extenderConsulta'],
+        );
+
+        Event::listen(
+            'datagrid.lead_data_grid.columns.prepare.after',
+            [\Webkul\Inmobiliaria\Listeners\ColumnaInmuebleEnLeads::class, 'agregarColumna'],
+        );
 
         // API que consume el agente de IA.
         $this->loadRoutesFrom(__DIR__.'/../Routes/api.php');

@@ -11,6 +11,7 @@
             send-url="{{ route('admin.whatsapp.send') }}"
         send-media-url="{{ route('admin.whatsapp.send-media') }}"
         galeria-url="{{ route('admin.inmuebles.enviar-galeria') }}"
+        inmuebles-de-leads-url="{{ route('admin.inmuebles.de-leads') }}"
             agent-url-base="{{ url(config('app.admin_path').'/whatsapp/conversations') }}"
             quick-replies-url="{{ route('admin.whatsapp.quick-replies.index') }}"
             person-url-base="{{ url(config('app.admin_path').'/whatsapp/persons') }}"
@@ -169,6 +170,7 @@
                         :send-url="sendUrl"
                         :send-media-url="sendMediaUrl"
                         :galeria-url="galeriaUrl"
+                        :inmuebles-de-leads-url="inmueblesDeLeadsUrl"
                         :agent-url-base="agentUrlBase"
                         :quick-replies-url="quickRepliesUrl"
                         :person-url-base="personUrlBase"
@@ -198,6 +200,7 @@
                     sendUrl: { type: String, required: true },
                     sendMediaUrl: { type: String, default: '' },
                     galeriaUrl: { type: String, default: '' },
+                    inmueblesDeLeadsUrl: { type: String, default: '' },
                     agentUrlBase: { type: String, required: true },
                     quickRepliesUrl: { type: String, required: true },
                     personUrlBase: { type: String, required: true },

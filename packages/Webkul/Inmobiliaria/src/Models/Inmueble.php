@@ -5,9 +5,11 @@ namespace Webkul\Inmobiliaria\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Webkul\Inmobiliaria\Contracts\Inmueble as InmuebleContract;
+use Webkul\Lead\Models\LeadProxy;
 use Webkul\User\Models\UserProxy;
 
 class Inmueble extends Model implements InmuebleContract
@@ -61,6 +63,20 @@ class Inmueble extends Model implements InmuebleContract
     public function asesor(): BelongsTo
     {
         return $this->belongsTo(UserProxy::modelClass(), 'user_id');
+    }
+
+    /**
+     * Los leads que se interesaron por este inmueble.
+     *
+     * Se guarda como vínculo y no como texto en la descripción del lead para
+     * poder responder la pregunta que de verdad importa: qué inmuebles generan
+     * consultas y cuáles no mueve nadie.
+     */
+    public function leads(): BelongsToMany
+    {
+        return $this->belongsToMany(LeadProxy::modelClass(), 'inmueble_lead')
+            ->withPivot('origen')
+            ->withTimestamps();
     }
 
     public function medias(): HasMany

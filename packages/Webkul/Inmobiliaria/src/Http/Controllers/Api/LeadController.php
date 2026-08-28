@@ -8,6 +8,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Inmobiliaria\Repositories\InmuebleRepository;
 use Webkul\Lead\Models\PipelineProxy;
 use Webkul\Lead\Models\SourceProxy;
 use Webkul\Lead\Models\TypeProxy;
@@ -48,6 +49,7 @@ class LeadController extends Controller
     public function __construct(
         protected LeadRepository $leads,
         protected PersonRepository $personas,
+        protected InmuebleRepository $inmuebles,
     ) {}
 
     /**
@@ -75,7 +77,10 @@ class LeadController extends Controller
 
         $titulo = $this->titulo($datos, 'Busca');
 
-        return $this->crear($id, $flujo, $datos['nombre'], $titulo, $this->detalle($datos), $datos['presupuesto'] ?? 0);
+        return $this->crear(
+            $id, $flujo, $datos['nombre'], $titulo, $this->detalle($datos),
+            $datos['presupuesto'] ?? 0, $datos['codigos_interes'] ?? [],
+        );
     }
 
     /**
@@ -118,7 +123,10 @@ class LeadController extends Controller
      * Crea el lead, la persona si hacía falta, y los deja vinculados a la
      * conversación para que el agente pueda leer el historial después.
      */
-    protected function crear(string $conversationId, string $flujo, string $nombre, string $titulo, string $detalle, float $valor): JsonResponse
+    /**
+     * @param  array<int, string>  $codigosInteres
+     */
+    protected function crear(string $conversationId, string $flujo, string $nombre, string $titulo, string $detalle, float $valor, array $codigosInteres = []): JsonResponse
     {
         $conversation = ConversationProxy::modelClass()::findOrFail($conversationId);
 
@@ -138,7 +146,7 @@ class LeadController extends Controller
             ], 409);
         }
 
-        $lead = DB::transaction(function () use ($conversation, $nombre, $titulo, $detalle, $valor, $pipeline, $etapa, $tipo) {
+        $lead = DB::transaction(function () use ($conversation, $nombre, $titulo, $detalle, $valor, $pipeline, $etapa, $tipo, $codigosInteres) {
             $persona = $this->persona($conversation, $nombre);
 
             Event::dispatch('lead.create.before');
@@ -157,6 +165,13 @@ class LeadController extends Controller
             ]);
 
             Event::dispatch('lead.create.after', $lead);
+
+            // El interés queda como vínculo, no solo como texto en la
+            // descripción: así el asesor lo ve en la ficha y se puede saber qué
+            // inmuebles generan consultas.
+            if ($codigosInteres) {
+                $this->inmuebles->vincularCodigos($lead->id, $codigosInteres);
+            }
 
             // El primer lead de la conversación queda como el lead "de" la
             // conversación; los siguientes no lo pisan.
