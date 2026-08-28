@@ -121,9 +121,13 @@ class Inmueble extends Model implements InmuebleContract
     /**
      * La línea que el agente usa para describir el inmueble.
      *
-     * El handoff pide "una línea real de la ficha, no un adjetivo genérico".
-     * Si el asesor no cargó `destacado`, se cae a la primera oración de la
-     * descripción, que sigue siendo texto real del anuncio.
+     * El handoff pide "una línea real de la ficha, no un adjetivo genérico", y
+     * la primera oración de la descripción cumple justamente eso: es texto del
+     * anuncio, escrito por quien lo publicó.
+     *
+     * La columna `destacado` sigue existiendo y tiene prioridad —hay fichas que
+     * ya la traen y el seeder la usa— pero salió del formulario: era un campo
+     * más que llenar para decir algo que la descripción ya dice.
      */
     public function lineaDestacada(): ?string
     {

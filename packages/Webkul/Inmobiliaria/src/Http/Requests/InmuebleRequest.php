@@ -30,7 +30,6 @@ class InmuebleRequest extends FormRequest
             'estado'    => ['required', Rule::in($cfg['estados'])],
 
             'titulo'      => ['required', 'string', 'max:160'],
-            'destacado'   => ['nullable', 'string', 'max:200'],
             'descripcion' => ['nullable', 'string'],
 
             'zona'       => ['required', 'string', 'max:120'],

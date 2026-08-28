@@ -3,7 +3,9 @@
 namespace Webkul\Whatsapp\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Throwable;
 use Webkul\User\Models\UserProxy;
 use Webkul\Whatsapp\Mail\HandoffSinTomar;
 use Webkul\Whatsapp\Models\HandoffProxy;
@@ -68,11 +70,30 @@ class EscalarHandoffs extends Command
                 continue;
             }
 
-            Mail::to($supervisores->pluck('email')->all())->send(new HandoffSinTomar($handoff));
+            /*
+            | Un envío que falla no puede tumbar la corrida.
+            |
+            | El correo de esta instancia puede estar caído —hoy mismo lo está,
+            | por credenciales— y sin este corte la primera derivación fallida
+            | dejaría a las siguientes sin siquiera intentarse.
+            |
+            | No se marca `escalated_at` cuando falla: así el aviso sale solo en
+            | cuanto el correo vuelva, en vez de perderse para siempre. El costo
+            | es que se reintenta cada cinco minutos mientras tanto, acotado por
+            | la cantidad de derivaciones sin tomar, que siempre es chica.
+            */
+            try {
+                Mail::to($supervisores->pluck('email')->all())->send(new HandoffSinTomar($handoff));
 
-            // Se marca aunque el mail falle después: el objetivo es no repetir el
-            // aviso, y un reintento cada cinco minutos sería peor que perderlo.
-            $handoff->forceFill(['escalated_at' => now()])->save();
+                $handoff->forceFill(['escalated_at' => now()])->save();
+            } catch (Throwable $e) {
+                $this->error('     no se pudo avisar: '.$e->getMessage());
+
+                Log::warning('WhatsApp: no se pudo escalar una derivación.', [
+                    'handoff_id' => $handoff->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
         }
 
         return self::SUCCESS;

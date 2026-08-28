@@ -61,17 +61,6 @@
                     </label>
 
                     <label class="col-span-2 flex flex-col gap-1 max-sm:col-span-1">
-                        <span class="text-xs font-medium dark:text-gray-300">Línea destacada</span>
-                        <input name="destacado" value="{{ $v('destacado') }}" maxlength="200"
-                               class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" />
-                        <span class="text-xs text-gray-500">
-                            La frase con la que el agente presenta el inmueble. Tiene que ser un dato real
-                            de la ficha (“galpón de 500 m² con 6,5 m de altura”), no un adjetivo
-                            (“hermosa propiedad”). Si la dejás vacía, se usa la primera oración de la descripción.
-                        </span>
-                    </label>
-
-                    <label class="col-span-2 flex flex-col gap-1 max-sm:col-span-1">
                         <span class="text-xs font-medium dark:text-gray-300">Descripción</span>
                         <textarea name="descripcion" rows="6"
                                   class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">{{ $v('descripcion') }}</textarea>
