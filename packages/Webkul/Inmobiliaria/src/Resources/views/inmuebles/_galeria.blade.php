@@ -25,7 +25,7 @@
             <select name="tipo" id="tipo-media" class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
                     onchange="document.getElementById('campo-url').classList.toggle('hidden', this.value !== 'tour');
                               document.getElementById('campo-archivos').classList.toggle('hidden', this.value === 'tour');
-                              document.getElementById('input-archivos').accept = {
+                              (document.getElementById('input-archivos') || {}).accept = {
                                   foto:  'image/jpeg,image/png,image/webp',
                                   plano: 'image/jpeg,image/png,image/webp,application/pdf',
                                   video: 'video/mp4,video/quicktime,video/webm',
@@ -38,12 +38,14 @@
             </select>
         </label>
 
-        <label class="flex flex-col gap-1" id="campo-archivos">
-            <span class="text-xs font-medium dark:text-gray-300">Archivos</span>
-            <input type="file" name="archivos[]" id="input-archivos" multiple
-                   accept="image/jpeg,image/png,image/webp"
-                   class="rounded border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" />
-        </label>
+        <div class="min-w-[320px] flex-1" id="campo-archivos">
+            @include('inmobiliaria::inmuebles._dropzone', [
+                'nombre' => 'archivos[]',
+                'id'     => 'input-archivos',
+                'acepta' => 'image/jpeg,image/png,image/webp',
+                'ayuda'  => 'Hasta 20 por vez. El tipo se elige a la izquierda.',
+            ])
+        </div>
 
         <label class="hidden flex-col gap-1" id="campo-url">
             <span class="text-xs font-medium dark:text-gray-300">URL del tour</span>
