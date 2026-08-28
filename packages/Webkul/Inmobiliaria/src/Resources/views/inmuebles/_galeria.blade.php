@@ -132,49 +132,54 @@
      * Se guarda apenas se suelta, sin botón de confirmar: es una acción de bajo
      * riesgo y perfectamente reversible arrastrando de nuevo.
      */
+    /*
+     * Reordenar arrastrando, delegado en `document`.
+     *
+     * Vue monta sobre todo el #app y su bundle corre después de este script, así
+     * que reemplaza los nodos y se lleva los listeners enganchados directamente.
+     * Delegando, el listener vive donde Vue no llega.
+     */
     (function () {
-        /*
-         * El token va explícito, renderizado por Blade.
-         *
-         * Este admin no tiene <meta name="csrf-token">, así que leerlo de ahí
-         * devolvía null y reventaba antes de enviar nada: el orden se movía en
-         * pantalla y no se guardaba nunca. Mandarlo por cabecera no depende de
-         * cómo esté configurada la cookie ni de qué cliente HTTP se use.
-         */
         const CSRF = @json(csrf_token());
 
         let arrastrado = null;
 
-        document.querySelectorAll('[data-galeria]').forEach(galeria => {
-            galeria.addEventListener('dragstart', e => {
-                arrastrado = e.target.closest('[data-media]');
-                if (arrastrado) arrastrado.style.opacity = '0.4';
-            });
+        document.addEventListener('dragstart', e => {
+            arrastrado = e.target.closest?.('[data-media]');
 
-            galeria.addEventListener('dragend', () => {
-                if (arrastrado) arrastrado.style.opacity = '';
-                arrastrado = null;
-            });
+            if (arrastrado) arrastrado.style.opacity = '0.4';
+        });
 
-            galeria.addEventListener('dragover', e => {
-                e.preventDefault();     // sin esto el navegador no permite soltar
+        document.addEventListener('dragend', () => {
+            if (arrastrado) arrastrado.style.opacity = '';
+            arrastrado = null;
+        });
 
-                const sobre = e.target.closest('[data-media]');
-                if (! sobre || ! arrastrado || sobre === arrastrado) return;
-                if (sobre.parentElement !== arrastrado.parentElement) return;
+        document.addEventListener('dragover', e => {
+            if (! arrastrado) return;
 
-                // Insertar antes o después según de qué lado se está soltando,
-                // para que el reordenamiento siga al cursor.
-                const caja = sobre.getBoundingClientRect();
-                const despues = (e.clientX - caja.left) > caja.width / 2;
+            const sobre = e.target.closest?.('[data-media]');
 
-                sobre.parentElement.insertBefore(arrastrado, despues ? sobre.nextSibling : sobre);
-            });
+            if (! sobre || sobre === arrastrado) return;
+            if (sobre.parentElement !== arrastrado.parentElement) return;
 
-            galeria.addEventListener('drop', e => {
-                e.preventDefault();
-                guardarOrden(galeria);
-            });
+            e.preventDefault();
+
+            // Antes o después según de qué lado se suelta, para que el
+            // reordenamiento siga al cursor.
+            const caja = sobre.getBoundingClientRect();
+            const despues = (e.clientX - caja.left) > caja.width / 2;
+
+            sobre.parentElement.insertBefore(arrastrado, despues ? sobre.nextSibling : sobre);
+        });
+
+        document.addEventListener('drop', e => {
+            const galeria = e.target.closest?.('[data-galeria]');
+
+            if (! galeria || ! arrastrado) return;
+
+            e.preventDefault();
+            guardarOrden(galeria);
         });
 
         function guardarOrden(galeria) {
