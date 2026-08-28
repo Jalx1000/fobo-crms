@@ -12,26 +12,33 @@
     $id = $id ?? 'dropzone-'.\Illuminate\Support\Str::random(6);
 @endphp
 
-<label data-dropzone
-       @isset($subirA) data-subir-a="{{ $subirA }}" data-dropzone-tipo="{{ $subirTipo ?? 'foto' }}" @endisset
-       class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-8 text-center transition hover:border-brandColor focus-within:border-brandColor dark:border-gray-700">
-    <span class="icon-image text-2xl text-gray-400"></span>
+<div data-dropzone
+     @isset($subirA) data-subir-a="{{ $subirA }}" data-dropzone-tipo="{{ $subirTipo ?? 'foto' }}" @endisset
+     class="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-gray-300 px-4 py-6 text-center transition dark:border-gray-700">
 
-    <span class="text-sm text-gray-600 dark:text-gray-300">
-        Arrastrá los archivos acá o <span class="text-brandColor underline">elegilos</span>
+    <span class="text-xs text-gray-500 dark:text-gray-400">
+        Arrastrá los archivos acá, o elegilos:
     </span>
 
-    <span class="text-xs text-gray-400">{{ $ayuda }}</span>
+    {{--
+        El selector va visible, no escondido detrás del área.
 
+        Estaba oculto con `sr-only` esperando que el clic en el contenedor lo
+        abriera, y así elegir archivos dependía de una asociación implícita que
+        puede fallar según el navegador. Un input visible funciona siempre, con
+        mouse, con teclado y desde el móvil — donde arrastrar ni siquiera existe.
+    --}}
     <input type="file"
            name="{{ $nombre }}"
            id="{{ $id }}"
            multiple
            accept="{{ $acepta }}"
-           class="sr-only" />
+           class="block w-full max-w-md cursor-pointer rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-700 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:font-medium hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:file:bg-gray-800 dark:file:text-gray-200" />
+
+    <span class="text-xs text-gray-400">{{ $ayuda }}</span>
 
     <span data-dropzone-lista class="hidden text-xs font-medium text-gray-700 dark:text-gray-200"></span>
-</label>
+</div>
 
 @once
     @push('scripts')
