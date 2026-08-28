@@ -84,6 +84,8 @@ class IngestInboundPayload implements ShouldQueue
             'status'          => 'delivered',
             'sender'          => 'contact',
             'payload'         => $inbound->raw,
+            // El nombre solo viene en documentos; el resto se nombra al guardar.
+            'media_name'      => $inbound->mediaFilename,
         ]);
 
         $conversation->forceFill([
@@ -91,6 +93,18 @@ class IngestInboundPayload implements ShouldQueue
             'last_inbound_at' => now(), // reopens the 24h messaging window
             'unread_count'    => $conversation->unread_count + 1,
         ])->save();
+
+        /*
+        | El archivo se descarga aparte.
+        |
+        | Acá no se hace ninguna llamada de red nueva: el mensaje ya está creado
+        | y el agente ya puede ser notificado. Descargar en línea ataría el acuse
+        | a Meta a la velocidad de la descarga, y Meta reintenta el webhook si
+        | tardamos — creando el mismo mensaje otra vez.
+        */
+        if ($inbound->tieneArchivo() && $this->descargable($inbound->type)) {
+            DescargarMediaEntrante::dispatch($created->id)->onQueue(config('whatsapp.queue'));
+        }
 
         // Hand the message to the AI agent — but only while it is enabled for
         // this conversation. Off = a human is handling it.
@@ -126,5 +140,17 @@ class IngestInboundPayload implements ShouldQueue
         }
 
         return MessageProxy::modelClass()::where('wa_message_id', $providerId)->value('id');
+    }
+
+    /**
+     * ¿Este tipo está entre los que la instancia decidió guardar?
+     *
+     * Configurable y no fijo porque la decisión es de negocio: los audios de
+     * voz, por ejemplo, se acumulan rápido con retención permanente, y una
+     * instalación podría preferir no guardarlos.
+     */
+    protected function descargable(string $tipo): bool
+    {
+        return in_array($tipo, (array) config('whatsapp.inbound_media.tipos', []), true);
     }
 }

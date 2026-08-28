@@ -9,6 +9,7 @@ use RuntimeException;
 use Webkul\Whatsapp\Gateways\BaseGateway;
 use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
+use Webkul\Whatsapp\Gateways\Dto\DownloadedMedia;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
@@ -17,6 +18,7 @@ use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\StatusUpdate;
 use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
 use Webkul\Whatsapp\Gateways\Dto\WebhookSecurity;
+use Webkul\Whatsapp\Gateways\MediaDemasiadoGrande;
 use Webkul\Whatsapp\Models\Conversation;
 use Webkul\Whatsapp\Services\PhoneNumber;
 
@@ -34,9 +36,18 @@ class CloudApiGateway extends BaseGateway
     public function capabilities(): Capabilities
     {
         // Only what is implemented today. Grows as sendMedia lands.
+        /*
+        | Lo que este driver IMPLEMENTA, verificado tipo por tipo. No lo que la
+        | Cloud API soporta en teoría.
+        |
+        | Esta lista enciende y apaga controles del inbox: agregar algo acá antes
+        | de que funcione ya dejó una vez un botón de adjuntar conectado a un
+        | mock, que decía "enviado" sin enviar nada. Se toca al final, nunca al
+        | principio.
+        */
         return new Capabilities(
             send: ['text', 'reply', 'emoji', 'image', 'video', 'document', 'location'],
-            receive: ['text', 'image', 'audio', 'document', 'video', 'sticker', 'location', 'contact'],
+            receive: ['text', 'image', 'audio', 'video', 'document', 'sticker', 'location', 'contact'],
         );
     }
 
@@ -107,6 +118,7 @@ class CloudApiGateway extends BaseGateway
                     }
 
                     $type = $this->normalizeType($message['type'] ?? 'unknown');
+                    $archivo = $this->extractMedia($message, $type);
 
                     $messages[] = new InboundMessage(
                         providerMessageId: (string) $message['id'],
@@ -118,6 +130,9 @@ class CloudApiGateway extends BaseGateway
                         body: $this->extractBody($message, $type),
                         replyToProviderId: $message['context']['id'] ?? null,
                         raw: $message,
+                        mediaId: $archivo['id'],
+                        mediaMime: $archivo['mime'],
+                        mediaFilename: $archivo['filename'],
                     );
                 }
 
@@ -229,6 +244,63 @@ class CloudApiGateway extends BaseGateway
     }
 
     /**
+     * Descarga un archivo entrante. Dos pasos, y el id se resuelve cada vez.
+     *
+     * Meta no expone una URL estable: primero hay que pedirle metadatos al id
+     * para obtener una URL temporal, y recién después descargarla con el token.
+     * Esa URL vive pocos minutos, así que cachearla haría que todo reintento
+     * fallara — por eso el segundo paso nunca se separa del primero.
+     *
+     * El tamaño se comprueba con los metadatos ANTES de bajar el binario: no
+     * tiene sentido traer 90 MB para después descartarlos.
+     */
+    public function downloadMedia(string $mediaId, int $maxBytes): ?DownloadedMedia
+    {
+        $meta = Http::withToken($this->required('token'))
+            ->acceptJson()
+            ->get($this->grafo($mediaId));
+
+        // 404 del proveedor: el archivo ya no está. No es un error nuestro y no
+        // tiene sentido reintentarlo.
+        if ($meta->status() === 404) {
+            return null;
+        }
+
+        $meta->throw();
+
+        $url = $meta->json('url');
+        $mime = $meta->json('mime_type') ?: 'application/octet-stream';
+        $size = (int) $meta->json('file_size');
+
+        if (! $url) {
+            throw new RuntimeException('Cloud API no devolvió URL de descarga para el media '.$mediaId);
+        }
+
+        if ($size > 0 && $size > $maxBytes) {
+            throw new MediaDemasiadoGrande($size, $maxBytes);
+        }
+
+        // La descarga del binario va al host que Meta indicó, no al endpoint de
+        // la API, pero igual exige el token.
+        $archivo = Http::withToken($this->required('token'))->get($url);
+
+        $archivo->throw();
+
+        $contenido = $archivo->body();
+
+        // Segunda comprobación: el proveedor no siempre informa file_size.
+        if (strlen($contenido) > $maxBytes) {
+            throw new MediaDemasiadoGrande(strlen($contenido), $maxBytes);
+        }
+
+        return new DownloadedMedia(
+            contents: $contenido,
+            mime: $mime,
+            size: strlen($contenido),
+        );
+    }
+
+    /**
      * Parte común de todo envío: destinatario, POST y extracción del wamid.
      */
     protected function enviar(Conversation $conversation, array $payload): SendResult
@@ -261,6 +333,36 @@ class CloudApiGateway extends BaseGateway
     }
 
     /**
+     * Punteros al archivo adjunto, si el mensaje trae uno.
+     *
+     * Meta anida los datos bajo una clave con el nombre del tipo
+     * (`image.id`, `document.id`, …). Solo los tipos que son realmente un
+     * archivo: `location` y `contact` viajan completos en el payload y no hay
+     * nada que descargar.
+     *
+     * @return array{id: ?string, mime: ?string, filename: ?string}
+     */
+    protected function extractMedia(array $message, string $type): array
+    {
+        $conArchivo = ['image', 'video', 'audio', 'document', 'sticker'];
+
+        if (! in_array($type, $conArchivo, true)) {
+            return ['id' => null, 'mime' => null, 'filename' => null];
+        }
+
+        // La clave del payload usa el nombre original de Meta, no el
+        // normalizado: por eso se lee de `$message['type']` y no de `$type`.
+        $datos = $message[$message['type'] ?? $type] ?? [];
+
+        return [
+            'id'       => isset($datos['id']) ? (string) $datos['id'] : null,
+            'mime'     => $datos['mime_type'] ?? null,
+            // Solo los documentos traen nombre; el resto se nombra al guardar.
+            'filename' => $datos['filename'] ?? null,
+        ];
+    }
+
+    /**
      * Human-readable body: text for text, caption for media.
      */
     protected function extractBody(array $message, string $type): ?string
@@ -275,8 +377,20 @@ class CloudApiGateway extends BaseGateway
 
     protected function endpoint(string $path): string
     {
+        return sprintf('%s/%s', $this->grafo($this->required('phone_number_id')), $path);
+    }
+
+    /**
+     * Endpoint del grafo que NO cuelga del número de teléfono.
+     *
+     * Los metadatos de un archivo se piden por su id directamente
+     * (`/v21.0/{media-id}`). Colgarlos del `phone_number_id` —como hace
+     * `endpoint()` para enviar y subir— devuelve 400: no es la misma jerarquía.
+     */
+    protected function grafo(string $path): string
+    {
         $version = (string) ($this->config['api_version'] ?? 'v21.0');
 
-        return sprintf('https://graph.facebook.com/%s/%s/%s', $version, $this->required('phone_number_id'), $path);
+        return sprintf('https://graph.facebook.com/%s/%s', $version, $path);
     }
 }

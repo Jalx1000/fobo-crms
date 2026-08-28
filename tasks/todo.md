@@ -2,7 +2,7 @@
 
 - **Spec:** `docs/specs/media-entrante-whatsapp.md` · **Plan:** `tasks/plan.md`
 - **Fase:** 3 de 4 (Specify ✅ → Plan ✅ → **Tasks** → Implement)
-- **Estado:** 🟡 Pendiente de revisión. Ninguna tarea toca más de 5 archivos.
+- **Estado:** 🟢 T1–T10 implementadas y verificadas (28/08/2026). Queda **T11**, que necesita autorización.
 - Orden por dependencia, no por importancia.
 
 Abreviatura usada en las verificaciones:
@@ -22,7 +22,7 @@ RW() { docker exec $C supervisorctl restart whatsapp; }           # worker: obli
 
 ## Etapa 0 — Arreglar la URL rota
 
-- [ ] **T1 — Ruta de servido de media y `transform()` con URL real** *(C6)*
+- [x] **T1 — Ruta de servido de media y `transform()` con URL real** *(C6)*
   - **Acceptance:** existe `GET admin/whatsapp/media/{message}`, autenticada bajo el admin path,
     que transmite el archivo del mensaje y devuelve 404 si el mensaje no tiene archivo o no existe.
     `InboxController::transform()` deja de devolver `media_path` crudo y devuelve esa ruta.
@@ -39,14 +39,14 @@ RW() { docker exec $C supervisorctl restart whatsapp; }           # worker: obli
 
 ## Etapa 1 — Poder traer el archivo
 
-- [ ] **T2 — Campos de media en `InboundMessage`** *(C1)*
+- [x] **T2 — Campos de media en `InboundMessage`** *(C1)*
   - **Acceptance:** el DTO acepta `mediaId`, `mediaMime` y `mediaFilename`, los tres nullable y con
     valor por defecto, para no romper ninguna construcción existente. Sigue siendo inmutable.
   - **Verify:** `XR php artisan tinker` construyendo el DTO con y sin los campos nuevos; los dos
     gateways siguen parseando sin error.
   - **Files:** `Gateways/Dto/InboundMessage.php`
 
-- [ ] **T3 — `downloadMedia()` en el contrato y en los dos drivers** *(C2)*
+- [x] **T3 — `downloadMedia()` en el contrato y en los dos drivers** *(C2)*
   - **Acceptance:** el contrato declara `downloadMedia(string $mediaId): ?DownloadedMedia`, con un
     DTO nuevo que trae contenido, mime y tamaño. Cloud API lo implementa **en dos pasos**
     (`GET /{media-id}` → `url`, luego `GET url` con el token) y **nunca persiste la URL**, porque
@@ -57,7 +57,7 @@ RW() { docker exec $C supervisorctl restart whatsapp; }           # worker: obli
   - **Files:** `Gateways/Contracts/Gateway.php`, `Gateways/Dto/DownloadedMedia.php`,
     `Gateways/CloudApi/CloudApiGateway.php`, `Gateways/Kommo/KommoGateway.php`
 
-- [ ] **T4 — El parser extrae el archivo del payload** *(C3)*
+- [x] **T4 — El parser extrae el archivo del payload** *(C3)*
   - **Acceptance:** `parseWebhook()` llena `mediaId`, `mediaMime` y `mediaFilename` para `image`,
     `video`, `document`, `audio` y `sticker`. El epígrafe sigue llegando en `body`, como hoy.
     `location` y `contact` no se tocan: no son archivos.
@@ -70,7 +70,7 @@ RW() { docker exec $C supervisorctl restart whatsapp; }           # worker: obli
 
 ## Etapa 2 — Descarga real de punta a punta
 
-- [ ] **T5 — Job `DescargarMediaEntrante`** *(C4)*
+- [x] **T5 — Job `DescargarMediaEntrante`** *(C4)*
   - **Acceptance:** 3 intentos con backoff `[10, 30, 60]`, **re-resolviendo el id en cada intento**
     (R2). Guarda en `storage/app/whatsapp/{conversation_id}/inbound/` en el disco privado y completa
     `media_path`, `media_mime` y `media_name`. Respeta los límites de D9 (25 MB general, 100 MB
@@ -81,7 +81,7 @@ RW() { docker exec $C supervisorctl restart whatsapp; }           # worker: obli
     huérfanos en `failed_jobs`.
   - **Files:** `Jobs/DescargarMediaEntrante.php`, `Config/whatsapp.php` (límites)
 
-- [ ] **T6 — El ingest despacha el job** *(C5)*
+- [x] **T6 — El ingest despacha el job** *(C5)*
   - **Acceptance:** cuando el DTO trae `mediaId`, el mensaje se crea igual que hoy y **además** se
     encola la descarga. El ingest no hace ninguna llamada de red nueva: su tiempo de respuesta no
     cambia (R3). La deduplicación por `wa_message_id` sigue funcionando igual.
@@ -96,7 +96,7 @@ RW() { docker exec $C supervisorctl restart whatsapp; }           # worker: obli
 
 ## Etapa 3 — Contar la verdad sobre el estado
 
-- [ ] **T7 — Los tres estados visibles en el hilo** *(C7)*
+- [x] **T7 — Los tres estados visibles en el hilo** *(C7)*
   - **Acceptance:** `transform()` expone `media.estado` (`pendiente` | `listo` | `fallido`) y el
     motivo cuando falló. El hilo distingue los tres: un marcador mientras descarga, el archivo
     cuando está, y el motivo legible cuando no se pudo. **Nunca una burbuja vacía.**
@@ -104,7 +104,7 @@ RW() { docker exec $C supervisorctl restart whatsapp; }           # worker: obli
     distinguen a simple vista, en tema claro y oscuro.
   - **Files:** `Http/Controllers/InboxController.php`, `Resources/views/inbox-component.blade.php`
 
-- [ ] **T8 — Bloque `media` para el agente** *(C8)*
+- [x] **T8 — Bloque `media` para el agente** *(C8)*
   - **Acceptance:** el evento del webhook y el historial traen
     `media: { kind, disponible }`, con el epígrafe en `text`. **Nunca URL ni binario** (D4):
     `disponible` es `false` mientras la descarga esté pendiente o haya fallado, para que el agente
@@ -117,7 +117,7 @@ RW() { docker exec $C supervisorctl restart whatsapp; }           # worker: obli
 
 ## Etapa 4 — Cerrar
 
-- [ ] **T9 — `capabilities()` honestas** *(C9)*
+- [x] **T9 — `capabilities()` honestas** *(C9)*
   - **Acceptance:** `receive` lista **exactamente** los tipos verificados uno por uno. Lo que no se
     probó, sale de la lista.
   - **Verify (V8):** recorrer cada tipo declarado ejercitándolo de verdad. Y revisar el inbox
@@ -125,7 +125,7 @@ RW() { docker exec $C supervisorctl restart whatsapp; }           # worker: obli
     botón conectado a un mock (R5).
   - **Files:** `Gateways/CloudApi/CloudApiGateway.php`
 
-- [ ] **T10 — Comando de relleno retroactivo** *(C10)*
+- [x] **T10 — Comando de relleno retroactivo** *(C10)*
   - **Acceptance:** `crm:descargar-media-historica` recorre los mensajes entrantes que tengan
     `payload` con un id de archivo y no tengan `media_path`, y encola la descarga. Soporta
     `--dry-run`.

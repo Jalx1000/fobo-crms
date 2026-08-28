@@ -107,7 +107,23 @@
                             </div>
 
                             <!-- body by type -->
-                            <div v-if="msg.type === 'text'" class="whitespace-pre-wrap break-words" v-html="formatText(msg.text)"></div>
+                            <!-- Archivo en camino o que no se pudo traer. Va antes que el
+                                 resto para que ningún tipo con media caiga en una burbuja
+                                 vacía mientras se descarga. -->
+                            <div v-if="msg.media && msg.media.estado === 'pendiente'"
+                                 class="flex items-center gap-2 rounded-md bg-black/5 px-3 py-3 text-xs text-gray-500 dark:bg-white/10 dark:text-gray-400">
+                                <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                                Descargando @{{ etiquetaMedia(msg.type) }}…
+                            </div>
+
+                            <div v-else-if="msg.media && msg.media.estado === 'fallido'"
+                                 class="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                <p class="font-medium">No se pudo traer @{{ etiquetaMedia(msg.type) }}</p>
+                                <p v-if="msg.media.motivo" class="mt-0.5 opacity-80">@{{ msg.media.motivo }}</p>
+                                <p class="mt-1 opacity-70">Pedile al cliente que lo reenvíe.</p>
+                            </div>
+
+                            <div v-else-if="msg.type === 'text'" class="whitespace-pre-wrap break-words" v-html="formatText(msg.text)"></div>
 
                             <div v-else-if="msg.type === 'image'">
                                 <img :src="msg.media.url" class="max-h-56 rounded-md" alt="imagen">
@@ -1388,6 +1404,14 @@
                             this.noteError = err.response?.data?.message || 'No se pudo guardar la nota.';
                         })
                         .finally(() => { this.noteSaving = false; });
+                },
+
+                // Nombre en castellano del tipo, para los avisos del hilo.
+                etiquetaMedia(tipo) {
+                    return {
+                        image: 'la imagen', video: 'el video', audio: 'el audio',
+                        document: 'el documento', sticker: 'el sticker',
+                    }[tipo] || 'el archivo';
                 },
 
                 elegirArchivo() {

@@ -11,6 +11,7 @@ use RuntimeException;
 use Webkul\Whatsapp\Gateways\BaseGateway;
 use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
+use Webkul\Whatsapp\Gateways\Dto\DownloadedMedia;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
@@ -260,5 +261,10 @@ class KommoGateway extends BaseGateway
     public function uploadMedia(string $absolutePath, string $mimeType): ?string
     {
         return null;
+    }
+
+    public function downloadMedia(string $mediaId, int $maxBytes): ?DownloadedMedia
+    {
+        throw UnsupportedCapability::para($this->key(), 'archivos');
     }
 }

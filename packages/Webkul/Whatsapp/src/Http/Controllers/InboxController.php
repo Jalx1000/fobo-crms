@@ -8,6 +8,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 use Webkul\Activity\Models\ActivityProxy;
 use Webkul\Activity\Repositories\ActivityRepository;
@@ -17,6 +18,7 @@ use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\ConversationProxy;
+use Webkul\Whatsapp\Models\Message;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\ConversationResolver;
 use Webkul\Whatsapp\Services\PhoneNumber;
@@ -235,6 +237,60 @@ class InboxController extends Controller
     }
 
     /**
+     * Un archivo que todavía no está: descargándose, o que no se pudo traer.
+     *
+     * Devuelve null para los mensajes que nunca tuvieron archivo —un texto no
+     * está "pendiente"— y así el hilo distingue tres situaciones en vez de dos:
+     * el archivo llegó, está en camino, o no va a llegar y por qué.
+     *
+     * @return array{estado: string, motivo: ?string}|null
+     */
+    protected function mediaPendiente(Message $message): ?array
+    {
+        $conArchivo = ['image', 'video', 'audio', 'document', 'sticker'];
+
+        if (! in_array($message->type, $conArchivo, true)) {
+            return null;
+        }
+
+        return [
+            'estado' => $message->error ? 'fallido' : 'pendiente',
+            'motivo' => $message->error,
+        ];
+    }
+
+    /**
+     * Sirve el archivo de un mensaje, entrante o saliente.
+     *
+     * Los archivos viven en el disco privado —son conversaciones de clientes—
+     * así que no hay URL pública que poner en el hilo. Esta ruta está detrás del
+     * login del CRM y es la única forma de verlos.
+     *
+     * Sirve para las dos direcciones a propósito: el asesor tiene que ver tanto
+     * lo que mandó como lo que recibió, y duplicar la ruta sería duplicar el
+     * control de acceso.
+     *
+     * El parámetro llega como modelo, no como id: Concord registra un route
+     * binding por cada modelo que un módulo declara, y `{message}` coincide con
+     * `Message`. El binding se activa por el NOMBRE del parámetro, así que
+     * declarar `int` no lo desactiva — solo hace que la firma no coincida con lo
+     * que Laravel inyecta.
+     */
+    public function media(Message $message): StreamedResponse
+    {
+        abort_if(
+            blank($message->media_path) || ! Storage::disk('local')->exists($message->media_path),
+            404,
+        );
+
+        return Storage::disk('local')->response(
+            $message->media_path,
+            $message->media_name,
+            ['Content-Type' => $message->media_mime ?: 'application/octet-stream'],
+        );
+    }
+
+    /**
      * Qué tipo de mensaje de WhatsApp corresponde a un mime.
      */
     protected function kindDe(?string $mime): string
@@ -410,11 +466,19 @@ class InboxController extends Controller
             'time'      => optional($message->created_at)->format('H:i'),
             'date'      => optional($message->created_at)->toDateString(), // Y-m-d, for day separators
             'timestamp' => optional($message->created_at)->toIso8601String(),
+            /*
+             * `url` tiene que ser una ruta que el navegador pueda pedir. Antes
+             * acá viajaba `media_path` crudo —una ruta de disco como
+             * `whatsapp/16/x.jpg`— así que el hilo intentaba cargarla como si
+             * fuera relativa al admin y la imagen salía rota, aunque el archivo
+             * hubiera llegado perfecto al cliente.
+             */
             'media'     => $message->media_path ? [
-                'url'      => $message->media_path,
+                'url'      => route('admin.whatsapp.media', $message->id),
                 'filename' => $message->media_name,
                 'meta'     => $message->media_mime,
-            ] : null,
+                'estado'   => 'listo',
+            ] : $this->mediaPendiente($message),
             'replyTo'   => $message->replyTo ? [
                 'author'  => $message->replyTo->direction === 'inbound' ? 'Cliente' : 'Agente',
                 'preview' => \Illuminate\Support\Str::limit((string) $message->replyTo->body, 60),

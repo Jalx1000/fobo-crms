@@ -20,6 +20,9 @@ Route::controller(InboxController::class)
         Route::get('thread', 'thread')->name('thread');
         Route::post('send', 'send')->name('send');
         Route::post('send-media', 'sendMedia')->name('send-media');
+
+        // Archivos de la conversación. Detrás del login: el disco es privado.
+        Route::get('media/{message}', 'media')->name('media');
         Route::patch('conversations/{id}/agent', 'toggleAgent')->name('agent');
         Route::post('conversations/{id}/notes', 'storeNote')->name('notes.store');
     });

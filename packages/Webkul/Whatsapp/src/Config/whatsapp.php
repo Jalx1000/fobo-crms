@@ -71,6 +71,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Media entrante
+    |--------------------------------------------------------------------------
+    | Qué se descarga de lo que manda el cliente, y hasta qué tamaño.
+    |
+    | Los límites se comprueban contra los metadatos ANTES de bajar el binario:
+    | no tiene sentido traer 90 MB para después descartarlos. El de video es más
+    | alto porque un video legítimo pesa lo que pesa; el resto comparte un tope
+    | que cubre cualquier foto o PDF sin llenar el disco.
+    |
+    | Los archivos se conservan indefinidamente (no hay purga). Conviene medir
+    | `storage/app/whatsapp` de vez en cuando: los audios de voz son el rubro
+    | que más rápido se acumula.
+    */
+    'inbound_media' => [
+        'tipos' => ['image', 'video', 'audio', 'document', 'sticker'],
+
+        'max_bytes' => [
+            'video'   => 100 * 1024 * 1024,
+            'default' => 25 * 1024 * 1024,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue
     |--------------------------------------------------------------------------
     | Dedicated queue (Redis) for inbound ingestion and outbound sending jobs.

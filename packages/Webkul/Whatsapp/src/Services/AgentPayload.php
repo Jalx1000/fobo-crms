@@ -42,6 +42,7 @@ class AgentPayload
                 'type'      => $message->type,
                 'text'      => $message->body,
                 'timestamp' => optional($message->created_at)->toIso8601String(),
+                'media'     => $this->media($message),
             ],
             'history' => $this->history($conversation),
             'window'  => [
@@ -53,6 +54,33 @@ class AgentPayload
                 'url'    => url("api/v1/whatsapp/conversations/{$conversation->id}/messages"),
             ],
         ] + $this->captura($conversation);
+    }
+
+    /**
+     * Qué archivo trae un mensaje, para el agente.
+     *
+     * Deliberadamente sin URL ni binario: el agente no ve imágenes, y darle un
+     * enlace lo tentaría a pasárselo al cliente, que ya tiene el archivo — se lo
+     * acaba de mandar él.
+     *
+     * `disponible` refleja si el asesor puede abrirlo de verdad. Mientras la
+     * descarga esté pendiente o haya fallado va en false, para que el agente no
+     * afirme tener algo que del otro lado no está.
+     *
+     * @return array{kind: string, disponible: bool}|null
+     */
+    public function media(Message $message): ?array
+    {
+        $conArchivo = ['image', 'video', 'audio', 'document', 'sticker'];
+
+        if (! in_array($message->type, $conArchivo, true)) {
+            return null;
+        }
+
+        return [
+            'kind'       => $message->type,
+            'disponible' => filled($message->media_path),
+        ];
     }
 
     /**
@@ -151,11 +179,12 @@ class AgentPayload
             ->limit($limit)
             ->get()
             ->sortBy('id')
-            ->map(fn (Message $m) => [
+            ->map(fn (Message $m) => array_filter([
                 'role'    => $m->direction === 'inbound' ? 'user' : 'assistant',
                 'content' => $m->body,
                 'type'    => $m->type,
-            ])
+                'media'   => $this->media($m),
+            ], fn ($v) => $v !== null || true))
             ->values()
             ->all();
     }

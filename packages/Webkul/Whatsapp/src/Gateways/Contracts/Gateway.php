@@ -5,6 +5,7 @@ namespace Webkul\Whatsapp\Gateways\Contracts;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Webkul\Whatsapp\Gateways\Dto\Capabilities;
+use Webkul\Whatsapp\Gateways\Dto\DownloadedMedia;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
 use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
@@ -110,4 +111,19 @@ interface Gateway
      * slow CRM into a message the customer never receives.
      */
     public function uploadMedia(string $absolutePath, string $mimeType): ?string;
+
+    /**
+     * Download an inbound file by the provider's media id.
+     *
+     * Returns null when the provider reports the file is gone; throws
+     * UnsupportedCapability when the driver cannot receive files at all — the
+     * two cases mean different things to the caller and must not be conflated.
+     *
+     * Implementations must resolve the id on every call and never cache a
+     * download URL: providers hand out short-lived URLs, so a cached one is
+     * already dead by the time a retry uses it.
+     *
+     * @throws \Webkul\Whatsapp\Gateways\UnsupportedCapability
+     */
+    public function downloadMedia(string $mediaId, int $maxBytes): ?DownloadedMedia;
 }
