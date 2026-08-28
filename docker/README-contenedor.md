@@ -71,6 +71,25 @@ docker exec $C sh -c 'ps -o pid=,ppid=,lstart=,cmd= -C php | grep queue'
 
 Más de una línea, o alguna con `ppid=0`, es un huérfano: `docker exec $C kill -TERM <pid>`.
 
+## 5. Recompilar el CSS del admin
+
+El build de Vite no está en el repositorio y **cada servidor lo compila**. Si se agregan clases de
+Tailwind en vistas nuevas —o se toca `packages/Webkul/Admin/tailwind.config.js`— hay que rehacerlo o
+esas clases no existen en el CSS y el HTML sale sin estilo.
+
+```bash
+cd packages/Webkul/Admin && npm run build     # node vive en el host, no en el contenedor
+
+# lo genera root: devolver los archivos a www-data
+docker exec -w /code $C sh -c '
+  chown -R www-data:www-data public/admin/build
+  find public/admin/build -type f -exec chmod 644 {} \;
+  find public/admin/build -type d -exec chmod 755 {} \;'
+```
+
+`tailwind.config.js` tiene que listar el módulo cuyas vistas quieras estilar. Hoy incluye Admin,
+Whatsapp e Inmobiliaria; un módulo nuevo hay que agregarlo ahí.
+
 ---
 
 ## Pendiente, no resuelto
