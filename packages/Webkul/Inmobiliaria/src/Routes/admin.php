@@ -40,3 +40,11 @@ Route::controller(InmuebleMediaController::class)
 */
 Route::get('inmuebles/medias/{media}/archivo', [InmuebleMediaController::class, 'archivo'])
     ->name('admin.inmuebles.medias.archivo');
+
+/*
+| Enviar la galería de un inmueble al cliente desde el inbox de WhatsApp.
+| Vive acá y no en el módulo WhatsApp porque necesita resolver el inmueble por
+| su código, que es conocimiento del catálogo.
+*/
+Route::post('inmuebles/enviar-galeria', [\Webkul\Inmobiliaria\Http\Controllers\GaleriaInboxController::class, 'enviar'])
+    ->name('admin.inmuebles.enviar-galeria');

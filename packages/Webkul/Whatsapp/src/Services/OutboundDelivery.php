@@ -53,29 +53,29 @@ class OutboundDelivery
         return null;
     }
 
-    public function texto(Conversation $conversation, string $texto, ?int $replyToId = null): Message
+    public function texto(Conversation $conversation, string $texto, ?int $replyToId = null, string $sender = 'ia'): Message
     {
         return $this->encolar($conversation, [
             'type'        => 'text',
             'body'        => $texto,
             'reply_to_id' => $replyToId,
-        ]);
+        ], $sender);
     }
 
     /**
      * @param  array<string, mixed>  $payload  provider_media_id y/o url
      */
-    public function media(Conversation $conversation, string $kind, array $payload, ?string $caption = null, ?string $filename = null): Message
+    public function media(Conversation $conversation, string $kind, array $payload, ?string $caption = null, ?string $filename = null, string $sender = 'ia'): Message
     {
         return $this->encolar($conversation, [
             'type'       => $kind,
             'body'       => $caption,
             'media_name' => $filename,
             'payload'    => $payload,
-        ]);
+        ], $sender);
     }
 
-    public function ubicacion(Conversation $conversation, float $lat, float $lng, ?string $nombre = null, ?string $direccion = null): Message
+    public function ubicacion(Conversation $conversation, float $lat, float $lng, ?string $nombre = null, ?string $direccion = null, string $sender = 'ia'): Message
     {
         return $this->encolar($conversation, [
             'type'    => 'location',
@@ -86,19 +86,26 @@ class OutboundDelivery
                 'name'      => $nombre,
                 'address'   => $direccion,
             ], fn ($v) => $v !== null),
-        ]);
+        ], $sender);
     }
 
     /**
      * @param  array<string, mixed>  $datos
      */
-    protected function encolar(Conversation $conversation, array $datos): Message
+    /**
+     * @param  array<string, mixed>  $datos
+     * @param  string  $sender  'ia' cuando lo manda el agente, 'human' cuando lo
+     *                          manda un asesor desde el inbox. El hilo los
+     *                          muestra distinto, y confundirlos haría creer al
+     *                          asesor que el agente ya respondió.
+     */
+    protected function encolar(Conversation $conversation, array $datos, string $sender = 'ia'): Message
     {
         $message = MessageProxy::modelClass()::create($datos + [
             'conversation_id' => $conversation->id,
             'direction'       => 'outbound',
             'status'          => 'queued',
-            'sender'          => 'ia',
+            'sender'          => $sender,
         ]);
 
         $conversation->forceFill(['last_message_at' => now()])->save();

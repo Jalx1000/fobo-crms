@@ -67,7 +67,7 @@ class EnvioController extends Controller
             // corregirse.
             $plural = ['foto' => 'fotos', 'video' => 'videos', 'plano' => 'planos', 'tour' => 'tours virtuales'][$datos['tipo']];
 
-            return response()->json(['message' => "El inmueble {$datos['codigo']} no tiene {$plural} cargados."], 404);
+            return response()->json(['message' => "El inmueble {$datos['codigo']} no tiene {$plural} cargadas en el catálogo."], 404);
         }
 
         try {

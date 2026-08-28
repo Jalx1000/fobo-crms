@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
+use Throwable;
 use Webkul\Activity\Models\ActivityProxy;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Contact\Models\PersonProxy;
@@ -156,6 +158,93 @@ class InboxController extends Controller
         SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
 
         return response()->json(['message' => $this->transform($message->load('replyTo'))]);
+    }
+
+    /**
+     * Envía un archivo que el asesor adjunta desde el inbox.
+     *
+     * El archivo se sube al proveedor ANTES de encolar el envío, no después: si
+     * la subida falla, el asesor se entera en el momento, con el archivo todavía
+     * en pantalla y pudiendo reintentar. Encolar primero y fallar en el worker
+     * dejaría un mensaje "enviado" que nunca llegó — que es justo lo que hacía
+     * el botón de adjuntar antes de esto.
+     */
+    public function sendMedia(Request $request, ConversationResolver $resolver): JsonResponse
+    {
+        $data = $request->validate([
+            'phone'   => 'required|string',
+            'name'    => 'nullable|string',
+            'archivo' => 'required|file|max:204800',
+            'caption' => 'nullable|string|max:1000',
+        ], [
+            'archivo.max' => 'El archivo supera los 200 MB.',
+        ]);
+
+        $existing = $this->existingConversation($request);
+
+        if ($existing && $existing->aiEffective()) {
+            return response()->json([
+                'message' => 'El agente está activo en esta conversación. Desactivalo para escribir a mano.',
+            ], 422);
+        }
+
+        $conversation = $existing ?? $resolver->findOrCreate($data['phone'], $data['name'] ?? null);
+
+        $archivo = $request->file('archivo');
+        $kind = $this->kindDe($archivo->getMimeType());
+
+        if (! $this->gateways->for($conversation)->capabilities()->canSend($kind)) {
+            return response()->json([
+                'message' => "Este canal no puede enviar archivos de tipo {$kind}.",
+            ], 422);
+        }
+
+        $path = $archivo->store('whatsapp/'.$conversation->id, 'local');
+
+        try {
+            $mediaId = $this->gateways->for($conversation)->uploadMedia(
+                Storage::disk('local')->path($path),
+                $archivo->getMimeType(),
+            );
+        } catch (Throwable $e) {
+            Storage::disk('local')->delete($path);
+
+            return response()->json([
+                'message' => 'No se pudo subir el archivo al proveedor. Probá de nuevo.',
+            ], 502);
+        }
+
+        $message = MessageProxy::modelClass()::create([
+            'conversation_id' => $conversation->id,
+            'direction'       => 'outbound',
+            'type'            => $kind,
+            'body'            => $data['caption'] ?? null,
+            'media_path'      => $path,
+            'media_mime'      => $archivo->getMimeType(),
+            'media_name'      => $archivo->getClientOriginalName(),
+            'payload'         => ['provider_media_id' => $mediaId],
+            'status'          => 'queued',
+            'sender'          => 'human',
+        ]);
+
+        $conversation->forceFill(['last_message_at' => now()])->save();
+
+        SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
+
+        return response()->json(['message' => $this->transform($message)]);
+    }
+
+    /**
+     * Qué tipo de mensaje de WhatsApp corresponde a un mime.
+     */
+    protected function kindDe(?string $mime): string
+    {
+        return match (true) {
+            str_starts_with((string) $mime, 'image/') => 'image',
+            str_starts_with((string) $mime, 'video/') => 'video',
+            str_starts_with((string) $mime, 'audio/') => 'audio',
+            default                                   => 'document',
+        };
     }
 
     /**

@@ -316,21 +316,20 @@
                     <!-- Only rendered when the active provider can actually send attachments -->
                     <div v-if="canAttach" class="js-pop relative">
                         <button type="button" @click="showAttach = !showAttach"
+                                :disabled="enviandoAdjunto"
                                 aria-label="Adjuntar archivo"
                                 class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-700">
                             <span class="icon-attachment text-xl"></span>
                         </button>
-                        <div v-if="showAttach" class="absolute bottom-11 left-0 z-10 w-40 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                            <button v-if="canSend('image')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="mockAttach('image')">
-                                <span class="icon-image"></span> Imagen
+                        <div v-if="showAttach" class="absolute bottom-11 left-0 z-10 w-56 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                            <button class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="elegirArchivo">
+                                <span class="icon-attachment"></span> Subir un archivo
                             </button>
-                            <button v-if="canSend('document')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="mockAttach('document')">
-                                <span class="icon-file"></span> Documento
-                            </button>
-                            <button v-if="canSend('audio')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="mockAttach('audio')">
-                                <span class="icon-microphone"></span> Audio
+                            <button class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="enviarGaleria">
+                                <span class="icon-image"></span> Fotos de un inmueble
                             </button>
                         </div>
+                        <input ref="fileInput" type="file" class="hidden" @change="subirArchivo">
                     </div>
 
                     <textarea
@@ -790,6 +789,8 @@
                 useMock: { type: Boolean, default: true },
                 threadUrl: { type: String, default: '' },
                 sendUrl: { type: String, default: '' },
+                sendMediaUrl: { type: String, default: '' },
+                galeriaUrl: { type: String, default: '' },
                 agentUrlBase: { type: String, default: '' },
                 quickRepliesUrl: { type: String, default: '' },
                 personUrlBase: { type: String, default: '' },
@@ -806,6 +807,7 @@
                     aiEnabled: false,
                     replyingTo: null,
                     showAttach: false,
+                    enviandoAdjunto: false,
                     since: null,
                     pollTimer: null,
                     // What the active provider can do. Conservative default:
@@ -1364,18 +1366,75 @@
                         .finally(() => { this.noteSaving = false; });
                 },
 
-                mockAttach(type) {
+                elegirArchivo() {
                     this.showAttach = false;
-                    const samples = {
-                        image: { type: 'image', media: { url: 'https://placehold.co/320x200/075E54/ffffff?text=Adjunto' } },
-                        document: { type: 'document', media: { url: '#', filename: 'archivo.pdf', meta: 'PDF · 64 KB' } },
-                        audio: { type: 'audio', media: { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' } },
-                    };
-                    this.messages.push({
-                        id: Date.now(), direction: 'outbound', sender: 'human',
-                        time: this.now(), date: this.today(), status: 'sent', ...samples[type],
-                    });
-                    this.scrollToBottom();
+                    this.$refs.fileInput.click();
+                },
+
+                /*
+                 * Sube el archivo y lo envía de verdad.
+                 *
+                 * Antes esto empujaba un marcador de posición al hilo con estado
+                 * "enviado": el asesor creía haber mandado algo que el cliente
+                 * nunca recibía. El servidor sube el archivo al proveedor ANTES
+                 * de responder, así que un error llega mientras el asesor
+                 * todavía está mirando la pantalla.
+                 */
+                subirArchivo(event) {
+                    const archivo = event.target.files[0];
+                    event.target.value = '';
+
+                    if (! archivo) return;
+
+                    const form = new FormData();
+                    form.append('archivo', archivo);
+                    form.append('phone', this.context.phone);
+                    form.append('name', this.context.name || '');
+
+                    this.enviandoAdjunto = true;
+
+                    this.$axios.post(this.sendMediaUrl, form)
+                        .then(res => {
+                            const real = res.data?.message;
+                            if (real) this.messages.push(real);
+                            this.scrollToBottom();
+                        })
+                        .catch(err => {
+                            alert(err.response?.data?.message || 'No se pudo enviar el archivo.');
+                        })
+                        .finally(() => {
+                            this.enviandoAdjunto = false;
+                        });
+                },
+
+                /*
+                 * Manda la galería del inmueble que el cliente está mirando.
+                 *
+                 * El asesor escribe el código que ya apareció en la conversación.
+                 * Los mensajes se crean del lado del servidor —uno por foto— así
+                 * que el hilo se recarga en vez de empujarlos a mano.
+                 */
+                enviarGaleria() {
+                    this.showAttach = false;
+
+                    const codigo = window.prompt('Código del inmueble cuyas fotos querés enviar (ej. C21-0001):');
+
+                    if (! codigo || ! codigo.trim()) return;
+
+                    this.enviandoAdjunto = true;
+
+                    this.$axios.post(this.galeriaUrl, {
+                            conversation_id: this.conversationId,
+                            codigo: codigo.trim(),
+                            tipo: 'foto',
+                        })
+                        .then(() => this.fetchThread())
+                        .catch(err => {
+                            alert(err.response?.data?.message || 'No se pudieron enviar las fotos.');
+                        })
+                        .finally(() => {
+                            this.enviandoAdjunto = false;
+                        });
                 },
 
                 statusTick(status) {

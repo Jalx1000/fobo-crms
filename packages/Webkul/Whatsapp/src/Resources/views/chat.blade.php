@@ -9,6 +9,8 @@
             link-person-url-base="{{ url(config('app.admin_path').'/whatsapp/conversations') }}"
             thread-url="{{ route('admin.whatsapp.thread') }}"
             send-url="{{ route('admin.whatsapp.send') }}"
+        send-media-url="{{ route('admin.whatsapp.send-media') }}"
+        galeria-url="{{ route('admin.inmuebles.enviar-galeria') }}"
             agent-url-base="{{ url(config('app.admin_path').'/whatsapp/conversations') }}"
             quick-replies-url="{{ route('admin.whatsapp.quick-replies.index') }}"
             person-url-base="{{ url(config('app.admin_path').'/whatsapp/persons') }}"
@@ -165,6 +167,8 @@
                         :full-height="true"
                         :thread-url="threadUrl"
                         :send-url="sendUrl"
+                        :send-media-url="sendMediaUrl"
+                        :galeria-url="galeriaUrl"
                         :agent-url-base="agentUrlBase"
                         :quick-replies-url="quickRepliesUrl"
                         :person-url-base="personUrlBase"
@@ -192,6 +196,8 @@
                     linkPersonUrlBase: { type: String, required: true },
                     threadUrl: { type: String, required: true },
                     sendUrl: { type: String, required: true },
+                    sendMediaUrl: { type: String, default: '' },
+                    galeriaUrl: { type: String, default: '' },
                     agentUrlBase: { type: String, required: true },
                     quickRepliesUrl: { type: String, required: true },
                     personUrlBase: { type: String, required: true },
