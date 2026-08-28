@@ -127,6 +127,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Derivación a un asesor
+    |--------------------------------------------------------------------------
+    | Al cliente no se le avisa nada cuando la conversación pasa a una persona:
+    | la derivación es interna. Por eso el mail al asesor es la señal de
+    | respaldo — la primaria es el chip "Sin asesor" del inbox, que no depende
+    | de que un correo llegue.
+    |
+    | La dirección sale del propio usuario del CRM, la misma con la que entra al
+    | sistema, así que no hay una segunda lista que mantener sincronizada.
+    */
+    'handoff' => [
+        'notify' => env('WHATSAPP_HANDOFF_NOTIFY', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Front-end
     |--------------------------------------------------------------------------
     | While the backend endpoints are being built (Sprints 0-2) the inbox

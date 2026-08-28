@@ -68,6 +68,36 @@ class HandoffRepository extends Repository
     }
 
     /**
+     * Un asesor se hace cargo de la conversación.
+     *
+     * Es un UPDATE condicional, no un leer-y-escribir: InnoDB serializa los
+     * updates sobre la misma clave primaria, así que con dos asesores tocando
+     * el botón a la vez exactamente uno recibe $afectadas === 1 y el otro se
+     * entera de que llegó tarde.
+     *
+     * Toma quien aprieta, no el titular. Si el titular no está y otro asesor
+     * levanta la conversación, el handoff pasa a ser suyo — el cliente necesita
+     * una respuesta más de lo que necesita al asesor original. Quién era el
+     * titular queda en la nota de actividad que deja el controlador.
+     *
+     * @return Handoff|null null = ya lo tomó otro (o no hay handoff abierto).
+     */
+    public function tomar(int $conversationId, int $userId): ?Handoff
+    {
+        $afectadas = $this->model->newQuery()
+            ->where('conversation_id', $conversationId)
+            ->where('state', 'abierto')
+            ->update([
+                'state'      => 'tomado',
+                'user_id'    => $userId,
+                'taken_at'   => now(),
+                'updated_at' => now(),
+            ]);
+
+        return $afectadas === 1 ? $this->abiertoDe($conversationId) : null;
+    }
+
+    /**
      * Cierra el handoff y devuelve la conversación al agente.
      */
     public function cerrar(int $conversationId): ?Handoff

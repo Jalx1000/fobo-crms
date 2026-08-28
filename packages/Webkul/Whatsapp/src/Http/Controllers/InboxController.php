@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -14,18 +15,25 @@ use Webkul\Activity\Models\ActivityProxy;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Lead\Models\LeadProxy;
+use Webkul\User\Models\UserProxy;
 use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\Message;
 use Webkul\Whatsapp\Models\MessageProxy;
+use Webkul\Whatsapp\Repositories\HandoffRepository;
 use Webkul\Whatsapp\Services\ConversationResolver;
+use Webkul\Whatsapp\Services\HandoffPresenter;
 use Webkul\Whatsapp\Services\PhoneNumber;
 
 class InboxController extends Controller
 {
-    public function __construct(protected GatewayManager $gateways) {}
+    public function __construct(
+        protected GatewayManager $gateways,
+        protected HandoffRepository $handoffs,
+        protected HandoffPresenter $handoffPresenter,
+    ) {}
 
     /**
      * Return the conversation, its messages (incremental via the `since` cursor)
@@ -88,6 +96,12 @@ class InboxController extends Controller
                 'enabled'   => $conversation?->ai_enabled,
                 'effective' => $conversation ? $conversation->aiEffective() : (bool) config('whatsapp.ai.enabled'),
             ],
+            // Viaja en cada poll: la derivación puede abrirla el agente en
+            // cualquier momento, sin que el asesor haya tocado nada.
+            'handoff'      => $this->handoffPresenter->paraInbox(
+                $conversation ? $this->handoffs->abiertoDe($conversation->id) : null,
+                auth()->guard('user')->id(),
+            ),
         ]);
     }
 
@@ -112,6 +126,143 @@ class InboxController extends Controller
                 'effective' => $conversation->aiEffective(),
             ],
         ]);
+    }
+
+    /**
+     * Un asesor se hace cargo de la conversación derivada.
+     *
+     * Apaga la IA además de marcar el handoff: mientras el asesor escribe, el
+     * agente tiene que estar callado por las dos vías, no solo por el handoff.
+     */
+    public function claimHandoff(string $id, ActivityRepository $activities): JsonResponse
+    {
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        $userId = auth()->guard('user')->id();
+
+        $previo = $this->handoffs->abiertoDe($conversation->id);
+
+        $handoff = $this->handoffs->tomar($conversation->id, $userId);
+
+        if (! $handoff) {
+            // 409, no 422: no es un dato inválido, es que alguien llegó primero.
+            return response()->json([
+                'message' => $previo?->state === 'tomado'
+                    ? 'Otro asesor tomó esta conversación.'
+                    : 'No hay una derivación abierta para tomar.',
+                'handoff' => $this->handoffPresenter->paraInbox($this->handoffs->abiertoDe($conversation->id), $userId),
+            ], 409);
+        }
+
+        $conversation->update(['ai_enabled' => false]);
+
+        $titular = $previo?->user_id;
+
+        $this->auditarHandoff(
+            $conversation,
+            $titular && $titular !== $userId
+                ? 'Derivación tomada por '.$this->nombreDe($userId).', que no era el titular ('.$this->nombreDe($titular).').'
+                : 'Derivación tomada por '.$this->nombreDe($userId).'.',
+            $userId,
+            $activities,
+        );
+
+        return response()->json([
+            'handoff' => $this->handoffPresenter->paraInbox($handoff, $userId),
+            'agent'   => ['enabled' => $conversation->ai_enabled, 'effective' => $conversation->aiEffective()],
+        ]);
+    }
+
+    /**
+     * Cierra la derivación y, salvo que el asesor diga lo contrario, devuelve
+     * la conversación al agente.
+     *
+     * Reactivar la IA es el default porque el estado opuesto — agente apagado,
+     * handoff cerrado — es tierra de nadie: nadie contesta y nadie sabe que le
+     * toca. Es exactamente el pozo en el que quedó la conversación 1.
+     */
+    public function resolveHandoff(Request $request, string $id, ActivityRepository $activities): JsonResponse
+    {
+        $data = $request->validate(['reactivar_ia' => 'sometimes|boolean']);
+
+        $reactivar = $data['reactivar_ia'] ?? true;
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        $userId = auth()->guard('user')->id();
+
+        if (! $this->handoffs->cerrar($conversation->id)) {
+            return response()->json([
+                'message' => 'Esta conversación no tiene una derivación abierta.',
+                'handoff' => $this->handoffPresenter->paraInbox(null, $userId),
+            ], 409);
+        }
+
+        $conversation->update(['ai_enabled' => $reactivar]);
+
+        $this->auditarHandoff(
+            $conversation,
+            'Derivación cerrada por '.$this->nombreDe($userId).'.'
+                .($reactivar ? ' El agente IA vuelve a atender.' : ' El agente IA queda desactivado.'),
+            $userId,
+            $activities,
+        );
+
+        return response()->json([
+            'handoff' => $this->handoffPresenter->paraInbox(null, $userId),
+            'agent'   => ['enabled' => $conversation->ai_enabled, 'effective' => $conversation->aiEffective()],
+        ]);
+    }
+
+    /**
+     * Deja el movimiento del handoff en el timeline del contacto/lead, igual
+     * que storeNote().
+     *
+     * A diferencia de storeNote(), una conversación sin persona ni lead NO es
+     * un error acá: un número desconocido es un caso normal. Y que falle la
+     * auditoría nunca puede abortar la acción — los hechos duros ya quedaron en
+     * la tabla de handoffs.
+     */
+    protected function auditarHandoff($conversation, string $comment, ?int $userId, ActivityRepository $activities): void
+    {
+        if (! $conversation->person_id && ! $conversation->lead_id) {
+            return;
+        }
+
+        try {
+            Event::dispatch('activity.create.before');
+
+            $activity = $activities->create([
+                'type'    => 'note',
+                'comment' => $comment,
+                'is_done' => 1,
+                'user_id' => $userId,
+            ]);
+
+            if ($conversation->person_id && ($person = PersonProxy::modelClass()::find($conversation->person_id))) {
+                $person->activities()->attach($activity->id);
+            }
+
+            if ($conversation->lead_id && ($lead = LeadProxy::modelClass()::find($conversation->lead_id))) {
+                $lead->activities()->attach($activity->id);
+            }
+
+            Event::dispatch('activity.create.after', $activity);
+        } catch (Throwable $e) {
+            Log::warning('WhatsApp: no se pudo auditar el movimiento del handoff.', [
+                'conversation_id' => $conversation->id,
+                'error'           => $e->getMessage(),
+            ]);
+        }
+    }
+
+    protected function nombreDe(?int $userId): string
+    {
+        if (! $userId) {
+            return 'el sistema';
+        }
+
+        return UserProxy::modelClass()::where('id', $userId)->value('name') ?: 'un asesor';
     }
 
     /**

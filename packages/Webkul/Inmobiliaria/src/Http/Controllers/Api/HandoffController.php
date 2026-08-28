@@ -6,6 +6,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Webkul\Inmobiliaria\Repositories\InmuebleRepository;
+use Webkul\User\Models\UserProxy;
+use Webkul\Whatsapp\Jobs\NotifyHandoff;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Repositories\HandoffRepository;
 use Webkul\Whatsapp\Services\AgentPayload;
@@ -43,7 +45,7 @@ class HandoffController extends Controller
             return response()->json(['message' => "No existe el inmueble {$datos['codigo']}."], 404);
         }
 
-        $titular = $inmueble?->user_id ?? $this->fallback($conversation);
+        $titular = $this->activo($inmueble?->user_id) ?? $this->fallback($conversation);
 
         if (! $titular) {
             return response()->json([
@@ -62,6 +64,12 @@ class HandoffController extends Controller
         // El agente deja de recibir eventos de esta conversación desde acá.
         $conversation->forceFill(['ai_enabled' => false])->save();
 
+        // Solo cuando la derivación es nueva: el agente pide handoff en casi
+        // cada mensaje, y un mail por mensaje entrenaría al asesor a ignorarlos.
+        if ($handoff->wasRecentlyCreated) {
+            NotifyHandoff::dispatch($handoff->id)->onQueue(config('whatsapp.queue'));
+        }
+
         return response()->json([
             'message' => 'Conversación derivada.',
             'handoff' => [
@@ -75,6 +83,25 @@ class HandoffController extends Controller
     }
 
     /**
+     * El id solo si ese usuario todavía puede atender.
+     *
+     * Sin este filtro, una conversación derivada al titular de un inmueble que
+     * ya no trabaja acá queda asignada a una cuenta muerta: nadie la ve, nadie
+     * la toma, y al cliente no se le avisó nada porque al derivar no se le
+     * manda nada. Se pudre en silencio.
+     */
+    protected function activo(?int $userId): ?int
+    {
+        if (! $userId) {
+            return null;
+        }
+
+        return UserProxy::modelClass()::where('id', $userId)->where('status', 1)->exists()
+            ? $userId
+            : null;
+    }
+
+    /**
      * A quién derivar cuando no vino un código de inmueble.
      *
      * Se usa el dueño del lead de la conversación. Si tampoco hay, se responde
@@ -84,8 +111,8 @@ class HandoffController extends Controller
     protected function fallback($conversation): ?int
     {
         // El dueño del lead, si la conversación ya generó uno.
-        if ($conversation->lead?->user_id) {
-            return $conversation->lead->user_id;
+        if ($titular = $this->activo($conversation->lead?->user_id)) {
+            return $titular;
         }
 
         /*
@@ -93,6 +120,6 @@ class HandoffController extends Controller
         | no hay inmueble ni lead todavía. Sin un asesor de guardia, esa opción
         | devolvería 409 y el agente no podría cumplir lo que acaba de ofrecer.
         */
-        return config('inmobiliaria.inmuebles.asesor_por_defecto');
+        return $this->activo(config('inmobiliaria.inmuebles.asesor_por_defecto'));
     }
 }

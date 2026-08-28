@@ -44,6 +44,20 @@
                     </div>
                 </div>
 
+                <!-- Estado de la derivación: lo primero que hay que saber al
+                     abrir la conversación, así que va antes del switch. -->
+                <span v-if="handoff.open"
+                      class="mr-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                      :class="handoff.tomado
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200'
+                          : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'"
+                      :title="handoff.tomado
+                          ? `Atiende ${handoff.asesor?.name ?? 'un asesor'}`
+                          : 'Nadie tomó todavía esta derivación'">
+                    <span aria-hidden="true">@{{ handoff.tomado ? '👤' : '⏳' }}</span>
+                    @{{ handoff.tomado ? (handoff.asesor?.name ?? 'Asesor') : 'Sin asesor' }}
+                </span>
+
                 <!-- AI agent switch -->
                 <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-300"
                        :class="agentToggling ? 'opacity-50 pointer-events-none' : ''">
@@ -256,6 +270,59 @@
                 </template>
 
                 <template v-else>
+
+                <!-- Derivación abierta. Va FUERA de la cadena v-if del composer
+                     a propósito: es un aviso que acompaña, no que reemplaza. Si
+                     ocupara un eslabón de la cadena, el asesor se quedaría sin
+                     caja de texto justo cuando tiene que contestar. -->
+                <div v-if="handoff.open"
+                     class="mb-2 rounded-md border px-3 py-2 text-xs"
+                     :class="handoff.tomado
+                         ? 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200'
+                         : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200'">
+                    <div class="flex flex-wrap items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <p class="font-semibold">
+                                <template v-if="!handoff.tomado">Derivada a un asesor · sin tomar</template>
+                                <template v-else-if="handoff.is_mine">La estás atendiendo vos</template>
+                                <template v-else>La atiende @{{ handoff.asesor?.name ?? 'otro asesor' }}</template>
+                                <span class="font-normal opacity-80">· @{{ handoffEspera }}</span>
+                            </p>
+
+                            <p v-if="handoff.reason" class="mt-0.5 break-words opacity-90">
+                                <span v-if="handoff.referencia" class="font-medium">@{{ handoff.referencia }} — </span>@{{ handoff.reason }}
+                            </p>
+                        </div>
+
+                        <div class="flex shrink-0 flex-col items-end gap-1">
+                            <div class="flex items-center gap-2">
+                                <button v-if="!handoff.tomado" type="button" :disabled="handoffBusy"
+                                        class="rounded-md bg-amber-600 px-2.5 py-1 font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                                        @click="claimHandoff">
+                                    Tomar
+                                </button>
+
+                                <button type="button" :disabled="handoffBusy"
+                                        class="rounded-md border border-current px-2.5 py-1 font-semibold transition hover:bg-white/60 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current dark:hover:bg-white/10"
+                                        @click="resolveHandoff">
+                                    Cerrar
+                                </button>
+                            </div>
+
+                            <!-- Cerrar devuelve la conversación a la IA salvo que
+                                 el asesor destilde esto: el estado opuesto (IA
+                                 apagada y sin derivación) es tierra de nadie. -->
+                            <label class="flex cursor-pointer items-center gap-1.5 opacity-90">
+                                <input type="checkbox" v-model="reactivarIa" class="h-3 w-3 rounded border-current">
+                                <span>Al cerrar, devolver a la IA</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <p v-if="handoffError" class="mt-1.5 font-medium text-red-700 dark:text-red-300" role="alert">
+                        @{{ handoffError }}
+                    </p>
+                </div>
 
                 <div v-if="!context.phone" class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
                     Este contacto no tiene número de WhatsApp. Asigna un teléfono para poder chatear.
@@ -855,6 +922,15 @@
                     conversationId: null,
                     agentToggling: false,
                     agentNote: false,
+                    // Derivación a un asesor. Se refresca en cada poll porque
+                    // la abre el agente IA, no el asesor que está mirando.
+                    handoff: { state: 'ninguno', open: false, tomado: false, reason: null,
+                               referencia: null, asesor: null, is_mine: false,
+                               opened_at: null, taken_at: null },
+                    handoffBusy: false,
+                    handoffError: null,
+                    // Al cerrar, devolver la conversación a la IA por defecto.
+                    reactivarIa: true,
                     // Internal note composer (notes are Krayin note-activities)
                     composerMode: 'mensaje',
                     noteDraft: '',
@@ -899,6 +975,29 @@
             },
 
             computed: {
+                /*
+                | Hace cuánto espera el cliente. Un timestamp absoluto obliga al
+                | asesor a hacer la resta mentalmente; "hace 3 h" se lee de un
+                | vistazo, que es lo que decide si esto es urgente o no.
+                |
+                | Se recalcula en cada poll porque `handoff` se reasigna entero:
+                | no hace falta un timer aparte para que el texto envejezca.
+                */
+                handoffEspera() {
+                    const desde = this.handoff.taken_at || this.handoff.opened_at;
+                    if (!desde) return '';
+
+                    const mins = Math.max(0, Math.round((Date.now() - new Date(desde)) / 60000));
+                    if (mins < 1) return 'recién';
+                    if (mins < 60) return `hace ${mins} min`;
+
+                    const horas = Math.floor(mins / 60);
+                    if (horas < 24) return `hace ${horas} h`;
+
+                    const dias = Math.floor(horas / 24);
+                    return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
+                },
+
                 initials() {
                     return (this.context.name || '?')
                         .split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -1045,6 +1144,51 @@
                         .finally(() => { this.agentToggling = false; });
                 },
 
+                claimHandoff() {
+                    if (!this.conversationId || this.handoffBusy) return;
+
+                    this.handoffBusy = true;
+                    this.handoffError = null;
+
+                    this.$axios.post(`${this.agentUrlBase}/${this.conversationId}/handoff/claim`)
+                        .then(res => {
+                            if (res.data?.handoff) this.handoff = res.data.handoff;
+                            if (res.data?.agent) this.aiEnabled = res.data.agent.effective;
+                            // El asesor va a escribir ahora mismo: dejale el cursor puesto.
+                            this.focusComposer();
+                        })
+                        .catch(err => {
+                            // 409 = llegó segundo. Mostramos el estado real que
+                            // devuelve el servidor en vez de dejar la UI mintiendo.
+                            this.handoffError = err.response?.data?.message ?? 'No se pudo tomar la conversación.';
+                            if (err.response?.data?.handoff) this.handoff = err.response.data.handoff;
+                        })
+                        .finally(() => { this.handoffBusy = false; });
+                },
+
+                resolveHandoff() {
+                    if (!this.conversationId || this.handoffBusy) return;
+
+                    this.handoffBusy = true;
+                    this.handoffError = null;
+
+                    this.$axios.post(`${this.agentUrlBase}/${this.conversationId}/handoff/resolve`, {
+                        reactivar_ia: this.reactivarIa,
+                    })
+                        .then(res => {
+                            if (res.data?.handoff) this.handoff = res.data.handoff;
+                            if (res.data?.agent) this.aiEnabled = res.data.agent.effective;
+                            // Si la IA volvió a atender, el recordatorio de
+                            // "reactivá el agente" ya no aplica.
+                            this.agentNote = !this.aiEnabled;
+                        })
+                        .catch(err => {
+                            this.handoffError = err.response?.data?.message ?? 'No se pudo cerrar la derivación.';
+                            if (err.response?.data?.handoff) this.handoff = err.response.data.handoff;
+                        })
+                        .finally(() => { this.handoffBusy = false; });
+                },
+
                 loadMock() {
                     const t = (h, m) => `${h}:${m}`;
                     this.messages = [
@@ -1097,6 +1241,7 @@
                             if (res.data?.conversation?.id) this.conversationId = res.data.conversation.id;
                             if (res.data?.conversation?.gateway) this.gateway = res.data.conversation.gateway;
                             if (res.data?.agent) this.aiEnabled = res.data.agent.effective;
+                            if (res.data?.handoff) this.handoff = res.data.handoff;
 
                             const incoming = res.data?.messages ?? [];
                             if (!incoming.length) return;
