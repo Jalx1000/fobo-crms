@@ -10,11 +10,175 @@
     },
     "servers": [
         {
-            "url": "https://kohlberg.sofopolis.com",
+            "url": "https://imprimir.sofopolis.com",
             "description": "Krayin Rest API."
         }
     ],
     "paths": {
+        "/api/productos/por-ciudad-sucursal": {
+            "get": {
+                "tags": [
+                    "Productos"
+                ],
+                "summary": "Obtiene productos filtrados por ciudad/sucursal",
+                "description": "Devuelve los productos que coinciden con el valor de `ciudad_producto_sucursal` indicado. Siempre se incluyen también los productos con valor 10 en ese atributo, sin importar el filtro aplicado.",
+                "operationId": "getProductosByCiudadSucursal",
+                "parameters": [
+                    {
+                        "name": "ciudad_producto_sucursal",
+                        "in": "query",
+                        "description": "ID del valor del atributo ciudad_producto_sucursal por el que filtrar",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 5
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Número de página",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Cantidad de resultados por página (máximo 100)",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "example": 15
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de productos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer",
+                                                        "example": 1
+                                                    },
+                                                    "sku": {
+                                                        "type": "string",
+                                                        "example": "PROD-001"
+                                                    },
+                                                    "name": {
+                                                        "type": "string",
+                                                        "example": "Producto Ejemplo"
+                                                    },
+                                                    "price": {
+                                                        "type": "number",
+                                                        "format": "float",
+                                                        "example": 99.99
+                                                    },
+                                                    "ciudad_producto_sucursal": {
+                                                        "type": "integer",
+                                                        "example": 5
+                                                    },
+                                                    "siempre_incluido": {
+                                                        "description": "true si el producto se incluyó porque su valor es 10",
+                                                        "type": "boolean",
+                                                        "example": false
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        },
+                                        "meta": {
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "example": 15
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "example": 42
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "example": 3
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Parámetro requerido faltante o inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "El parámetro ciudad_producto_sucursal es requerido y debe ser un entero positivo"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Unauthenticated."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Atributo ciudad_producto_sucursal no encontrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "El atributo ciudad_producto_sucursal no está configurado en el sistema"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/specialties": {
             "post": {
                 "tags": [
@@ -51,6 +215,100 @@
                         "description": "Validation error"
                     }
                 }
+            }
+        },
+        "/api/v1/whatsapp/conversations/{id}/messages": {
+            "get": {
+                "tags": [
+                    "WhatsApp"
+                ],
+                "summary": "Get a WhatsApp conversation's recent messages (agent context)",
+                "operationId": "whatsappConversationMessages",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Conversation contact + history"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Conversation not found"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "WhatsApp"
+                ],
+                "summary": "Send a WhatsApp reply as the AI agent",
+                "operationId": "whatsappAgentReply",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "text"
+                                ],
+                                "properties": {
+                                    "text": {
+                                        "type": "string",
+                                        "example": "Hola, ¿en qué te ayudo?"
+                                    },
+                                    "reply_to_id": {
+                                        "type": "integer",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Message queued for delivery"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "Conversation not found"
+                    },
+                    "422": {
+                        "description": "Outside the 24h messaging window"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
             }
         },
         "/api/v1/activities": {
@@ -212,14 +470,6 @@
                                                     "type": "string",
                                                     "example": "1"
                                                 }
-                                            },
-                                            "doctors": {
-                                                "description": "List of doctor IDs",
-                                                "type": "array",
-                                                "items": {
-                                                    "type": "string",
-                                                    "example": "1"
-                                                }
                                             }
                                         },
                                         "type": "object"
@@ -296,14 +546,6 @@
                                     },
                                     "participants[users][]": {
                                         "description": "List of user IDs",
-                                        "type": "array",
-                                        "items": {
-                                            "type": "string",
-                                            "example": "1"
-                                        }
-                                    },
-                                    "participants[doctors][]": {
-                                        "description": "List of doctor IDs",
                                         "type": "array",
                                         "items": {
                                             "type": "string",
@@ -474,14 +716,6 @@
                                             },
                                             "users": {
                                                 "description": "List of user IDs",
-                                                "type": "array",
-                                                "items": {
-                                                    "type": "string",
-                                                    "example": "1"
-                                                }
-                                            },
-                                            "doctors": {
-                                                "description": "List of doctor IDs",
                                                 "type": "array",
                                                 "items": {
                                                     "type": "string",
@@ -14992,6 +15226,12 @@
             }
         },
         "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "description": "Sanctum personal access token. Obtain it via the admin login.",
+                "bearerFormat": "token",
+                "scheme": "bearer"
+            },
             "sanctum_admin": {
                 "type": "apiKey",
                 "description": "Enter token in format (Bearer <token>)",
@@ -15098,8 +15338,16 @@
             "description": "API Endpoints for DataTransfer."
         },
         {
+            "name": "Productos",
+            "description": "Productos"
+        },
+        {
             "name": "Specialties",
             "description": "Specialties"
+        },
+        {
+            "name": "WhatsApp",
+            "description": "WhatsApp"
         }
     ]
 }

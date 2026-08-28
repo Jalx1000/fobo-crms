@@ -74,12 +74,23 @@
       "Bash(echo \"exit: $?\")",
       "Bash(grep -v \"Psy\\\\|^$\")",
       "Bash(git checkout *)",
-      "Artifact",
       "Bash(perl -0pi -e 's/class=\"flex min-h-\\\\[30px\\\\] min-w-\\\\[30px\\\\] items-center justify-center rounded-md border px-2 text-sm text-gray-600 transition-all hover:border-gray-400 disabled:opacity-40 dark:border-gray-800 dark:text-gray-300 dark:hover:border-gray-400\"/class=\"flex w-8 items-center justify-center rounded-md border px-2 py-1 text-sm text-gray-600 transition-all hover:border-gray-400 disabled:opacity-50 dark:border-gray-800 dark:text-gray-300 dark:hover:border-gray-400\"\\\\n                            style=\"min-height: 30px\"/g' packages/Webkul/Admin/src/Resources/views/dashboard/index/tiempo-por-contacto.blade.php)",
       "Bash(perl -0pi -e 's/class=\"flex min-h-\\\\[30px\\\\] min-w-\\\\[30px\\\\] items-center justify-center rounded-md border px-2 text-sm transition-all hover:border-gray-400 dark:border-gray-800 dark:hover:border-gray-400\"/class=\"flex w-8 items-center justify-center rounded-md border px-2 py-1 text-sm transition-all hover:border-gray-400 dark:border-gray-800 dark:hover:border-gray-400\"\\\\n                            style=\"min-height: 30px\"/g' packages/Webkul/Admin/src/Resources/views/dashboard/index/tiempo-por-contacto.blade.php)",
       "Bash(./vendor/bin/pint --test packages/Webkul/Admin/src/Helpers/GlobalDateFilter.php packages/Webkul/Admin/src/Http/Controllers/DashboardController.php packages/Webkul/Admin/src/Http/Controllers/Lead/LeadController.php packages/Webkul/Admin/src/Http/Controllers/Contact/Persons/PersonController.php)",
       "Bash(./vendor/bin/pint --test packages/Webkul/Admin/src/Helpers/GlobalDateFilter.php)",
-      "Bash(grep -n 'public function \\\\|protected $table\\\\|namespace' packages/Webkul/Lead/src/Models/Lead.php)"
+      "Bash(grep -n 'public function \\\\|protected $table\\\\|namespace' packages/Webkul/Lead/src/Models/Lead.php)",
+      "Bash(composer dump-autoload *)",
+      "Bash(grep -rn 'extraTypes\\\\|extra-types\\\\|$slots\\\\|$type\\\\['\\\\''name'\\\\''\\\\]\\\\|${{ $' packages/Webkul/Admin/src/Resources/views/components/activities/index.blade.php)",
+      "Bash(npm install *)",
+      "Bash(./vendor/bin/pint packages/Webkul/Whatsapp/)",
+      "Bash(node -e ' *)",
+      "Skill(artifact-design)",
+      "Artifact",
+      "Bash(python3 -)",
+      "Bash(awk '{print \"  \"$1\" \"$11\" \"$12}')",
+      "Bash(curl -s -o /dev/null \"https://imprimir.sofopolis.com/api/v1/whatsapp/conversations/5/messages\" -H 'Accept: application/json')",
+      "Bash(echo \"listener escrito\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const s=fs.readFileSync\\('packages/Webkul/Whatsapp/src/Resources/views/inbox.blade.php','utf8'\\);const m=[...s.matchAll\\(/<script type=\\\\\"module\\\\\">\\([\\\\s\\\\S]*?\\)<\\\\/script>/g\\)];const js=m[m.length-1][1].replace\\(/@\\\\{\\\\{/g,'{{'\\);try{new Function\\(js\\);console.log\\('JS OK'\\)}catch\\(e\\){console.log\\('JS ERR',e.message\\)}\")"
     ]
   }
 }

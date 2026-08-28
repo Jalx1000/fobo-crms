@@ -86,11 +86,17 @@
             {!! view_render_event('admin.leads.view.activities.before', ['lead' => $lead]) !!}
 
             <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : 'all'" :extra-types="[
+                ['name' => 'whatsapp', 'label' => 'WhatsApp'],
                 ['name' => 'historial', 'label' => 'Historial IA'],
                 ['name' => 'description', 'label' => trans('admin::app.leads.view.tabs.description')],
                 ['name' => 'products', 'label' => trans('admin::app.leads.view.tabs.products')],
                 // ['name' => 'quotes', 'label' => trans('admin::app.leads.view.tabs.quotes')],
             ]">
+                {{-- WhatsApp Inbox --}}
+                <x-slot:whatsapp>
+                    @include('whatsapp::inbox')
+                </x-slot>
+
                 {{-- Historial IA --}}
                 <x-slot:historial>
                     @include('admin::leads.view.historial-ia')
