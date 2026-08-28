@@ -4,6 +4,7 @@ namespace Webkul\Inmobiliaria\Providers;
 
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Webkul\Inmobiliaria\Console\Commands\RollbackInmobiliaria;
 use Webkul\Inmobiliaria\Console\Commands\SeedInmuebles;
@@ -33,11 +34,11 @@ class InmobiliariaServiceProvider extends ServiceProvider
 
         $this->loadViewsFrom(__DIR__.'/../Resources/views', 'inmobiliaria');
 
-        // La ficha del lead muestra los inmuebles consultados. Se engancha al
-        // punto de extensión del core en vez de editar su vista.
-        Event::listen(
-            'admin.leads.view.left.after',
-            [\Webkul\Inmobiliaria\Listeners\InmueblesDelLead::class, 'handle'],
+        // La pestaña "Inmuebles" de la ficha del lead: la vista la incluye el
+        // core, acá solo se le pasan los datos.
+        View::composer(
+            'inmobiliaria::leads.inmuebles-interes',
+            \Webkul\Inmobiliaria\Listeners\ComponerInmueblesDelLead::class,
         );
 
         // Columna "Inmueble" en el listado de leads, por los eventos que el

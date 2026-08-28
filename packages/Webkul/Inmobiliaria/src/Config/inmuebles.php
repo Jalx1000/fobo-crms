@@ -185,9 +185,16 @@ return [
     | conversación pasados N minutos. No reasigna: avisa.
     |
     | 'supervisor_user_id' en null = no escala. Setearlo al usuario supervisor.
+    |
+    | Y la última red: si pasados 'devolver_tras_minutos' el handoff sigue sin
+    | que nadie lo tome, la conversación vuelve al agente. Un handoff sin tomar
+    | dejaba al cliente mudo indefinidamente, porque mientras estaba vigente el
+    | agente ni se enteraba de los mensajes entrantes. Un handoff ya 'tomado'
+    | nunca se devuelve: ahí hay un asesor escribiendo y la IA no lo interrumpe.
     */
     'handoff' => [
-        'escalar_tras_minutos' => 15,
-        'supervisor_user_id'   => null,
+        'escalar_tras_minutos'  => 15,
+        'devolver_tras_minutos' => 60,
+        'supervisor_user_id'    => null,
     ],
 ];

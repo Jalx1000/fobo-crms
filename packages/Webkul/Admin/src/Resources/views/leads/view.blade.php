@@ -90,6 +90,7 @@
                 ['name' => 'historial', 'label' => 'Historial IA'],
                 ['name' => 'description', 'label' => trans('admin::app.leads.view.tabs.description')],
                 ['name' => 'products', 'label' => trans('admin::app.leads.view.tabs.products')],
+                ['name' => 'inmuebles', 'label' => 'Inmuebles'],
                 // ['name' => 'quotes', 'label' => trans('admin::app.leads.view.tabs.quotes')],
             ]">
                 {{-- WhatsApp Inbox --}}
@@ -105,6 +106,11 @@
                 <!-- Products -->
                 <x-slot:products>
                     @include ('admin::leads.view.products')
+                </x-slot>
+
+                {{-- Inmuebles de interés: los que el cliente consultó --}}
+                <x-slot:inmuebles>
+                    @include ('inmobiliaria::leads.inmuebles-interes')
                 </x-slot>
 
                 <!-- Quotes -->
