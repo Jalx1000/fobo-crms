@@ -35,8 +35,12 @@
 
     <span class="text-xs text-gray-400">{{ $ayuda }}</span>
 
-    <span data-dropzone-lista class="hidden text-xs font-medium text-gray-700 dark:text-gray-200"></span>
+    <span data-dropzone-aviso class="hidden text-xs font-medium text-gray-700 dark:text-gray-200"></span>
 </label>
+
+{{-- Vista previa de lo elegido. Fuera del label: hacer clic en una miniatura no
+     debe reabrir el selector de archivos. --}}
+<div data-dropzone-preview data-para="{{ $id }}" class="mt-3 hidden flex-wrap gap-2"></div>
 
 @once
     @push('scripts')
@@ -93,11 +97,10 @@
                 if (! sueltos.length) return;
 
                 const input = document.getElementById(zona.getAttribute('for'));
-                const lista = zona.querySelector('[data-dropzone-lista]');
 
                 // Si el área sabe a dónde subir, sube al soltar. No depende de
                 // DataTransfer, que Safari soporta recién desde 14.1.
-                if (zona.dataset.subirA) return subir(zona, lista, sueltos);
+                if (zona.dataset.subirA) return subir(zona, sueltos);
 
                 if (! input) return;
 
@@ -109,33 +112,67 @@
                     // Soltar dos veces suma, no reemplaza.
                     [...input.files, ...sueltos].slice(0, 20).forEach(f => dt.items.add(f));
                     input.files = dt.files;
-                    listar(input, lista);
+                    listar(input);
                 } catch (error) {
-                    avisar(lista, 'Tu navegador no permite soltar archivos. Hacé clic para elegirlos.');
+                    avisar(zona, 'Tu navegador no permite soltar archivos. Hacé clic para elegirlos.');
                 }
             });
 
             document.addEventListener('change', e => {
                 if (! e.target.matches?.('input[type="file"]')) return;
 
-                const zona = document.querySelector(`[data-dropzone][for="${e.target.id}"]`);
-
-                if (zona) listar(e.target, zona.querySelector('[data-dropzone-lista]'));
+                listar(e.target);
             });
 
-            function listar(input, lista) {
-                const n = input.files.length;
+            /**
+             * Dibuja las miniaturas de lo que se va a subir.
+             *
+             * Las URLs de objeto se liberan antes de rehacer la lista: cada una
+             * retiene el archivo en memoria hasta que se revoca, y con veinte
+             * fotos de varios MB eso se nota.
+             */
+            function listar(input) {
+                const preview = document.querySelector(`[data-dropzone-preview][data-para="${input.id}"]`);
 
-                if (! n) return lista?.classList.add('hidden');
+                if (! preview) return;
 
-                avisar(lista, `${n} archivo${n > 1 ? 's' : ''}: ` + [...input.files].map(f => f.name).join(', '));
+                preview.querySelectorAll('img[src^="blob:"]').forEach(img => URL.revokeObjectURL(img.src));
+                preview.innerHTML = '';
+
+                const archivos = [...input.files];
+
+                preview.classList.toggle('hidden', ! archivos.length);
+                preview.classList.toggle('flex', archivos.length > 0);
+
+                archivos.forEach(archivo => preview.appendChild(miniatura(archivo)));
             }
 
-            function avisar(lista, texto) {
-                if (! lista) return;
+            /**
+             * Una miniatura: la imagen si se puede previsualizar, y si no —un PDF,
+             * un video— el nombre, que es lo único que ayuda a reconocerlo.
+             */
+            function miniatura(archivo) {
+                const caja = document.createElement('div');
 
-                lista.textContent = texto;
-                lista.classList.remove('hidden');
+                caja.className = 'relative h-16 w-16 shrink-0 overflow-hidden rounded border border-gray-200 dark:border-gray-700';
+                caja.title = `${archivo.name} · ${(archivo.size / 1048576).toFixed(1)} MB`;
+
+                if (archivo.type.startsWith('image/')) {
+                    const img = document.createElement('img');
+
+                    img.src = URL.createObjectURL(archivo);
+                    img.alt = archivo.name;
+                    img.className = 'h-full w-full object-cover';
+                    caja.appendChild(img);
+                } else {
+                    const etiqueta = document.createElement('span');
+
+                    etiqueta.className = 'flex h-full w-full items-center justify-center px-1 text-center text-[9px] leading-tight text-gray-500';
+                    etiqueta.textContent = archivo.name;
+                    caja.appendChild(etiqueta);
+                }
+
+                return caja;
             }
 
             /**
@@ -144,17 +181,27 @@
              * El token va explícito: este admin no tiene <meta name="csrf-token">,
              * así que leerlo de ahí devuelve null y la petición nunca sale.
              */
-            function subir(zona, lista, archivos) {
+            function subir(zona, archivos) {
                 const datos = new FormData();
 
                 archivos.slice(0, 20).forEach(f => datos.append('archivos[]', f));
                 datos.append('tipo', zona.dataset.dropzoneTipo || 'foto');
 
-                avisar(lista, `Subiendo ${archivos.length} archivo(s)…`);
+                avisar(zona, `Subiendo ${archivos.length} archivo(s)…`);
+
+                // Se muestran mientras suben: da señal de que algo está pasando.
+                const preview = document.querySelector(`[data-dropzone-preview][data-para="${zona.getAttribute('for')}"]`);
+
+                if (preview) {
+                    preview.innerHTML = '';
+                    preview.classList.remove('hidden');
+                    preview.classList.add('flex');
+                    archivos.forEach(a => preview.appendChild(miniatura(a)));
+                }
 
                 window.axios.post(zona.dataset.subirA, datos, { headers: { 'X-CSRF-TOKEN': CSRF } })
                     .then(() => location.reload())
-                    .catch(err => avisar(lista, err.response?.data?.message || 'No se pudieron subir los archivos.'));
+                    .catch(err => avisar(zona, err.response?.data?.message || 'No se pudieron subir los archivos.'));
             }
         })();
     </script>
