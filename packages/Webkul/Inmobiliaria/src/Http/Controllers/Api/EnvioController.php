@@ -187,9 +187,20 @@ class EnvioController extends Controller
                 $conversation,
                 $kind,
                 $payload,
-                // Solo el primero lleva descripción: repetirla en cada foto
-                // llena el chat de texto igual.
-                $enviados === 0 ? $inmueble->lineaDestacada() : null,
+                /*
+                | Sin caption, a pedido del equipo del agente.
+                |
+                | El agente manda su propia descripción como texto aparte
+                | después de las fotos. Con un caption acá el cliente veía dos
+                | descripciones —una corta pegada a la primera foto y la general
+                | abajo— y quedaba un sándwich "descripción, fotos, descripción".
+                |
+                | Aplica solo a este endpoint. El envío desde el inbox
+                | (GaleriaInboxController) sí lo conserva: ahí no hay agente que
+                | mande una descripción después, y una foto sola sin contexto no
+                | le dice nada al cliente.
+                */
+                null,
                 $archivo->caption ?? basename((string) $archivo->path),
             );
 

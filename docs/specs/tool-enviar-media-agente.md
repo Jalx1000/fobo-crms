@@ -27,8 +27,8 @@ Content-Type: application/json
   El agente nunca ve ni maneja URLs de imágenes.
 - Cada archivo se entrega usando el `media_id` que el CRM ya tiene cacheado en Meta, así que el
   envío es una referencia y no una descarga desde nuestro servidor.
-- La primera foto lleva como caption la línea destacada del inmueble; las demás van sin texto, para
-  no llenar el chat.
+- **Las fotos van sin caption**, ninguna. La descripción la manda el agente como texto aparte,
+  después de las fotos: con un caption en la primera, el cliente veía dos descripciones.
 
 ### Códigos de error
 
