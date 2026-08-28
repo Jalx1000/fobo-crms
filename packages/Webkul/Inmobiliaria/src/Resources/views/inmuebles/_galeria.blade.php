@@ -17,10 +17,10 @@
     <p id="aviso-orden" class="mb-2 hidden text-xs font-medium text-emerald-600"></p>
 
     <form method="POST" action="{{ route('admin.inmuebles.medias.store', $inmueble->id) }}"
-          enctype="multipart/form-data" class="mb-6 flex flex-wrap items-end gap-3">
+          enctype="multipart/form-data" class="mb-6 flex flex-col gap-3">
         @csrf
 
-        <label class="flex flex-col gap-1">
+        <label class="flex w-56 flex-col gap-1">
             <span class="text-xs font-medium dark:text-gray-300">Tipo</span>
             <select name="tipo" id="tipo-media" class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
                     onchange="document.getElementById('campo-url').classList.toggle('hidden', this.value !== 'tour');
@@ -38,12 +38,12 @@
             </select>
         </label>
 
-        <div class="min-w-[320px] flex-1" id="campo-archivos">
+        <div id="campo-archivos">
             @include('inmobiliaria::inmuebles._dropzone', [
                 'nombre'  => 'archivos[]',
                 'id'      => 'input-archivos',
                 'acepta'  => 'image/jpeg,image/png,image/webp',
-                'ayuda'   => 'Si los arrastrás, se suben solos. Si los elegís, tocá «Subir». Hasta 20 por vez.',
+                'ayuda'   => 'Arrastrando se suben solos · eligiéndolos, tocá «Subir» · hasta 20 por vez',
                 // Con esto, soltar sube directo en vez de esperar al botón.
                 'subirA'  => route('admin.inmuebles.medias.store', $inmueble->id),
             ])
@@ -55,7 +55,10 @@
                    class="w-80 rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" />
         </label>
 
-        <button type="submit" class="primary-button">Subir</button>
+        <div class="flex items-center gap-3">
+            <button type="submit" class="primary-button">Subir</button>
+            <span class="text-xs text-gray-400">Solo hace falta si elegiste los archivos en vez de arrastrarlos.</span>
+        </div>
     </form>
 
     @forelse ($porTipo as $tipo => $archivos)

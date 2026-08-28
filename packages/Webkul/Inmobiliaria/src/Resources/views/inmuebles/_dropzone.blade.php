@@ -1,118 +1,94 @@
 {{--
-    Área para soltar archivos.
+    Área para cargar archivos: toda la tarjeta es el control.
 
-    Se usa en el alta y en la edición para que subir fotos se haga igual en los
-    dos lados. Sigue habiendo un input de archivos real adentro: arrastrar es un
-    atajo, no el único camino — con el teclado o desde el móvil se abre el
-    selector de siempre.
+    El input vive FUERA del label y se asocia con `for`. La asociación explícita
+    funciona en todos los navegadores; la implícita —el input adentro— es la que
+    antes no abría el selector al hacer clic.
 
-    Parámetros: $nombre (name del input), $id, $acepta, $ayuda
+    Sin JavaScript la tarjeta sigue abriendo el selector, porque eso lo resuelve
+    el propio HTML. Arrastrar es lo que se agrega encima.
+
+    Parámetros: $nombre, $id, $acepta, $ayuda, y opcional $subirA (+ $subirTipo)
+    para que soltar suba directo en vez de esperar al botón del formulario.
 --}}
 @php
-    $id = $id ?? 'dropzone-'.\Illuminate\Support\Str::random(6);
+    $id = $id ?? 'archivos-'.\Illuminate\Support\Str::random(6);
 @endphp
 
-<div data-dropzone
-     @isset($subirA) data-subir-a="{{ $subirA }}" data-dropzone-tipo="{{ $subirTipo ?? 'foto' }}" @endisset
-     class="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-gray-300 px-4 py-6 text-center transition dark:border-gray-700">
+<input type="file"
+       name="{{ $nombre }}"
+       id="{{ $id }}"
+       multiple
+       accept="{{ $acepta }}"
+       class="sr-only" />
 
-    <span class="text-xs text-gray-500 dark:text-gray-400">
-        Arrastrá los archivos acá, o elegilos:
+<label for="{{ $id }}"
+       data-dropzone
+       @isset($subirA) data-subir-a="{{ $subirA }}" data-dropzone-tipo="{{ $subirTipo ?? 'foto' }}" @endisset
+       class="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-6 py-10 text-center transition hover:border-brandColor hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
+
+    <span class="icon-image text-3xl text-gray-400"></span>
+
+    <span class="text-sm font-medium text-gray-700 dark:text-gray-200">
+        Arrastrá los archivos acá o <span class="text-brandColor underline">hacé clic para elegirlos</span>
     </span>
-
-    {{--
-        El selector va visible, no escondido detrás del área.
-
-        Estaba oculto con `sr-only` esperando que el clic en el contenedor lo
-        abriera, y así elegir archivos dependía de una asociación implícita que
-        puede fallar según el navegador. Un input visible funciona siempre, con
-        mouse, con teclado y desde el móvil — donde arrastrar ni siquiera existe.
-    --}}
-    <input type="file"
-           name="{{ $nombre }}"
-           id="{{ $id }}"
-           multiple
-           accept="{{ $acepta }}"
-           class="block w-full max-w-md cursor-pointer rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-700 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:font-medium hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:file:bg-gray-800 dark:file:text-gray-200" />
 
     <span class="text-xs text-gray-400">{{ $ayuda }}</span>
 
     <span data-dropzone-lista class="hidden text-xs font-medium text-gray-700 dark:text-gray-200"></span>
-</div>
+</label>
 
 @once
     @push('scripts')
     <script>
-        /*
-         * Cablea todas las áreas de la página.
-         *
-         * Un input de archivos no acepta que le asignen un FileList arbitrario,
-         * pero sí uno construido con DataTransfer: es lo que permite que soltar
-         * y elegir terminen en el mismo lugar y el formulario los envíe igual.
-         */
         (function () {
+            const CSRF = @json(csrf_token());
+
             document.querySelectorAll('[data-dropzone]').forEach(zona => {
-                const input = zona.querySelector('input[type="file"]');
+                const input = document.getElementById(zona.getAttribute('for'));
                 const lista = zona.querySelector('[data-dropzone-lista]');
 
                 if (! input) return;
 
+                const encender = () => zona.classList.add('border-brandColor', 'bg-gray-50', 'dark:bg-gray-800');
+                const apagar   = () => zona.classList.remove('border-brandColor', 'bg-gray-50', 'dark:bg-gray-800');
+
                 ['dragenter', 'dragover'].forEach(evento =>
-                    zona.addEventListener(evento, e => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        zona.classList.add('border-brandColor', 'bg-gray-50', 'dark:bg-gray-800');
-                    })
+                    zona.addEventListener(evento, e => { e.preventDefault(); e.stopPropagation(); encender(); })
                 );
 
                 ['dragleave', 'dragend'].forEach(evento =>
-                    zona.addEventListener(evento, e => {
-                        e.preventDefault();
-                        zona.classList.remove('border-brandColor', 'bg-gray-50', 'dark:bg-gray-800');
-                    })
+                    zona.addEventListener(evento, e => { e.preventDefault(); apagar(); })
                 );
 
                 zona.addEventListener('drop', e => {
                     e.preventDefault();
                     e.stopPropagation();
-                    zona.classList.remove('border-brandColor', 'bg-gray-50', 'dark:bg-gray-800');
+                    apagar();
 
                     const sueltos = [...e.dataTransfer.files];
 
                     if (! sueltos.length) return;
 
-                    /*
-                     * Si el área declara a dónde subir, se sube al soltar y listo.
-                     *
-                     * Es el camino de la edición, y no depende de DataTransfer
-                     * —que Safari soporta recién desde 14.1— ni de poder
-                     * asignarle un FileList a un input, que es justamente lo que
-                     * no funciona en los navegadores viejos.
-                     */
+                    // Si el área sabe a dónde subir, sube al soltar. No depende de
+                    // DataTransfer, que Safari soporta recién desde 14.1.
                     if (zona.dataset.subirA) {
-                        subirAhora(zona, sueltos);
+                        subir(zona, lista, sueltos);
 
                         return;
                     }
 
                     // Camino del alta: los archivos viajan con el formulario, así
-                    // que hay que meterlos en el input. Acá sí hace falta
-                    // DataTransfer; si el navegador no lo tiene, se avisa en vez
-                    // de no hacer nada.
+                    // que hay que meterlos en el input.
                     try {
-                        const transferencia = new DataTransfer();
+                        const dt = new DataTransfer();
 
-                        // Soltar dos veces suma, no reemplaza: es lo que uno
-                        // espera al ir agregando fotos de a poco.
-                        [...input.files, ...sueltos]
-                            .slice(0, 20)
-                            .forEach(f => transferencia.items.add(f));
-
-                        input.files = transferencia.files;
+                        // Soltar dos veces suma, no reemplaza.
+                        [...input.files, ...sueltos].slice(0, 20).forEach(f => dt.items.add(f));
+                        input.files = dt.files;
                         mostrar();
                     } catch (error) {
-                        lista.classList.remove('hidden');
-                        lista.textContent = 'Tu navegador no permite soltar archivos acá. Tocá el área para elegirlos.';
+                        avisar(lista, 'Tu navegador no permite soltar archivos. Hacé clic para elegirlos.');
                     }
                 });
 
@@ -121,39 +97,34 @@
                 function mostrar() {
                     const n = input.files.length;
 
-                    lista.classList.toggle('hidden', n === 0);
-                    lista.textContent = n === 0
-                        ? ''
-                        : `${n} archivo${n > 1 ? 's' : ''} listo${n > 1 ? 's' : ''}: `
-                          + [...input.files].map(f => f.name).join(', ');
+                    if (! n) return lista.classList.add('hidden');
+
+                    avisar(lista, `${n} archivo${n > 1 ? 's' : ''}: ` + [...input.files].map(f => f.name).join(', '));
                 }
             });
 
-            /*
-             * Sube lo que se soltó, sin esperar a ningún botón.
+            function avisar(lista, texto) {
+                lista.textContent = texto;
+                lista.classList.remove('hidden');
+            }
+
+            /**
+             * Sube lo soltado sin esperar a ningún botón.
              *
-             * El token va explícito porque este admin no tiene
-             * <meta name="csrf-token">: leerlo de ahí devuelve null y la
-             * petición nunca sale.
+             * El token va explícito: este admin no tiene <meta name="csrf-token">,
+             * así que leerlo de ahí devuelve null y la petición nunca sale.
              */
-            function subirAhora(zona, archivos) {
-                const lista = zona.querySelector('[data-dropzone-lista]');
+            function subir(zona, lista, archivos) {
                 const datos = new FormData();
 
                 archivos.slice(0, 20).forEach(f => datos.append('archivos[]', f));
                 datos.append('tipo', zona.dataset.dropzoneTipo || 'foto');
 
-                lista.classList.remove('hidden');
-                lista.textContent = `Subiendo ${archivos.length} archivo(s)…`;
+                avisar(lista, `Subiendo ${archivos.length} archivo(s)…`);
 
-                window.axios.post(zona.dataset.subirA, datos, {
-                    headers: { 'X-CSRF-TOKEN': @json(csrf_token()) },
-                })
+                window.axios.post(zona.dataset.subirA, datos, { headers: { 'X-CSRF-TOKEN': CSRF } })
                     .then(() => location.reload())
-                    .catch(err => {
-                        lista.textContent = err.response?.data?.message
-                            || 'No se pudieron subir los archivos.';
-                    });
+                    .catch(err => avisar(lista, err.response?.data?.message || 'No se pudieron subir los archivos.'));
             }
         })();
     </script>
