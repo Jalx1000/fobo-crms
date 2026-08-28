@@ -1,129 +1,127 @@
-# Plan técnico — Configuración inmobiliaria CENTURY 21
+# Plan técnico — Recepción de media entrante en WhatsApp
 
-- **Spec:** `docs/specs/setup-inmobiliaria-c21.md` (decisiones D1-D6 cerradas)
+- **Spec:** `docs/specs/media-entrante-whatsapp.md` (D1–D11 cerradas)
 - **Fase:** 2 de 4 (Specify ✅ → **Plan** → Tasks → Implement)
 - **Estado:** 🟡 Pendiente de revisión humana. No implementar hasta aprobación.
+- **Plan anterior:** `tasks/plan-setup-inmobiliaria.md` (trabajo terminado, archivado)
 
 ---
 
-## Volumen real del catálogo
+## Qué hay que construir, en una frase
 
-Contado contra el estado actual de la instancia, no contra el brief:
-
-| Entidad | A crear | Ya existe | Nota |
-|---|---:|---:|---|
-| Pipelines | 3 | 0 | `Venta`, `Alquiler y anticrético`, `Captación` |
-| Etapas | **25** | 0 | 7+2, 6+2, 6+2 — los `+2` son Won/Lost (D2) |
-| Sources | **8** | **1** | "Web" ya existe como `id=2` → se omite |
-| Types | 5 | 0 | Ninguno colisiona con los 2 actuales |
-| Atributos (leads) | 23 | 0 | 10 de tipo `select`, 13 de otros tipos |
-| Opciones de select | **49** | 0 | `perdida_motivo` es el más grande, con 12 |
-
-Estos números son la salida esperada del primer `--dry-run`. Si no coinciden, algo cambió en la
-instancia entre el reconocimiento y la ejecución, y hay que re-verificar antes de aplicar.
+Cinco piezas nuevas y tres modificaciones, sobre una base que ya guarda el puntero al archivo y ya
+sabe pintarlo. El trabajo real es **traer el binario desde Meta y servirlo**, no reconstruir el
+camino.
 
 ---
 
-## Decisión de arquitectura: el manifiesto
-
-**Problema.** "Web" figura en el catálogo del brief y **ya existe** en la instancia (`id=2`). El setup
-idempotente la omite sin problema, pero el rollback no puede decidir qué borrar comparando contra el
-catálogo: borraría "Web", que preexistía y no es nuestra. Lo mismo aplicaría a cualquier source, type
-o atributo que el cliente cree a mano con un nombre del catálogo.
-
-**Decisión.** El setup persiste un **manifiesto** de los ids que realmente creó, en `core_config`
-(`code = 'inmobiliaria.setup.manifest'`, `value` TEXT). El rollback borra **solo** esos ids.
-
-```json
-{
-  "version": 1,
-  "applied_at": "2026-08-27T14:03:11-04:00",
-  "created": {
-    "pipelines": [2, 3, 4],
-    "stages": [7, 8, 9, "..."],
-    "sources": [6, 7, "..."],
-    "types": [3, 4, 5, 6, 7],
-    "attributes": [10, 11, "..."],
-    "attribute_options": [1, 2, "..."]
-  }
-}
-```
-
-**Por qué `core_config` y no un archivo:** vive en la BD, así que entra en el `mysqldump` — backup y
-manifiesto nunca se desincronizan. Un JSON en `storage/` se pierde en un redeploy del contenedor y
-dejaría el rollback ciego. Tamaño estimado: ~170 ids ≈ 1.5 KB, muy por debajo del límite de `TEXT`.
-
-**Ejecuciones sucesivas:** el setup **fusiona** en el manifiesto existente en vez de reemplazarlo, para
-que una corrida parcial seguida de otra no pierda el rastro de la primera.
-
----
-
-## Componentes y orden de implementación
-
-```
-C1 Scaffolding ──┬──> C2 Catálogo ──┐
-                 ├──> C3 Manifiesto ─┼──> C5 Aplicador ──┬──> C6 Setup ──> C8 Docs
-                 └──> C4 Reporte ────┘                   └──> C7 Rollback ──┘
-```
+## Componentes
 
 | # | Componente | Archivos | Depende de |
 |---|---|---|---|
-| C1 | Scaffolding del paquete + registro | `Providers/{Module,Inmobiliaria}ServiceProvider.php`, `composer.json`, `config/concord.php`, `config/app.php` | — |
-| C2 | Catálogo como config pura | `Config/catalogo.php` | C1 |
-| C3 | Manifiesto (lectura/escritura en `core_config`) | `Support/Manifiesto.php` | C1 |
-| C4 | Acumulador de reporte (creado/existente/omitido) | `Support/ResultadoCatalogo.php` | C1 |
-| C5 | Aplicador idempotente | `Support/CatalogoSeeder.php` | C2, C3, C4 |
-| C6 | Comando de setup | `Console/Commands/SetupInmobiliaria.php` | C5 |
-| C7 | Comando de rollback + guardas | `Console/Commands/RollbackInmobiliaria.php` | C3, C5 |
-| C8 | README + informe de limitaciones | `docs/inmobiliaria/{README,limitaciones}.md` | C6, C7 |
+| C1 | Campos de media en el DTO de entrada | `Gateways/Dto/InboundMessage.php` | — |
+| C2 | `downloadMedia()` en el contrato + Cloud API + Kommo | `Gateways/Contracts/Gateway.php`, `CloudApi/CloudApiGateway.php`, `Kommo/KommoGateway.php` | C1 |
+| C3 | El parser extrae id, mime y nombre del payload | `CloudApi/CloudApiGateway.php` | C1 |
+| C4 | Job `DescargarMediaEntrante` | `Jobs/DescargarMediaEntrante.php` | C2 |
+| C5 | El ingest despacha el job | `Jobs/IngestInboundPayload.php` | C3, C4 |
+| C6 | **Ruta de servido + `transform()` con URL real** | `Http/Controllers/InboxController.php`, `Routes/admin.php` | — |
+| C7 | Estado de la descarga visible en el hilo | `Resources/views/inbox-component.blade.php`, `InboxController.php` | C4, C6 |
+| C8 | Bloque `media` para el agente | `Services/AgentPayload.php` | C4 |
+| C9 | `capabilities()` honestas | `CloudApi/CloudApiGateway.php` | todo lo anterior |
+| C10 | Comando de relleno retroactivo | `Console/Commands/DescargarMediaHistorica.php` | C4 |
 
-**Paralelizable:** C2, C3 y C4 son independientes entre sí. **Secuencial y crítico:** C1 antes que
-todo (sin autoload el resto no carga), y C5 antes que C6/C7.
+```
+C1 ──┬──> C2 ──> C4 ──┬──> C7 ──> C9
+     └──> C3 ──> C5 ──┘   
+                       └──> C8
+                       └──> C10
+
+C6 ─────────────────────────────────>  (independiente: arregla un bug ya existente)
+```
+
+**Paralelizable:** C6 no depende de nada y arregla un bug activo — va primero y solo. C8 y C10 se
+pueden escribir mientras se verifica C7.
+
+**Secuencial y crítico:** C1 antes que C2 y C3; C4 antes de cualquier cosa que muestre el archivo.
+**C9 va último**, siempre: declarar una capacidad antes de que funcione es exactamente lo que causó
+el bug del botón de adjuntar.
 
 ---
 
-## Riesgos y mitigación
+## Orden de implementación
+
+### Etapa 0 — Arreglar la URL rota *(C6)*
+
+**Se hace primero porque es un bug activo en producción de facto**, no una preparación. El adjunto
+que el asesor envía hoy sale bien a WhatsApp y se ve roto en su propio hilo.
+
+Entrega valor sola, se verifica sola, y deja lista la ruta que después usará todo lo entrante.
+
+### Etapa 1 — Poder traer el archivo *(C1, C2, C3)*
+
+Extraer el id del payload y poder descargar por él. Al terminar esta etapa **todavía no cambia nada
+para el usuario**: es la plomería.
+
+### Etapa 2 — Descarga real de punta a punta *(C4, C5)*
+
+El job descarga y completa la fila. Al terminar, una foto que manda un cliente **se ve en el inbox**.
+Es el hito que justifica todo el trabajo.
+
+### Etapa 3 — Contar la verdad sobre el estado *(C7, C8)*
+
+El hilo distingue "descargando", "listo" y "no se pudo". El agente recibe el bloque `media` con
+`disponible` reflejando el estado real.
+
+### Etapa 4 — Cerrar *(C9, C10)*
+
+`capabilities()` pasa a listar exactamente lo que se verificó tipo por tipo. El comando de relleno
+queda como red.
+
+---
+
+## Riesgos
 
 | # | Riesgo | Prob. | Impacto | Mitigación |
 |---|---|---|---|---|
-| R1 | Rollback borra datos preexistentes ("Web") | Alta | 🔴 Alto | Manifiesto (arriba). Es la razón de que exista. |
-| R2 | `PipelineRepository::create()` explota sin `$data['stages']` — hace `foreach` sin `??` | Media | Medio | El catálogo obliga a que todo pipeline traiga sus etapas; validar la forma del config antes de aplicar |
-| R3 | `is_default` se pisa entre pipelines: `create()` con `is_default` hace `update(['is_default'=>0])` sobre todos | Media | Medio | Crear los 3 con `is_default=0` y setear `Venta` como default en un paso final explícito |
-| R4 | Duplicación de `attribute_options` al re-ejecutar (sin unique en `name`) | Media | Medio | Buscar por `name` dentro del `attribute_id` antes de insertar; nunca usar `create()` a ciegas en la segunda pasada |
-| R5 | Sin cobertura automatizada (D4): un bug de idempotencia se ve recién en producción | Alta | Medio | `--dry-run` obligatorio antes de cada aplicación + backup previo; mantener la guarda de rollback trivialmente simple |
-| R6 | `AttributeRepository::create()` crea opciones solo si el atributo es nuevo; si existe, las opciones nuevas no se agregan | Media | Medio | Tratar atributo y opciones como dos pasos separados en C5, no delegar las opciones al repo |
-| R7 | Un upgrade de Krayin cambia la firma de los repositorios | Baja | Medio | Todo el acoplamiento vive en C5; el catálogo (C2) queda intacto |
-| R8 | La instancia cambió entre el reconocimiento y la ejecución | Media | Bajo | El `--dry-run` reporta los conteos de la tabla de arriba; discrepancia = frenar |
-
-**Sobre R6:** `AttributeRepository::create()` inserta las opciones dentro del mismo llamado
-(`AttributeRepository.php:41-49`), pero solo cuando crea el atributo. En una re-ejecución el atributo
-ya existe, el repo devuelve temprano y las opciones faltantes nunca se agregan. Por eso C5 hace
-*upsert de atributo* y *upsert de cada opción* por separado, en vez de confiar en el camino feliz del
-repositorio.
+| R1 | **El worker queda con código viejo.** Ya pasó: once fotos no subieron a Meta y el error solo estaba en `failed_jobs`. Con cambios en vivo y sin despliegue, el entrypoint nunca reinicia nada. | Alta | 🔴 Alto | `supervisorctl restart whatsapp` es parte de la definición de "etapa terminada", no un paso opcional. Cada checkpoint lo verifica mirando la hora de arranque del proceso. |
+| R2 | **La URL de descarga de Meta caduca en minutos.** Un reintento que reuse la URL vieja falla siempre. | Alta | Medio | Cada intento vuelve a resolver el id (`GET /{media-id}`). Nunca se persiste la URL. |
+| R3 | Descargar dentro del webhook ata el acuse a Meta a la velocidad de la descarga → Meta reintenta y duplica. | Media | 🔴 Alto | D1: la descarga vive en un job. El ingest no cambia su tiempo de respuesta. Ya hay dedup por `wa_message_id` (índice único + verificación explícita), que acota el daño si igual pasa. |
+| R4 | **Permisos root/www-data.** Un archivo creado por la CLI queda ilegible para la web y viceversa. Ya rompió la carga de galerías. | Media | Medio | Artisan siempre como `www-data`; el disco `local` ya tiene 0775/0664 declarados. El checkpoint incluye escribir y leer como www-data. |
+| R5 | **Cambiar `capabilities` enciende UI.** Agregar `image` a `send` hizo aparecer un botón conectado a un mock. | Media | Medio | C9 va último y su verificación incluye recorrer el inbox buscando controles que se hayan encendido solos. |
+| R6 | No hay forma de probar lo entrante sin un WhatsApp real. | Alta | Medio | Etapas 1–3 se verifican con **payloads sintéticos** copiados del formato real de Meta. La prueba con un teléfono real es el último checkpoint y **requiere autorización explícita**. |
+| R7 | **Disco sin techo** (D10, retención permanente). | Baja hoy | Medio | Línea base medida: `storage/app/whatsapp` = 16 KB, disco al 54% (52 de 96 GB). Se vuelve a medir al cerrar. |
+| R8 | Un archivo corrupto o un mime inesperado rompe el job en bucle. | Media | Bajo | 3 intentos y se marca con motivo; nunca reintento infinito. El mensaje queda legible en el hilo. |
+| R9 | Meta cambia el `sha256` o el formato del payload entre versiones. | Baja | Bajo | Todo lo específico del proveedor vive en el gateway; el resto habla en DTOs. |
 
 ---
 
 ## Puntos de verificación
 
-Entre fases, no al final. Cada uno es una compuerta: si falla, no se avanza.
+Compuertas entre etapas: si una falla, no se avanza.
 
 | V | Después de | Comprobación | Criterio |
 |---|---|---|---|
-| V1 | C1 | `docker exec -w /code $C php artisan about` | Sin errores de autoload; el módulo carga |
-| V2 | C6 | `php artisan crm:setup-inmobiliaria --dry-run` | Reporta exactamente los conteos de "Volumen real" |
-| V3 | antes de aplicar | `mysqldump` a `backups/` | El archivo existe y pesa > 0 |
-| V4 | aplicación real | `php artisan crm:setup-inmobiliaria` | Salida sin errores; imprime el mapa de ids (SC10) |
-| V5 | C6 (idempotencia) | segundo `--dry-run` | **0 cambios** — es SC1, el criterio más importante |
-| V6 | C7 | `crm:rollback-inmobiliaria --dry-run` | Lista solo los ids del manifiesto; nunca `lead_sources.id = 2` |
-| V7 | C7 (guarda) | manual: lead de prueba en `Venta` → rollback `--dry-run` | Reporta la negativa y no borra nada (SC8) |
-| V8 | C8 | `git status --porcelain vendor/` y diff sobre el core | Vacío (SC9) |
+| V1 | C6 | Adjuntar una imagen desde el inbox y recargar el hilo | **La imagen se ve.** Es el bug de H4 cerrado |
+| V2 | C6 | Pedir la ruta de media sin sesión | 401/404, nunca el binario |
+| V3 | C3 | Parsear un payload sintético de imagen de Meta | El DTO trae `mediaId`, `mediaMime` y el epígrafe en `body` |
+| V4 | C4 | Correr el job a mano contra un `media_id` real | Archivo en disco, fila completa, mime correcto |
+| V5 | C5 | Ingestar un payload sintético completo | Mensaje creado al instante + job encolado; **el ingest no tarda más que hoy** |
+| V6 | C7 | Hilo con un mensaje descargando y otro fallado | Los tres estados se distinguen a simple vista |
+| V7 | C8 | Evento del webhook para un mensaje con imagen | `type: "image"`, epígrafe en `text`, `media.disponible` correcto |
+| V8 | C9 | Recorrer `receive` tipo por tipo | Cada tipo listado funciona de verdad; el inbox no encendió controles nuevos |
+| V9 | cierre | **Foto real desde un WhatsApp** (requiere autorización) | Se ve en el inbox, con su epígrafe |
+| V10 | cierre | `git status --porcelain packages/Webkul/{Admin,Core,Lead}` | Vacío |
+
+**Antes de cada V:** el worker reiniciado y `queue:failed` en cero. Un checkpoint con jobs fallidos
+sin explicar no está aprobado.
 
 ---
 
 ## Fuera de alcance
 
-- Los flujos de n8n y el prompt del agente de IA.
-- El consumidor de días de rotación por etapa (D1 lo delega a n8n).
-- Arreglar la suite de tests destructiva (H8) o `APP_DEBUG=true` en producción (H10) — reportados,
-  no incluidos.
-- La deuda de `LeadRepository.php:230` (won/lost por substring del nombre, H9).
+- Promover fotos al catálogo y crear inmuebles desde la conversación (D11).
+- Interpretar el contenido de las imágenes.
+- Recibir media en Kommo: su driver lanza `UnsupportedCapability` y no declara lo que no hace.
+- Transcribir audios.
+- Arreglar la suite de tests destructiva — aunque es la razón de fondo por la que estos bugs de
+  "declaro algo que no cumplo" se escapan dos veces seguidas.
