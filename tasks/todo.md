@@ -2,7 +2,7 @@
 
 - **Spec:** `docs/specs/media-entrante-whatsapp.md` · **Plan:** `tasks/plan.md`
 - **Fase:** 3 de 4 (Specify ✅ → Plan ✅ → **Tasks** → Implement)
-- **Estado:** 🟢 T1–T10 implementadas y verificadas (28/08/2026). Queda **T11**, que necesita autorización.
+- **Estado:** ✅ **Completo.** T1–T11 implementadas y verificadas (28/08/2026), incluida la prueba con un teléfono real.
 - Orden por dependencia, no por importancia.
 
 Abreviatura usada en las verificaciones:
@@ -133,7 +133,7 @@ RW() { docker exec $C supervisorctl restart whatsapp; }           # worker: obli
     ninguno. Si reporta más, algo se ingestó mientras tanto y hay que mirarlo antes de correrlo.
   - **Files:** `Console/Commands/DescargarMediaHistorica.php`, `Providers/WhatsappServiceProvider.php`
 
-- [ ] **T11 — Prueba de punta a punta con un teléfono real** ⚠️ *requiere autorización*
+- [x] **T11 — Prueba de punta a punta con un teléfono real** ⚠️ *requiere autorización*
   - **Acceptance:** una foto con epígrafe enviada desde un WhatsApp real aparece en el inbox,
     renderizada y con su texto. Un audio de voz se reproduce.
   - **Verify (V9):** manual, con una persona real del otro lado. **No se ejecuta sin que lo
