@@ -13,6 +13,7 @@
 @endphp
 
 <label data-dropzone
+       @isset($subirA) data-subir-a="{{ $subirA }}" data-dropzone-tipo="{{ $subirTipo ?? 'foto' }}" @endisset
        class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-8 text-center transition hover:border-brandColor focus-within:border-brandColor dark:border-gray-700">
     <span class="icon-image text-2xl text-gray-400"></span>
 
@@ -69,16 +70,43 @@
                     e.stopPropagation();
                     zona.classList.remove('border-brandColor', 'bg-gray-50', 'dark:bg-gray-800');
 
-                    const transferencia = new DataTransfer();
+                    const sueltos = [...e.dataTransfer.files];
 
-                    // Se acumulan con lo que ya había: soltar dos veces suma, no
-                    // reemplaza, que es lo que uno espera al ir agregando fotos.
-                    [...input.files, ...e.dataTransfer.files]
-                        .slice(0, 20)
-                        .forEach(f => transferencia.items.add(f));
+                    if (! sueltos.length) return;
 
-                    input.files = transferencia.files;
-                    mostrar();
+                    /*
+                     * Si el área declara a dónde subir, se sube al soltar y listo.
+                     *
+                     * Es el camino de la edición, y no depende de DataTransfer
+                     * —que Safari soporta recién desde 14.1— ni de poder
+                     * asignarle un FileList a un input, que es justamente lo que
+                     * no funciona en los navegadores viejos.
+                     */
+                    if (zona.dataset.subirA) {
+                        subirAhora(zona, sueltos);
+
+                        return;
+                    }
+
+                    // Camino del alta: los archivos viajan con el formulario, así
+                    // que hay que meterlos en el input. Acá sí hace falta
+                    // DataTransfer; si el navegador no lo tiene, se avisa en vez
+                    // de no hacer nada.
+                    try {
+                        const transferencia = new DataTransfer();
+
+                        // Soltar dos veces suma, no reemplaza: es lo que uno
+                        // espera al ir agregando fotos de a poco.
+                        [...input.files, ...sueltos]
+                            .slice(0, 20)
+                            .forEach(f => transferencia.items.add(f));
+
+                        input.files = transferencia.files;
+                        mostrar();
+                    } catch (error) {
+                        lista.classList.remove('hidden');
+                        lista.textContent = 'Tu navegador no permite soltar archivos acá. Tocá el área para elegirlos.';
+                    }
                 });
 
                 input.addEventListener('change', mostrar);
@@ -93,6 +121,33 @@
                           + [...input.files].map(f => f.name).join(', ');
                 }
             });
+
+            /*
+             * Sube lo que se soltó, sin esperar a ningún botón.
+             *
+             * El token va explícito porque este admin no tiene
+             * <meta name="csrf-token">: leerlo de ahí devuelve null y la
+             * petición nunca sale.
+             */
+            function subirAhora(zona, archivos) {
+                const lista = zona.querySelector('[data-dropzone-lista]');
+                const datos = new FormData();
+
+                archivos.slice(0, 20).forEach(f => datos.append('archivos[]', f));
+                datos.append('tipo', zona.dataset.dropzoneTipo || 'foto');
+
+                lista.classList.remove('hidden');
+                lista.textContent = `Subiendo ${archivos.length} archivo(s)…`;
+
+                window.axios.post(zona.dataset.subirA, datos, {
+                    headers: { 'X-CSRF-TOKEN': @json(csrf_token()) },
+                })
+                    .then(() => location.reload())
+                    .catch(err => {
+                        lista.textContent = err.response?.data?.message
+                            || 'No se pudieron subir los archivos.';
+                    });
+            }
         })();
     </script>
     @endpush

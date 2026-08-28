@@ -40,10 +40,12 @@
 
         <div class="min-w-[320px] flex-1" id="campo-archivos">
             @include('inmobiliaria::inmuebles._dropzone', [
-                'nombre' => 'archivos[]',
-                'id'     => 'input-archivos',
-                'acepta' => 'image/jpeg,image/png,image/webp',
-                'ayuda'  => 'Hasta 20 por vez. El tipo se elige a la izquierda.',
+                'nombre'  => 'archivos[]',
+                'id'      => 'input-archivos',
+                'acepta'  => 'image/jpeg,image/png,image/webp',
+                'ayuda'   => 'Soltalos y se suben solos. Hasta 20 por vez.',
+                // Con esto, soltar sube directo en vez de esperar al botón.
+                'subirA'  => route('admin.inmuebles.medias.store', $inmueble->id),
             ])
         </div>
 
