@@ -126,6 +126,16 @@
      * riesgo y perfectamente reversible arrastrando de nuevo.
      */
     (function () {
+        /*
+         * El token va explícito, renderizado por Blade.
+         *
+         * Este admin no tiene <meta name="csrf-token">, así que leerlo de ahí
+         * devolvía null y reventaba antes de enviar nada: el orden se movía en
+         * pantalla y no se guardaba nunca. Mandarlo por cabecera no depende de
+         * cómo esté configurada la cookie ni de qué cliente HTTP se use.
+         */
+        const CSRF = @json(csrf_token());
+
         let arrastrado = null;
 
         document.querySelectorAll('[data-galeria]').forEach(galeria => {
@@ -164,40 +174,35 @@
             const orden = [...galeria.querySelectorAll('[data-media]')].map(el => el.dataset.media);
             const aviso = document.getElementById('aviso-orden');
 
-            fetch(galeria.dataset.urlOrden, {
-                method: 'PATCH',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({ orden }),
+            window.axios.patch(galeria.dataset.urlOrden, { orden }, {
+                headers: { 'X-CSRF-TOKEN': CSRF },
             })
-            .then(r => {
-                if (! r.ok) throw new Error();
-                aviso.textContent = 'Orden guardado.';
-                aviso.classList.remove('hidden', 'text-red-600');
-                aviso.classList.add('text-emerald-600');
-            })
-            .catch(() => {
-                // Se avisa en vez de fallar en silencio: el asesor acaba de ver
-                // moverse las fotos y creería que quedó guardado.
-                aviso.textContent = 'No se pudo guardar el orden. Recargá y probá de nuevo.';
-                aviso.classList.remove('hidden', 'text-emerald-600');
-                aviso.classList.add('text-red-600');
-            })
-            .finally(() => setTimeout(() => aviso.classList.add('hidden'), 2500));
+                .then(() => {
+                    aviso.textContent = 'Orden guardado.';
+                    aviso.classList.remove('hidden', 'text-red-600');
+                    aviso.classList.add('text-emerald-600');
+                })
+                .catch(() => {
+                    // Se avisa en vez de fallar en silencio: el asesor acaba de
+                    // ver moverse las fotos y creería que quedó guardado.
+                    aviso.textContent = 'No se pudo guardar el orden. Recargá y probá de nuevo.';
+                    aviso.classList.remove('hidden', 'text-emerald-600');
+                    aviso.classList.add('text-red-600');
+                })
+                .finally(() => setTimeout(() => aviso.classList.add('hidden'), 2500));
         }
     })();
 
+    // Mismo motivo que el orden: sin meta csrf-token, la llamada fallaba antes
+    // de salir y la acción parecía no hacer nada.
     function mediaAccion(url, metodo) {
-        fetch(url, {
+        window.axios({
+            url,
             method: metodo,
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                'Accept': 'application/json',
-            },
-        }).then(r => r.ok ? location.reload() : alert('No se pudo completar la acción.'));
+            headers: { 'X-CSRF-TOKEN': @json(csrf_token()) },
+        })
+            .then(() => location.reload())
+            .catch(err => alert(err.response?.data?.message || 'No se pudo completar la acción.'));
     }
 </script>
 @endpush
