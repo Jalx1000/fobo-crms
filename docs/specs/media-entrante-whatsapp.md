@@ -1,6 +1,7 @@
 # Spec: Recepción de media entrante en WhatsApp
 
-- **Estado:** 🟡 Fase 1 (Specify). Pendiente de revisión humana. **No implementar hasta aprobación.**
+- **Estado:** 🟢 Fase 1 (Specify) completa. Preguntas abiertas cerradas el 28/08/2026.
+- **Siguiente:** Fase 2 (Plan) — pendiente de tu visto bueno.
 - **Fase:** 1 de 4 (Specify → Plan → Tasks → Implement)
 - **Instancia:** `c21.sofopolis.com` · Krayin 2.1.5 · gateway activo `cloud_api`
 - **Branch:** `inmobiliaria-agente-c21`
@@ -99,7 +100,8 @@ que el asesor no puede abrir.
 
 | Tipo | ¿Se descarga? | Motivo |
 |---|---|---|
-| `image`, `document`, `video`, `audio` | Sí | Es lo que un cliente manda con intención |
+| `image`, `document`, `video` | Sí | Es lo que un cliente manda con intención |
+| `audio` | **Sí** | Los audios de voz son muy comunes y hoy quedan en blanco. El inbox ya trae el reproductor. Sin transcripción: el asesor los escucha. |
 | `sticker` | Sí | Barato y el inbox ya lo pinta |
 | `location`, `contact` | No aplica | No son archivos; ya viajan en el payload |
 | Cualquiera > límite configurable | No | Se registra el mensaje con el motivo visible en el hilo |
@@ -118,6 +120,34 @@ porque la URL caduca. Agotados los intentos, el mensaje queda con un motivo legi
 
 Un comando `crm:descargar-media-historica` que recorre los mensajes entrantes con `payload` y sin
 `media_path`. Hoy no hay ninguno, así que es una red por si aparecen antes de terminar el trabajo.
+
+### D9 — Límites de tamaño
+
+| Tipo | Límite | Motivo |
+|---|---|---|
+| Imagen, documento, audio, sticker | **25 MB** | Cubre cualquier foto o PDF que mande un cliente sin llenar el disco |
+| Video | **100 MB** | El máximo que admite Meta |
+
+Lo que exceda se registra como mensaje con el motivo visible en el hilo, nunca como fila en blanco.
+
+### D10 — Retención permanente
+
+Los archivos **no se borran**. No hay purga ni caducidad.
+
+**Consecuencia asumida y a vigilar:** el disco crece sin techo, y los audios de voz son el rubro que
+más rápido se acumula. No es un problema hoy —tres conversaciones— pero conviene medirlo antes de que
+lo note el servidor. Se agrega el tamaño de `storage/app/whatsapp` a lo que se revisa
+periódicamente, junto con la memoria de MySQL.
+
+### D11 — Promover fotos al catálogo: fuera de alcance
+
+Se evaluó un botón "Agregar a un inmueble" sobre las fotos del hilo, y un flujo de "crear inmueble
+desde la conversación" para captación. **Ambos quedan afuera de este trabajo.**
+
+Las fotos que manda un cliente se reciben, se guardan y se ven en el hilo. Llevarlas al catálogo es
+un trabajo aparte, y el caso de captación —un propietario que manda fotos de una casa que todavía no
+existe en el catálogo— necesita el flujo grande, no el chico. Especificarlo a medias sería peor que
+no hacerlo.
 
 ---
 
@@ -247,12 +277,13 @@ Específicos y comprobables:
 
 ---
 
-## Preguntas abiertas
+## Preguntas cerradas
 
-1. **¿Límite de tamaño?** Propongo 25 MB para imágenes y documentos, 100 MB para video. Meta admite
-   hasta 100 MB. Más alto llena el disco de la instancia; más bajo rechaza videos legítimos.
-2. **¿Se guarda el audio?** Un audio de voz es común en WhatsApp y hoy queda en blanco. Descargarlo
-   es igual de barato, pero sin transcripción el asesor tiene que escucharlo igual.
-3. **¿Retención?** Nada borra estos archivos hoy. ¿Se conservan indefinidamente, o hay una purga?
-4. **¿Las fotos que manda un propietario deberían poder promoverse al catálogo** con un botón, o
-   alcanza con que queden en la conversación? (Estaba en el alcance descartado; confirmalo.)
+| # | Pregunta | Respuesta |
+|---|---|---|
+| 1 | ¿Límite de tamaño? | 25 MB general, 100 MB video (D9) |
+| 2 | ¿Se guarda el audio? | Sí, se descarga y se reproduce en el inbox (D5) |
+| 3 | ¿Retención? | Permanente, sin purga (D10) |
+| 4 | ¿Promover fotos al catálogo? | No en este trabajo (D11) |
+
+**Ninguna queda abierta.** El spec está listo para Fase 2.
