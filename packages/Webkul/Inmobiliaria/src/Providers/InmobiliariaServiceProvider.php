@@ -41,12 +41,8 @@ class InmobiliariaServiceProvider extends ServiceProvider
             \Webkul\Inmobiliaria\Listeners\ComponerInmueblesDelLead::class,
         );
 
-        // Moneda y valor del cierre del lead.
-        Event::listen(
-            'admin.leads.view.stages.form_controls.modal.content.before',
-            [\Webkul\Inmobiliaria\Listeners\CierreEnMoneda::class, 'inyectarSelector'],
-        );
-
+        // Moneda y valor del cierre del lead. El selector vive en la vista del
+        // core (junto al importe, dentro del modal); acá solo se persiste.
         Event::listen(
             'lead.update.after',
             [\Webkul\Inmobiliaria\Listeners\CierreEnMoneda::class, 'guardar'],

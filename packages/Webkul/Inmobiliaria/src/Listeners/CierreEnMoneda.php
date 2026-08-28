@@ -2,9 +2,6 @@
 
 namespace Webkul\Inmobiliaria\Listeners;
 
-use Illuminate\Support\Facades\View;
-use Webkul\Core\ViewRenderEventManager;
-
 /**
  * Moneda y valor del cierre de un lead.
  *
@@ -22,22 +19,6 @@ use Webkul\Core\ViewRenderEventManager;
  */
 class CierreEnMoneda
 {
-    /**
-     * Inyecta el selector en el modal de cambio de etapa.
-     */
-    public function inyectarSelector(ViewRenderEventManager $evento): void
-    {
-        $lead = $evento->getParam('lead');
-
-        if (! $lead) {
-            return;
-        }
-
-        $evento->addTemplate(
-            View::make('inmobiliaria::leads.moneda-cierre', compact('lead'))->render()
-        );
-    }
-
     /**
      * Persiste importe y moneda cuando el modal los mandó.
      */

@@ -129,6 +129,27 @@
                                         v-model="nextStage.lead_value"
                                     />
                                 </x-admin::form.control-group>
+
+                                {{-- Moneda del cierre: esta plaza es bimonetaria y el
+                                     sistema no convierte en ningún punto, así que un
+                                     importe sin moneda no se puede interpretar después. --}}
+                                <x-admin::form.control-group>
+                                    <x-admin::form.control-group.label>
+                                        Moneda del cierre
+                                    </x-admin::form.control-group.label>
+
+                                    <select
+                                        name="lead_value_moneda"
+                                        v-model="nextStage.lead_value_moneda"
+                                        class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                                    >
+                                        @foreach (config('inmobiliaria.inmuebles.monedas', ['USD']) as $moneda)
+                                            <option value="{{ $moneda }}" @selected(($lead->lead_value_moneda ?: config('inmobiliaria.inmuebles.moneda_por_defecto')) === $moneda)>
+                                                {{ $moneda }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </x-admin::form.control-group>
                             </template>
 
                             <!-- Lost Reason -->

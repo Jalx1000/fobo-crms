@@ -54,11 +54,18 @@ class InmuebleRequest extends FormRequest
             'm2_construidos' => ['nullable', 'numeric', 'min:0'],
             'm2_terreno'     => ['nullable', 'numeric', 'min:0'],
 
-            // Características del tipo (D13). Llegan anidadas por tipo porque el
-            // formulario dibuja los campos de todos y esconde los que no aplican.
-            'caracteristicas'     => ['nullable', 'array'],
-            'caracteristicas.*'   => ['nullable', 'array'],
-            'caracteristicas.*.*' => ['nullable', 'string', 'max:2000'],
+            // Características (D13): pares clave/valor libres, porque un galpón y
+            // una casa no describen lo mismo. Se pueden agregar y borrar.
+            'caracteristicas'         => ['nullable', 'array'],
+            'caracteristicas.clave'   => ['nullable', 'array'],
+            'caracteristicas.clave.*' => ['nullable', 'string', 'max:60'],
+            'caracteristicas.valor'   => ['nullable', 'array'],
+            'caracteristicas.valor.*' => ['nullable', 'string', 'max:255'],
+
+            // Fotos cargadas junto con el alta. Opcionales: el inmueble se
+            // puede crear sin ninguna y completarse después.
+            'fotos'   => ['nullable', 'array', 'max:20'],
+            'fotos.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:15360'],
 
             // El titular tiene que ser un asesor de verdad: es quien recibe el
             // handoff del agente. Un administrador que administra el CRM no
@@ -84,6 +91,9 @@ class InmuebleRequest extends FormRequest
             'moneda.in'              => 'La moneda debe ser USD o BOB.',
             'modalidad_cambio.in'    => 'Modalidad de cambio inválida.',
             'google_maps_url.url'    => 'El link de Google Maps no es una URL válida.',
+            'fotos.max'              => 'Máximo 20 fotos por vez. El resto las subís desde la edición.',
+            'fotos.*.max'            => 'Cada foto debe pesar menos de 15 MB.',
+            'fotos.*.mimes'          => 'Las fotos deben ser JPG, PNG o WEBP.',
             'precio_anterior.gt'     => 'El precio anterior debe ser mayor al actual: sirve para mostrar una rebaja.',
             'user_id.exists'         => 'El titular debe ser un usuario con rol Asesor.',
         ];

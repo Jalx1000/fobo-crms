@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Webkul\Inmobiliaria\DataGrids\InmuebleDataGrid;
 use Webkul\Inmobiliaria\Http\Requests\InmuebleRequest;
+use Webkul\Inmobiliaria\Jobs\SubirMediaAlProveedor;
+use Webkul\Inmobiliaria\Repositories\InmuebleMediaRepository;
 use Webkul\Inmobiliaria\Repositories\InmuebleRepository;
 use Webkul\User\Repositories\UserRepository;
 
@@ -17,6 +19,7 @@ class InmuebleController extends Controller
     public function __construct(
         protected InmuebleRepository $inmuebles,
         protected UserRepository $usuarios,
+        protected InmuebleMediaRepository $medias,
     ) {}
 
     public function index(): View|JsonResponse
@@ -45,7 +48,11 @@ class InmuebleController extends Controller
             fn () => $this->inmuebles->create($this->datos($request))
         );
 
-        session()->flash('success', "Inmueble {$inmueble->codigo} creado.");
+        $fotos = $this->guardarFotosIniciales($request, $inmueble);
+
+        session()->flash('success', $fotos
+            ? "Inmueble {$inmueble->codigo} creado con {$fotos} foto(s)."
+            : "Inmueble {$inmueble->codigo} creado.");
 
         return redirect()->route('admin.inmuebles.index');
     }
@@ -80,6 +87,50 @@ class InmuebleController extends Controller
     }
 
     /**
+     * Adjunta las fotos que vinieron en el formulario de creación.
+     *
+     * La galería completa vive en la edición porque reordenar y elegir portada
+     * necesitan un inmueble ya creado. Pero pedir que guarden y vuelvan a entrar
+     * solo para subir la primera foto hacía que los inmuebles quedaran sin
+     * imágenes — y sin imágenes el agente no los puede mostrar, que es el punto
+     * de cargarlos.
+     *
+     * Fuera de la transacción del inmueble: una foto que falla no debe deshacer
+     * la ficha entera. Peor caso, el inmueble queda creado sin esa foto y se
+     * sube desde la edición.
+     */
+    protected function guardarFotosIniciales(InmuebleRequest $request, $inmueble): int
+    {
+        $archivos = $request->file('fotos', []);
+
+        if (! $archivos) {
+            return 0;
+        }
+
+        $n = 0;
+
+        foreach (array_slice($archivos, 0, 20) as $archivo) {
+            if (! str_starts_with((string) $archivo->getMimeType(), 'image/')) {
+                continue;
+            }
+
+            $media = $this->medias->create([
+                'inmueble_id' => $inmueble->id,
+                'tipo'        => 'foto',
+                'path'        => $archivo->store("inmuebles/{$inmueble->id}", 'local'),
+                'orden'       => ++$n,
+                // La primera que se sube queda de portada: es mejor que ninguna,
+                // y se cambia arrastrando desde la edición.
+                'es_portada'  => $n === 1,
+            ]);
+
+            SubirMediaAlProveedor::dispatch($media->id)->onQueue(config('whatsapp.queue'));
+        }
+
+        return $n;
+    }
+
+    /**
      * Normaliza lo que manda el formulario antes de guardarlo.
      *
      * @return array<string, mixed>
@@ -88,10 +139,7 @@ class InmuebleController extends Controller
     {
         $datos = $request->validated();
 
-        $datos['caracteristicas'] = $this->caracteristicas(
-            $datos['caracteristicas'][$datos['tipo']] ?? [],
-            $datos['tipo'],
-        );
+        $datos['caracteristicas'] = $this->caracteristicas($datos['caracteristicas'] ?? []);
 
         // Un inmueble que pasa a disponible y nunca se publicó, se marca ahora:
         // es la fecha desde la que el agente lo puede ofrecer.
@@ -103,36 +151,32 @@ class InmuebleController extends Controller
     }
 
     /**
-     * Arma el JSON de características a partir de los campos del tipo elegido.
+     * Convierte los pares clave/valor del formulario en el JSON de la columna.
      *
-     * Los vacíos se descartan en vez de guardarse como cadena vacía: una ficha
-     * con "Altura: " es peor que una sin altura, porque el agente la muestra.
-     *
-     * Las listas se guardan como arreglo real —una línea, un ítem— para que la
-     * ficha las pueda enumerar. Antes, el editor libre las aplastaba en un
-     * string separado por comas y se perdía la estructura.
+     * Una fila sin nombre se descarta: el formulario siempre deja una vacía al
+     * final para poder agregar otra, y borrar una fila es justamente vaciarla.
+     * Eso hace que quitar una característica funcione sin ningún borrado
+     * explícito — lo que no llega, no se guarda.
      *
      * @param  array<string, mixed>  $entrada
-     * @return array<string, mixed>|null
+     * @return array<string, string>|null
      */
-    protected function caracteristicas(array $entrada, string $tipo): ?array
+    protected function caracteristicas(array $entrada): ?array
     {
-        $definicion = config("inmobiliaria.inmuebles.caracteristicas_por_tipo.{$tipo}", []);
+        $claves = $entrada['clave'] ?? [];
+        $valores = $entrada['valor'] ?? [];
 
         $resultado = [];
 
-        foreach ($definicion as $clave => $def) {
-            $valor = $entrada[$clave] ?? null;
+        foreach ($claves as $i => $clave) {
+            $clave = trim((string) $clave);
+            $valor = trim((string) ($valores[$i] ?? ''));
 
-            if (blank($valor)) {
+            if ($clave === '' || $valor === '') {
                 continue;
             }
 
-            $resultado[$clave] = match ($def['tipo'] ?? 'texto') {
-                'boolean' => true,
-                'lista'   => array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) $valor)))),
-                default   => trim((string) $valor),
-            };
+            $resultado[$clave] = $valor;
         }
 
         return $resultado ?: null;
