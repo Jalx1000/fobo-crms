@@ -1727,6 +1727,15 @@ return [
         ],
     ],
     'common' => [
+        // Mensajes que devuelve el manejador de errores de la API; sin estas
+        // claves salía la clave de traducción cruda como cuerpo del error.
+        'resource-not-found'    => 'Recurso no encontrado.',
+        'forbidden-error'       => 'No tienes autorización para realizar esta acción.',
+        'unauthenticated'       => 'No autenticado.',
+        'internal-server-error' => 'Ocurrió un error de nuestro lado.',
+        'too-many-requests'     => 'Demasiadas solicitudes. Reintentá después de los segundos indicados en la cabecera Retry-After.',
+        'something-went-wrong'  => 'Algo salió mal.',
+
         'custom-attributes' => [
             'add-more'             => 'Añadir Más',
             'address'              => 'Dirección',

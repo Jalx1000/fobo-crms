@@ -66,6 +66,15 @@ interface Gateway
      */
     public function parseWebhook(array $payload): InboundBatch;
 
+    /**
+     * The option a contact picked, when the stored raw message is a tap on a
+     * button or a list row rather than typed text.
+     *
+     * Returns ['kind' => ..., 'id' => ..., 'title' => ...] or null. Providers
+     * with no interactive messages return null.
+     */
+    public function interactiveSelection(array $rawMessage): ?array;
+
     /*
     |--------------------------------------------------------------------------
     | Outbound

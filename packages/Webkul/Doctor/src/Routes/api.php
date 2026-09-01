@@ -15,7 +15,9 @@ Route::prefix('api')->group(function () {
         ->name('api.doctors.availability');
 });
 
-Route::prefix('api')->middleware('auth:sanctum')->group(function () {
+// Catalogue lookups the WhatsApp agent makes on every turn — same generous
+// bucket as the rest of the agent surface.
+Route::prefix('api')->middleware(['throttle:agent-api', 'auth:sanctum'])->group(function () {
     Route::get('productos/por-ciudad-sucursal', [ProductoController::class, 'porCiudadSucursal'])
         ->name('api.productos.por-ciudad-sucursal');
 });

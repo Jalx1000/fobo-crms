@@ -5,7 +5,6 @@ namespace Webkul\Whatsapp\Services;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Throwable;
-use Webkul\Contact\Models\PersonProxy;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Models\ConversationProxy;
@@ -157,6 +156,14 @@ class ConversationResolver
 
             return $person;
         } catch (Throwable $e) {
+            // Two webhooks for the same new number can race here; the loser hits
+            // the unique_id index. Whoever won already registered the contact,
+            // so look again before giving up rather than leaving the
+            // conversation unassigned (or, worse, retrying into a duplicate).
+            if ($person = $this->resolvePerson($contact->phone)) {
+                return $person;
+            }
+
             Log::warning('WhatsApp: could not auto-create person', [
                 'phone' => $digits,
                 'error' => $e->getMessage(),
@@ -167,29 +174,14 @@ class ConversationResolver
     }
 
     /**
-     * Match an incoming number against Person.contact_numbers. Uses a trailing
-     * digit LIKE prefilter, then confirms in PHP against normalized values.
+     * Match an incoming number against Person.contact_numbers.
+     *
+     * The matching itself lives in PersonRepository so that every entry point
+     * into the CRM — this webhook, the lead API the agent posts orders to, the
+     * admin UI — agrees on when two numbers are the same person.
      */
     public function resolvePerson(string $phone): ?Model
     {
-        $tail = PhoneNumber::tail($phone);
-
-        if (strlen($tail) < 7) {
-            return null;
-        }
-
-        return PersonProxy::modelClass()::where('contact_numbers', 'like', '%'.$tail.'%')
-            ->get()
-            ->first(function ($person) use ($tail) {
-                foreach ((array) $person->contact_numbers as $number) {
-                    $value = is_array($number) ? ($number['value'] ?? '') : $number;
-
-                    if (str_ends_with(PhoneNumber::digits($value), $tail)) {
-                        return true;
-                    }
-                }
-
-                return false;
-            });
+        return app(PersonRepository::class)->findByPhone($phone);
     }
 }

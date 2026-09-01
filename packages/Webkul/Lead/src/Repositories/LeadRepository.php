@@ -125,13 +125,7 @@ class LeadRepository extends Repository
          * If a person is provided, create or update the person and set the `person_id`.
          */
         if (isset($data['person'])) {
-            if (! empty($data['person']['id'])) {
-                $person = $this->personRepository->findOrFail($data['person']['id']);
-            } else {
-                $person = $this->personRepository->create(array_merge($data['person'], [
-                    'entity_type' => 'persons',
-                ]));
-            }
+            $person = $this->resolvePerson($data['person']);
 
             $data['person_id'] = $person->id;
         }
@@ -221,13 +215,7 @@ class LeadRepository extends Repository
          * For example, in the lead Kanban section, when switching stages, only the stage will be updated.
          */
         if (isset($data['person'])) {
-            if (! empty($data['person']['id'])) {
-                $person = $this->personRepository->findOrFail($data['person']['id']);
-            } else {
-                $person = $this->personRepository->create(array_merge($data['person'], [
-                    'entity_type' => 'persons',
-                ]));
-            }
+            $person = $this->resolvePerson($data['person']);
 
             $data['person_id'] = $person->id;
         }
@@ -388,5 +376,32 @@ class LeadRepository extends Repository
         $user = auth()->guard('user')->user();
 
         return $user && in_array(optional($user->role)->name, ['Supervisores', 'Administrador'], true);
+    }
+
+    /**
+     * The person a lead payload refers to, without ever duplicating a contact.
+     *
+     * An explicit id wins. Otherwise we match on the phone number before
+     * creating anything: the WhatsApp agent posts leads with the contact inline
+     * and no id, so creating unconditionally gave the same customer a second
+     * person on their second order — and split their history between the two,
+     * which is exactly what `get_pedidos` then failed to see.
+     */
+    protected function resolvePerson(array $person)
+    {
+        if (! empty($person['id'])) {
+            return $this->personRepository->findOrFail($person['id']);
+        }
+
+        if (
+            ! empty($person['contact_numbers'])
+            && $existing = $this->personRepository->findByContactNumbers($person['contact_numbers'])
+        ) {
+            return $existing;
+        }
+
+        return $this->personRepository->create(array_merge($person, [
+            'entity_type' => 'persons',
+        ]));
     }
 }

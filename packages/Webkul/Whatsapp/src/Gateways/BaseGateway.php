@@ -23,6 +23,14 @@ abstract class BaseGateway implements Gateway
     }
 
     /**
+     * Default: the provider has no interactive messages.
+     */
+    public function interactiveSelection(array $rawMessage): ?array
+    {
+        return null;
+    }
+
+    /**
      * Default: no messaging window. WhatsApp gateways override to 24.
      */
     public function messagingWindowHours(): ?int

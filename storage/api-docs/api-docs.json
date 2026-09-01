@@ -10,7 +10,7 @@
     },
     "servers": [
         {
-            "url": "https://imprimir.sofopolis.com",
+            "url": "https://kohlberg.sofopolis.com",
             "description": "Krayin Rest API."
         }
     ],

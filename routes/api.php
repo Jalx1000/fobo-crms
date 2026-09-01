@@ -1,12 +1,11 @@
 <?php
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
-use Webkul\Product\Models\Product;
+use Illuminate\Support\Facades\Route;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
-use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Product\Models\Product;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,7 +29,7 @@ Route::get('/public/products', function (Request $request) {
     if ($search) {
         $query->where(function ($q) use ($search) {
             $q->where('name', 'like', '%'.$search.'%')
-              ->orWhere('sku', 'like', '%'.$search.'%');
+                ->orWhere('sku', 'like', '%'.$search.'%');
         });
     }
 
@@ -46,7 +45,7 @@ Route::get('/public/products', function (Request $request) {
         if ($attribute) {
             $query->whereHas('attribute_values', function ($q) use ($attribute, $available) {
                 $q->where('attribute_id', $attribute->id)
-                  ->where('boolean_value', (int) $available);
+                    ->where('boolean_value', (int) $available);
             });
         }
     }
@@ -70,7 +69,7 @@ Route::get('/public/products', function (Request $request) {
 });
 
 Route::get('/public/chat-history', function (Request $request) {
-    $email = $request->query('email');  
+    $email = $request->query('email');
 
     if (! $email) {
         return response()->json(['error' => 'email es requerido'], 400);
@@ -100,15 +99,20 @@ Route::get('/public/chat-history', function (Request $request) {
     }
 
     return response()->json([
-        'email' => $email,
+        'email'    => $email,
         'messages' => $messages,
-        'count' => $messages->count(),
+        'count'    => $messages->count(),
     ]);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/horarios', [\App\Http\Controllers\Api\ScheduleController::class, 'getHorarios']);
     Route::get('/disponibilidad', [\App\Http\Controllers\Api\ScheduleController::class, 'getDisponibilidad']);
+
+    // Historial de pedidos por teléfono, en una sola llamada y sin depender de
+    // cómo esté escrito el número (con o sin código de país, con o sin "+").
+    Route::get('/pedidos/por-telefono', [\App\Http\Controllers\Api\LeadLookupController::class, 'byPhone'])
+        ->name('api.pedidos.por-telefono');
 });
 
 /**

@@ -34,7 +34,7 @@ class CloudApiGateway extends BaseGateway
         // Only what is implemented today. Grows as sendMedia lands.
         return new Capabilities(
             send: ['text', 'reply', 'emoji'],
-            receive: ['text', 'image', 'audio', 'document', 'video', 'sticker', 'location', 'contact'],
+            receive: ['text', 'image', 'audio', 'document', 'video', 'sticker', 'location', 'contact', 'interactive', 'button'],
         );
     }
 
@@ -170,16 +170,65 @@ class CloudApiGateway extends BaseGateway
     }
 
     /**
-     * Human-readable body: text for text, caption for media.
+     * Human-readable body: text for text, caption for media, and — for a tap on
+     * a button or a list row — the label the customer saw.
+     *
+     * Without this last case `body` stayed null and the AI agent threw the turn
+     * away as an unsupported message, so a customer who answered by tapping got
+     * no reply at all.
      */
     protected function extractBody(array $message, string $type): ?string
     {
         return match ($type) {
             'text' => $message['text']['body'] ?? null,
             'image', 'video', 'document', 'audio' => $message[$message['type']]['caption'] ?? null,
-            'button' => $message['button']['text'] ?? null,
-            default  => null,
+            'button'      => $message['button']['text'] ?? null,
+            'interactive' => $this->interactiveSelection($message)['title'] ?? null,
+            default       => null,
         };
+    }
+
+    /**
+     * The option a contact picked.
+     *
+     * Meta nests it one level down under the reply kind:
+     *
+     *     interactive: { type: "button_reply", button_reply: { id, title } }
+     *     interactive: { type: "list_reply",   list_reply:   { id, title, description } }
+     *
+     * A quick-reply template button arrives as its own `button` type instead,
+     * with `payload` where the others put an id.
+     */
+    public function interactiveSelection(array $rawMessage): ?array
+    {
+        if (isset($rawMessage['button'])) {
+            return [
+                'kind'  => 'button',
+                'id'    => $rawMessage['button']['payload'] ?? null,
+                'title' => $rawMessage['button']['text'] ?? null,
+            ];
+        }
+
+        $interactive = $rawMessage['interactive'] ?? null;
+
+        if (! is_array($interactive)) {
+            return null;
+        }
+
+        $kind = $interactive['type'] ?? null;
+        $reply = is_array($interactive[$kind] ?? null) ? $interactive[$kind] : null;
+
+        if (! $reply) {
+            return null;
+        }
+
+        return [
+            'kind' => $kind,
+            'id'   => $reply['id'] ?? null,
+            // Meta always sends a title, but fall back to the id rather than
+            // handing the agent a null it will discard.
+            'title' => $reply['title'] ?? ($reply['id'] ?? null),
+        ];
     }
 
     protected function endpoint(string $path): string

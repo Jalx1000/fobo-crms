@@ -29,14 +29,9 @@ class AgentPayload
             'gateway'         => $conversation->gateway,
             'ai_enabled'      => $conversation->aiEffective(),
             'contact'         => $this->contact($conversation),
-            'message'         => [
-                'id'        => $message->id,
-                'type'      => $message->type,
-                'text'      => $message->body,
-                'timestamp' => optional($message->created_at)->toIso8601String(),
-            ],
-            'history' => $this->history($conversation),
-            'window'  => [
+            'message'         => $this->message($message),
+            'history'         => $this->history($conversation),
+            'window'          => [
                 'open'       => $window->open,
                 'expires_at' => $window->expiresAt?->toIso8601String(),
             ],
@@ -45,6 +40,34 @@ class AgentPayload
                 'url'    => url("api/v1/whatsapp/conversations/{$conversation->id}/messages"),
             ],
         ];
+    }
+
+    /**
+     * One inbound message as the agent sees it.
+     *
+     * `text` is always the human-readable content, including when the customer
+     * answered by tapping a button or a list row — those arrive from Meta with
+     * no text at all, and the agent used to drop the turn. `type` still reports
+     * what really happened, and `interactive` carries the option's id for
+     * agents that would rather branch on the payload than on the label.
+     */
+    protected function message(Message $message): array
+    {
+        $payload = [
+            'id'        => $message->id,
+            'type'      => $message->type,
+            'text'      => $message->body,
+            'timestamp' => optional($message->created_at)->toIso8601String(),
+        ];
+
+        $selection = $this->gateways->for($message->conversation)
+            ->interactiveSelection((array) $message->payload);
+
+        if ($selection) {
+            $payload['interactive'] = $selection;
+        }
+
+        return $payload;
     }
 
     public function contact(Conversation $conversation): array

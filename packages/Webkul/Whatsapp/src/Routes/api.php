@@ -29,7 +29,9 @@ Route::prefix('api/v1/whatsapp')->group(function () {
 | user API key (Bearer), the same scheme as the rest of the Krayin REST API.
 */
 Route::prefix('api/v1/whatsapp')
-    ->middleware(['api', 'auth:sanctum'])
+    // 'agent-api' is the generous, per-token bucket: a single customer turn is
+    // several calls, and the reply POST must never be the one that gets 429'd.
+    ->middleware(['api', 'throttle:agent-api', 'auth:sanctum'])
     ->group(function () {
         Route::get('conversations/{id}/messages', [AgentController::class, 'messages']);
         Route::post('conversations/{id}/messages', [AgentController::class, 'send']);

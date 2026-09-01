@@ -1877,6 +1877,15 @@ return [
     ],
 
     'common' => [
+        // Messages the API error handler returns; without these the raw
+        // translation key was going out on the wire as the error body.
+        'resource-not-found'    => 'Resource not found.',
+        'forbidden-error'       => 'You are not authorized to perform this action.',
+        'unauthenticated'       => 'Unauthenticated.',
+        'internal-server-error' => 'Something went wrong on our side.',
+        'too-many-requests'     => 'Too many requests. Retry after the number of seconds in the Retry-After header.',
+        'something-went-wrong'  => 'Something went wrong.',
+
         'custom-attributes' => [
             'add-more'             => 'Add More',
             'address'              => 'Address',
