@@ -127,7 +127,11 @@
                                         name="lead_value"
                                         :value="$lead->lead_value"
                                         v-model="nextStage.lead_value"
-                                    />
+                                    >
+                                        {{-- El prefijo sigue al selector de abajo, en vez de
+                                             mostrar siempre la moneda de la instalación. --}}
+                                        <x-slot:currency>@{{ nextStage.lead_value_moneda || '{{ config('inmobiliaria.inmuebles.moneda_por_defecto', 'USD') }}' }}</x-slot>
+                                    </x-admin::form.control-group.control>
                                 </x-admin::form.control-group>
 
                                 {{-- Moneda del cierre: esta plaza es bimonetaria y el
@@ -138,17 +142,19 @@
                                         Moneda del cierre
                                     </x-admin::form.control-group.label>
 
-                                    <select
+                                    {{-- Con el control del core: el formulario recoge sus
+                                         valores con vee-validate y un <select> plano no se
+                                         registra ahí. --}}
+                                    <x-admin::form.control-group.control
+                                        type="select"
                                         name="lead_value_moneda"
+                                        :value="$lead->lead_value_moneda ?: config('inmobiliaria.inmuebles.moneda_por_defecto')"
                                         v-model="nextStage.lead_value_moneda"
-                                        class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
                                     >
                                         @foreach (config('inmobiliaria.inmuebles.monedas', ['USD']) as $moneda)
-                                            <option value="{{ $moneda }}" @selected(($lead->lead_value_moneda ?: config('inmobiliaria.inmuebles.moneda_por_defecto')) === $moneda)>
-                                                {{ $moneda }}
-                                            </option>
+                                            <option value="{{ $moneda }}">{{ $moneda }}</option>
                                         @endforeach
-                                    </select>
+                                    </x-admin::form.control-group.control>
                                 </x-admin::form.control-group>
                             </template>
 

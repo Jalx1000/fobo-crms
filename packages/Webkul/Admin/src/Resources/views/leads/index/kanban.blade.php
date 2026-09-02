@@ -279,7 +279,37 @@
                                         type="price"
                                         name="lead_value"
                                         ::value="finalized.lead.lead_value"
-                                    />
+                                    >
+                                        {{-- El prefijo sigue al selector. Sin esto muestra la
+                                             moneda de la instancia y contradice lo que se elige
+                                             justo abajo. --}}
+                                        <x-slot:currency>@{{ monedaCierre }}</x-slot>
+                                    </x-admin::form.control-group.control>
+                                </x-admin::form.control-group>
+
+                                {{-- Moneda del cierre. Este modal es una copia del de la
+                                     ficha del lead: agregar el campo en uno solo deja al
+                                     otro guardando importes sin moneda, que en una plaza
+                                     bimonetaria no se pueden interpretar después. --}}
+                                <x-admin::form.control-group>
+                                    <x-admin::form.control-group.label>
+                                        Moneda del cierre
+                                    </x-admin::form.control-group.label>
+
+                                    {{-- Con el control del core, no un <select> suelto: el
+                                         formulario recoge sus valores con vee-validate, y un
+                                         select plano no se registra ahí — se vería en pantalla
+                                         y no viajaría en el envío. --}}
+                                    <x-admin::form.control-group.control
+                                        type="select"
+                                        name="lead_value_moneda"
+                                        :value="config('inmobiliaria.inmuebles.moneda_por_defecto')"
+                                        v-model="monedaCierre"
+                                    >
+                                        @foreach (config('inmobiliaria.inmuebles.monedas', ['USD']) as $moneda)
+                                            <option value="{{ $moneda }}">{{ $moneda }}</option>
+                                        @endforeach
+                                    </x-admin::form.control-group.control>
                                 </x-admin::form.control-group>
                             </template>
 
@@ -355,6 +385,10 @@
                         stage: null,
                         updating: false,
                     },
+
+                    // Moneda del cierre. Acompaña al prefijo del importe para que
+                    // el campo no diga una moneda y el selector otra.
+                    monedaCierre: '{{ config('inmobiliaria.inmuebles.moneda_por_defecto', 'USD') }}',
 
                     stages: @json($pipeline->stages->toArray()),
 
