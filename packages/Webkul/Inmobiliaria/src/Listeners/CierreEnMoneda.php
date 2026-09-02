@@ -3,13 +3,16 @@
 namespace Webkul\Inmobiliaria\Listeners;
 
 /**
- * Moneda y valor del cierre de un lead.
+ * Moneda y valor de un lead.
  *
  * Dos cosas que el core no hace y esta plaza necesita:
  *
- *  1. Elegir la moneda. Krayin asume una sola por instalación y acá se cierra
+ *  1. Elegir la moneda. Krayin asume una sola por instalación y acá se opera
  *     tanto en dólares como en bolivianos. Como no convertimos en ningún punto,
  *     una cifra sin moneda no se puede interpretar después.
+ *
+ *     Se puede fijar al crear el lead, al editarlo, y al cerrarlo: los tres
+ *     formularios mandan `lead_value_moneda` y los tres pasan por acá.
  *
  *  2. Guardar el valor. `LeadController::updateStage()` recoge `lead_value` en
  *     el modal pero no lo incluye en el payload que persiste: solo guarda la

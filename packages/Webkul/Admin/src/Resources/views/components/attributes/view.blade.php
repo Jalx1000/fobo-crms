@@ -43,6 +43,18 @@
                         'allowEdit' => $allowEdit,
                         'url'       => $url,
                     ])
+
+                    {{-- La moneda del valor del lead, al lado y no dentro.
+
+                         Este campo se edita en línea: si la moneda formara parte del
+                         valor, al editarlo se mandaría "BOB 1700000.00" como importe.
+                         Los leads anteriores al campo muestran la moneda por defecto,
+                         que es la que el sistema asume al crearlos. --}}
+                    @if ($attribute->code === 'lead_value' && isset($entity) && $entity instanceof \Webkul\Lead\Contracts\Lead)
+                        <span class="mt-0.5 block text-xs font-normal text-gray-500 dark:text-gray-400">
+                            {{ $entity->lead_value_moneda ?: config('inmobiliaria.inmuebles.moneda_por_defecto', 'USD') }}
+                        </span>
+                    @endif
                 </div>
             </div>
         @endif

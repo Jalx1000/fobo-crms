@@ -43,10 +43,9 @@ class InmobiliariaServiceProvider extends ServiceProvider
 
         // Moneda y valor del cierre del lead. El selector vive en la vista del
         // core (junto al importe, dentro del modal); acá solo se persiste.
-        Event::listen(
-            'lead.update.after',
-            [\Webkul\Inmobiliaria\Listeners\CierreEnMoneda::class, 'guardar'],
-        );
+        foreach (['lead.create.after', 'lead.update.after'] as $evento) {
+            Event::listen($evento, [\Webkul\Inmobiliaria\Listeners\CierreEnMoneda::class, 'guardar']);
+        }
 
         // Columna "Inmueble" en el listado de leads, por los eventos que el
         // DataGrid del core ya dispara.

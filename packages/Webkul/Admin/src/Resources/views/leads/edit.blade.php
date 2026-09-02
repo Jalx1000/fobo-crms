@@ -137,6 +137,30 @@
                                         :entity="$lead"
                                         />
                                 </div>
+
+                                {{-- Moneda del valor del lead.
+
+                                     El campo `lead_value` es un atributo del CRM y asume la
+                                     moneda de la instalación. Acá se cierra tanto en dólares
+                                     como en bolivianos y el sistema no convierte, así que un
+                                     importe sin moneda no se puede interpretar después. --}}
+                                <div class="w-full">
+                                    <x-admin::form.control-group>
+                                        <x-admin::form.control-group.label>
+                                            Moneda del valor
+                                        </x-admin::form.control-group.label>
+
+                                        <x-admin::form.control-group.control
+                                            type="select"
+                                            name="lead_value_moneda"
+                                            :value="old('lead_value_moneda', $lead->lead_value_moneda ?: config('inmobiliaria.inmuebles.moneda_por_defecto'))"
+                                        >
+                                            @foreach (config('inmobiliaria.inmuebles.monedas', ['USD']) as $moneda)
+                                                <option value="{{ $moneda }}">{{ $moneda }}</option>
+                                            @endforeach
+                                        </x-admin::form.control-group.control>
+                                    </x-admin::form.control-group>
+                                </div>
                             </div>
 
                             {!! view_render_event('admin.leads.edit.lead_details.attributes.after', ['lead' => $lead]) !!}
