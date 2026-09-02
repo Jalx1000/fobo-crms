@@ -1820,7 +1820,7 @@ return [
                 ],
                 'stages' => [
                     'need-more-info' => 'Necesita Más Información',
-                    'won-value' => 'Monto ganado',
+                    'won-value' => 'Valor del inmueble',
                     'closed-at' => 'Fecha de cierre',
                     'save-btn' => 'Guardar',
                     'lost-reason' => 'Motivo de pérdida',
