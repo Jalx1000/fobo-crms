@@ -55,12 +55,24 @@
 
                             <!-- Stage Total Leads and Amount -->
                             <div class="flex items-center justify-between gap-2">
-                                <span class="text-xs font-medium dark:text-white">
-                                    @{{ $admin.formatPrice(stage.lead_value) }}
+                                {{-- Un total por moneda, sin sumarlas entre sí: el sistema
+                                     no convierte, así que un único número mezclaría dólares
+                                     con bolivianos. --}}
+                                <span class="flex flex-col text-xs font-medium tabular-nums dark:text-white">
+                                    <template v-if="stage.totales_por_moneda && stage.totales_por_moneda.length">
+                                        <span v-for="t in stage.totales_por_moneda" :key="t.moneda">
+                                            @{{ t.texto }}
+                                        </span>
+                                    </template>
+
+                                    <span v-else class="text-gray-400">—</span>
                                 </span>
 
-                                <!-- Progress Bar -->
-                                <div class="h-1 w-36 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
+                                {{-- La barra usa el total crudo. Es una proporción visual
+                                     entre columnas, no una cifra: sirve para comparar
+                                     tamaños aunque mezcle monedas, que es justamente lo
+                                     que el desglose de la izquierda no debe hacer. --}}
+                                <div class="h-1 w-36 shrink-0 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
                                     <div
                                         class="h-1 bg-green-500"
                                         :style="{ width: (stage.lead_value / totalStagesAmount) * 100 + '%' }"

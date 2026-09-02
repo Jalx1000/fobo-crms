@@ -88,7 +88,7 @@ class Bouncer
                 if ($user->role->permission_type == 'all') {
                     return;
                 }
-                
+
                 $rolePermissions = $user->role->permissions ?? [];
                 foreach ($rolePermissions as $p) {
                     if (str_starts_with($p, 'leads')) {

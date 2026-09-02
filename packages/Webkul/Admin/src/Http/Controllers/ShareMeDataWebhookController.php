@@ -2,16 +2,16 @@
 
 namespace Webkul\Admin\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
-use Webkul\Lead\Repositories\LeadRepository;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Webkul\Activity\Repositories\ActivityRepository;
+use Webkul\Admin\Services\ShareMeDataService;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Doctor\Repositories\DoctorRepository;
 use Webkul\Doctor\Repositories\SpecialtyRepository;
-use Webkul\Admin\Services\ShareMeDataService;
+use Webkul\Lead\Repositories\LeadRepository;
 
 class ShareMeDataWebhookController extends Controller
 {
@@ -34,7 +34,7 @@ class ShareMeDataWebhookController extends Controller
         $data = $request->all();
 
         // Validaciones básicas del payload de SMD
-        if (!isset($data['physician']['_id']) || !isset($data['patient']['phone'])) {
+        if (! isset($data['physician']['_id']) || ! isset($data['patient']['phone'])) {
             return response()->json(['message' => 'Datos incompletos'], 400);
         }
 
@@ -44,19 +44,19 @@ class ShareMeDataWebhookController extends Controller
                 $doctorExternalId = $data['physician']['_id'];
                 $doctor = $this->doctorRepository->findOneByField('unique_id', $doctorExternalId);
 
-                if (!$doctor) {
+                if (! $doctor) {
                     // Si no existe por unique_id, intentamos buscar por nombre (para evitar el error de unique name)
-                    $doctorName = ($data['physician']['name'] ?? 'Doctor') . ' ' . ($data['physician']['lastName'] ?? '');
+                    $doctorName = ($data['physician']['name'] ?? 'Doctor').' '.($data['physician']['lastName'] ?? '');
                     $doctorName = trim($doctorName) ?: 'Doctor Externo';
                     $doctorEmail = $data['physician']['email'] ?? null;
-                    
+
                     $doctor = $this->doctorRepository->findOneByField('name', $doctorName);
-                    
+
                     if ($doctor) {
                         // Si existe por nombre pero no tenía unique_id, lo actualizamos SIN borrar el nombre
                         $updateData = [
                             'unique_id' => $doctorExternalId,
-                            'name'      => $doctorName
+                            'name'      => $doctorName,
                         ];
 
                         if ($doctorEmail && \Illuminate\Support\Facades\Schema::hasColumn('doctors', 'email')) {
@@ -78,7 +78,7 @@ class ShareMeDataWebhookController extends Controller
                         }
 
                         $doctor = $this->doctorRepository->create($createData);
-                        Log::info("Webhook SMD: Doctor creado automáticamente", ['id' => $doctor->id]);
+                        Log::info('Webhook SMD: Doctor creado automáticamente', ['id' => $doctor->id]);
                     }
                 } else {
                     // Si ya existe, nos aseguramos de que el email esté actualizado si viene en el payload
@@ -92,27 +92,27 @@ class ShareMeDataWebhookController extends Controller
                 // 2. Gestionar Especialidad (Automatización del Punto 3)
                 $specialtyName = $data['specialty'] ?? 'General';
                 $specialty = $this->specialtyRepository->fetchOrCreateByName($specialtyName);
-                if (!$doctor->specialties->contains($specialty->id)) {
+                if (! $doctor->specialties->contains($specialty->id)) {
                     $doctor->specialties()->attach($specialty->id);
                 }
 
                 // 3. Identificar o Crear Paciente (Validar por email generado del teléfono)
                 $phone = $data['patient']['phone'];
                 $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
-                
+
                 // Si el número no tiene el prefijo 591, se lo agregamos
-                if (!str_starts_with($cleanPhone, '591')) {
-                    $cleanPhone = '591' . $cleanPhone;
+                if (! str_starts_with($cleanPhone, '591')) {
+                    $cleanPhone = '591'.$cleanPhone;
                 }
-                
-                $kommoEmail = $cleanPhone . '@s.kommo-whatsapp.net';
-                
+
+                $kommoEmail = $cleanPhone.'@s.kommo-whatsapp.net';
+
                 // Buscamos si existe una prospecto con ese email de Kommo
                 $person = $this->personRepository
                     ->whereJsonContains('emails', [['value' => $kommoEmail]])
                     ->first();
-                
-                if (!$person) {
+
+                if (! $person) {
                     // Búsqueda alternativa por teléfono si no existe por email
                     $person = $this->personRepository
                         ->whereJsonContains('contact_numbers', [['value' => $phone]])
@@ -120,13 +120,13 @@ class ShareMeDataWebhookController extends Controller
                         ->first();
                 }
 
-                if ($person && is_object($person) && !($person instanceof \Webkul\Contact\Contracts\Person)) {
+                if ($person && is_object($person) && ! ($person instanceof \Webkul\Contact\Contracts\Person)) {
                     $person = $this->personRepository->find($person->id);
                 }
 
-                if (!$person) {
+                if (! $person) {
                     $person = $this->personRepository->create([
-                        'name'            => ($data['patient']['name'] ?? 'Paciente') . ' ' . ($data['patient']['lastName'] ?? 'Externo'),
+                        'name'            => ($data['patient']['name'] ?? 'Paciente').' '.($data['patient']['lastName'] ?? 'Externo'),
                         'emails'          => [['value' => $kommoEmail, 'label' => 'work']],
                         'contact_numbers' => [['value' => $phone, 'label' => 'work']],
                         'entity_type'     => 'persons',
@@ -137,8 +137,8 @@ class ShareMeDataWebhookController extends Controller
                 }
 
                 // 4. Crear Lead
-                $leadTitle = ($person->name ?? (($data['patient']['name'] ?? 'Paciente') . ' ' . ($data['patient']['lastName'] ?? ''))) . " - " . ($specialtyName);
-                
+                $leadTitle = ($person->name ?? (($data['patient']['name'] ?? 'Paciente').' '.($data['patient']['lastName'] ?? ''))).' - '.($specialtyName);
+
                 $leadData = [
                     'title'       => $leadTitle,
                     'description' => $data['summary'] ?? 'Cita sincronizada desde ShareMeData',
@@ -171,28 +171,29 @@ class ShareMeDataWebhookController extends Controller
                     'additional'    => json_encode([
                         'lead_id'     => $lead->id,
                         'external_id' => $data['_id'] ?? null, // ID del evento en SMD
-                        'source'      => 'ShareMeData'
+                        'source'      => 'ShareMeData',
                     ]),
                 ]);
 
                 $activity->leads()->sync([$lead->id]);
 
-                Log::info("Webhook SMD: Cita procesada correctamente", [
+                Log::info('Webhook SMD: Cita procesada correctamente', [
                     'lead_id'     => $lead->id,
-                    'activity_id' => $activity->id
+                    'activity_id' => $activity->id,
                 ]);
 
                 return response()->json([
                     'success'     => true,
                     'lead_id'     => $lead->id,
-                    'activity_id' => $activity->id
+                    'activity_id' => $activity->id,
                 ], 201);
             });
         } catch (\Exception $e) {
-            Log::error("ShareMeData Webhook: Error procesando cita", [
+            Log::error('ShareMeData Webhook: Error procesando cita', [
                 'error' => $e->getMessage(),
-                'data'  => $data
+                'data'  => $data,
             ]);
+
             return response()->json(['message' => 'Error interno'], 500);
         }
     }

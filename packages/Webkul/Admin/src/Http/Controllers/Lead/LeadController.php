@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
@@ -339,6 +340,34 @@ class LeadController extends Controller
             $query->orderBy('leads.id', 'desc');
 
             $stage->lead_value = (clone $query)->sum('lead_value');
+
+            /*
+             * Totales por moneda, sin sumarlas entre sí.
+             *
+             * Esta plaza cierra tanto en dólares como en bolivianos y el sistema
+             * no convierte en ningún punto, así que un único total mezcla dos
+             * unidades distintas: 247.000 USD + 1.700.000 BOB daría 1.947.000 de
+             * nada. Se devuelve el desglose y la columna muestra una línea por
+             * moneda.
+             *
+             * Los leads sin moneda —cerrados antes de que el campo existiera—
+             * cuentan en la moneda por defecto, que es la que el sistema asume
+             * al crearlos.
+             */
+            $porDefecto = config('inmobiliaria.inmuebles.moneda_por_defecto', 'USD');
+
+            // El prefijo va explícito: la tabla real es `kl_leads`, y un
+            // `leads.columna` en SQL crudo no lo resuelve solo.
+            $tabla = DB::getTablePrefix().'leads';
+
+            $stage->lead_values_por_moneda = (clone $query)
+                ->selectRaw("COALESCE({$tabla}.lead_value_moneda, ?) as moneda, SUM({$tabla}.lead_value) as total", [$porDefecto])
+                ->reorder()
+                ->groupBy('moneda')
+                ->pluck('total', 'moneda')
+                ->map(fn ($total) => (float) $total)
+                ->filter(fn ($total) => $total > 0)
+                ->all();
 
             $data[$stage->sort_order] = (new StageResource($stage))->jsonSerialize();
 
