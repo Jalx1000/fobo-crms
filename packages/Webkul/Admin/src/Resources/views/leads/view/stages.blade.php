@@ -129,8 +129,15 @@
                                         v-model="nextStage.lead_value"
                                     >
                                         {{-- El prefijo sigue al selector de abajo, en vez de
-                                             mostrar siempre la moneda de la instalación. --}}
-                                        <x-slot:currency>@{{ nextStage.lead_value_moneda || '{{ config('inmobiliaria.inmuebles.moneda_por_defecto', 'USD') }}' }}</x-slot>
+                                             mostrar siempre la moneda de la instalación.
+
+                                             El valor por defecto se resuelve en PHP y se
+                                             interpola como cadena: un `{{ }}` de Blade dentro
+                                             de `@{{ }}` no se evalúa —el escape se lleva todo
+                                             lo de adentro— y Vue terminaba intentando ejecutar
+                                             `config(...)` como JavaScript. --}}
+                                        @php($monedaPorDefecto = config('inmobiliaria.inmuebles.moneda_por_defecto', 'USD'))
+                                        <x-slot:currency>@{{ nextStage.lead_value_moneda || '{!! $monedaPorDefecto !!}' }}</x-slot>
                                     </x-admin::form.control-group.control>
                                 </x-admin::form.control-group>
 
