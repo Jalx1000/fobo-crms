@@ -273,7 +273,9 @@ class ChatController extends Controller
                 'active_lead'     => $activeLead ? [
                     'title'     => $activeLead->title,
                     'stage'     => $activeLead->stage->name ?? null,
-                    'value'     => $activeLead->lead_value ? number_format((float) $activeLead->lead_value, 2) : null,
+                    // Con la moneda del lead: esta plaza opera en dos y el sistema
+                    // no convierte, así que un importe suelto no dice cuánto es.
+                    'value'     => $this->importeConMoneda($activeLead),
                     'days_open' => (int) $activeLead->created_at?->diffInDays(now()),
                     'url'       => route('admin.leads.view', $activeLead->id),
                 ] : null,
@@ -304,7 +306,7 @@ class ChatController extends Controller
                     'id'         => $lead->id,
                     'title'      => $lead->title,
                     'stage'      => $lead->stage->name ?? null,
-                    'value'      => $lead->lead_value ? number_format((float) $lead->lead_value, 2) : null,
+                    'value'      => $this->importeConMoneda($lead),
                     'created_at' => optional($lead->created_at)->format('d/m/Y'),
                     'url'        => route('admin.leads.view', $lead->id),
                 ])->values(),
@@ -353,6 +355,24 @@ class ChatController extends Controller
             'message' => 'Lead creado y vinculado al cliente.',
             'lead'    => ['id' => $lead->id, 'title' => $lead->title],
         ]);
+    }
+
+    /**
+     * El valor de un lead con su moneda, o null si no tiene importe.
+     *
+     * Los leads anteriores al campo de moneda caen en la moneda por defecto, que
+     * es la que el sistema asume al crearlos.
+     */
+    protected function importeConMoneda($lead): ?string
+    {
+        if (! $lead->lead_value) {
+            return null;
+        }
+
+        $moneda = $lead->lead_value_moneda
+            ?: config('inmobiliaria.inmuebles.moneda_por_defecto', 'USD');
+
+        return $moneda.' '.number_format((float) $lead->lead_value, 0, ',', '.');
     }
 
     /**
