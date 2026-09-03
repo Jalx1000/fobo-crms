@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Contact\Repositories\PersonRepository;
@@ -199,14 +200,39 @@ class ChatController extends Controller
             ->orderBy('activities.schedule_from')
             ->first(['activities.title', 'activities.type', 'activities.schedule_from']);
 
-        // Shared media (images/documents) and links, WhatsApp-Web style.
+        /*
+         * Todo lo que se compartió en la conversación, en las dos direcciones.
+         *
+         * No se exige `media_path`: cuando el CRM manda la galería de un
+         * inmueble no sube el archivo de nuevo, usa el identificador que el
+         * proveedor ya tiene cacheado, y el mensaje queda sin copia propia. La
+         * ruta que sirve el archivo sabe resolver los dos casos, así que filtrar
+         * por `media_path` escondía todo lo que el asesor envió.
+         */
         $media = $conversationIds->isNotEmpty()
             ? $messageModel::whereIn('conversation_id', $conversationIds)
-                ->whereIn('type', ['image', 'document'])
-                ->whereNotNull('media_path')
-                ->orderByDesc('id')->limit(60)
-                ->get(['id', 'type', 'media_path', 'media_name', 'created_at'])
+                ->whereIn('type', ['image', 'video', 'audio', 'document', 'sticker'])
+                ->where(function ($q) {
+                    $q->whereNotNull('media_path')
+                        ->orWhereNotNull('payload');
+                })
+                ->orderByDesc('id')->limit(120)
+                ->get(['id', 'type', 'direction', 'media_path', 'media_name', 'media_mime', 'payload', 'created_at'])
+                ->values()
             : collect();
+
+        /*
+         * Se descarta lo que ya no está en disco.
+         *
+         * Un archivo puede faltar por dos motivos: la descarga falló, o la foto
+         * se borró de la galería del inmueble después de haberla enviado. En los
+         * dos casos mostrarlo deja una miniatura rota, que es peor que no
+         * mostrarlo: el asesor no sabe si es un problema de la imagen o del CRM.
+         *
+         * Las rutas de los enviados por referencia se resuelven en UNA consulta,
+         * no una por mensaje.
+         */
+        $media = $this->soloConArchivo($media);
 
         $links = $conversationIds->isNotEmpty()
             ? $messageModel::whereIn('conversation_id', $conversationIds)
@@ -284,14 +310,32 @@ class ChatController extends Controller
                     'type'  => $nextActivity->type,
                     'date'  => \Illuminate\Support\Carbon::parse($nextActivity->schedule_from)->format('d/m/Y H:i'),
                 ] : null,
-                'images'          => $media->where('type', 'image')->map(fn ($m) => [
-                    'url'  => $m->media_path,
-                    'date' => optional($m->created_at)->format('d/m/Y'),
+                /*
+                 * `url` apunta a la ruta que sirve el archivo, no al camino en
+                 * disco: `media_path` es interno y el navegador no lo puede pedir.
+                 */
+                'images'          => $media->whereIn('type', ['image', 'sticker'])->map(fn ($m) => [
+                    'url'       => route('admin.whatsapp.media', $m->id),
+                    'type'      => $m->type,
+                    'direction' => $m->direction,
+                    'date'      => optional($m->created_at)->format('d/m/Y'),
+                ])->values(),
+                'videos'          => $media->where('type', 'video')->map(fn ($m) => [
+                    'url'       => route('admin.whatsapp.media', $m->id),
+                    'name'      => $m->media_name ?: 'Video',
+                    'direction' => $m->direction,
+                    'date'      => optional($m->created_at)->format('d/m/Y'),
+                ])->values(),
+                'audios'          => $media->where('type', 'audio')->map(fn ($m) => [
+                    'url'       => route('admin.whatsapp.media', $m->id),
+                    'direction' => $m->direction,
+                    'date'      => optional($m->created_at)->format('d/m/Y H:i'),
                 ])->values(),
                 'documents'       => $media->where('type', 'document')->map(fn ($m) => [
-                    'url'  => $m->media_path,
-                    'name' => $m->media_name ?: 'Documento',
-                    'date' => optional($m->created_at)->format('d/m/Y'),
+                    'url'       => route('admin.whatsapp.media', $m->id),
+                    'name'      => $m->media_name ?: 'Documento',
+                    'direction' => $m->direction,
+                    'date'      => optional($m->created_at)->format('d/m/Y'),
                 ])->values(),
                 'links'           => $links,
                 'products'        => $products->map(fn ($p) => [
@@ -355,6 +399,39 @@ class ChatController extends Controller
             'message' => 'Lead creado y vinculado al cliente.',
             'lead'    => ['id' => $lead->id, 'title' => $lead->title],
         ]);
+    }
+
+    /**
+     * Deja solo los mensajes cuyo archivo existe de verdad.
+     *
+     * @param  \Illuminate\Support\Collection  $media
+     * @return \Illuminate\Support\Collection
+     */
+    protected function soloConArchivo($media)
+    {
+        if ($media->isEmpty()) {
+            return $media;
+        }
+
+        // Una sola consulta para todos los que se enviaron por referencia.
+        $referencias = $media->pluck('payload')
+            ->map(fn ($p) => data_get($p, 'provider_media_id'))
+            ->filter()
+            ->unique();
+
+        $rutasPorReferencia = $referencias->isNotEmpty() && class_exists(\Webkul\Inmobiliaria\Models\InmuebleMedia::class)
+            ? \Webkul\Inmobiliaria\Models\InmuebleMedia::whereIn('provider_media_id', $referencias)
+                ->pluck('path', 'provider_media_id')
+            : collect();
+
+        $disco = Storage::disk('local');
+
+        return $media->filter(function ($m) use ($rutasPorReferencia, $disco) {
+            $ruta = $m->media_path
+                ?: $rutasPorReferencia->get(data_get($m->payload, 'provider_media_id'));
+
+            return filled($ruta) && $disco->exists($ruta);
+        })->values();
     }
 
     /**

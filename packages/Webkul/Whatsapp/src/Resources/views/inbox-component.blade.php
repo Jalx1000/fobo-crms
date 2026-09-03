@@ -672,13 +672,54 @@
                                 {{-- La galería abre el visor en vez de una pestaña nueva:
                                      así se pasa de una imagen a otra sin salir del chat. --}}
                                 <button v-for="(img, i) in profile.images" :key="'img-' + i" type="button"
-                                        :title="img.date"
+                                        :title="(img.direction === 'inbound' ? 'Recibida' : 'Enviada') + ' · ' + img.date"
+                                        class="relative"
                                         @click="openLightbox(img.url, profileImageUrls())">
                                     <img :src="img.url" class="wa-zoomable h-20 w-full rounded-md object-cover transition hover:opacity-80" alt="imagen compartida">
+
+                                    {{-- Quién la mandó: en una grilla de miniaturas es lo
+                                         único que distingue lo que envió el asesor de lo
+                                         que llegó del cliente. --}}
+                                    <span class="absolute bottom-1 left-1 rounded px-1 text-[9px] font-medium text-white"
+                                          :class="img.direction === 'inbound' ? 'bg-sky-600/90' : 'bg-emerald-600/90'">
+                                        @{{ img.direction === 'inbound' ? 'Recibida' : 'Enviada' }}
+                                    </span>
                                 </button>
                             </div>
                             <p v-else class="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-xs text-gray-400 dark:border-gray-700">
                                 Sin imágenes compartidas en la conversación.
+                            </p>
+                        </template>
+
+                        <template v-else-if="profileTab === 'videos'">
+                            <div v-if="(profile.videos ?? []).length" class="flex flex-col gap-2">
+                                <div v-for="(v, i) in profile.videos" :key="'vid-' + i"
+                                     class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+                                    <video :src="v.url" controls preload="metadata" class="w-full"></video>
+                                    <div class="flex items-center justify-between px-2 py-1 text-[11px] text-gray-500">
+                                        <span>@{{ v.direction === 'inbound' ? 'Recibido' : 'Enviado' }}</span>
+                                        <span>@{{ v.date }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p v-else class="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-xs text-gray-400 dark:border-gray-700">
+                                Sin videos en la conversación.
+                            </p>
+                        </template>
+
+                        <template v-else-if="profileTab === 'audios'">
+                            <div v-if="(profile.audios ?? []).length" class="flex flex-col gap-2">
+                                <div v-for="(a, i) in profile.audios" :key="'aud-' + i"
+                                     class="rounded-lg border border-gray-200 p-2 dark:border-gray-800">
+                                    <audio :src="a.url" controls preload="metadata" class="w-full"></audio>
+                                    <div class="mt-1 flex items-center justify-between text-[11px] text-gray-500">
+                                        <span>@{{ a.direction === 'inbound' ? 'Recibido' : 'Enviado' }}</span>
+                                        <span>@{{ a.date }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p v-else class="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-xs text-gray-400 dark:border-gray-700">
+                                Sin audios en la conversación.
                             </p>
                         </template>
 
@@ -690,7 +731,9 @@
                                     <span class="icon-file text-lg text-gray-400"></span>
                                     <span class="min-w-0 flex-1">
                                         <span class="block truncate text-sm text-gray-800 dark:text-gray-200">@{{ doc.name }}</span>
-                                        <span class="text-[11px] text-gray-400">@{{ doc.date }}</span>
+                                        <span class="text-[11px] text-gray-400">
+                                            @{{ doc.direction === 'inbound' ? 'Recibido' : 'Enviado' }} · @{{ doc.date }}
+                                        </span>
                                     </span>
                                 </a>
                             </div>
@@ -1099,6 +1142,8 @@
                     profileTabs: [
                         { id: 'info', label: 'Info' },
                         { id: 'imagenes', label: 'Imágenes' },
+                        { id: 'videos', label: 'Videos' },
+                        { id: 'audios', label: 'Audios' },
                         { id: 'documentos', label: 'Docs' },
                         { id: 'enlaces', label: 'Enlaces' },
                         { id: 'productos', label: 'Productos' },
@@ -1172,6 +1217,8 @@
 
                     return this.profileTabs.filter(t => {
                         if (t.id === 'imagenes') return this.profile.images.length > 0;
+                        if (t.id === 'videos') return (this.profile.videos ?? []).length > 0;
+                        if (t.id === 'audios') return (this.profile.audios ?? []).length > 0;
                         if (t.id === 'documentos') return this.profile.documents.length > 0;
                         if (t.id === 'enlaces') return this.profile.links.length > 0;
                         return true;

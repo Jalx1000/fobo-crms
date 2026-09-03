@@ -429,16 +429,35 @@ class InboxController extends Controller
      */
     public function media(Message $message): StreamedResponse
     {
-        abort_if(
-            blank($message->media_path) || ! Storage::disk('local')->exists($message->media_path),
-            404,
-        );
+        $ruta = $message->media_path ?: $this->rutaDelProveedor($message);
+
+        abort_if(blank($ruta) || ! Storage::disk('local')->exists($ruta), 404);
 
         return Storage::disk('local')->response(
-            $message->media_path,
+            $ruta,
             $message->media_name,
             ['Content-Type' => $message->media_mime ?: 'application/octet-stream'],
         );
+    }
+
+    /**
+     * El archivo de un mensaje que se envió por referencia, sin copia propia.
+     *
+     * Cuando el CRM manda la galería de un inmueble no sube el archivo de nuevo:
+     * usa el identificador que el proveedor ya tiene cacheado. El mensaje queda
+     * sin `media_path` —el archivo vive en la galería del inmueble— y sin esto
+     * el panel del cliente mostraría un hueco donde el asesor sí envió algo.
+     */
+    protected function rutaDelProveedor(Message $message): ?string
+    {
+        $proveedor = data_get($message->payload, 'provider_media_id');
+
+        if (! $proveedor || ! class_exists(\Webkul\Inmobiliaria\Models\InmuebleMedia::class)) {
+            return null;
+        }
+
+        return \Webkul\Inmobiliaria\Models\InmuebleMedia::where('provider_media_id', $proveedor)
+            ->value('path');
     }
 
     /**
