@@ -49,13 +49,27 @@
              * @param {{lat:?number, lng:?number, alMover:function(number,number)}} opciones
              */
             function montar(nodo, opciones = {}) {
-                const { lat, lng, alMover = () => {} } = opciones;
+                const { lat, lng, alMover = () => {}, soloLectura = false, zoom = null } = opciones;
                 const tienePin = lat !== null && lat !== undefined && lat !== '' &&
                                  lng !== null && lng !== undefined && lng !== '';
 
-                const mapa = window.L.map(nodo).setView(
+                /*
+                 * En sólo lectura se apaga todo lo que invite a tocar: un mapa
+                 * dentro de un globo del chat que se mueve con la rueda le
+                 * secuestra el scroll a la conversación.
+                 */
+                const mapa = window.L.map(nodo, soloLectura ? {
+                    dragging:        false,
+                    scrollWheelZoom: false,
+                    doubleClickZoom: false,
+                    boxZoom:         false,
+                    keyboard:        false,
+                    touchZoom:       false,
+                    zoomControl:     false,
+                    attributionControl: false,
+                } : {}).setView(
                     tienePin ? [Number(lat), Number(lng)] : CENTRO_POR_DEFECTO,
-                    tienePin ? 16 : 12,
+                    zoom ?? (tienePin ? 16 : 12),
                 );
 
                 window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -67,7 +81,7 @@
 
                 function ponerPin(y, x, { recentrar = true } = {}) {
                     if (! pin) {
-                        pin = window.L.marker([y, x], { draggable: true }).addTo(mapa);
+                        pin = window.L.marker([y, x], { draggable: ! soloLectura }).addTo(mapa);
                         pin.on('dragend', () => {
                             const p = pin.getLatLng();
                             alMover(p.lat, p.lng);
@@ -83,7 +97,9 @@
 
                 // Tocar el mapa mueve el pin sin recentrar: recentrar mientras
                 // alguien elige un punto le mueve el mapa bajo el dedo.
-                mapa.on('click', e => ponerPin(e.latlng.lat, e.latlng.lng, { recentrar: false }));
+                if (! soloLectura) {
+                    mapa.on('click', e => ponerPin(e.latlng.lat, e.latlng.lng, { recentrar: false }));
+                }
 
                 if (tienePin) ponerPin(Number(lat), Number(lng), { recentrar: false });
 
@@ -97,6 +113,10 @@
                      * de alto, y el mapa queda montado pero invisible, sin error.
                      */
                     remedir: () => mapa.invalidateSize(),
+
+                    // Necesario donde el mapa vive y muere con un componente:
+                    // sin esto Leaflet deja listeners colgando del nodo viejo.
+                    destruir: () => mapa.remove(),
                 };
             }
 

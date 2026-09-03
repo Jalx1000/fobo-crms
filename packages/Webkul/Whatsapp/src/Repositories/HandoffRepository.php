@@ -98,18 +98,85 @@ class HandoffRepository extends Repository
     }
 
     /**
-     * Cierra el handoff y devuelve la conversación al agente.
+     * Un asesor escribe en una conversación que nadie derivó: se la queda.
+     *
+     * La derivación nace ya 'tomado' y no 'abierto': el asesor no está
+     * esperando que alguien la levante, ya está escribiéndole al cliente. Que
+     * quede registrada sirve para saber quién atendió y para que el cierre
+     * automático la alcance si después la abandona.
+     *
+     * Devuelve null cuando ya había una vigente y no hubo nada que hacer, para
+     * que quien llama sepa si tiene que auditar el movimiento.
      */
-    public function cerrar(int $conversationId): ?Handoff
+    public function autoderivar(int $conversationId, int $userId): ?Handoff
+    {
+        if ($vigente = $this->abiertoDe($conversationId)) {
+            // Ya derivada y sin dueño en la conversación: la toma quien escribe.
+            return $vigente->state === 'abierto'
+                ? $this->tomar($conversationId, $userId)
+                : null;
+        }
+
+        try {
+            return $this->model->newQuery()->create([
+                'conversation_id' => $conversationId,
+                'user_id'         => $userId,
+                'reason'          => Handoff::MOTIVO_AUTODERIVADO,
+                'state'           => 'tomado',
+                'opened_at'       => now(),
+                'taken_at'        => now(),
+                'abierto_uid'     => Handoff::VIGENTE,
+            ]);
+        } catch (QueryException $e) {
+            // Dos mensajes del asesor casi simultáneos: el índice único evitó
+            // la derivación duplicada y la que ganó ya es suya.
+            if ($this->abiertoDe($conversationId)) {
+                return null;
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Cierra el handoff y devuelve la conversación al agente.
+     *
+     * `$cerradoPor` es null cuando no cierra una persona: ahí `$motivo` dice si
+     * fue el sistema por abandono o el agente. Sin esa distinción, «cerrada»
+     * tapaba por igual a la que se atendió y a la que nadie contestó.
+     */
+    public function cerrar(int $conversationId, ?int $cerradoPor = null, string $motivo = Handoff::POR_ASESOR): ?Handoff
     {
         $handoff = $this->abiertoDe($conversationId);
 
         $handoff?->update([
-            'state'       => 'cerrado',
-            'closed_at'   => now(),
-            'abierto_uid' => null,
+            'state'         => 'cerrado',
+            'closed_at'     => now(),
+            'abierto_uid'   => null,
+            'cerrado_uid'   => $cerradoPor,
+            'cierre_motivo' => $motivo,
         ]);
 
         return $handoff;
+    }
+
+    /**
+     * Derivaciones que nadie contestó y ya pasaron el plazo.
+     *
+     * El filtro por tiempo va en SQL y el de «sin respuesta» en PHP: son pocas
+     * filas vigentes, y expresar en SQL «ningún mensaje humano posterior a
+     * opened_at» cuesta más de lo que ahorra.
+     *
+     * @return \Illuminate\Support\Collection<int, Handoff>
+     */
+    public function abandonadas(int $horas)
+    {
+        return $this->model->newQuery()
+            ->with('conversation')
+            ->whereIn('state', ['abierto', 'tomado'])
+            ->where('opened_at', '<=', now()->subHours($horas))
+            ->get()
+            ->filter(fn (Handoff $h) => $h->sinRespuestaHumana())
+            ->values();
     }
 }

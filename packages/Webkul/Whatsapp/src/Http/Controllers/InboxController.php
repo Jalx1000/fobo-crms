@@ -20,6 +20,8 @@ use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\ConversationProxy;
+use Webkul\Whatsapp\Models\Handoff;
+use Webkul\Whatsapp\Models\HandoffProxy;
 use Webkul\Whatsapp\Models\Message;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Repositories\HandoffRepository;
@@ -193,7 +195,7 @@ class InboxController extends Controller
 
         $userId = auth()->guard('user')->id();
 
-        if (! $this->handoffs->cerrar($conversation->id)) {
+        if (! $this->handoffs->cerrar($conversation->id, $userId, Handoff::POR_ASESOR)) {
             return response()->json([
                 'message' => 'Esta conversación no tiene una derivación abierta.',
                 'handoff' => $this->handoffPresenter->paraInbox(null, $userId),
@@ -225,6 +227,81 @@ class InboxController extends Controller
      * auditoría nunca puede abortar la acción — los hechos duros ya quedaron en
      * la tabla de handoffs.
      */
+    /**
+     * Historial de derivaciones de la conversación, para el detalle del cliente.
+     *
+     * Sale de la tabla y no de las notas de actividad: las notas son texto para
+     * leer, y acá se necesita saber con precisión quién atendió y cómo terminó
+     * cada derivación —sobre todo distinguir la que se cerró porque se atendió
+     * de la que cerró el sistema porque nadie contestó.
+     */
+    public function handoffHistory(string $id): JsonResponse
+    {
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        $handoffs = HandoffProxy::modelClass()::query()
+            ->with(['asesor', 'cerradaPor'])
+            ->where('conversation_id', $conversation->id)
+            ->orderByDesc('opened_at')
+            ->limit(30)
+            ->get()
+            ->map(fn ($h) => [
+                'id'            => $h->id,
+                'estado'        => $h->state,
+                'autoderivado'  => $h->fueAutoderivado(),
+                'motivo'        => $h->reason,
+                'asesor'        => $h->asesor?->name,
+                'abierta'       => optional($h->opened_at)->toIso8601String(),
+                'tomada'        => optional($h->taken_at)->toIso8601String(),
+                'cerrada'       => optional($h->closed_at)->toIso8601String(),
+                'cierre_motivo' => $h->cierre_motivo,
+                'cerrada_por'   => $h->cerradaPor?->name,
+                'referencia'    => $h->referencia_codigo,
+            ]);
+
+        return response()->json(['handoffs' => $handoffs]);
+    }
+
+    /**
+     * El asesor que escribe se queda con la conversación.
+     *
+     * Antes, escribir a mano no dejaba ninguna marca: la conversación quedaba
+     * atendida de hecho pero sin dueño, así que nadie sabía quién estaba
+     * encima ni había nada que cerrar. Ahora escribir es hacerse cargo.
+     *
+     * No revienta el envío si falla: el mensaje al cliente ya salió, y perder
+     * la derivación es menos grave que devolver un error por algo que el
+     * asesor no puede resolver.
+     */
+    protected function autoderivar($conversation, ?int $userId): void
+    {
+        if (! $userId) {
+            return;
+        }
+
+        try {
+            $handoff = $this->handoffs->autoderivar($conversation->id, $userId);
+
+            if (! $handoff) {
+                return;
+            }
+
+            $this->auditarHandoff(
+                $conversation,
+                $handoff->fueAutoderivado()
+                    ? 'Derivación abierta automáticamente: '.$this->nombreDe($userId).' escribió en la conversación.'
+                    : 'Derivación tomada por '.$this->nombreDe($userId).' al escribir en la conversación.',
+                $userId,
+                app(ActivityRepository::class),
+            );
+        } catch (Throwable $e) {
+            Log::warning('WhatsApp: no se pudo autoderivar la conversación.', [
+                'conversation_id' => $conversation->id,
+                'error'           => $e->getMessage(),
+            ]);
+        }
+    }
+
     protected function auditarHandoff($conversation, string $comment, ?int $userId, ActivityRepository $activities): void
     {
         if (! $conversation->person_id && ! $conversation->lead_id) {
@@ -312,6 +389,8 @@ class InboxController extends Controller
 
         SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
 
+        $this->autoderivar($message->conversation, auth()->guard('user')->id());
+
         return response()->json(['message' => $this->transform($message->load('replyTo'))]);
     }
 
@@ -385,6 +464,8 @@ class InboxController extends Controller
         $conversation->forceFill(['last_message_at' => now()])->save();
 
         SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
+
+        $this->autoderivar($conversation, auth()->guard('user')->id());
 
         return response()->json(['message' => $this->transform($message)]);
     }
@@ -460,6 +541,8 @@ class InboxController extends Controller
             $data['address'] ?? null,
             'human',
         );
+
+        $this->autoderivar($conversation, auth()->guard('user')->id());
 
         return response()->json(['message' => $this->transform($message)]);
     }

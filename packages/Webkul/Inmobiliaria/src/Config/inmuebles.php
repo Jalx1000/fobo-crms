@@ -273,6 +273,17 @@ return [
     */
     'handoff' => [
         'escalar_tras_minutos'  => 15,
+
+        /*
+         | Horas sin una sola respuesta humana antes de que el sistema cierre la
+         | derivación y le devuelva la conversación al agente.
+         |
+         | Mientras la derivación está vigente el agente no habla, así que una que
+         | nadie contesta deja al cliente sin nadie del otro lado. Ocho horas es una
+         | jornada: cubre al asesor que deriva al final del día y contesta al
+         | siguiente, sin dejar al cliente esperando un día entero.
+         */
+        'cerrar_sin_respuesta_horas' => 8,
         'devolver_tras_minutos' => 60,
         'supervisor_user_id'    => null,
     ],

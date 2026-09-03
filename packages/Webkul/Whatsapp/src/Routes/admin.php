@@ -28,6 +28,7 @@ Route::controller(InboxController::class)
 
         // Derivaciones. El agente las abre por su propia API; acá solo se las
         // toma y se las cierra, que es lo que un asesor hace desde el inbox.
+        Route::get('conversations/{id}/handoffs', 'handoffHistory')->name('handoff.history');
         Route::post('conversations/{id}/handoff/claim', 'claimHandoff')->name('handoff.claim');
         Route::post('conversations/{id}/handoff/resolve', 'resolveHandoff')->name('handoff.resolve');
         Route::post('conversations/{id}/notes', 'storeNote')->name('notes.store');

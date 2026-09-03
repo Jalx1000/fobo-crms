@@ -17,6 +17,13 @@ class Kernel extends ConsoleKernel
         // Derivaciones que nadie tomó: mientras tanto el cliente está esperando
         // en silencio, porque el agente deja de responder al derivar.
         $schedule->command('crm:escalar-handoffs')->everyFiveMinutes()->withoutOverlapping();
+
+        /*
+         * Cada cuarto de hora alcanza: el plazo se mide en horas, así que el
+         * retraso máximo es despreciable frente a él y la corrida es barata
+         * (solo mira las derivaciones vigentes, que son unas pocas).
+         */
+        $schedule->command('crm:cerrar-handoffs-abandonados')->everyFifteenMinutes()->withoutOverlapping();
     }
 
     /**

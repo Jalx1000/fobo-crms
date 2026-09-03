@@ -21,8 +21,18 @@ class Handoff extends Model implements HandoffContract
     protected $fillable = [
         'conversation_id', 'user_id', 'referencia_id', 'referencia_codigo',
         'reason', 'state', 'opened_at', 'taken_at', 'closed_at', 'escalated_at',
-        'abierto_uid',
+        'abierto_uid', 'cerrado_uid', 'cierre_motivo',
     ];
+
+    /** Cómo terminó la derivación. */
+    public const POR_ASESOR = 'asesor';
+
+    public const POR_AGENTE = 'agente';
+
+    public const POR_SISTEMA = 'sistema';
+
+    /** Se abrió sola porque un asesor escribió, sin que nadie la pidiera. */
+    public const MOTIVO_AUTODERIVADO = 'autoderivado';
 
     protected $casts = [
         'opened_at'    => 'datetime',
@@ -52,6 +62,37 @@ class Handoff extends Model implements HandoffContract
     public function asesor(): BelongsTo
     {
         return $this->belongsTo(UserProxy::modelClass(), 'user_id');
+    }
+
+    /**
+     * Quién la cerró. Null cuando la cerró el sistema o el agente: ahí el
+     * responsable no es una persona, y `cierre_motivo` dice cuál de los dos.
+     */
+    public function cerradaPor(): BelongsTo
+    {
+        return $this->belongsTo(UserProxy::modelClass(), 'cerrado_uid');
+    }
+
+    public function fueAutoderivado(): bool
+    {
+        return $this->reason === self::MOTIVO_AUTODERIVADO;
+    }
+
+    /**
+     * ¿Nadie le contestó al cliente desde que se derivó?
+     *
+     * Se mira contra los mensajes salientes escritos por una persona: los del
+     * agente no cuentan, porque justamente la derivación existe para sacarlo
+     * del medio.
+     */
+    public function sinRespuestaHumana(): bool
+    {
+        return ! $this->conversation
+            ?->messages()
+            ->where('direction', 'outbound')
+            ->where('sender', 'human')
+            ->where('created_at', '>=', $this->opened_at)
+            ->exists();
     }
 
     /**

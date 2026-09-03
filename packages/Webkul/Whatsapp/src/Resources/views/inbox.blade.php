@@ -30,6 +30,7 @@
         send-media-url="{{ route('admin.whatsapp.send-media') }}"
         galeria-url="{{ route('admin.inmuebles.enviar-galeria') }}"
         ubicacion-url="{{ route('admin.inmuebles.enviar-ubicacion') }}"
+        handoffs-url="{{ route('admin.whatsapp.handoff.history', ['id' => '__id__']) }}"
         send-location-url="{{ route('admin.whatsapp.send-location') }}"
         buscar-inmuebles-url="{{ route('admin.inmuebles.buscar-inbox') }}"
         media-inmueble-url="{{ route('admin.inmuebles.medias.archivo', '__ID__') }}"

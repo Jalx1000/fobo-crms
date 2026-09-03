@@ -238,16 +238,20 @@
                                  solo mensaje con el payload incompleto dejaba la
                                  conversación en blanco, no el globo en blanco. --}}
                             <div v-else-if="msg.type === 'location'" class="min-w-[200px]">
-                                <a v-if="msg.location" :href="'https://www.google.com/maps?q=' + msg.location.lat + ',' + msg.location.lng"
-                                   target="_blank" rel="noopener"
-                                   class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 transition hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20">
-                                    <span class="icon-map text-xl"></span>
-                                    <span class="flex flex-col">
-                                        <span class="font-medium">@{{ msg.location.name || 'Ubicación' }}</span>
-                                        <span v-if="msg.location.address" class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.location.address }}</span>
-                                        <span class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.location.lat }}, @{{ msg.location.lng }}</span>
-                                    </span>
-                                </a>
+                                <div v-if="msg.location" class="flex w-[240px] flex-col gap-1">
+                                    <v-mapa-globo :lat="msg.location.lat" :lng="msg.location.lng"></v-mapa-globo>
+
+                                    <a :href="'https://www.google.com/maps?q=' + msg.location.lat + ',' + msg.location.lng"
+                                       target="_blank" rel="noopener"
+                                       class="flex items-start gap-2 rounded-md px-1 py-0.5 transition hover:bg-black/5 dark:hover:bg-white/10">
+                                        <span class="icon-map text-lg"></span>
+                                        <span class="flex flex-col">
+                                            <span class="font-medium">@{{ msg.location.name || 'Ubicación' }}</span>
+                                            <span v-if="msg.location.address" class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.location.address }}</span>
+                                            <span class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.location.lat }}, @{{ msg.location.lng }}</span>
+                                        </span>
+                                    </a>
+                                </div>
                                 <span v-else class="italic text-gray-500">Ubicación sin coordenadas</span>
                             </div>
 
@@ -879,6 +883,51 @@
                         </template>
                     </div>
 
+                    {{-- Historial de derivaciones.
+                         El asesor necesita ver de un vistazo quién atendió y
+                         cómo terminó cada una: no es lo mismo una derivación
+                         que se cerró porque se resolvió que una que cerró el
+                         sistema porque nadie contestó. --}}
+                    <div v-if="handoffs.length" class="border-t border-gray-200 px-3 py-3 dark:border-gray-800">
+                        <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                            Derivaciones
+                        </p>
+
+                        <ol class="flex flex-col gap-3">
+                            <li v-for="h in handoffs" :key="h.id" class="relative pl-4">
+                                <span class="absolute left-0 top-1.5 h-1.5 w-1.5 rounded-full"
+                                      :class="h.estado === 'cerrado' ? 'bg-gray-300 dark:bg-gray-600' : 'bg-emerald-500'"></span>
+
+                                <p class="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                                    @{{ h.autoderivado ? 'Se autoderivó' : 'Derivada' }}
+                                    <template v-if="h.asesor"> a @{{ h.asesor }}</template>
+                                </p>
+
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400">
+                                    @{{ fechaCorta(h.abierta) }}
+                                    <template v-if="h.referencia"> · @{{ h.referencia }}</template>
+                                </p>
+
+                                <p class="mt-0.5 text-[10px]" :class="h.cierre_motivo === 'sistema'
+                                        ? 'text-amber-600 dark:text-amber-400'
+                                        : 'text-gray-500 dark:text-gray-400'">
+                                    <template v-if="h.estado !== 'cerrado'">
+                                        En curso
+                                    </template>
+                                    <template v-else-if="h.cierre_motivo === 'sistema'">
+                                        El sistema la cerró: nadie contestó · @{{ fechaCorta(h.cerrada) }}
+                                    </template>
+                                    <template v-else-if="h.cerrada_por">
+                                        Cerrada por @{{ h.cerrada_por }} · @{{ fechaCorta(h.cerrada) }}
+                                    </template>
+                                    <template v-else>
+                                        Cerrada · @{{ fechaCorta(h.cerrada) }}
+                                    </template>
+                                </p>
+                            </li>
+                        </ol>
+                    </div>
+
                     <!-- sidebar footer -->
                     <div class="border-t border-gray-200 p-2.5 dark:border-gray-800">
                         <a :href="profile.view_url" target="_blank" class="primary-button w-full justify-center !py-1.5 text-sm">
@@ -1231,6 +1280,52 @@
         // respect that for the rest of the session (survives remounts).
         let waProfilePref = true;
 
+        /*
+         * El mapita de un globo de ubicación.
+         *
+         * Va como componente y no como un div suelto en el v-for porque
+         * Leaflet necesita un nodo estable: montar en `mounted` y soltar en
+         * `beforeUnmount` es lo que evita que queden mapas huérfanos cada vez
+         * que el hilo se redibuja, que en este inbox pasa todo el tiempo.
+         */
+        app.component('v-mapa-globo', {
+            template: '<div class="h-[140px] w-full overflow-hidden rounded-md" ref="caja"></div>',
+
+            props: {
+                lat: { type: [Number, String], required: true },
+                lng: { type: [Number, String], required: true },
+            },
+
+            data() {
+                return { control: null };
+            },
+
+            mounted() {
+                if (! window.crmMapa) return;
+
+                window.crmMapa.cargar()
+                    .then(() => {
+                        if (! this.$refs.caja) return;
+
+                        this.control = window.crmMapa.montar(this.$refs.caja, {
+                            lat: this.lat,
+                            lng: this.lng,
+                            // Es una vista, no un editor: el pin del globo no se
+                            // arrastra ni el clic lo mueve.
+                            soloLectura: true,
+                            zoom: 15,
+                        });
+
+                        this.$nextTick(() => this.control.remedir());
+                    })
+                    .catch(() => {});
+            },
+
+            beforeUnmount() {
+                this.control?.destruir();
+            },
+        });
+
         app.component('v-whatsapp-inbox', {
             template: '#v-whatsapp-inbox-template',
 
@@ -1241,6 +1336,7 @@
                 sendUrl: { type: String, default: '' },
                 sendMediaUrl: { type: String, default: '' },
                 galeriaUrl: { type: String, default: '' },
+                handoffsUrl: { type: String, default: '' },
                 ubicacionUrl: { type: String, default: '' },
                 sendLocationUrl: { type: String, default: '' },
                 buscarInmueblesUrl: { type: String, default: '' },
@@ -1329,6 +1425,8 @@
                     qrSaving: false,
                     qrTried: false, // marks required fields after a failed submit
                     qrIndex: 0,     // highlighted match in the "/" picker
+                    handoffs: [],
+
                     // Client detail sidebar
                     profile: null,
                     profileLoading: false,
@@ -1862,7 +1960,31 @@
 
                     this.profileOpen = !this.profileOpen;
 
-                    if (this.profileOpen) this.fetchProfile();
+                    if (this.profileOpen) {
+                        this.fetchProfile();
+                        this.cargarHandoffs();
+                    }
+                },
+
+                /*
+                 * Se recarga en cada apertura, no una sola vez como el perfil:
+                 * el asesor acaba de escribir y espera ver su propia derivación
+                 * recién creada.
+                 */
+                cargarHandoffs() {
+                    if (! this.handoffsUrl || ! this.context.conversationId) return;
+
+                    this.$axios.get(this.handoffsUrl.replace('__id__', this.context.conversationId))
+                        .then(res => { this.handoffs = res.data?.handoffs ?? []; })
+                        .catch(() => { this.handoffs = []; });
+                },
+
+                fechaCorta(iso) {
+                    if (! iso) return '';
+
+                    return new Date(iso).toLocaleString('es-BO', {
+                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                    });
                 },
 
                 fetchProfile() {
