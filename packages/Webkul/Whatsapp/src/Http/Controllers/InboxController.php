@@ -69,6 +69,8 @@ class InboxController extends Controller
                 }
             }
 
+            $this->precargarRutasDelProveedor($messages);
+
             $messages = $messages->map(fn ($message) => $this->transform($message));
 
             // Internal notes live as Krayin note-activities on the linked
@@ -479,7 +481,16 @@ class InboxController extends Controller
      *
      * @return array{estado: string, motivo: ?string}|null
      */
-    protected function mediaPendiente(Message $message): ?array
+    /**
+     * Qué archivo mostrar en el hilo, si hay alguno.
+     *
+     * Se apoya en el mismo criterio que usa `media()` para servirlo. Antes acá
+     * se miraba solo `media_path`, y las fotos que el agente manda por
+     * referencia al catálogo —que no dejan copia propia— quedaban eternamente
+     * en «Descargando…» aunque el endpoint las sirviera perfecto: dos lugares
+     * decidiendo lo mismo con reglas distintas.
+     */
+    protected function mediaDe(Message $message): ?array
     {
         $conArchivo = ['image', 'video', 'audio', 'document', 'sticker'];
 
@@ -487,10 +498,56 @@ class InboxController extends Controller
             return null;
         }
 
+        $ruta = $message->media_path ?: $this->rutaDelProveedor($message);
+
+        if ($ruta && Storage::disk('local')->exists($ruta)) {
+            return [
+                'url'      => route('admin.whatsapp.media', $message->id),
+                'filename' => $message->media_name,
+                'meta'     => $message->media_mime,
+                'estado'   => 'listo',
+            ];
+        }
+
+        /*
+         * Sin archivo. Un saliente ya entregado no está «descargando»: salió
+         * bien y lo que falta es la copia local, así que decir que se está
+         * bajando sería mentir con un spinner que nunca termina.
+         */
+        if ($message->direction === 'outbound') {
+            return [
+                'estado' => 'fallido',
+                'motivo' => $message->error ?: 'El archivo se envió pero el CRM no guardó una copia.',
+            ];
+        }
+
         return [
             'estado' => $message->error ? 'fallido' : 'pendiente',
             'motivo' => $message->error,
         ];
+    }
+
+    /**
+     * Evita una consulta por mensaje al resolver las referencias del catálogo.
+     *
+     * @param  \Illuminate\Support\Collection<int, Message>  $messages
+     */
+    protected function precargarRutasDelProveedor($messages): void
+    {
+        $ids = $messages
+            ->map(fn ($m) => data_get($m->payload, 'provider_media_id'))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty() || ! class_exists(\Webkul\Inmobiliaria\Models\InmuebleMedia::class)) {
+            return;
+        }
+
+        $this->rutasDelProveedor = \Webkul\Inmobiliaria\Models\InmuebleMedia::query()
+            ->whereIn('provider_media_id', $ids)
+            ->pluck('path', 'provider_media_id')
+            ->all();
     }
 
     /**
@@ -591,6 +648,10 @@ class InboxController extends Controller
 
         if (! $proveedor || ! class_exists(\Webkul\Inmobiliaria\Models\InmuebleMedia::class)) {
             return null;
+        }
+
+        if (array_key_exists($proveedor, $this->rutasDelProveedor)) {
+            return $this->rutasDelProveedor[$proveedor];
         }
 
         return \Webkul\Inmobiliaria\Models\InmuebleMedia::where('provider_media_id', $proveedor)
@@ -760,6 +821,13 @@ class InboxController extends Controller
     /**
      * Shape a message for the inbox front-end.
      */
+    /**
+     * provider_media_id => ruta en disco, para el hilo que se está armando.
+     *
+     * @var array<string, string>
+     */
+    protected array $rutasDelProveedor = [];
+
     protected function transform($message): array
     {
         return [
@@ -780,12 +848,7 @@ class InboxController extends Controller
              * fuera relativa al admin y la imagen salía rota, aunque el archivo
              * hubiera llegado perfecto al cliente.
              */
-            'media'     => $message->media_path ? [
-                'url'      => route('admin.whatsapp.media', $message->id),
-                'filename' => $message->media_name,
-                'meta'     => $message->media_mime,
-                'estado'   => 'listo',
-            ] : $this->mediaPendiente($message),
+            'media'     => $this->mediaDe($message),
             'location'  => $this->ubicacionDe($message),
             'contact'   => $this->contactoDe($message),
             'replyTo'   => $message->replyTo ? [
