@@ -238,7 +238,7 @@
                                  solo mensaje con el payload incompleto dejaba la
                                  conversación en blanco, no el globo en blanco. --}}
                             <div v-else-if="msg.type === 'location'" class="min-w-[200px]">
-                                <div v-if="msg.location" class="flex w-[240px] flex-col gap-1">
+                                <div v-if="msg.location" class="flex flex-col gap-1" style="width: 240px">
                                     <v-mapa-globo :lat="msg.location.lat" :lng="msg.location.lng"></v-mapa-globo>
 
                                     <a :href="'https://www.google.com/maps?q=' + msg.location.lat + ',' + msg.location.lng"
@@ -881,51 +881,48 @@
                                 Este cliente no tiene pedidos.
                             </p>
                         </template>
-                    </div>
 
-                    {{-- Historial de derivaciones.
-                         El asesor necesita ver de un vistazo quién atendió y
-                         cómo terminó cada una: no es lo mismo una derivación
-                         que se cerró porque se resolvió que una que cerró el
-                         sistema porque nadie contestó. --}}
-                    <div v-if="handoffs.length" class="border-t border-gray-200 px-3 py-3 dark:border-gray-800">
-                        <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                            Derivaciones
-                        </p>
+                        {{-- Derivaciones: quién atendió y cómo terminó cada una.
+                             Distinguir el cierre del sistema del cierre de una
+                             persona es el punto de la pestaña: «cerrada» sola
+                             tapaba por igual la atendida y la abandonada. --}}
+                        <template v-else-if="profileTab === 'derivaciones'">
+                            <ol class="flex flex-col gap-3">
+                                <li v-for="h in handoffs" :key="h.id"
+                                    class="relative rounded-lg border border-gray-200 p-2.5 pl-4 dark:border-gray-800">
+                                    <span class="absolute left-1.5 top-3.5 h-1.5 w-1.5 rounded-full"
+                                          :class="h.estado === 'cerrado' ? 'bg-gray-300 dark:bg-gray-600' : 'bg-emerald-500'"></span>
 
-                        <ol class="flex flex-col gap-3">
-                            <li v-for="h in handoffs" :key="h.id" class="relative pl-4">
-                                <span class="absolute left-0 top-1.5 h-1.5 w-1.5 rounded-full"
-                                      :class="h.estado === 'cerrado' ? 'bg-gray-300 dark:bg-gray-600' : 'bg-emerald-500'"></span>
+                                    <p class="text-xs font-medium text-gray-800 dark:text-gray-200">
+                                        @{{ h.autoderivado ? 'Se autoderivó' : 'Derivada' }}
+                                        <template v-if="h.asesor"> a @{{ h.asesor }}</template>
+                                    </p>
 
-                                <p class="text-[11px] font-medium text-gray-700 dark:text-gray-300">
-                                    @{{ h.autoderivado ? 'Se autoderivó' : 'Derivada' }}
-                                    <template v-if="h.asesor"> a @{{ h.asesor }}</template>
-                                </p>
+                                    <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                                        @{{ fechaCorta(h.abierta) }}
+                                        <template v-if="h.referencia"> · @{{ h.referencia }}</template>
+                                        <template v-else-if="h.motivo && !h.autoderivado"> · @{{ h.motivo }}</template>
+                                    </p>
 
-                                <p class="text-[10px] text-gray-500 dark:text-gray-400">
-                                    @{{ fechaCorta(h.abierta) }}
-                                    <template v-if="h.referencia"> · @{{ h.referencia }}</template>
-                                </p>
-
-                                <p class="mt-0.5 text-[10px]" :class="h.cierre_motivo === 'sistema'
-                                        ? 'text-amber-600 dark:text-amber-400'
-                                        : 'text-gray-500 dark:text-gray-400'">
-                                    <template v-if="h.estado !== 'cerrado'">
-                                        En curso
-                                    </template>
-                                    <template v-else-if="h.cierre_motivo === 'sistema'">
-                                        El sistema la cerró: nadie contestó · @{{ fechaCorta(h.cerrada) }}
-                                    </template>
-                                    <template v-else-if="h.cerrada_por">
-                                        Cerrada por @{{ h.cerrada_por }} · @{{ fechaCorta(h.cerrada) }}
-                                    </template>
-                                    <template v-else>
-                                        Cerrada · @{{ fechaCorta(h.cerrada) }}
-                                    </template>
-                                </p>
-                            </li>
-                        </ol>
+                                    <p class="mt-1 text-[11px]" :class="h.cierre_motivo === 'sistema'
+                                            ? 'text-amber-600 dark:text-amber-400'
+                                            : 'text-gray-500 dark:text-gray-400'">
+                                        <template v-if="h.estado !== 'cerrado'">
+                                            <span class="font-medium text-emerald-600 dark:text-emerald-400">En curso</span>
+                                        </template>
+                                        <template v-else-if="h.cierre_motivo === 'sistema'">
+                                            El sistema la cerró: nadie contestó · @{{ fechaCorta(h.cerrada) }}
+                                        </template>
+                                        <template v-else-if="h.cerrada_por">
+                                            Cerrada por @{{ h.cerrada_por }} · @{{ fechaCorta(h.cerrada) }}
+                                        </template>
+                                        <template v-else>
+                                            Cerrada · @{{ fechaCorta(h.cerrada) }}
+                                        </template>
+                                    </p>
+                                </li>
+                            </ol>
+                        </template>
                     </div>
 
                     <!-- sidebar footer -->
@@ -1289,7 +1286,15 @@
          * que el hilo se redibuja, que en este inbox pasa todo el tiempo.
          */
         app.component('v-mapa-globo', {
-            template: '<div class="h-[140px] w-full overflow-hidden rounded-md" ref="caja"></div>',
+            /*
+             * El alto va en `style` y no en una clase de Tailwind.
+             *
+             * Leaflet mide el nodo al montarse, y este build compila solo las
+             * clases que encuentra en las plantillas: una arbitraria como
+             * h-[140px] que no quedó en el CSS deja el div en cero y el mapa
+             * se monta invisible, sin ningún error.
+             */
+            template: '<div class="w-full overflow-hidden rounded-md" style="height: 140px" ref="caja"></div>',
 
             props: {
                 lat: { type: [Number, String], required: true },
@@ -1441,6 +1446,7 @@
                         { id: 'enlaces', label: 'Enlaces' },
                         { id: 'productos', label: 'Productos' },
                         { id: 'pedidos', label: 'Pedidos' },
+                        { id: 'derivaciones', label: 'Derivaciones' },
                     ],
                     // Quick lead creation (inside the drawer)
                     leadFormOpen: false,
@@ -1541,6 +1547,7 @@
                         if (t.id === 'audios') return (this.profile.audios ?? []).length > 0;
                         if (t.id === 'documentos') return this.profile.documents.length > 0;
                         if (t.id === 'enlaces') return this.profile.links.length > 0;
+                        if (t.id === 'derivaciones') return this.handoffs.length > 0;
                         return true;
                     });
                 },
