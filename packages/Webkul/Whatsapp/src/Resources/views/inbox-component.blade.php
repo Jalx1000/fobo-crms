@@ -1967,10 +1967,7 @@
 
                     this.profileOpen = !this.profileOpen;
 
-                    if (this.profileOpen) {
-                        this.fetchProfile();
-                        this.cargarHandoffs();
-                    }
+                    if (this.profileOpen) this.fetchProfile();
                 },
 
                 /*
@@ -1995,6 +1992,14 @@
                 },
 
                 fetchProfile() {
+                    /*
+                     * Va antes del corte de abajo a propósito: el perfil se
+                     * cachea por contacto, pero las derivaciones cambian
+                     * mientras el asesor escribe —la suya se crea con el primer
+                     * mensaje— y tiene que verla sin recargar la página.
+                     */
+                    this.cargarHandoffs();
+
                     if (this.profile) return; // already loaded for this contact
 
                     this.profileLoading = true;
