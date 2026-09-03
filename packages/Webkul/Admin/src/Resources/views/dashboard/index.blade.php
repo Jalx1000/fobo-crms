@@ -51,18 +51,15 @@
             @include('admin::dashboard.index.evolution')
 
             @if ($isAdminRole)
-                <div class="grid grid-cols-3 gap-4 w-full">
+                {{-- Dos columnas, no tres: las tarjetas por ciudad salieron —C21 opera
+                     una sola plaza— y dejar la grilla en tres columnas habría dejado un
+                     hueco vacío al costado. --}}
+                <div class="grid w-full grid-cols-2 gap-4 max-lg:grid-cols-1">
                     <div class="col-span-1 flex flex-col gap-4">
                         @include('admin::dashboard.index.ventas')
                     </div>
                     <div class="col-span-1 flex flex-col gap-4">
                         @include('admin::dashboard.index.leads-by-users')
-                    </div>
-                    <div class="col-span-1 flex flex-col gap-4">
-                        @include('admin::dashboard.index.leads-por-ciudad')
-                    </div>
-                    <div class="col-span-1 flex flex-col gap-4">
-                        @include('admin::dashboard.index.ventas-por-ciudad')
                     </div>
                 </div>
             @else
@@ -92,7 +89,9 @@
 
             @include('admin::dashboard.index.quantity-products-sold-pie')
 
-            @include('admin::dashboard.index.leads-por-ciudad-pie')
+            {{-- «No atendidos por Ciudad»: es literalmente lo que C21 pidió quitar.
+                 Con una sola plaza, agrupar por ciudad no distingue nada. --}}
+            {{-- @include('admin::dashboard.index.leads-por-ciudad-pie') --}}
         </div>
 
         {!! view_render_event('admin.dashboard.index.content.right.after') !!}

@@ -414,11 +414,30 @@ class LeadDataGrid extends DataGrid
                 continue;
             }
 
+            /*
+             * Filtro por atributo personalizado.
+             *
+             * Estas columnas no existen en `leads`: su valor vive en
+             * `attribute_values`, en la columna que corresponde al tipo del
+             * atributo. Sin esto, el campo aparecía en el grid y no se podía
+             * filtrar por él.
+             *
+             * El filtro apunta a una subconsulta sobre `attribute_values`, en la
+             * columna que corresponde al tipo del atributo. El DataGrid la trata
+             * como cualquier columna y le aplica su LIKE, así que escribir una
+             * parte del valor alcanza.
+             *
+             * En un `select` el valor guardado es el id de la opción, así que la
+             * subconsulta devuelve el NOMBRE de la opción: quien filtra escribe
+             * "Contado", no el número.
+             */
             $this->addColumn([
                 'index'      => $attribute->code,
                 'label'      => $attribute->name,
                 'type'       => 'string',
                 'visibility' => false,
+                'searchable' => false,
+                'filterable' => true,
                 'closure'    => function ($row) use ($attribute) {
                     static $lead;
 
@@ -435,6 +454,10 @@ class LeadDataGrid extends DataGrid
                     return $this->attributeResolver()->resolve($attribute, $value);
                 },
             ]);
+
+            // Va después de addColumn: addFilter recorre las columnas ya
+            // registradas para reapuntarle el nombre a la subconsulta.
+            $this->addFilter($attribute->code, $this->subconsultaAtributo($attribute));
         }
 
         $this->addColumn([
@@ -463,6 +486,52 @@ class LeadDataGrid extends DataGrid
             'filterable'      => true,
             'filterable_type' => 'date_range',
         ]);
+    }
+
+    /**
+     * Expresión que devuelve el valor de un atributo personalizado para cada fila.
+     *
+     * Se usa como "nombre de columna" del filtro: el DataGrid le aplica su LIKE
+     * sin saber que detrás hay una subconsulta, y así un campo que vive en
+     * `attribute_values` se filtra igual que uno de la tabla.
+     */
+    protected function subconsultaAtributo($attribute): \Illuminate\Database\Query\Expression
+    {
+        $prefijo = DB::getTablePrefix();
+
+        $columna = match ($attribute->type) {
+            'boolean'                 => 'boolean_value',
+            'select', 'lookup'        => 'integer_value',
+            'price'                   => 'float_value',
+            'date'                    => 'date_value',
+            'datetime'                => 'datetime_value',
+            'checkbox', 'multiselect' => 'json_value',
+            default                   => 'text_value',
+        };
+
+        // Un select guarda el id de la opción; se devuelve su nombre para que el
+        // filtro compare contra lo que la persona ve en pantalla.
+        if (in_array($attribute->type, ['select', 'lookup'], true)) {
+            // `ao` es un alias, no una tabla: no lleva prefijo.
+            return DB::raw("(
+                SELECT ao.name
+                FROM {$prefijo}attribute_values av
+                JOIN {$prefijo}attribute_options ao ON ao.id = av.integer_value
+                WHERE av.entity_id = {$prefijo}leads.id
+                  AND av.entity_type = 'leads'
+                  AND av.attribute_id = {$attribute->id}
+                LIMIT 1
+            )");
+        }
+
+        return DB::raw("(
+            SELECT av.{$columna}
+            FROM {$prefijo}attribute_values av
+            WHERE av.entity_id = {$prefijo}leads.id
+              AND av.entity_type = 'leads'
+              AND av.attribute_id = {$attribute->id}
+            LIMIT 1
+        )");
     }
 
     /**
