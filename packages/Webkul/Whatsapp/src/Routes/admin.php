@@ -20,6 +20,7 @@ Route::controller(InboxController::class)
         Route::get('thread', 'thread')->name('thread');
         Route::post('send', 'send')->name('send');
         Route::post('send-media', 'sendMedia')->name('send-media');
+        Route::post('send-location', 'sendLocation')->name('send-location');
 
         // Archivos de la conversación. Detrás del login: el disco es privado.
         Route::get('media/{message}', 'media')->name('media');

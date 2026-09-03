@@ -12,6 +12,9 @@
         send-media-url="{{ route('admin.whatsapp.send-media') }}"
         galeria-url="{{ route('admin.inmuebles.enviar-galeria') }}"
         ubicacion-url="{{ route('admin.inmuebles.enviar-ubicacion') }}"
+        send-location-url="{{ route('admin.whatsapp.send-location') }}"
+        buscar-inmuebles-url="{{ route('admin.inmuebles.buscar-inbox') }}"
+        media-inmueble-url="{{ route('admin.inmuebles.medias.archivo', '__ID__') }}"
         inmuebles-de-leads-url="{{ route('admin.inmuebles.de-leads') }}"
             agent-url-base="{{ url(config('app.admin_path').'/whatsapp/conversations') }}"
             quick-replies-url="{{ route('admin.whatsapp.quick-replies.index') }}"
@@ -172,6 +175,9 @@
                         :send-media-url="sendMediaUrl"
                         :galeria-url="galeriaUrl"
                         :ubicacion-url="ubicacionUrl"
+                        :send-location-url="sendLocationUrl"
+                        :buscar-inmuebles-url="buscarInmueblesUrl"
+                        :media-inmueble-url="mediaInmuebleUrl"
                         :inmuebles-de-leads-url="inmueblesDeLeadsUrl"
                         :agent-url-base="agentUrlBase"
                         :quick-replies-url="quickRepliesUrl"
@@ -203,6 +209,9 @@
                     sendMediaUrl: { type: String, default: '' },
                     galeriaUrl: { type: String, default: '' },
                     ubicacionUrl: { type: String, default: '' },
+                    sendLocationUrl: { type: String, default: '' },
+                    buscarInmueblesUrl: { type: String, default: '' },
+                    mediaInmuebleUrl: { type: String, default: '' },
                     inmueblesDeLeadsUrl: { type: String, default: '' },
                     agentUrlBase: { type: String, required: true },
                     quickRepliesUrl: { type: String, required: true },

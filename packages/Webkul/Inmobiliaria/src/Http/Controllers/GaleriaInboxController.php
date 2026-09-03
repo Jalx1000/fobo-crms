@@ -66,6 +66,43 @@ class GaleriaInboxController extends Controller
     }
 
     /**
+     * Inmuebles para el selector del inbox.
+     *
+     * Devuelve lo mínimo para reconocerlos —código, título, zona, precio— más
+     * dos banderas que evitan una promesa vacía: si no tiene fotos o no tiene
+     * coordenadas, el selector lo muestra deshabilitado en lugar de dejar al
+     * asesor mandar algo que va a fallar.
+     */
+    public function buscar(Request $request): JsonResponse
+    {
+        $texto = trim((string) $request->input('search'));
+
+        $inmuebles = $this->inmuebles->getModel()->newQuery()
+            ->with('medias')
+            ->when($texto !== '', fn ($q) => $q->where(fn ($w) => $w
+                ->where('codigo', 'like', "%{$texto}%")
+                ->orWhere('titulo', 'like', "%{$texto}%")
+                ->orWhere('zona', 'like', "%{$texto}%")
+                ->orWhere('barrio', 'like', "%{$texto}%")))
+            ->orderByDesc('id')
+            ->limit(25)
+            ->get();
+
+        return response()->json([
+            'inmuebles' => $inmuebles->map(fn ($i) => [
+                'codigo'     => $i->codigo,
+                'titulo'     => $i->titulo,
+                'zona'       => trim($i->zona.($i->barrio ? ', '.$i->barrio : '')),
+                'precio'     => $i->moneda.' '.number_format((float) $i->precio, 0, ',', '.'),
+                'estado'     => $i->estado,
+                'fotos'      => $i->medias->where('tipo', 'foto')->count(),
+                'ubicacion'  => filled($i->latitud) && filled($i->longitud),
+                'portada'    => optional($i->portada())->id,
+            ])->values(),
+        ]);
+    }
+
+    /**
      * Manda la ubicación de un inmueble al cliente, desde el inbox.
      *
      * A diferencia del endpoint del agente, este NO exige derivación abierta:

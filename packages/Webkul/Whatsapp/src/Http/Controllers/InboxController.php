@@ -25,6 +25,7 @@ use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Repositories\HandoffRepository;
 use Webkul\Whatsapp\Services\ConversationResolver;
 use Webkul\Whatsapp\Services\HandoffPresenter;
+use Webkul\Whatsapp\Services\OutboundDelivery;
 use Webkul\Whatsapp\Services\PhoneNumber;
 
 class InboxController extends Controller
@@ -33,6 +34,7 @@ class InboxController extends Controller
         protected GatewayManager $gateways,
         protected HandoffRepository $handoffs,
         protected HandoffPresenter $handoffPresenter,
+        protected OutboundDelivery $delivery,
     ) {}
 
     /**
@@ -408,6 +410,58 @@ class InboxController extends Controller
             'estado' => $message->error ? 'fallido' : 'pendiente',
             'motivo' => $message->error,
         ];
+    }
+
+    /**
+     * Envía una ubicación marcada en el mapa.
+     *
+     * Separado del envío de la ubicación de un inmueble —que vive en el módulo
+     * inmobiliario— porque son dos cosas distintas: acá el asesor marca un punto
+     * cualquiera (dónde encontrarse, una referencia), allá manda las coordenadas
+     * que el catálogo ya tiene.
+     */
+    public function sendLocation(Request $request, ConversationResolver $resolver): JsonResponse
+    {
+        $data = $request->validate([
+            'conversation_id' => 'nullable|integer',
+            'phone'           => 'required_without:conversation_id|nullable|string',
+            'name'            => 'nullable|string',
+            'latitude'        => 'required|numeric|between:-90,90',
+            'longitude'       => 'required|numeric|between:-180,180',
+            'label'           => 'nullable|string|max:255',
+            'address'         => 'nullable|string|max:255',
+        ]);
+
+        $conversation = $this->existingConversation($request);
+
+        if ($conversation && $conversation->aiEffective()) {
+            return response()->json([
+                'message' => 'El agente está activo en esta conversación. Desactivalo para escribir a mano.',
+            ], 422);
+        }
+
+        if (! $conversation) {
+            if (blank($data['phone'] ?? null)) {
+                return response()->json(['message' => 'No se encontró la conversación.'], 422);
+            }
+
+            $conversation = $resolver->findOrCreate($data['phone'], $data['name'] ?? null);
+        }
+
+        if (! $this->gateways->for($conversation)->capabilities()->canSend('location')) {
+            return response()->json(['message' => 'Este canal no envía ubicaciones.'], 501);
+        }
+
+        $message = $this->delivery->ubicacion(
+            $conversation,
+            (float) $data['latitude'],
+            (float) $data['longitude'],
+            $data['label'] ?? null,
+            $data['address'] ?? null,
+            'human',
+        );
+
+        return response()->json(['message' => $this->transform($message)]);
     }
 
     /**

@@ -482,10 +482,10 @@
                             </button>
 
                             <div v-if="attachOptions.length" class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                            <button class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="enviarGaleria">
+                            <button class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="abrirInmuebles('galeria')">
                                 <span class="icon-image"></span> Fotos de un inmueble
                             </button>
-                            <button class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="enviarUbicacion">
+                            <button class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="abrirInmuebles('ubicacion')">
                                 <span class="icon-location"></span> Ubicación de un inmueble
                             </button>
                         </div>
@@ -1000,6 +1000,145 @@
                     </x-slot>
                 </x-admin::modal>
             </Teleport>
+            {{-- Selector de inmuebles: reemplaza el prompt donde había que
+                 escribir el código de memoria. Sirve para mandar la galería y
+                 para mandar la ubicación; lo que cambia es la acción. --}}
+            <Teleport to="body">
+                <x-admin::modal ref="inmuebleModal">
+                    <x-slot:header>
+                        <h3 class="text-base font-semibold dark:text-white">
+                            @{{ inmuebleAccion === 'ubicacion' ? 'Enviar ubicación de un inmueble' : 'Enviar fotos de un inmueble' }}
+                        </h3>
+                    </x-slot>
+
+                    <x-slot:content>
+                        <input v-model="inmuebleBusqueda" type="text" ref="inmuebleSearch"
+                               placeholder="Buscar por código, título o zona…"
+                               @input="buscarInmuebles"
+                               class="mb-3 w-full rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+
+                        <p v-if="inmueblesCargando" class="py-6 text-center text-xs text-gray-400">Buscando…</p>
+
+                        <div v-else-if="inmuebles.length" class="flex max-h-80 flex-col gap-1.5 overflow-y-auto">
+                            <button v-for="inm in inmuebles" :key="inm.codigo" type="button"
+                                    :disabled="! puedeEnviarInmueble(inm)"
+                                    @click="elegirInmueble(inm)"
+                                    class="flex items-center gap-3 rounded-lg border border-gray-200 p-2 text-left transition hover:border-brandColor disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800">
+                                <img v-if="inm.portada" :src="mediaInmuebleUrl.replace('__ID__', inm.portada)"
+                                     class="h-12 w-16 shrink-0 rounded object-cover" alt="">
+                                <span v-else class="flex h-12 w-16 shrink-0 items-center justify-center rounded bg-gray-100 text-[10px] text-gray-400 dark:bg-gray-800">
+                                    Sin fotos
+                                </span>
+
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-sm font-medium dark:text-gray-200">
+                                        @{{ inm.codigo }} · @{{ inm.precio }}
+                                    </span>
+                                    <span class="block truncate text-xs text-gray-500">@{{ inm.titulo }}</span>
+                                    <span class="block text-[11px] text-gray-400">@{{ inm.zona }}</span>
+                                </span>
+
+                                {{-- Por qué no se puede elegir. Sin esto el botón
+                                     gris no dice qué falta ni dónde arreglarlo. --}}
+                                <span v-if="! puedeEnviarInmueble(inm)" class="shrink-0 text-[10px] text-amber-600">
+                                    @{{ inmuebleAccion === 'ubicacion' ? 'Sin coordenadas' : 'Sin fotos' }}
+                                </span>
+                            </button>
+                        </div>
+
+                        <p v-else class="rounded-lg border border-dashed border-gray-300 px-3 py-8 text-center text-xs text-gray-400 dark:border-gray-700">
+                            No se encontraron inmuebles.
+                        </p>
+
+                        <p v-if="inmuebleError" class="mt-2 rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700 dark:bg-red-900/25 dark:text-red-300">
+                            @{{ inmuebleError }}
+                        </p>
+                    </x-slot>
+                </x-admin::modal>
+            </Teleport>
+
+            <!-- Location picker: browser GPS + a Leaflet map with a draggable pin -->
+            <Teleport to="body">
+                <x-admin::modal ref="locationModal">
+                    <x-slot:header>
+                        <h3 class="text-base font-semibold dark:text-white">Enviar ubicación</h3>
+                    </x-slot>
+
+                    <x-slot:content>
+                        <div v-if="savedLocations.length" class="mb-3 flex flex-wrap gap-1.5">
+                            <button v-for="(place, i) in savedLocations" :key="'sl-' + i" type="button"
+                                    class="rounded-full border border-gray-200 px-2.5 py-1 text-xs transition hover:border-brandColor hover:text-brandColor dark:border-gray-700"
+                                    @click="useSavedLocation(place)">
+                                <span class="icon-location"></span> @{{ place.name }}
+                            </button>
+                        </div>
+
+                        <div class="mb-2 flex items-center gap-2">
+                            <button type="button" @click="useMyLocation" :disabled="locating"
+                                    class="flex items-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium transition hover:border-brandColor hover:text-brandColor disabled:opacity-50 dark:border-gray-700">
+                                <span class="icon-location"></span>
+                                @{{ locating ? 'Buscando…' : 'Usar mi ubicación' }}
+                            </button>
+                            <span v-if="locationForm.accuracy" class="text-[11px] text-gray-500 dark:text-gray-400">
+                                Precisión aprox. @{{ Math.round(locationForm.accuracy) }} m
+                            </span>
+                        </div>
+
+                        <!--
+                            A plain style attribute for the height, not a Tailwind
+                            class: Leaflet renders into this node and measures it
+                            on creation. Inside a modal that has just opened the
+                            box can still be zero-height, and the map mounts
+                            invisible without erroring.
+                        -->
+                        <div ref="mapBox" style="height: 260px"
+                             class="w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"></div>
+
+                        <p v-if="mapError" class="mt-2 rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-700 dark:bg-amber-900/25 dark:text-amber-300">
+                            @{{ mapError }} Podés escribir las coordenadas a mano.
+                        </p>
+                        <p v-else class="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                            Arrastrá el pin (o tocá el mapa) para ajustar el punto exacto.
+                        </p>
+
+                        <div class="mt-2 grid grid-cols-2 gap-2">
+                            <label class="block">
+                                <span class="mb-1 block text-[11px] text-gray-500 dark:text-gray-400">Latitud</span>
+                                <input v-model="locationForm.latitude" type="text" inputmode="decimal"
+                                       @change="pinFromInputs"
+                                       class="w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-[11px] text-gray-500 dark:text-gray-400">Longitud</span>
+                                <input v-model="locationForm.longitude" type="text" inputmode="decimal"
+                                       @change="pinFromInputs"
+                                       class="w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                            </label>
+                        </div>
+
+                        <input v-model="locationForm.label" type="text" placeholder="Nombre del lugar (opcional)"
+                               class="mt-2 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                        <input v-model="locationForm.address" type="text" placeholder="Dirección (opcional)"
+                               class="mt-2 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+
+                        <p class="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                            Sin nombre ni dirección, WhatsApp muestra solo las coordenadas.
+                        </p>
+
+                        <div v-if="locationError" class="mt-2 rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700 dark:bg-red-900/25 dark:text-red-300">
+                            @{{ locationError }}
+                        </div>
+                    </x-slot>
+
+                    <x-slot:footer>
+                        <button type="button" class="primary-button"
+                                :disabled="locationSending || !hasPin" @click="sendLocation">
+                            @{{ locationSending ? 'Enviando…' : 'Enviar ubicación' }}
+                        </button>
+                    </x-slot>
+                </x-admin::modal>
+            </Teleport>
+
             <!-- Visor de imágenes: zoom / rotación / paneo / navegación -->
             <Teleport to="body">
                 <div v-if="viewer.open" @click="closeLightbox" @wheel.prevent="viewerWheel"
@@ -1083,6 +1222,9 @@
                 sendMediaUrl: { type: String, default: '' },
                 galeriaUrl: { type: String, default: '' },
                 ubicacionUrl: { type: String, default: '' },
+                sendLocationUrl: { type: String, default: '' },
+                buscarInmueblesUrl: { type: String, default: '' },
+                mediaInmuebleUrl: { type: String, default: '' },
                 inmueblesDeLeadsUrl: { type: String, default: '' },
                 agentUrlBase: { type: String, default: '' },
                 quickRepliesUrl: { type: String, default: '' },
@@ -1102,6 +1244,27 @@
                     showAttach: false,
                     enviandoAdjunto: false,
                     pendingKind: null,
+
+                    // Selector de ubicación por mapa
+                    map: null,
+                    marker: null,
+                    leafletPromise: null,
+                    locating: false,
+                    locationSending: false,
+                    locationError: null,
+                    mapError: null,
+                    locationForm: { latitude: '', longitude: '', label: '', address: '', accuracy: null },
+
+                    // Lugares frecuentes de la oficina, del servidor.
+                    savedLocations: [],
+
+                    // Selector de inmuebles
+                    inmuebleAccion: 'galeria',   // galeria | ubicacion
+                    inmuebleBusqueda: '',
+                    inmuebles: [],
+                    inmueblesCargando: false,
+                    inmuebleError: null,
+                    inmuebleBuscarTimer: null,
 
                     viewer: {
                         open: false,
@@ -1215,6 +1378,11 @@
                 canAttach() {
                     return this.attachOptions.length > 0;
                 },
+
+                hasPin() {
+                    return this.locationForm.latitude !== '' && this.locationForm.longitude !== '';
+                },
+
 
                 /*
                  * Los tipos que este canal sabe enviar, con el filtro de archivos
@@ -1798,6 +1966,240 @@
                         .finally(() => { this.noteSaving = false; });
                 },
 
+                /* ---------------- Ubicación ---------------- */
+
+                openLocation() {
+                    this.showAttach = false;
+                    this.locationError = null;
+                    this.mapError = null;
+                    this.$refs.locationModal.open();
+
+                    // The modal is not in the DOM until it opens, so the map
+                    // container does not exist yet on this tick.
+                    this.$nextTick(() => this.mountMap());
+                },
+
+                /**
+                 * Pull Leaflet from the CDN, once per page.
+                 */
+                loadLeaflet() {
+                    if (window.L) return Promise.resolve();
+                    if (this.leafletPromise) return this.leafletPromise;
+
+                    this.leafletPromise = new Promise((resolve, reject) => {
+                        const css = document.createElement('link');
+                        css.rel = 'stylesheet';
+                        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                        document.head.appendChild(css);
+
+                        const script = document.createElement('script');
+                        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                        script.onload = resolve;
+                        script.onerror = () => reject(new Error('No se pudo cargar el mapa.'));
+                        document.head.appendChild(script);
+                    });
+
+                    return this.leafletPromise;
+                },
+
+                mountMap() {
+                    this.loadLeaflet()
+                        .then(() => {
+                            const box = this.$refs.mapBox;
+
+                            if (! box) {
+                                this.mapError = 'No se pudo montar el mapa en la página.';
+                                return;
+                            }
+
+                            if (this.map) {
+                                // Reopened: Leaflet measured the box while the
+                                // modal was closed, so it thinks it is 0px tall.
+                                this.$nextTick(() => this.map.invalidateSize());
+                                return;
+                            }
+
+                            // Start on the last pin, a saved location, or a wide
+                            // view of Santa Cruz.
+                            const start = this.hasPin
+                                ? [Number(this.locationForm.latitude), Number(this.locationForm.longitude)]
+                                : (this.savedLocations.length
+                                    ? [this.savedLocations[0].latitude, this.savedLocations[0].longitude]
+                                    : [-17.78333, -63.18214]);
+
+                            this.map = window.L.map(box).setView(start, this.hasPin ? 16 : 12);
+
+                            window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                attribution: '© OpenStreetMap',
+                                maxZoom: 19,
+                            }).addTo(this.map);
+
+                            this.map.on('click', e => this.setPin(e.latlng.lat, e.latlng.lng, { recenter: false }));
+
+                            if (this.hasPin) {
+                                this.setPin(Number(this.locationForm.latitude), Number(this.locationForm.longitude));
+                            }
+
+                            // Leaflet measures on creation, and inside a modal
+                            // that just opened the box can still be 0px tall.
+                            this.$nextTick(() => this.map.invalidateSize());
+                        })
+                        .catch(e => { this.mapError = e.message; });
+                },
+
+                setPin(lat, lng, { recenter = true } = {}) {
+                    if (! this.map) {
+                        this.writeCoords(lat, lng);
+                        return;
+                    }
+
+                    if (! this.marker) {
+                        this.marker = window.L.marker([lat, lng], { draggable: true }).addTo(this.map);
+                        this.marker.on('dragend', () => {
+                            const p = this.marker.getLatLng();
+                            this.writeCoords(p.lat, p.lng);
+                            // The GPS reading no longer describes this pin.
+                            this.locationForm.accuracy = null;
+                        });
+                    } else {
+                        this.marker.setLatLng([lat, lng]);
+                    }
+
+                    this.writeCoords(lat, lng);
+
+                    if (recenter) this.map.setView([lat, lng], Math.max(this.map.getZoom(), 16));
+                },
+
+                writeCoords(lat, lng) {
+                    this.locationForm.latitude = Number(lat).toFixed(6);
+                    this.locationForm.longitude = Number(lng).toFixed(6);
+                },
+
+                pinFromInputs() {
+                    const lat = Number(this.locationForm.latitude);
+                    const lng = Number(this.locationForm.longitude);
+
+                    if (Number.isFinite(lat) && Number.isFinite(lng)) this.setPin(lat, lng);
+                },
+
+                useMyLocation() {
+                    if (! navigator.geolocation) {
+                        this.locationError = 'Este navegador no comparte la ubicación.';
+                        return;
+                    }
+
+                    this.locating = true;
+                    this.locationError = null;
+
+                    navigator.geolocation.getCurrentPosition(
+                        pos => {
+                            this.locationForm.accuracy = pos.coords.accuracy;
+                            this.setPin(pos.coords.latitude, pos.coords.longitude);
+                            this.locating = false;
+                        },
+                        () => {
+                            // Denying the permission is a normal answer, not an
+                            // error: the map and the manual fields still work.
+                            this.locationError = 'No se pudo obtener tu ubicación. Marcá el punto en el mapa.';
+                            this.locating = false;
+                        },
+                        { enableHighAccuracy: true, timeout: 10000 },
+                    );
+                },
+
+                useSavedLocation(place) {
+                    this.locationForm.label = place.name;
+                    this.locationForm.address = place.address || '';
+                    this.locationForm.accuracy = null;
+                    this.setPin(place.latitude, place.longitude);
+                },
+
+                sendLocation() {
+                    if (this.locationSending || ! this.hasPin) return;
+
+                    this.locationSending = true;
+                    this.locationError = null;
+
+                    this.$axios.post(this.sendLocationUrl, {
+                        conversation_id: this.conversationId || null,
+                        phone: this.context.phone || null,
+                        name: this.context.name || null,
+                        latitude: this.locationForm.latitude,
+                        longitude: this.locationForm.longitude,
+                        label: this.locationForm.label || null,
+                        address: this.locationForm.address || null,
+                    })
+                        .then(res => {
+                            this.messages.push(res.data.message);
+                            this.$refs.locationModal.close();
+                            this.locationForm = { latitude: '', longitude: '', label: '', address: '', accuracy: null };
+                            this.scrollToBottom();
+                        })
+                        .catch(err => {
+                            this.locationError = err.response?.data?.message ?? 'No se pudo enviar la ubicación.';
+                        })
+                        .finally(() => { this.locationSending = false; });
+                },
+
+                useMyLocation() {
+                    if (! navigator.geolocation) {
+                        this.locationError = 'Este navegador no comparte la ubicación.';
+                        return;
+                    }
+
+                    this.locating = true;
+                    this.locationError = null;
+
+                    navigator.geolocation.getCurrentPosition(
+                        pos => {
+                            this.locationForm.accuracy = pos.coords.accuracy;
+                            this.setPin(pos.coords.latitude, pos.coords.longitude);
+                            this.locating = false;
+                        },
+                        () => {
+                            // Denying the permission is a normal answer, not an
+                            // error: the map and the manual fields still work.
+                            this.locationError = 'No se pudo obtener tu ubicación. Marcá el punto en el mapa.';
+                            this.locating = false;
+                        },
+                        { enableHighAccuracy: true, timeout: 10000 },
+                    );
+                },
+
+                useSavedLocation(place) {
+                    this.locationForm.label = place.name;
+                    this.locationForm.address = place.address || '';
+                    this.locationForm.accuracy = null;
+                    this.setPin(place.latitude, place.longitude);
+                },
+
+                sendLocation() {
+                    if (this.locationSending || ! this.hasPin) return;
+
+                    this.locationSending = true;
+                    this.locationError = null;
+
+                    this.$axios.post(this.sendLocationUrl, {
+                        conversation_id: this.conversationId || null,
+                        phone: this.context.phone || null,
+                        name: this.context.name || null,
+                        latitude: this.locationForm.latitude,
+                        longitude: this.locationForm.longitude,
+                        label: this.locationForm.label || null,
+                        address: this.locationForm.address || null,
+                    })
+                        .then(res => {
+                            this.messages.push(res.data.message);
+                            this.$refs.locationModal.close();
+                            this.locationForm = { latitude: '', longitude: '', label: '', address: '', accuracy: null };
+                            this.scrollToBottom();
+                        })
+                        .catch(err => {
+                            this.locationError = err.response?.data?.message ?? 'No se pudo enviar la ubicación.';
+                        })
+                        .finally(() => { this.locationSending = false; });
+                },
+
                 /* ---------------- Visor de imágenes ---------------- */
 
                 // Todas las imágenes del hilo, para pasar de una a otra con las
@@ -2009,57 +2411,151 @@
                         .catch(() => { this.inmueblesPorLead = {}; });
                 },
 
+                /* ---------------- Inmuebles ---------------- */
+
                 /*
-                 * Manda la ubicación del inmueble que se está conversando.
-                 *
-                 * El asesor escribe el código que ya apareció en el chat. Es el
-                 * caso real de esta plaza: la ubicación que hace falta compartir
-                 * casi siempre es la de una propiedad del catálogo, no un punto
-                 * cualquiera del mapa.
+                 * Abre el selector. La acción decide qué se manda al elegir, y
+                 * también qué inmuebles se pueden elegir: para la galería hacen
+                 * falta fotos, para la ubicación hacen falta coordenadas.
                  */
-                enviarUbicacion() {
+                abrirInmuebles(accion) {
                     this.showAttach = false;
+                    this.inmuebleAccion = accion;
+                    this.inmuebleError = null;
+                    this.inmuebleBusqueda = '';
+                    this.$refs.inmuebleModal.open();
 
-                    const codigo = window.prompt('Código del inmueble cuya ubicación querés enviar (ej. C21-0001):');
+                    this.buscarInmuebles();
+                    this.$nextTick(() => this.$refs.inmuebleSearch?.focus());
+                },
 
-                    if (! codigo || ! codigo.trim()) return;
+                // Se espera a que deje de escribir: una consulta por tecla
+                // satura el servidor y devuelve resultados fuera de orden.
+                buscarInmuebles() {
+                    clearTimeout(this.inmuebleBuscarTimer);
+
+                    this.inmuebleBuscarTimer = setTimeout(() => {
+                        this.inmueblesCargando = true;
+
+                        this.$axios.get(this.buscarInmueblesUrl, { params: { search: this.inmuebleBusqueda } })
+                            .then(res => { this.inmuebles = res.data?.inmuebles ?? []; })
+                            .catch(() => { this.inmuebles = []; })
+                            .finally(() => { this.inmueblesCargando = false; });
+                    }, 250);
+                },
+
+                puedeEnviarInmueble(inm) {
+                    return this.inmuebleAccion === 'ubicacion' ? inm.ubicacion : inm.fotos > 0;
+                },
+
+                elegirInmueble(inm) {
+                    if (! this.puedeEnviarInmueble(inm)) return;
+
+                    const url = this.inmuebleAccion === 'ubicacion' ? this.ubicacionUrl : this.galeriaUrl;
+                    const datos = { conversation_id: this.conversationId, codigo: inm.codigo };
+
+                    if (this.inmuebleAccion === 'galeria') datos.tipo = 'foto';
+
+                    this.inmuebleError = null;
+                    this.enviandoAdjunto = true;
+
+                    this.$axios.post(url, datos)
+                        .then(() => {
+                            this.$refs.inmuebleModal.close();
+                            this.fetchThread();
+                        })
+                        .catch(err => {
+                            this.inmuebleError = err.response?.data?.message ?? 'No se pudo enviar.';
+                        })
+                        .finally(() => { this.enviandoAdjunto = false; });
+                },
+
+                // Nombre en castellano del tipo, para los avisos del hilo.
+                etiquetaMedia(tipo) {
+                    return {
+                        image: 'la imagen', video: 'el video', audio: 'el audio',
+                        document: 'el documento', sticker: 'el sticker',
+                    }[tipo] || 'el archivo';
+                },
+
+                elegirArchivo(kind) {
+                    this.showAttach = false;
+                    this.pendingKind = kind;
+
+                    /*
+                     * En el siguiente tick: si no, el `accept` todavía tiene el
+                     * valor del tipo anterior cuando se abre el diálogo, y la
+                     * primera elección ofrece los formatos equivocados.
+                     */
+                    this.$nextTick(() => this.$refs.fileInput?.click());
+                },
+
+                /*
+                 * Sube el archivo y lo envía de verdad.
+                 *
+                 * Antes esto empujaba un marcador de posición al hilo con estado
+                 * "enviado": el asesor creía haber mandado algo que el cliente
+                 * nunca recibía. El servidor sube el archivo al proveedor ANTES
+                 * de responder, así que un error llega mientras el asesor
+                 * todavía está mirando la pantalla.
+                 */
+                subirArchivo(event) {
+                    const archivo = event.target.files[0];
+
+                    // Se limpia enseguida para que elegir el mismo archivo dos
+                    // veces seguidas vuelva a disparar @change.
+                    event.target.value = '';
+
+                    if (! archivo) return;
+
+                    const form = new FormData();
+                    form.append('archivo', archivo);
+                    form.append('phone', this.context.phone);
+                    form.append('name', this.context.name || '');
 
                     this.enviandoAdjunto = true;
 
-                    this.$axios.post(this.ubicacionUrl, {
-                            conversation_id: this.conversationId,
-                            codigo: codigo.trim(),
+                    this.$axios.post(this.sendMediaUrl, form)
+                        .then(res => {
+                            const real = res.data?.message;
+                            if (real) this.messages.push(real);
+                            this.scrollToBottom();
                         })
-                        .then(() => this.fetchThread())
                         .catch(err => {
-                            alert(err.response?.data?.message || 'No se pudo enviar la ubicación.');
+                            alert(err.response?.data?.message || 'No se pudo enviar el archivo.');
                         })
                         .finally(() => {
                             this.enviandoAdjunto = false;
                         });
                 },
 
-                enviarGaleria() {
-                    this.showAttach = false;
+                /*
+                 * Manda la galería del inmueble que el cliente está mirando.
+                 *
+                 * El asesor escribe el código que ya apareció en la conversación.
+                 * Los mensajes se crean del lado del servidor —uno por foto— así
+                 * que el hilo se recarga en vez de empujarlos a mano.
+                 */
+                /*
+                 * Pide los inmuebles consultados de los leads que se están
+                 * mostrando. Va en una llamada aparte —y no dentro del perfil—
+                 * porque el módulo de WhatsApp lo comparte otro tenant que no
+                 * tiene catálogo inmobiliario y no debe saber que existe.
+                 */
+                cargarInmueblesDeLeads() {
+                    const ids = (this.profile?.leads || []).map(l => l.id);
 
-                    const codigo = window.prompt('Código del inmueble cuyas fotos querés enviar (ej. C21-0001):');
+                    if (! ids.length || ! this.inmueblesDeLeadsUrl) {
+                        this.inmueblesPorLead = {};
 
-                    if (! codigo || ! codigo.trim()) return;
+                        return;
+                    }
 
-                    this.enviandoAdjunto = true;
-
-                    this.$axios.post(this.galeriaUrl, {
-                            conversation_id: this.conversationId,
-                            codigo: codigo.trim(),
-                            tipo: 'foto',
-                        })
-                        .then(() => this.fetchThread())
-                        .catch(err => {
-                            alert(err.response?.data?.message || 'No se pudieron enviar las fotos.');
-                        })
-                        .finally(() => {
-                            this.enviandoAdjunto = false;
-                        });
+                    this.$axios.post(this.inmueblesDeLeadsUrl, { lead_ids: ids })
+                        .then(res => { this.inmueblesPorLead = res.data?.inmuebles || {}; })
+                        // Silencioso a propósito: es información de apoyo. Un
+                        // error acá no debe tapar el panel del cliente.
+                        .catch(() => { this.inmueblesPorLead = {}; });
                 },
 
                 statusTick(status) {
