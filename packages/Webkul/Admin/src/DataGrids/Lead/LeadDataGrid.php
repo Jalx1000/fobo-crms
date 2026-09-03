@@ -83,6 +83,7 @@ class LeadDataGrid extends DataGrid
                 'leads.description',
                 'leads.status',
                 'leads.lead_value',
+                'leads.lead_value_moneda',
                 'leads.expected_close_date',
                 'lead_sources.name as lead_source_name',
                 'lead_types.name as lead_type_name',
@@ -223,7 +224,18 @@ class LeadDataGrid extends DataGrid
             'sortable'   => true,
             'searchable' => false,
             'filterable' => true,
-            'closure'    => fn ($row) => core()->formatBasePrice($row->lead_value, 2),
+            /*
+             * Con la moneda del lead, no la de la instalación.
+             *
+             * `formatBasePrice()` asume una sola moneda, y acá se opera en
+             * dólares y en bolivianos sin conversión: etiquetar un importe con
+             * la moneda equivocada no es un detalle de formato, es un dato
+             * falso. Los leads anteriores al campo caen en la moneda por
+             * defecto, que es la que el sistema asume al crearlos.
+             */
+            'closure'    => fn ($row) => ($row->lead_value_moneda
+                ?: config('inmobiliaria.inmuebles.moneda_por_defecto', 'USD'))
+                .' '.number_format((float) $row->lead_value, 0, ',', '.'),
         ]);
 
         $this->addColumn([
@@ -388,7 +400,17 @@ class LeadDataGrid extends DataGrid
         $attributes = $this->attributeRepository->findWhere(['entity_type' => 'leads']);
 
         foreach ($attributes as $attribute) {
-            if (in_array($attribute->code, ['title', 'description', 'lead_type_id', 'lead_type'])) {
+            /*
+             * `lead_value` se excluye como el resto: ya tiene su propia columna
+             * más arriba, con la moneda del lead.
+             *
+             * Este bucle agrega una columna por atributo personalizado y se
+             * ejecuta DESPUÉS, así que sin esta línea pisaba la definición
+             * anterior y el importe volvía a mostrarse con la moneda de la
+             * instalación. La columna existía, su closure estaba bien, y el
+             * grid usaba el otro.
+             */
+            if (in_array($attribute->code, ['title', 'description', 'lead_type_id', 'lead_type', 'lead_value'])) {
                 continue;
             }
 
