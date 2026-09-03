@@ -87,10 +87,13 @@
 
             <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : 'all'" :extra-types="[
                 ['name' => 'whatsapp', 'label' => 'WhatsApp'],
-                ['name' => 'historial', 'label' => 'Historial IA'],
                 ['name' => 'description', 'label' => trans('admin::app.leads.view.tabs.description')],
-                ['name' => 'products', 'label' => trans('admin::app.leads.view.tabs.products')],
                 ['name' => 'inmuebles', 'label' => 'Inmuebles'],
+                // Historial IA y Productos: fuera del tablero de pestañas a pedido
+                // de C21. La conversación completa vive en la pestaña WhatsApp, y
+                // acá no se venden productos sino inmuebles.
+                // ['name' => 'historial', 'label' => 'Historial IA'],
+                // ['name' => 'products', 'label' => trans('admin::app.leads.view.tabs.products')],
                 // ['name' => 'quotes', 'label' => trans('admin::app.leads.view.tabs.quotes')],
             ]">
                 {{-- WhatsApp Inbox --}}
@@ -98,15 +101,9 @@
                     @include('whatsapp::inbox')
                 </x-slot>
 
-                {{-- Historial IA --}}
-                <x-slot:historial>
-                    @include('admin::leads.view.historial-ia')
-                </x-slot>
-
-                <!-- Products -->
-                <x-slot:products>
-                    @include ('admin::leads.view.products')
-                </x-slot>
+                {{-- Historial IA y Productos quedaron sin pestaña (ver la lista de
+                     extra-types arriba). Los slots se retiran junto con ellas: un
+                     slot sin pestaña es contenido que se renderiza y nadie ve. --}}
 
                 {{-- Inmuebles de interés: los que el cliente consultó --}}
                 <x-slot:inmuebles>

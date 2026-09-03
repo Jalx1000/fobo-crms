@@ -38,20 +38,24 @@ class Inmueble extends Model implements InmuebleContract
     ];
 
     /**
-     * Campos que NUNCA salen en la ficha que ve el agente de IA.
+     * Campos de ubicación que el agente NO recibe en la ficha.
      *
-     * No es una convención ni un recordatorio: es la lista que consume
-     * `paraAgente()`. La ubicación exacta solo viaja por el endpoint que la
-     * envía al cliente, sin pasar por el LLM (decisión D6 de la spec).
+     * C21 decidió que el agente vea la ubicación completa, así que la lista
+     * quedó vacía: `paraAgente(completo: true)` ahora incluye dirección exacta,
+     * link de Maps y coordenadas.
+     *
+     * Se conserva la constante —y no se borra el mecanismo— porque el gateo
+     * seguía siendo la única forma de volver atrás sin reescribir nada: agregar
+     * un campo acá lo saca de la ficha, sin tocar el resto del código.
+     *
+     * Consecuencia asumida: la dirección exacta puede llegar al cliente antes de
+     * que el asesor tome la conversación, porque ahora el modelo la tiene y
+     * decide él cuándo decirla. El endpoint de envío de ubicación sigue exigiendo
+     * un handoff abierto; lo que cambia es que el dato también viaja por texto.
      *
      * @var array<int, string>
      */
-    public const CAMPOS_GATEADOS = [
-        'direccion_exacta',
-        'google_maps_url',
-        'latitud',
-        'longitud',
-    ];
+    public const CAMPOS_GATEADOS = [];
 
     /**
      * El asesor titular: quien captó el inmueble y quien lo muestra.
@@ -185,6 +189,14 @@ class Inmueble extends Model implements InmuebleContract
         return $ficha + [
             'descripcion'     => $this->descripcion,
             'punto_encuentro' => $this->punto_encuentro,
+
+            // Ubicación completa: C21 decidió que el agente la vea (antes se
+            // reservaba hasta que un asesor tomara la conversación).
+            'direccion_exacta' => $this->direccion_exacta,
+            'google_maps_url'  => $this->google_maps_url,
+            'latitud'          => $this->latitud !== null ? (float) $this->latitud : null,
+            'longitud'         => $this->longitud !== null ? (float) $this->longitud : null,
+
             'asesor'          => [
                 'nombre'   => $this->asesor?->name,
                 'telefono' => $this->asesor?->phone,

@@ -72,9 +72,9 @@
             <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                 <p class="text-base font-semibold dark:text-white">Ubicación</p>
                 <p class="mb-4 text-xs text-gray-500">
-                    Zona, barrio y referencia son <b>públicos</b>: el agente los usa para ubicar al cliente.
-                    Los campos de abajo son <b>privados</b> y solo se envían después de que el asesor
-                    tomó la conversación.
+                    Zona, barrio y referencia son lo que el agente usa para ubicar al cliente en la
+                    conversación. La dirección exacta y las coordenadas le sirven para responder
+                    consultas puntuales y para enviarle la ubicación al cliente por WhatsApp.
                 </p>
 
                 <div class="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
@@ -97,9 +97,9 @@
                     </label>
                 </div>
 
-                <div class="mt-4 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
-                    <p class="mb-3 text-xs font-semibold text-amber-800 dark:text-amber-300">
-                        🔒 Privado — el agente nunca lo muestra en una ficha
+                <div class="mt-4 rounded border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/50">
+                    <p class="mb-3 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        Ubicación exacta
                     </p>
 
                     <div class="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
