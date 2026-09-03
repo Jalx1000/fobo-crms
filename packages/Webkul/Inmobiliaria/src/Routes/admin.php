@@ -49,5 +49,8 @@ Route::get('inmuebles/medias/{media}/archivo', [InmuebleMediaController::class, 
 Route::post('inmuebles/de-leads', [\Webkul\Inmobiliaria\Http\Controllers\GaleriaInboxController::class, 'deLeads'])
     ->name('admin.inmuebles.de-leads');
 
+Route::post('inmuebles/enviar-ubicacion', [\Webkul\Inmobiliaria\Http\Controllers\GaleriaInboxController::class, 'enviarUbicacion'])
+    ->name('admin.inmuebles.enviar-ubicacion');
+
 Route::post('inmuebles/enviar-galeria', [\Webkul\Inmobiliaria\Http\Controllers\GaleriaInboxController::class, 'enviar'])
     ->name('admin.inmuebles.enviar-galeria');

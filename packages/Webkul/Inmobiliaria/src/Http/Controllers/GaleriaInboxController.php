@@ -65,6 +65,54 @@ class GaleriaInboxController extends Controller
         ]);
     }
 
+    /**
+     * Manda la ubicación de un inmueble al cliente, desde el inbox.
+     *
+     * A diferencia del endpoint del agente, este NO exige derivación abierta:
+     * acá el humano ya está en la conversación y decide él qué compartir.
+     */
+    public function enviarUbicacion(Request $request): JsonResponse
+    {
+        $datos = $request->validate([
+            'conversation_id' => 'required|integer',
+            'codigo'          => 'required|string|max:32',
+        ]);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($datos['conversation_id']);
+
+        // Sin exigir que esté disponible: el asesor puede querer mostrar dónde
+        // queda algo reservado.
+        $inmueble = $this->inmuebles->porCodigo($datos['codigo'], soloOfrecibles: false);
+
+        if (! $inmueble) {
+            return response()->json(['message' => "No existe el inmueble {$datos['codigo']}."], 404);
+        }
+
+        if (blank($inmueble->latitud) || blank($inmueble->longitud)) {
+            return response()->json([
+                'message' => "El inmueble {$inmueble->codigo} no tiene coordenadas cargadas. Agregalas en su ficha.",
+            ], 404);
+        }
+
+        try {
+            $this->delivery->ubicacion(
+                $conversation,
+                (float) $inmueble->latitud,
+                (float) $inmueble->longitud,
+                $inmueble->titulo,
+                $inmueble->direccion_exacta,
+                'human',
+            );
+        } catch (UnsupportedCapability $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => "Ubicación de {$inmueble->codigo} enviada.",
+            'codigo'  => $inmueble->codigo,
+        ]);
+    }
+
     public function enviar(Request $request): JsonResponse
     {
         $datos = $request->validate([
