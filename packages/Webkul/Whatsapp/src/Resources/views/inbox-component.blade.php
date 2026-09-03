@@ -1,3 +1,5 @@
+<x-admin::map-picker />
+
 @pushOnce('scripts')
     <style>
         .wa-scroll::-webkit-scrollbar { width: 6px; }
@@ -1246,9 +1248,7 @@
                     pendingKind: null,
 
                     // Selector de ubicación por mapa
-                    map: null,
-                    marker: null,
-                    leafletPromise: null,
+                    mapControl: null,
                     locating: false,
                     locationSending: false,
                     locationError: null,
@@ -1982,92 +1982,53 @@
                 /**
                  * Pull Leaflet from the CDN, once per page.
                  */
-                loadLeaflet() {
-                    if (window.L) return Promise.resolve();
-                    if (this.leafletPromise) return this.leafletPromise;
-
-                    this.leafletPromise = new Promise((resolve, reject) => {
-                        const css = document.createElement('link');
-                        css.rel = 'stylesheet';
-                        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-                        document.head.appendChild(css);
-
-                        const script = document.createElement('script');
-                        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-                        script.onload = resolve;
-                        script.onerror = () => reject(new Error('No se pudo cargar el mapa.'));
-                        document.head.appendChild(script);
-                    });
-
-                    return this.leafletPromise;
-                },
-
+                /*
+                 * Monta el mapa con el componente compartido del CRM.
+                 *
+                 * Antes esto traía su propia carga de Leaflet y su propio armado
+                 * del mapa, duplicando lo que hoy también usa la ficha del
+                 * inmueble. Dos copias de "cargar el mapa" se desincronizan en
+                 * cuanto una cambia de versión o de servidor de tiles.
+                 */
                 mountMap() {
-                    this.loadLeaflet()
+                    if (! window.crmMapa) {
+                        this.mapError = 'No se pudo cargar el mapa.';
+
+                        return;
+                    }
+
+                    window.crmMapa.cargar()
                         .then(() => {
                             const box = this.$refs.mapBox;
 
                             if (! box) {
                                 this.mapError = 'No se pudo montar el mapa en la página.';
+
                                 return;
                             }
 
-                            if (this.map) {
-                                // Reopened: Leaflet measured the box while the
-                                // modal was closed, so it thinks it is 0px tall.
-                                this.$nextTick(() => this.map.invalidateSize());
+                            // Reabierto: Leaflet midió el nodo con el modal cerrado
+                            // y cree que mide 0px de alto.
+                            if (this.mapControl) {
+                                this.$nextTick(() => this.mapControl.remedir());
+
                                 return;
                             }
 
-                            // Start on the last pin, a saved location, or a wide
-                            // view of Santa Cruz.
-                            const start = this.hasPin
-                                ? [Number(this.locationForm.latitude), Number(this.locationForm.longitude)]
-                                : (this.savedLocations.length
-                                    ? [this.savedLocations[0].latitude, this.savedLocations[0].longitude]
-                                    : [-17.78333, -63.18214]);
+                            this.mapControl = window.crmMapa.montar(box, {
+                                lat: this.locationForm.latitude,
+                                lng: this.locationForm.longitude,
+                                alMover: (y, x) => this.writeCoords(y, x),
+                            });
 
-                            this.map = window.L.map(box).setView(start, this.hasPin ? 16 : 12);
-
-                            window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                                attribution: '© OpenStreetMap',
-                                maxZoom: 19,
-                            }).addTo(this.map);
-
-                            this.map.on('click', e => this.setPin(e.latlng.lat, e.latlng.lng, { recenter: false }));
-
-                            if (this.hasPin) {
-                                this.setPin(Number(this.locationForm.latitude), Number(this.locationForm.longitude));
-                            }
-
-                            // Leaflet measures on creation, and inside a modal
-                            // that just opened the box can still be 0px tall.
-                            this.$nextTick(() => this.map.invalidateSize());
+                            this.$nextTick(() => this.mapControl.remedir());
                         })
                         .catch(e => { this.mapError = e.message; });
                 },
 
                 setPin(lat, lng, { recenter = true } = {}) {
-                    if (! this.map) {
-                        this.writeCoords(lat, lng);
-                        return;
-                    }
-
-                    if (! this.marker) {
-                        this.marker = window.L.marker([lat, lng], { draggable: true }).addTo(this.map);
-                        this.marker.on('dragend', () => {
-                            const p = this.marker.getLatLng();
-                            this.writeCoords(p.lat, p.lng);
-                            // The GPS reading no longer describes this pin.
-                            this.locationForm.accuracy = null;
-                        });
-                    } else {
-                        this.marker.setLatLng([lat, lng]);
-                    }
-
                     this.writeCoords(lat, lng);
-
-                    if (recenter) this.map.setView([lat, lng], Math.max(this.map.getZoom(), 16));
+                    this.mapControl?.ponerPin(Number(lat), Number(lng), { recentrar: recenter });
                 },
 
                 writeCoords(lat, lng) {

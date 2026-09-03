@@ -115,15 +115,40 @@
                                    class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" />
                         </label>
 
+                        {{-- El mapa es la forma de cargar las coordenadas; los campos
+                             quedan visibles porque a veces se pegan de otro lado, y
+                             porque ver el número confirma que el pin quedó donde se
+                             quería. Van sincronizados en los dos sentidos. --}}
+                        <div class="col-span-2 flex flex-col gap-2 max-sm:col-span-1">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-medium dark:text-gray-300">Ubicación en el mapa</span>
+                                <button type="button" id="btn-mi-ubicacion"
+                                        class="text-xs text-brandColor transition hover:underline">
+                                    Usar mi ubicación
+                                </button>
+                            </div>
+
+                            {{-- Alto por atributo y no por clase: Leaflet mide el nodo al
+                                 montarse, y una clase de Tailwind que no esté en el CSS
+                                 compilado lo dejaría en cero. --}}
+                            <div id="mapa-inmueble" style="height: 300px"
+                                 class="w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"></div>
+
+                            <p class="text-xs text-gray-500">
+                                Tocá el mapa o arrastrá el pin. Sin coordenadas, el agente no puede
+                                enviarle la ubicación al cliente.
+                            </p>
+                        </div>
+
                         <label class="flex flex-col gap-1">
                             <span class="text-xs font-medium dark:text-gray-300">Latitud</span>
-                            <input name="latitud" value="{{ $v('latitud') }}"
+                            <input name="latitud" id="campo-latitud" value="{{ $v('latitud') }}"
                                    class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" />
                         </label>
 
                         <label class="flex flex-col gap-1">
                             <span class="text-xs font-medium dark:text-gray-300">Longitud</span>
-                            <input name="longitud" value="{{ $v('longitud') }}"
+                            <input name="longitud" id="campo-longitud" value="{{ $v('longitud') }}"
                                    class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" />
                         </label>
 
@@ -303,8 +328,63 @@
     </div>
 </div>
 
+<x-admin::map-picker />
+
 @push('scripts')
 <script>
+    /*
+     * Mapa de la ficha del inmueble.
+     *
+     * Los campos de latitud y longitud siguen al pin, y el pin sigue a los
+     * campos: quien pega unas coordenadas de otro lado ve el pin moverse y
+     * confirma que apuntan donde cree.
+     */
+    (function () {
+        const nodo = document.getElementById('mapa-inmueble');
+        const lat = document.getElementById('campo-latitud');
+        const lng = document.getElementById('campo-longitud');
+
+        if (! nodo || ! window.crmMapa) return;
+
+        window.crmMapa.cargar()
+            .then(() => {
+                const control = window.crmMapa.montar(nodo, {
+                    lat: lat.value,
+                    lng: lng.value,
+                    alMover: (y, x) => {
+                        lat.value = y.toFixed(7);
+                        lng.value = x.toFixed(7);
+                    },
+                });
+
+                // El pin sigue a los campos cuando alguien los edita a mano.
+                [lat, lng].forEach(campo => campo.addEventListener('change', () => {
+                    const y = parseFloat(lat.value);
+                    const x = parseFloat(lng.value);
+
+                    if (! Number.isNaN(y) && ! Number.isNaN(x)) control.ponerPin(y, x);
+                }));
+
+                document.getElementById('btn-mi-ubicacion')?.addEventListener('click', () => {
+                    if (! navigator.geolocation) return;
+
+                    navigator.geolocation.getCurrentPosition(
+                        pos => control.ponerPin(pos.coords.latitude, pos.coords.longitude),
+                        () => alert('No se pudo obtener tu ubicación. Marcá el punto en el mapa.'),
+                        { enableHighAccuracy: true, timeout: 10000 },
+                    );
+                });
+
+                // El formulario se muestra dentro de una tarjeta que puede estar
+                // colapsada al cargar: sin esto el mapa queda gris.
+                setTimeout(() => control.remedir(), 200);
+            })
+            .catch(() => {
+                nodo.innerHTML = '<p class="p-4 text-center text-xs text-gray-500">'
+                    + 'No se pudo cargar el mapa. Podés escribir las coordenadas a mano.</p>';
+            });
+    })();
+
     function agregarCaracteristica() {
         const cont = document.getElementById('caracteristicas');
         const fila = cont.lastElementChild.cloneNode(true);
