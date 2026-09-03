@@ -46,7 +46,7 @@ class CloudApiGateway extends BaseGateway
         | principio.
         */
         return new Capabilities(
-            send: ['text', 'reply', 'emoji', 'image', 'video', 'document', 'location'],
+            send: ['text', 'reply', 'emoji', 'image', 'video', 'audio', 'document', 'location'],
             receive: ['text', 'image', 'audio', 'video', 'document', 'sticker', 'location', 'contact'],
         );
     }

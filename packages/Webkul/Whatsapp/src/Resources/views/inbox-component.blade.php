@@ -471,9 +471,17 @@
                             <span class="icon-attachment text-xl"></span>
                         </button>
                         <div v-if="showAttach" class="absolute bottom-11 left-0 z-10 w-56 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                            <button class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="elegirArchivo">
-                                <span class="icon-attachment"></span> Subir un archivo
+                            {{-- Cada opción sale de lo que el canal declara poder
+                                 enviar, no de una lista fija: una opción visible
+                                 tiene que funcionar, o el asesor manda contra un
+                                 error que no puede interpretar. --}}
+                            <button v-for="opt in attachOptions" :key="opt.kind" type="button"
+                                    class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    @click="elegirArchivo(opt.kind)">
+                                <span :class="opt.icon"></span> @{{ opt.label }}
                             </button>
+
+                            <div v-if="attachOptions.length" class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
                             <button class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="enviarGaleria">
                                 <span class="icon-image"></span> Fotos de un inmueble
                             </button>
@@ -481,7 +489,12 @@
                                 <span class="icon-location"></span> Ubicación de un inmueble
                             </button>
                         </div>
-                        <input ref="fileInput" type="file" class="hidden" @change="subirArchivo">
+                        {{-- Un solo input cuyo `accept` cambia con el tipo elegido.
+                             En Vue 3 un ref con nombre dentro de un v-for NO junta
+                             los elementos en $refs, así que uno por tipo no
+                             funcionaría. --}}
+                        <input ref="fileInput" type="file" class="hidden"
+                               :accept="pendingAccept" @change="subirArchivo">
                     </div>
 
                     <textarea
@@ -1088,6 +1101,7 @@
                     replyingTo: null,
                     showAttach: false,
                     enviandoAdjunto: false,
+                    pendingKind: null,
 
                     viewer: {
                         open: false,
@@ -1199,7 +1213,29 @@
                 },
 
                 canAttach() {
-                    return ['image', 'document', 'audio'].some(type => this.canSend(type));
+                    return this.attachOptions.length > 0;
+                },
+
+                /*
+                 * Los tipos que este canal sabe enviar, con el filtro de archivos
+                 * que le corresponde a cada uno.
+                 *
+                 * Un solo «Subir archivo» dejaba al asesor eligiendo un .exe que
+                 * el proveedor iba a rechazar, y le ofrecía todos los formatos
+                 * para cualquier caso. Separado por tipo, el explorador ya filtra.
+                 */
+                attachOptions() {
+                    return [
+                        { kind: 'image',    label: 'Imagen',    icon: 'icon-image',      accept: 'image/jpeg,image/png,image/webp' },
+                        { kind: 'document', label: 'Documento', icon: 'icon-file',       accept: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv' },
+                        { kind: 'video',    label: 'Video',     icon: 'icon-video',      accept: 'video/mp4,video/3gpp' },
+                        { kind: 'audio',    label: 'Audio',     icon: 'icon-sent',       accept: 'audio/mpeg,audio/ogg,audio/amr,audio/aac' },
+                    ].filter(opt => this.canSend(opt.kind));
+                },
+
+                // El `accept` del input sigue al tipo elegido.
+                pendingAccept() {
+                    return this.attachOptions.find(o => o.kind === this.pendingKind)?.accept ?? '';
                 },
 
                 windowLabel() {
@@ -1893,9 +1929,16 @@
                     }[tipo] || 'el archivo';
                 },
 
-                elegirArchivo() {
+                elegirArchivo(kind) {
                     this.showAttach = false;
-                    this.$refs.fileInput.click();
+                    this.pendingKind = kind;
+
+                    /*
+                     * En el siguiente tick: si no, el `accept` todavía tiene el
+                     * valor del tipo anterior cuando se abre el diálogo, y la
+                     * primera elección ofrece los formatos equivocados.
+                     */
+                    this.$nextTick(() => this.$refs.fileInput?.click());
                 },
 
                 /*
@@ -1909,6 +1952,9 @@
                  */
                 subirArchivo(event) {
                     const archivo = event.target.files[0];
+
+                    // Se limpia enseguida para que elegir el mismo archivo dos
+                    // veces seguidas vuelva a disparar @change.
                     event.target.value = '';
 
                     if (! archivo) return;
