@@ -233,24 +233,33 @@
                                 </span>
                             </a>
 
+                            {{-- Ojo con el `msg.location &&`: no es defensa de más.
+                                 Vue arma el hilo entero en un render, así que un
+                                 solo mensaje con el payload incompleto dejaba la
+                                 conversación en blanco, no el globo en blanco. --}}
                             <div v-else-if="msg.type === 'location'" class="min-w-[200px]">
-                                <div class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
+                                <a v-if="msg.location" :href="'https://www.google.com/maps?q=' + msg.location.lat + ',' + msg.location.lng"
+                                   target="_blank" rel="noopener"
+                                   class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 transition hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20">
                                     <span class="icon-map text-xl"></span>
                                     <span class="flex flex-col">
-                                        <span class="font-medium">Ubicación</span>
+                                        <span class="font-medium">@{{ msg.location.name || 'Ubicación' }}</span>
+                                        <span v-if="msg.location.address" class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.location.address }}</span>
                                         <span class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.location.lat }}, @{{ msg.location.lng }}</span>
                                     </span>
-                                </div>
+                                </a>
+                                <span v-else class="italic text-gray-500">Ubicación sin coordenadas</span>
                             </div>
 
                             <div v-else-if="msg.type === 'contact'" class="min-w-[200px]">
-                                <div class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
+                                <div v-if="msg.contact" class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
                                     <span class="icon-user text-xl"></span>
                                     <span class="flex flex-col">
                                         <span class="font-medium">@{{ msg.contact.name }}</span>
                                         <span class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.contact.phone }}</span>
                                     </span>
                                 </div>
+                                <span v-else class="italic text-gray-500">Contacto sin datos</span>
                             </div>
 
                             <div v-else class="italic text-gray-500">Tipo no soportado</div>

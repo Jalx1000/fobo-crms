@@ -703,10 +703,64 @@ class InboxController extends Controller
                 'meta'     => $message->media_mime,
                 'estado'   => 'listo',
             ] : $this->mediaPendiente($message),
+            'location'  => $this->ubicacionDe($message),
+            'contact'   => $this->contactoDe($message),
             'replyTo'   => $message->replyTo ? [
                 'author'  => $message->replyTo->direction === 'inbound' ? 'Cliente' : 'Agente',
                 'preview' => \Illuminate\Support\Str::limit((string) $message->replyTo->body, 60),
             ] : null,
+        ];
+    }
+
+    /**
+     * Coordenadas de un mensaje de ubicación, en la forma que espera el hilo.
+     *
+     * El payload llega de dos maneras según quién lo escribió: lo que enviamos
+     * queda plano (`latitude`), y lo que entra por el webhook queda tal cual lo
+     * manda Meta, con todo colgando de `location`. El front pedía `location.lat`,
+     * que no existía en ninguna de las dos, y una sola ubicación en el historial
+     * rompía el render de la conversación entera.
+     */
+    protected function ubicacionDe($message): ?array
+    {
+        if ($message->type !== 'location') {
+            return null;
+        }
+
+        $payload = (array) ($message->payload ?? []);
+        $lugar = (array) ($payload['location'] ?? $payload);
+
+        if (! isset($lugar['latitude'], $lugar['longitude'])) {
+            return null;
+        }
+
+        return [
+            'lat'     => (float) $lugar['latitude'],
+            'lng'     => (float) $lugar['longitude'],
+            'name'    => $lugar['name'] ?? null,
+            'address' => $lugar['address'] ?? null,
+        ];
+    }
+
+    /**
+     * Contacto compartido por el cliente. Mismo problema que la ubicación:
+     * el hilo leía `contact.name` sobre algo que nunca se armaba.
+     */
+    protected function contactoDe($message): ?array
+    {
+        if ($message->type !== 'contact') {
+            return null;
+        }
+
+        $contacto = data_get($message->payload, 'contacts.0');
+
+        if (! $contacto) {
+            return null;
+        }
+
+        return [
+            'name'  => data_get($contacto, 'name.formatted_name') ?: $message->body,
+            'phone' => data_get($contacto, 'phones.0.phone'),
         ];
     }
 }
