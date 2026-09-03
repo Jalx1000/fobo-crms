@@ -340,30 +340,50 @@
      * confirma que apuntan donde cree.
      */
     (function () {
-        const lat = document.getElementById('campo-latitud');
-        const lng = document.getElementById('campo-longitud');
+        /*
+         * Todo esto vive dentro de <v-form>, y Vue recrea esos nodos al montar.
+         * Por eso nada acá guarda una referencia a un elemento ni le cuelga un
+         * listener propio: se busca por id en el momento de usarlo y se escucha
+         * sobre document, que Vue no reemplaza. Guardar el input y escribirle
+         * después es peor que no andar, porque se escribe en un nodo que ya no
+         * está en el formulario y la coordenada nunca se guarda.
+         */
+        const campo = id => document.getElementById(id);
 
-        if (! lat || ! window.crmMapa) return;
+        if (! window.crmMapa) return;
 
         window.crmMapa.montarEn('#mapa-inmueble', {
-            lat: lat.value,
-            lng: lng.value,
+            lat: campo('campo-latitud')?.value,
+            lng: campo('campo-longitud')?.value,
             alMover: (y, x) => {
-                lat.value = y.toFixed(7);
-                lng.value = x.toFixed(7);
+                const lat = campo('campo-latitud');
+                const lng = campo('campo-longitud');
+
+                if (lat) lat.value = y.toFixed(7);
+                if (lng) lng.value = x.toFixed(7);
             },
         })
             .then(control => {
                 // El pin sigue a los campos cuando alguien los edita a mano.
-                [lat, lng].forEach(campo => campo.addEventListener('change', () => {
-                    const y = parseFloat(lat.value);
-                    const x = parseFloat(lng.value);
+                document.addEventListener('change', e => {
+                    if (! e.target.matches('#campo-latitud, #campo-longitud')) return;
+
+                    const y = parseFloat(campo('campo-latitud')?.value);
+                    const x = parseFloat(campo('campo-longitud')?.value);
 
                     if (! Number.isNaN(y) && ! Number.isNaN(x)) control.ponerPin(y, x);
-                }));
+                });
 
-                document.getElementById('btn-mi-ubicacion')?.addEventListener('click', () => {
-                    if (! navigator.geolocation) return;
+                document.addEventListener('click', e => {
+                    if (! e.target.closest('#btn-mi-ubicacion')) return;
+
+                    e.preventDefault();
+
+                    if (! navigator.geolocation) {
+                        alert('Este navegador no puede darnos tu ubicación. Marcá el punto en el mapa.');
+
+                        return;
+                    }
 
                     navigator.geolocation.getCurrentPosition(
                         pos => control.ponerPin(pos.coords.latitude, pos.coords.longitude),
@@ -377,7 +397,7 @@
                 setTimeout(() => control.remedir(), 300);
             })
             .catch(() => {
-                const nodo = document.getElementById('mapa-inmueble');
+                const nodo = campo('mapa-inmueble');
 
                 if (nodo) {
                     nodo.innerHTML = '<p class="p-4 text-center text-xs text-gray-500">'
