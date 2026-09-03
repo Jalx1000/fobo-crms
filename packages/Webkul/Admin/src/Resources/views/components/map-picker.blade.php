@@ -100,7 +100,62 @@
                 };
             }
 
-            return { cargar, montar };
+            /**
+             * Monta el mapa en un nodo que Vue todavía puede reemplazar.
+             *
+             * En el admin casi todo el HTML vive dentro de #app y Vue compila
+             * ese DOM como plantilla: un mapa dibujado antes de que Vue monte
+             * desaparece sin error, porque Vue recrea los nodos y tira lo que
+             * Leaflet había puesto adentro. Por eso se espera al `load` (los
+             * módulos ya corrieron) y se vuelve a plantar si el nodo cambia.
+             *
+             * Devuelve un control estable: quien lo guarda no se queda con un
+             * mapa muerto después de una replantada.
+             */
+            function montarEn(selector, opciones = {}) {
+                let actual = null;
+                let ultimo = { lat: opciones.lat, lng: opciones.lng };
+                let nodo = null;
+
+                const avisar = opciones.alMover || (() => {});
+
+                function plantar() {
+                    const encontrado = document.querySelector(selector);
+
+                    if (! encontrado || encontrado === nodo) return;
+
+                    nodo = encontrado;
+                    actual = montar(nodo, {
+                        ...opciones,
+                        ...ultimo,
+                        alMover: (y, x) => { ultimo = { lat: y, lng: x }; avisar(y, x); },
+                    });
+                }
+
+                function vigilar() {
+                    // Replantar solo cuando el nodo se fue del documento: un
+                    // observador que reacciona a cualquier cambio remonta el
+                    // mapa en cada tecla del formulario.
+                    new MutationObserver(() => {
+                        if (nodo && ! nodo.isConnected) plantar();
+                    }).observe(document.body, { childList: true, subtree: true });
+                }
+
+                return cargar().then(() => {
+                    const empezar = () => { plantar(); vigilar(); };
+
+                    if (document.readyState === 'complete') empezar();
+                    else window.addEventListener('load', empezar, { once: true });
+
+                    return {
+                        ponerPin: (y, x, o) => actual && actual.ponerPin(y, x, o),
+                        remedir: () => actual && actual.remedir(),
+                        get mapa() { return actual ? actual.mapa : null; },
+                    };
+                });
+            }
+
+            return { cargar, montar, montarEn };
         })();
         @endverbatim
     </script>

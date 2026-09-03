@@ -340,23 +340,20 @@
      * confirma que apuntan donde cree.
      */
     (function () {
-        const nodo = document.getElementById('mapa-inmueble');
         const lat = document.getElementById('campo-latitud');
         const lng = document.getElementById('campo-longitud');
 
-        if (! nodo || ! window.crmMapa) return;
+        if (! lat || ! window.crmMapa) return;
 
-        window.crmMapa.cargar()
-            .then(() => {
-                const control = window.crmMapa.montar(nodo, {
-                    lat: lat.value,
-                    lng: lng.value,
-                    alMover: (y, x) => {
-                        lat.value = y.toFixed(7);
-                        lng.value = x.toFixed(7);
-                    },
-                });
-
+        window.crmMapa.montarEn('#mapa-inmueble', {
+            lat: lat.value,
+            lng: lng.value,
+            alMover: (y, x) => {
+                lat.value = y.toFixed(7);
+                lng.value = x.toFixed(7);
+            },
+        })
+            .then(control => {
                 // El pin sigue a los campos cuando alguien los edita a mano.
                 [lat, lng].forEach(campo => campo.addEventListener('change', () => {
                     const y = parseFloat(lat.value);
@@ -375,13 +372,17 @@
                     );
                 });
 
-                // El formulario se muestra dentro de una tarjeta que puede estar
-                // colapsada al cargar: sin esto el mapa queda gris.
-                setTimeout(() => control.remedir(), 200);
+                // La tarjeta puede estar colapsada al cargar: sin esto Leaflet
+                // midió 0px de alto y el mapa queda gris.
+                setTimeout(() => control.remedir(), 300);
             })
             .catch(() => {
-                nodo.innerHTML = '<p class="p-4 text-center text-xs text-gray-500">'
-                    + 'No se pudo cargar el mapa. Podés escribir las coordenadas a mano.</p>';
+                const nodo = document.getElementById('mapa-inmueble');
+
+                if (nodo) {
+                    nodo.innerHTML = '<p class="p-4 text-center text-xs text-gray-500">'
+                        + 'No se pudo cargar el mapa. Podés escribir las coordenadas a mano.</p>';
+                }
             });
     })();
 

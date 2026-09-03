@@ -484,6 +484,15 @@
                             </button>
 
                             <div v-if="attachOptions.length" class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                            {{-- Un punto cualquiera del mapa, no el de un
+                                 inmueble: el asesor manda dónde queda la oficina
+                                 o dónde se encuentran a ver la propiedad. --}}
+                            <button v-if="canSend('location')" type="button"
+                                    class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    @click="openLocation()">
+                                <span class="icon-location"></span> Ubicación en el mapa
+                            </button>
+
                             <button class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="abrirInmuebles('galeria')">
                                 <span class="icon-image"></span> Fotos de un inmueble
                             </button>
