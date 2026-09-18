@@ -3,12 +3,47 @@
 Configuración que **no vive en el repositorio** y que un redespliegue revierte.
 Si algo dejó de funcionar después de un deploy, empezá por acá.
 
+## 0. Dónde vive de verdad la configuración (leer primero)
+
+El 18/09/2026 el contenedor se recreó y se perdieron el scheduler, el límite
+de nginx y los permisos. La causa: los había aplicado **dentro** del
+contenedor, y el contenedor es desechable.
+
+La configuración real sale de archivos que Easypanel genera en el host y
+monta adentro:
+
+| host                                                              | contenedor                                   |
+|-------------------------------------------------------------------|----------------------------------------------|
+| `/etc/easypanel/projects/heaven/c21_laravel/generated/supervisord.conf` | `/etc/supervisor/conf.d/supervisord.conf` |
+| `/etc/easypanel/projects/heaven/c21_laravel/generated/site.conf`        | `/etc/nginx/sites-available/default`      |
+| `/etc/easypanel/projects/heaven/c21_laravel/generated/php.ini`          | `/etc/php/8.2/fpm/conf.d/99-easypanel.ini` |
+| `/etc/easypanel/projects/heaven/c21_laravel/generated/start.sh`         | `/start.sh`                                |
+
+Editar esos archivos en el host **sobrevive a la recreación del contenedor**,
+pero no a que alguien guarde la configuración del servicio en el panel de
+Easypanel, que los regenera. Por eso el lugar definitivo es el propio panel:
+
+- **Scheduler** → Easypanel → servicio `c21_laravel` → *Processes* /
+  *Supervisord* → agregar un programa igual al `[program:whatsapp]` que ya
+  está, con `command=/bin/bash -c "php artisan schedule:work --no-interaction"`
+  y `user=www-data`.
+- **Límite de subida** → mismo servicio → configuración de nginx → agregar
+  `client_max_body_size 256M;` dentro del `server`.
+
+Mientras eso no esté en el panel, los puntos 1 y 2 de abajo se aplican sobre
+los archivos de `generated/`, no dentro del contenedor. Después:
+
+```bash
+docker exec $C sh -c "nginx -t && nginx -s reload"
+docker exec $C sh -c "supervisorctl reread && supervisorctl update"
+```
+
 ## 1. nginx — límite de subida
 
 Sin esto nginx corta en 1 MB y rechaza varias fotos o un video antes de que PHP los vea.
 
 ```nginx
-# /etc/nginx/sites-enabled/default, dentro del server
+# generated/site.conf en el host (ver punto 0), dentro del server
 client_max_body_size 256M;
 ```
 
