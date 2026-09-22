@@ -53,16 +53,32 @@ class AgentPayload
      */
     protected function message(Message $message): array
     {
+        $selection = $this->gateways->for($message->conversation)
+            ->interactiveSelection((array) $message->payload);
+
         $payload = [
             'id'        => $message->id,
             'type'      => $message->type,
             'text'      => $message->body,
+            /*
+             * La opción que el cliente tocó. MISMA CLAVE Y MISMA FORMA que en
+             * imprimir (`selection` con {id, title}), porque el agente es el
+             * mismo para los dos tenants: cuando kohlberg mandaba esto bajo otra
+             * clave, el agente leía `selection` y encontraba undefined — los
+             * botones y las listas "no se detectaban".
+             *
+             * `text` ya trae el título, que es lo que el cliente ve, pero el
+             * agente debe rutear por el `id`: los títulos se recortan a 20/24
+             * caracteres y pueden repetirse entre menús; el id no.
+             */
+            'selection' => $selection ? [
+                'id'    => (string) ($selection['id'] ?? ''),
+                'title' => (string) ($selection['title'] ?? ''),
+            ] : null,
             'timestamp' => optional($message->created_at)->toIso8601String(),
         ];
 
-        $selection = $this->gateways->for($message->conversation)
-            ->interactiveSelection((array) $message->payload);
-
+        // Se mantiene la clave vieja para no romper a quien ya la lea.
         if ($selection) {
             $payload['interactive'] = $selection;
         }

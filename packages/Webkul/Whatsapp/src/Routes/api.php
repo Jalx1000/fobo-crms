@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Webkul\Whatsapp\Http\Controllers\Api\AgentController;
+use Webkul\Whatsapp\Http\Controllers\MediaController;
 use Webkul\Whatsapp\Http\Controllers\WebhookController;
 
 /*
@@ -23,6 +24,21 @@ Route::prefix('api/v1/whatsapp')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
+| Outgoing media
+|--------------------------------------------------------------------------
+| The provider downloads attachments from here, so it cannot sit behind auth.
+| The random 40-char filename is what keeps it private.
+|
+| It exists because the Content-Type has to match the type we declare to
+| WhatsApp: served by the web server, a voice note recorded as audio/mp4 goes
+| out as video/mp4, which WhatsApp will not accept for audio.
+*/
+Route::get('whatsapp/media/{file}', [MediaController::class, 'show'])
+    ->where('file', '[A-Za-z0-9._-]+')
+    ->name('whatsapp.media');
+
+/*
+|--------------------------------------------------------------------------
 | Agent API (token / Sanctum)
 |--------------------------------------------------------------------------
 | Consumed by the external AI agent to read context and post replies. Auth is a
@@ -35,4 +51,11 @@ Route::prefix('api/v1/whatsapp')
     ->group(function () {
         Route::get('conversations/{id}/messages', [AgentController::class, 'messages']);
         Route::post('conversations/{id}/messages', [AgentController::class, 'send']);
+
+        // Botones y listas en formato estructurado. Mismo contrato que imprimir,
+        // porque el agente es el mismo para los dos tenants.
+        Route::post('conversations/{id}/interactive', [AgentController::class, 'sendInteractive']);
+
+        // El agente suelta la conversación y se la pasa a una persona.
+        Route::post('conversations/{id}/handoff', [AgentController::class, 'handoff']);
     });

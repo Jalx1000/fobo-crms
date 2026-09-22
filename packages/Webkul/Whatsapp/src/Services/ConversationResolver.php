@@ -11,6 +11,8 @@ use Webkul\Whatsapp\Models\ConversationProxy;
 
 class ConversationResolver
 {
+    public function __construct(protected LeadOpener $leads) {}
+
     /**
      * Resolve the conversation for an inbound message.
      *
@@ -48,7 +50,7 @@ class ConversationResolver
             'provider_conversation_id' => $providerConversationId,
             'wa_name'                  => $contact->name,
             'person_id'                => $person?->id,
-            'lead_id'                  => $person ? optional($person->leads()->latest()->first())->id : null,
+            'lead_id'                  => $this->leads->forPerson($person),
             'status'                   => $person ? 'open' : 'unassigned',
             'ai_enabled'               => true, // new conversations start with the agent on
         ]);
@@ -79,7 +81,7 @@ class ConversationResolver
         if (! $conversation->person_id) {
             if ($person = $this->resolveOrCreatePerson($contact)) {
                 $updates['person_id'] = $person->id;
-                $updates['lead_id'] = optional($person->leads()->latest()->first())->id;
+                $updates['lead_id'] = $this->leads->forPerson($person);
                 $updates['status'] = 'open';
             }
         }

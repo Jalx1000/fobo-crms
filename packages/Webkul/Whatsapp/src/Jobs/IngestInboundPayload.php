@@ -8,6 +8,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
 use Webkul\Whatsapp\Gateways\Dto\StatusUpdate;
 use Webkul\Whatsapp\Gateways\GatewayManager;
@@ -20,6 +21,12 @@ use Webkul\Whatsapp\Services\ConversationResolver;
  */
 class IngestInboundPayload implements ShouldQueue
 {
+    /** Tipos que traen un archivo que hay que descargar antes de que caduque. */
+    protected const TIPOS_CON_ARCHIVO = ['image', 'video', 'audio', 'document', 'sticker'];
+
+    /** Tipos que no son un turno de conversación. */
+    protected const TIPOS_QUE_NO_DESPIERTAN_AL_AGENTE = ['reaction'];
+
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
@@ -92,9 +99,27 @@ class IngestInboundPayload implements ShouldQueue
             'unread_count'    => $conversation->unread_count + 1,
         ])->save();
 
-        // Hand the message to the AI agent — but only while it is enabled for
-        // this conversation. Off = a human is handling it.
-        if ($conversation->aiEffective()) {
+        /*
+         * Traer el archivo, si el mensaje trae uno. Va acá y no cuando alguien
+         * abre la conversación porque la referencia de Meta CADUCA: diferirlo
+         * significa perder el archivo del cliente.
+         */
+        if (in_array($created->type, self::TIPOS_CON_ARCHIVO, true)) {
+            DownloadInboundMedia::dispatch($created->id)->onQueue(config('whatsapp.queue'));
+        }
+
+        /*
+         * Pasarle el mensaje al agente — sólo mientras esté habilitado en esta
+         * conversación. Apagado = lo atiende una persona.
+         *
+         * Las reacciones NO despiertan al agente. Un 👍 es un acuse de recibo,
+         * no un turno de conversación: contestarlo con un mensaje completo es
+         * ruido, y encima consume la ventana de 24 h. Hasta hoy no pasaba
+         * porque el agente descartaba el tipo por desconocido; ahora que la
+         * reacción tiene texto (el emoji), sin este filtro empezaría a
+         * responderlas.
+         */
+        if ($conversation->aiEffective() && ! in_array($created->type, self::TIPOS_QUE_NO_DESPIERTAN_AL_AGENTE, true)) {
             NotifyAgent::dispatch($created->id)->onQueue(config('whatsapp.queue'));
         }
     }
@@ -116,7 +141,15 @@ class IngestInboundPayload implements ShouldQueue
             return;
         }
 
-        $message->update(['status' => $update->status]);
+        $cambios = ['status' => $update->status];
+
+        // El motivo del fallo, donde el asesor lo ve (la burbuja ya lo muestra
+        // en rojo) y no sólo en un log que nadie abre.
+        if ($update->status === 'failed' && $update->error) {
+            $cambios['error'] = Str::limit($update->error, 500);
+        }
+
+        $message->update($cambios);
     }
 
     protected function resolveReplyTo(?string $providerId): ?int

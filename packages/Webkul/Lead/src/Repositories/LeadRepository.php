@@ -173,9 +173,22 @@ class LeadRepository extends Repository
 
         if (isset($data['products'])) {
             foreach ($data['products'] as $product) {
+                /*
+                 * Una fila sin producto elegido no es un producto.
+                 *
+                 * El formulario deja agregar filas vacías, y quitar el producto
+                 * de una fila ya cargada la deja con product_id nulo. Sin este
+                 * filtro el insert moría con "Column 'product_id' cannot be
+                 * null": el lead NO se creaba y el asesor veía un 500 sin saber
+                 * qué fila corregir. Se ignora la fila y el resto se guarda.
+                 */
+                if (empty($product['product_id'])) {
+                    continue;
+                }
+
                 $this->productRepository->create(array_merge($product, [
                     'lead_id' => $lead->id,
-                    'amount'  => $product['price'] * $product['quantity'],
+                    'amount'  => (float) ($product['price'] ?? 0) * (float) ($product['quantity'] ?? 0),
                 ]));
             }
         }
@@ -298,6 +311,16 @@ class LeadRepository extends Repository
 
         if (isset($data['products'])) {
             foreach ($data['products'] as $productId => $productInputs) {
+                /*
+                 * Igual que al crear: una fila sin producto elegido se ignora.
+                 * Sólo se filtran las filas NUEVAS —las que traen la clave
+                 * "product_N"—; una existente que llegue sin product_id se deja
+                 * pasar al update, que no toca la columna si no viene.
+                 */
+                if (Str::contains($productId, 'product_') && empty($productInputs['product_id'])) {
+                    continue;
+                }
+
                 // Always (re)compute the line amount = price × quantity so it stays
                 // consistent on edits (the create flow did this, the update didn't).
                 $productInputs['amount'] = (float) ($productInputs['price'] ?? 0) * (float) ($productInputs['quantity'] ?? 0);

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Lead\Models\LeadProxy;
+use Webkul\User\Models\UserProxy;
 use Webkul\Whatsapp\Contracts\Conversation as ConversationContract;
 
 class Conversation extends Model implements ConversationContract
@@ -19,6 +20,18 @@ class Conversation extends Model implements ConversationContract
      *
      * @var array
      */
+    /*
+     * Estados del handoff. `requested` = derivada pero sin dueño (el pool);
+     * `assigned` = un asesor concreto la debe; `resolved` = cerrada.
+     */
+    public const HANDOFF_REQUESTED = 'requested';
+
+    public const HANDOFF_ASSIGNED = 'assigned';
+
+    public const HANDOFF_RESOLVED = 'resolved';
+
+    public const HANDOFF_SOURCES = ['ai', 'human'];
+
     protected $fillable = [
         'gateway',
         'wa_phone',
@@ -31,6 +44,13 @@ class Conversation extends Model implements ConversationContract
         'person_id',
         'lead_id',
         'last_inbound_at',
+        'handoff_state',
+        'handoff_reason',
+        'handoff_source',
+        'handoff_requested_at',
+        'handoff_city_id',
+        'assigned_user_id',
+        'assigned_at',
     ];
 
     /**
@@ -39,9 +59,11 @@ class Conversation extends Model implements ConversationContract
      * @var array
      */
     protected $casts = [
-        'ai_enabled'      => 'boolean',
-        'last_message_at' => 'datetime',
-        'last_inbound_at' => 'datetime',
+        'ai_enabled'           => 'boolean',
+        'last_message_at'      => 'datetime',
+        'last_inbound_at'      => 'datetime',
+        'handoff_requested_at' => 'datetime',
+        'assigned_at'          => 'datetime',
     ];
 
     /**
@@ -51,6 +73,28 @@ class Conversation extends Model implements ConversationContract
     public function aiEffective(): bool
     {
         return $this->ai_enabled ?? (bool) config('whatsapp.ai.enabled');
+    }
+
+    /**
+     * ¿Hay una derivación abierta? Es lo que silencia al agente y lo que hace
+     * que sus intentos de responder devuelvan 409.
+     */
+    public function handoffOpen(): bool
+    {
+        return in_array($this->handoff_state, [self::HANDOFF_REQUESTED, self::HANDOFF_ASSIGNED], true);
+    }
+
+    /**
+     * Derivada pero sin dueño: la toma el primero que llegue.
+     */
+    public function handoffPooled(): bool
+    {
+        return $this->handoff_state === self::HANDOFF_REQUESTED && $this->assigned_user_id === null;
+    }
+
+    public function assignedUser(): BelongsTo
+    {
+        return $this->belongsTo(UserProxy::modelClass(), 'assigned_user_id');
     }
 
     public function person(): BelongsTo

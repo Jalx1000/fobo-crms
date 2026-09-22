@@ -40,6 +40,35 @@ class LeadForm extends FormRequest
      *
      * @return array
      */
+    /**
+     * Descarta las filas de producto que no tienen producto elegido.
+     *
+     * El formulario deja agregar filas vacías, y quitar el producto de una fila
+     * ya cargada la deja igual de vacía (el lookup emite un objeto vacío al
+     * limpiarse). Sin esto la validación cortaba el guardado con
+     * "The products.product_0.product_id field is required" — un mensaje sobre
+     * un campo OCULTO, que el asesor no puede ver ni corregir: el pedido no se
+     * guardaba y no había forma de saber por qué.
+     *
+     * Una fila sin producto no es un producto, así que se ignora. Las filas que
+     * sí tienen producto siguen validándose igual que antes.
+     */
+    protected function prepareForValidation(): void
+    {
+        if (! is_array($productos = $this->input('products'))) {
+            return;
+        }
+
+        $conProducto = array_filter(
+            $productos,
+            fn ($fila) => ! empty($fila['product_id'])
+        );
+
+        $this->merge([
+            'products' => $conProducto,
+        ]);
+    }
+
     public function rules()
     {
         // $allData = $this->all();

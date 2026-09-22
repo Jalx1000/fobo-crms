@@ -19,8 +19,15 @@ Route::controller(InboxController::class)
     ->group(function () {
         Route::get('thread', 'thread')->name('thread');
         Route::post('send', 'send')->name('send');
+        Route::get('templates', 'templates')->name('templates');
+        Route::post('send-template', 'sendTemplate')->name('send-template');
+        Route::post('send-media', 'sendMedia')->name('send-media');
+        Route::post('send-location', 'sendLocation')->name('send-location');
         Route::patch('conversations/{id}/agent', 'toggleAgent')->name('agent');
         Route::post('conversations/{id}/notes', 'storeNote')->name('notes.store');
+        Route::post('conversations/{id}/handoff', 'requestHandoff')->name('handoff.request');
+        Route::post('conversations/{id}/handoff/claim', 'claimHandoff')->name('handoff.claim');
+        Route::post('conversations/{id}/handoff/resolve', 'resolveHandoff')->name('handoff.resolve');
     });
 
 Route::controller(ChatController::class)
@@ -34,6 +41,7 @@ Route::controller(ChatController::class)
         Route::post('persons/{id}/leads', 'storeLead')->name('person.leads');
         Route::get('products', 'products')->name('products');
         Route::get('stages', 'stages')->name('stages');
+        Route::get('cities', 'cities')->name('cities');
     });
 
 Route::controller(QuickReplyController::class)

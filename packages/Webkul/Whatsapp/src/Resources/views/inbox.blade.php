@@ -31,6 +31,10 @@
         quick-replies-url="{{ route('admin.whatsapp.quick-replies.index') }}"
         person-url-base="{{ url(config('app.admin_path').'/whatsapp/persons') }}"
         products-url="{{ route('admin.whatsapp.products') }}"
+        send-media-url="{{ route('admin.whatsapp.send-media') }}"
+        send-location-url="{{ route('admin.whatsapp.send-location') }}"
+        templates-url="{{ route('admin.whatsapp.templates') }}"
+        send-template-url="{{ route('admin.whatsapp.send-template') }}"
     ></v-whatsapp-inbox>
 </div>
 

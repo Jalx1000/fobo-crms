@@ -13,7 +13,24 @@
             quick-replies-url="{{ route('admin.whatsapp.quick-replies.index') }}"
             person-url-base="{{ url(config('app.admin_path').'/whatsapp/persons') }}"
             products-url="{{ route('admin.whatsapp.products') }}"
+        send-media-url="{{ route('admin.whatsapp.send-media') }}"
+        send-location-url="{{ route('admin.whatsapp.send-location') }}"
+        templates-url="{{ route('admin.whatsapp.templates') }}"
+        send-template-url="{{ route('admin.whatsapp.send-template') }}"
             stages-url="{{ route('admin.whatsapp.stages') }}"
+            cities-url="{{ route('admin.whatsapp.cities') }}"
+            {{--
+                El filtro de ciudad es GLOBAL: vive en la cookie
+                "global_pipeline_id" que ya comparten el Tablero, Pedidos y
+                Prospectos (ver Helpers\GlobalDateFilter para el mismo patrón
+                con las fechas). Elegir Santa Cruz acá la deja elegida allá, y
+                al revés.
+
+                Se lee en el servidor y no con un regex sobre document.cookie
+                como hace el tablero: acá ya estamos en Blade y la cookie no
+                está encriptada (está en EncryptCookies::$except).
+            --}}
+            saved-city="{{ request()->cookie('global_pipeline_id') }}"
         >
             <div class="flex h-[calc(100vh-110px)] items-center justify-center rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                 <x-admin::spinner />
@@ -53,6 +70,33 @@
                                     @click="filter = f.value; load()">
                                 @{{ f.label }}
                             </button>
+                        </div>
+
+                        <!--
+                            Filtro por ciudad. En kohlberg la ciudad ES el
+                            pipeline y cada una tiene su Encargado, pero la
+                            bandeja mostraba todas las conversaciones mezcladas.
+
+                            Desplegable y no chips como las etapas: son 8
+                            ciudades y el panel ya tiene dos filas de chips.
+                            El conteo al lado es lo que hace visible que hay 22
+                            sin clasificar — una cola que si no se muestra, no
+                            la mira nadie.
+                        -->
+                        <div v-if="cities.length || noneCity.count" class="flex items-center gap-2">
+                            <label for="wa-city" class="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-300">
+                                Ciudad
+                            </label>
+                            <select id="wa-city" v-model="cityFilter" @change="onCityChange()"
+                                    class="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:border-brandColor focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200">
+                                <option :value="null">Todas (@{{ citiesTotal }})</option>
+                                <option v-for="city in cities" :key="city.id" :value="city.id">
+                                    @{{ city.name }} (@{{ city.count }})
+                                </option>
+                                <option v-if="noneCity.count" :value="noneCity.value">
+                                    @{{ noneCity.name }} (@{{ noneCity.count }})
+                                </option>
+                            </select>
                         </div>
 
                         <!-- stage filter: chips from the default pipeline -->
@@ -104,6 +148,29 @@
                                 </div>
 
                                 <div class="min-w-0 flex-1">
+                                    <!--
+                                        Derivación. Va arriba del nombre porque
+                                        es lo que decide si el asesor tiene que
+                                        entrar; el resto de la fila es contexto.
+                                    -->
+                                    <div v-if="c.handoff" class="mb-0.5 flex flex-wrap items-center gap-1">
+                                        <span class="rounded px-1.5 py-px text-[10px] font-bold"
+                                              :class="c.handoff.pooled
+                                                ? 'bg-amber-500 text-white'
+                                                : (c.handoff.is_mine ? 'bg-brandColor text-white'
+                                                                     : 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300')">
+                                            @{{ c.handoff.pooled ? 'SIN ASESOR' : (c.handoff.is_mine ? 'TE TOCA' : 'DERIVADA') }}
+                                        </span>
+                                        <span v-if="c.handoff.city"
+                                              class="rounded-full bg-gray-100 px-1.5 py-px text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                            @{{ c.handoff.city }}
+                                        </span>
+                                        <span v-if="c.handoff.advisor && !c.handoff.is_mine"
+                                              class="truncate text-[10px] text-gray-500 dark:text-gray-400">
+                                            @{{ c.handoff.advisor }}
+                                        </span>
+                                    </div>
+
                                     <div class="flex items-baseline justify-between gap-2">
                                         <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">@{{ c.name }}</span>
                                         <span class="shrink-0 text-[11px]"
@@ -124,7 +191,15 @@
                                         </span>
                                     </div>
 
-                                    <div v-if="c.stage || (!c.person_id && !c.lead_id)" class="mt-1 flex items-center gap-1.5">
+                                    <div v-if="c.stage || c.city || (!c.person_id && !c.lead_id)" class="mt-1 flex items-center gap-1.5">
+                                        <!--
+                                            Sin esto, al filtrar por una ciudad
+                                            no hay forma de confirmar que la
+                                            lista muestra lo correcto, ni de ver
+                                            la ciudad cuando el filtro está en
+                                            Todas.
+                                        -->
+                                        <span v-if="c.city" class="truncate rounded-full bg-emerald-100 px-1.5 py-px text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">@{{ c.city }}</span>
                                         <span v-if="c.stage" class="truncate rounded-full bg-sky-100 px-1.5 py-px text-[10px] font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">@{{ c.stage }}</span>
                                         <span v-if="!c.person_id && !c.lead_id" class="rounded bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Sin asignar</span>
                                         <button v-if="!c.person_id && !c.lead_id" type="button"
@@ -169,6 +244,10 @@
                         :quick-replies-url="quickRepliesUrl"
                         :person-url-base="personUrlBase"
                         :products-url="productsUrl"
+                        :send-media-url="sendMediaUrl"
+                        :send-location-url="sendLocationUrl"
+                        :templates-url="templatesUrl"
+                        :send-template-url="sendTemplateUrl"
                     ></v-whatsapp-inbox>
 
                     <div v-else class="flex h-full flex-col items-center justify-center gap-3 bg-gray-50 dark:bg-gray-950">
@@ -196,7 +275,13 @@
                     quickRepliesUrl: { type: String, required: true },
                     personUrlBase: { type: String, required: true },
                     productsUrl: { type: String, required: true },
+                    sendMediaUrl: { type: String, default: '' },
+                    sendLocationUrl: { type: String, default: '' },
+                    templatesUrl: { type: String, default: '' },
+                    sendTemplateUrl: { type: String, default: '' },
                     stagesUrl: { type: String, required: true },
+                    citiesUrl: { type: String, required: true },
+                    savedCity: { type: String, default: '' },
                 },
 
                 data() {
@@ -208,10 +293,32 @@
                         filters: [
                             { value: 'all', label: 'Todas' },
                             { value: 'unread', label: 'No leídas' },
-                            { value: 'unassigned', label: 'Sin asignar' },
+                            // Las tres del handoff. `pool` primero de las tres
+                            // porque es la única cola donde nadie tiene la
+                            // conversación asignada: si no se mira, se pierde.
+                            { value: 'pool', label: 'Sin asesor' },
+                            { value: 'mine', label: 'Míos' },
+                            { value: 'handoff', label: 'Derivadas' },
+                            { value: 'unassigned', label: 'Sin contacto' },
                         ],
                         stages: [],
                         stageFilter: null,
+                        cities: [],
+                        noneCity: { value: 'none', name: 'Sin ciudad', count: 0 },
+                        citiesTotal: 0,
+                        /*
+                         * Arranca con lo que dejó elegido el filtro global.
+                         * 'all' y vacío significan "todas" — null acá.
+                         *
+                         * Se convierte a NÚMERO: la cookie llega como texto
+                         * ("3") y las opciones del select bindean city.id, que
+                         * viene numérico del JSON. Vue compara por identidad, y
+                         * "3" !== 3 dejaría el desplegable sin nada
+                         * seleccionado aunque la lista sí venga filtrada.
+                         */
+                        cityFilter: /^\d+$/.test(this.savedCity || '')
+                            ? Number(this.savedCity)
+                            : null,
                         page: 1,
                         lastPage: 1,
                         listLoading: false,
@@ -235,6 +342,7 @@
 
                 mounted() {
                     this.load();
+                    this.loadCities();
                     this.$axios.get(this.stagesUrl)
                         .then(res => { this.stages = res.data?.stages ?? []; })
                         .catch(() => {});
@@ -252,7 +360,7 @@
                         if (!background) this.listLoading = true;
 
                         return this.$axios.get(this.conversationsUrl, {
-                                params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, page: 1 },
+                                params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, city: this.cityFilter, page: 1 },
                             })
                             .then(res => {
                                 this.conversations = res.data?.data ?? [];
@@ -263,9 +371,61 @@
                             .finally(() => { this.listLoading = false; });
                     },
 
+                    /**
+                     * Cambió la ciudad: recargar la lista y dejarla elegida
+                     * para el resto del CRM.
+                     */
+                    onCityChange() {
+                        this.rememberCity(this.cityFilter);
+
+                        this.load();
+                    },
+
+                    /**
+                     * Persiste la ciudad en la cookie global que ya comparten el
+                     * Tablero, Pedidos y Prospectos.
+                     *
+                     * Mismos atributos que usa el tablero (path=/, un año,
+                     * SameSite=Lax, sin httpOnly) para que sea LA MISMA cookie y
+                     * no dos que se pisan.
+                     *
+                     * "Sin ciudad" se guarda como 'all' a propósito: es un
+                     * concepto que sólo existe en esta bandeja. Escribirlo tal
+                     * cual dejaría a Pedidos y al Tablero con un pipeline_id que
+                     * no saben interpretar; y dejar la cookie intacta haría que
+                     * al ir a Pedidos aparezca una ciudad que el usuario nunca
+                     * eligió.
+                     */
+                    rememberCity(value) {
+                        const guardado = (value === null || value === 'none') ? 'all' : value;
+
+                        const unAno = 60 * 60 * 24 * 365;
+
+                        document.cookie = `global_pipeline_id=${encodeURIComponent(guardado)}; path=/; max-age=${unAno}; SameSite=Lax`;
+                    },
+
+                    /**
+                     * Las ciudades del desplegable, con su conteo.
+                     *
+                     * Se piden una vez al abrir y no en cada `load()`: el
+                     * polling recarga la lista cada 10 s, y repetir este conteo
+                     * ahí sería una consulta agrupada sobre toda la tabla cada
+                     * 10 segundos para un número que casi nunca cambia.
+                     */
+                    loadCities() {
+                        this.$axios.get(this.citiesUrl)
+                            .then(res => {
+                                this.cities = res.data?.cities ?? [];
+                                this.citiesTotal = res.data?.total ?? 0;
+
+                                if (res.data?.none) this.noneCity = res.data.none;
+                            })
+                            .catch(() => {});
+                    },
+
                     loadMore() {
                         this.$axios.get(this.conversationsUrl, {
-                                params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, page: this.page + 1 },
+                                params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, city: this.cityFilter, page: this.page + 1 },
                             })
                             .then(res => {
                                 this.conversations.push(...(res.data?.data ?? []));

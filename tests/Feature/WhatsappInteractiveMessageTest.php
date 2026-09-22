@@ -103,7 +103,17 @@ it('sends the button label as message.text on the agent event', function () {
 
     expect($event['event'])->toBe('message.received')
         ->and($event['message']['text'])->toBe('Ver catálogo')
+        /*
+         * El tipo REAL, no normalizado a 'text'.
+         *
+         * Se normalizaba para que el agente dejara de descartar estos turnos
+         * (crm_unsupported_message), pero eso apartaba a kohlberg del contrato
+         * que el mismo agente ya usa en imprimir. La respuesta correcta es
+         * `message.selection`, que es lo que el agente lee — ver
+         * WhatsappContratoAgenteTest.
+         */
         ->and($event['message']['type'])->toBe('interactive')
+        ->and($event['message']['selection'])->toBe(['id' => 'btn_catalogo', 'title' => 'Ver catálogo'])
         ->and($event['message']['interactive'])->toBe([
             'kind'  => 'button_reply',
             'id'    => 'btn_catalogo',

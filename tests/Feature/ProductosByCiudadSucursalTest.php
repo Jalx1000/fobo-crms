@@ -4,6 +4,24 @@ use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Webkul\User\Models\User;
 
+/*
+|--------------------------------------------------------------------------
+| Estos tests necesitan una tabla `products` vacía
+|--------------------------------------------------------------------------
+| Afirman totales absolutos sobre toda la tabla —"la respuesta trae 2
+| productos", "el total es 5"— y el endpoint además incluye siempre los
+| productos con valor 10. Contra la base real, con 29 productos cargados, esos
+| asserts no pueden cerrar: por eso la versión anterior vaciaba la tabla antes
+| de cada caso.
+|
+| Vaciar producción para que un assert pase no es una opción. Mientras la suite
+| apunte a la base real, estos casos se saltean. Recuperan sentido en cuanto
+| exista una base descartable (DB_DATABASE en phpunit.xml).
+|
+| Los tres primeros casos —auth y validación de parámetros— no tocan datos y
+| siguen corriendo siempre.
+*/
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -23,18 +41,25 @@ function setupCiudadAtribute(): int
         'updated_at'      => now(),
     ]);
 
+    $GLOBALS['__atributosDePrueba'][] = $attrId;
+
     return $attrId;
 }
 
 function createProduct(string $sku, string $name, float $price = 10.00): int
 {
-    return DB::table('products')->insertGetId([
+    $id = DB::table('products')->insertGetId([
         'sku'        => $sku,
         'name'       => $name,
         'price'      => $price,
         'created_at' => now(),
         'updated_at' => now(),
     ]);
+
+    // Se registra para que el teardown borre exactamente esto y nada más.
+    $GLOBALS['__productosDePrueba'][] = $id;
+
+    return $id;
 }
 
 function assignCiudadValue(int $productId, int $attrId, int $value): void
@@ -49,11 +74,54 @@ function assignCiudadValue(int $productId, int $attrId, int $value): void
     ]);
 }
 
+/**
+ * Borra SOLO lo que estos tests crearon.
+ *
+ * La versión anterior hacía `truncate` de `products` y borraba todos los
+ * `attribute_values` de productos y el atributo `ciudad_producto_sucursal`
+ * entero. Contra la base real de kohlberg eso son 29 productos, 319 valores de
+ * atributo y la definición del atributo que usa el endpoint en producción.
+ */
+/**
+ * Puerta de entrada de los casos que dependen del estado de la tabla.
+ *
+ * Contra la base real se saltean: sus asserts son totales absolutos sobre toda
+ * la tabla `products`, y hacerlos pasar exigiría vaciarla. Contra una base
+ * descartable corren normalmente, dejándola limpia primero.
+ */
+function requiereTablaDeProductosVacia(): void
+{
+    if (apuntaAProduccion()) {
+        test()->markTestSkipped(
+            'Necesita una tabla `products` vacía y la suite apunta a la base real. '.
+            'Configurá DB_DATABASE en phpunit.xml para correrlo.'
+        );
+    }
+
+    teardownProductTables();
+}
+
 function teardownProductTables(): void
 {
-    DB::table('attribute_values')->where('entity_type', 'products')->delete();
-    DB::table('attributes')->where('code', 'ciudad_producto_sucursal')->delete();
-    DB::table('products')->truncate();
+    $productos = $GLOBALS['__productosDePrueba'] ?? [];
+    $atributos = $GLOBALS['__atributosDePrueba'] ?? [];
+
+    if ($productos) {
+        DB::table('attribute_values')
+            ->where('entity_type', 'products')
+            ->whereIn('entity_id', $productos)
+            ->delete();
+
+        DB::table('products')->whereIn('id', $productos)->delete();
+    }
+
+    if ($atributos) {
+        DB::table('attribute_values')->whereIn('attribute_id', $atributos)->delete();
+        DB::table('attributes')->whereIn('id', $atributos)->delete();
+    }
+
+    $GLOBALS['__productosDePrueba'] = [];
+    $GLOBALS['__atributosDePrueba'] = [];
 }
 
 function authenticatedUser(): User
@@ -97,7 +165,7 @@ it('returns 400 when ciudad_producto_sucursal param is zero or negative', functi
 });
 
 it('returns 404 when attribute does not exist in the system', function () {
-    teardownProductTables();
+    requiereTablaDeProductosVacia();
     authenticatedUser();
 
     $response = test()->getJson(route('api.productos.por-ciudad-sucursal', ['ciudad_producto_sucursal' => 5]));
@@ -107,7 +175,7 @@ it('returns 404 when attribute does not exist in the system', function () {
 });
 
 it('returns products matching the filter value', function () {
-    teardownProductTables();
+    requiereTablaDeProductosVacia();
     authenticatedUser();
 
     $attrId = setupCiudadAtribute();
@@ -138,7 +206,7 @@ it('returns products matching the filter value', function () {
 });
 
 it('always includes products with ciudad_producto_sucursal value = 10', function () {
-    teardownProductTables();
+    requiereTablaDeProductosVacia();
     authenticatedUser();
 
     $attrId = setupCiudadAtribute();
@@ -166,7 +234,7 @@ it('always includes products with ciudad_producto_sucursal value = 10', function
 });
 
 it('does not duplicate products that match both the filter and value 10', function () {
-    teardownProductTables();
+    requiereTablaDeProductosVacia();
     authenticatedUser();
 
     $attrId = setupCiudadAtribute();
@@ -188,7 +256,7 @@ it('does not duplicate products that match both the filter and value 10', functi
 });
 
 it('returns empty data when no products match and value 10 has no products', function () {
-    teardownProductTables();
+    requiereTablaDeProductosVacia();
     authenticatedUser();
 
     $attrId = setupCiudadAtribute();
@@ -203,7 +271,7 @@ it('returns empty data when no products match and value 10 has no products', fun
 });
 
 it('respects pagination parameters', function () {
-    teardownProductTables();
+    requiereTablaDeProductosVacia();
     authenticatedUser();
 
     $attrId = setupCiudadAtribute();

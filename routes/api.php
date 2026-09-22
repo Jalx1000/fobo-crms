@@ -113,6 +113,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // cómo esté escrito el número (con o sin código de país, con o sin "+").
     Route::get('/pedidos/por-telefono', [\App\Http\Controllers\Api\LeadLookupController::class, 'byPhone'])
         ->name('api.pedidos.por-telefono');
+
+    // La ficha del contacto por teléfono, con sus atributos personalizados
+    // (Ciudad, Sucursal). El /search de la REST API no sirve acá: matchea el
+    // número con un LIKE crudo sobre el JSON y no devuelve atributos custom.
+    Route::get('/personas/por-telefono', [\App\Http\Controllers\Api\PersonLookupController::class, 'byPhone'])
+        ->name('api.personas.por-telefono');
 });
 
 /**

@@ -5,12 +5,17 @@ namespace Webkul\Whatsapp\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Validation\Rule;
+use Webkul\Whatsapp\Exceptions\InteractiveMessageException;
 use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\AgentPayload;
+use Webkul\Whatsapp\Services\Handoff as HandoffService;
+use Webkul\Whatsapp\Services\InteractiveParser;
 
 /**
  * Token-authenticated API for the external AI agent: read the conversation for
@@ -73,7 +78,172 @@ class AgentController extends Controller
      *     @OA\Response(response=422, description="Outside the 24h messaging window")
      * )
      */
-    public function send(Request $request, string $id): JsonResponse
+    /**
+     * Derivar la conversación a un asesor humano.
+     *
+     * Idempotente: si ya hay una derivación abierta devuelve 200 con el mismo
+     * recurso y `changed: false`, sin re-rutear ni volver a avisar. Un LLM
+     * tiende a pedir el handoff en cada mensaje.
+     */
+    public function handoff(Request $request, string $id, HandoffService $handoff): JsonResponse
+    {
+        $data = $request->validate([
+            'reason' => 'nullable|string|max:500',
+            // El nombre de la ciudad tal como lo dijo el cliente. Se acepta
+            // texto o el id del pipeline; la comparación ignora tildes.
+            'ciudad' => 'nullable',
+        ]);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        $resultado = $handoff->request(
+            conversation: $conversation,
+            reason: $data['reason'] ?? null,
+            source: 'ai',
+            // El actor es el bot, aunque el token pertenezca a un usuario real.
+            actorUserId: null,
+            ciudad: $data['ciudad'] ?? null,
+        );
+
+        return response()->json([
+            'handoff' => $handoff->toAgentArray($resultado['conversation'], $resultado['changed']),
+            'agent'   => [
+                'enabled'   => $resultado['conversation']->ai_enabled,
+                'effective' => $resultado['conversation']->aiEffective(),
+            ],
+        ]);
+    }
+
+    /**
+     * Botones de respuesta o lista de opciones, en formato estructurado.
+     *
+     * MISMO CONTRATO QUE IMPRIMIR (`POST .../interactive` con format/body/
+     * buttons/sections), porque el agente es el mismo para los dos tenants: si
+     * acá pidiera otra forma, la tool que ya existe no serviría.
+     *
+     * Convive con el marcador "1.-)" que detecta send(): el marcador no exige
+     * nada del lado del agente, éste da control total. Los dos terminan en el
+     * mismo tipo de mensaje y el mismo payload.
+     */
+    public function sendInteractive(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            'format'      => ['required', Rule::in(['button', 'list'])],
+            'body'        => 'required|string',
+            'header'      => 'nullable|string',
+            'footer'      => 'nullable|string',
+            'buttons'     => 'required_if:format,button|array',
+            'list_button' => 'required_if:format,list|nullable|string',
+            'sections'    => 'required_if:format,list|array',
+            'reply_to_id' => 'nullable|integer',
+        ]);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        if ($conversation->handoffOpen()) {
+            return response()->json([
+                'message' => 'Esta conversación fue derivada a un asesor. El agente ya no responde acá.',
+                'handoff' => app(HandoffService::class)->toAgentArray($conversation),
+            ], 409);
+        }
+
+        $gateway = $this->gateways->for($conversation);
+
+        if (! $gateway->capabilities()->canSend('list')) {
+            /*
+             * 501 y no 422: no es un error del agente ni algo que reintentar.
+             * El canal activo simplemente no tiene botones.
+             */
+            return response()->json([
+                'message' => 'Este canal no puede enviar botones ni listas. Mandá las opciones como texto numerado.',
+            ], 501);
+        }
+
+        $window = MessagingWindow::compute(
+            $gateway->messagingWindowHours(),
+            $conversation->last_inbound_at,
+        );
+
+        if ($window->applies && ! $window->open) {
+            return response()->json([
+                'message' => 'Fuera de la ventana de 24h de WhatsApp. Se requiere una plantilla aprobada o esperar a que el cliente escriba.',
+            ], 422);
+        }
+
+        try {
+            $interactive = $this->interactivoDesde($data);
+        } catch (InteractiveMessageException $e) {
+            // 422 con el límite violado: acá el agente SÍ pidió esto
+            // explícitamente, así que puede corregir y reintentar.
+            return response()->json(['message' => $e->getMessage()], $e->status());
+        }
+
+        $message = MessageProxy::modelClass()::create([
+            'conversation_id' => $conversation->id,
+            'direction'       => 'outbound',
+            'type'            => 'interactive',
+            'body'            => $interactive->label(),
+            'payload'         => ['interactive' => $interactive->toArray()],
+            'reply_to_id'     => $data['reply_to_id'] ?? null,
+            'status'          => 'queued',
+            'sender'          => 'ia',
+        ]);
+
+        $conversation->forceFill(['last_message_at' => now()])->save();
+
+        SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
+
+        return response()->json([
+            'message' => ['id' => $message->id, 'status' => $message->status, 'sender' => $message->sender],
+        ]);
+    }
+
+    /**
+     * Traduce el contrato del agente (formato de imprimir) al DTO de este
+     * módulo, que guarda las opciones planas.
+     *
+     * Las secciones se aplanan a propósito: Meta permite hasta 10 filas EN
+     * TOTAL repartidas en secciones, y el límite es sobre el total. Aplanar deja
+     * que la validación del DTO lo verifique en un solo lugar.
+     */
+    protected function interactivoDesde(array $data): OutboundInteractive
+    {
+        if ($data['format'] === 'button') {
+            $opciones = array_map(fn ($b) => [
+                'id'    => $b['id'] ?? null,
+                'title' => $b['title'] ?? ($b['text'] ?? ''),
+            ], $data['buttons']);
+
+            return OutboundInteractive::buttons(
+                $data['body'],
+                $opciones,
+                $data['header'] ?? null,
+                $data['footer'] ?? null,
+            );
+        }
+
+        $filas = [];
+
+        foreach ($data['sections'] as $seccion) {
+            foreach ($seccion['rows'] ?? [] as $fila) {
+                $filas[] = [
+                    'id'          => $fila['id'] ?? null,
+                    'title'       => $fila['title'] ?? '',
+                    'description' => $fila['description'] ?? null,
+                ];
+            }
+        }
+
+        return OutboundInteractive::list(
+            $data['body'],
+            $filas,
+            $data['list_button'] ?? null,
+            $data['header'] ?? null,
+            $data['footer'] ?? null,
+        );
+    }
+
+    public function send(Request $request, string $id, InteractiveParser $parser): JsonResponse
     {
         $data = $request->validate([
             'text'        => 'required|string',
@@ -81,6 +251,20 @@ class AgentController extends Controller
         ]);
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        /*
+         * Derivada = ya no es del agente.
+         *
+         * 409 y no 200: un 200 le haría creer que le habló al cliente, y se
+         * quedaría callado esperando respuesta mientras el asesor atiende. El
+         * código de error es lo que le dice que suelte el turno.
+         */
+        if ($conversation->handoffOpen()) {
+            return response()->json([
+                'message' => 'Esta conversación fue derivada a un asesor. El agente ya no responde acá.',
+                'handoff' => app(HandoffService::class)->toAgentArray($conversation),
+            ], 409);
+        }
 
         $window = MessagingWindow::compute(
             $this->gateways->for($conversation)->messagingWindowHours(),
@@ -93,7 +277,14 @@ class AgentController extends Controller
             ], 422);
         }
 
-        $message = MessageProxy::modelClass()::create([
+        /*
+         * El agente no manda menús por una API aparte: numera las opciones con
+         * el marcador y el CRM las convierte. Si el texto no lo trae —el caso
+         * normal— parse() devuelve null y esto sigue siendo un envío de texto.
+         */
+        $parsed = $parser->parse($data['text']);
+
+        $attributes = [
             'conversation_id' => $conversation->id,
             'direction'       => 'outbound',
             'type'            => 'text',
@@ -101,7 +292,27 @@ class AgentController extends Controller
             'reply_to_id'     => $data['reply_to_id'] ?? null,
             'status'          => 'queued',
             'sender'          => 'ia',
-        ]);
+        ];
+
+        if ($parsed?->isInteractive()) {
+            $attributes['type'] = 'interactive';
+            $attributes['body'] = $parsed->interactive->label();
+            $attributes['payload'] = ['interactive' => $parsed->interactive->toArray()];
+        } elseif ($parsed) {
+            /*
+             * Marcó opciones pero no entran en los límites de WhatsApp. Sale
+             * como texto con la numeración reescrita a "1." —el cliente recibe
+             * un mensaje legible— y el motivo queda guardado.
+             *
+             * No es un 422: el agente cree que manda texto plano y no sabe que
+             * existe esta validación. Un error lo dejaría mudo frente al
+             * cliente, que es el fallo que esto viene a arreglar.
+             */
+            $attributes['body'] = $parsed->fallbackText;
+            $attributes['payload'] = ['interactive_skipped' => $parsed->reason];
+        }
+
+        $message = MessageProxy::modelClass()::create($attributes);
 
         $conversation->forceFill(['last_message_at' => now()])->save();
 

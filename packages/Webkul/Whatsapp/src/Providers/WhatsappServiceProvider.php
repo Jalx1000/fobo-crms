@@ -5,10 +5,15 @@ namespace Webkul\Whatsapp\Providers;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Webkul\Whatsapp\Console\Commands\BackfillConversationLeads;
+use Webkul\Whatsapp\Console\Commands\BackfillMessageBodies;
 use Webkul\Whatsapp\Console\Commands\KommoCheck;
+use Webkul\Whatsapp\Console\Commands\ListTemplates;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
+use Webkul\Whatsapp\Console\Commands\ReopenWindow;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
+use Webkul\Whatsapp\Http\Middleware\EnsureWhatsappAccess;
 
 class WhatsappServiceProvider extends ServiceProvider
 {
@@ -21,17 +26,29 @@ class WhatsappServiceProvider extends ServiceProvider
 
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 
+        $this->app['router']->aliasMiddleware('whatsapp_access', EnsureWhatsappAccess::class);
+
         // Public webhook endpoints (Meta calls these; no session/CSRF).
         $this->loadRoutesFrom(__DIR__.'/../Routes/api.php');
 
-        // Authenticated inbox endpoints, under the admin path.
-        Route::middleware(['web', 'admin_locale', 'user'])
+        /*
+         * Authenticated inbox endpoints, under the admin path.
+         *
+         * 'user' sólo verifica que haya sesión: el permiso del módulo lo exige
+         * whatsapp_access. Sin él, cualquier usuario autenticado podía leer la
+         * conversación de un cliente por /whatsapp/thread.
+         */
+        Route::middleware(['web', 'admin_locale', 'user', 'whatsapp_access'])
             ->prefix(config('app.admin_path'))
             ->group(__DIR__.'/../Routes/admin.php');
 
         if ($this->app->runningInConsole()) {
             $this->commands([
+                BackfillConversationLeads::class,
+                BackfillMessageBodies::class,
                 KommoCheck::class,
+                ListTemplates::class,
+                ReopenWindow::class,
                 NormalizePhones::class,
                 RepairGateway::class,
                 WebhookInfo::class,

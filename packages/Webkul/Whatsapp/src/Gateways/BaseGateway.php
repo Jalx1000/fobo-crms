@@ -5,7 +5,13 @@ namespace Webkul\Whatsapp\Gateways;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use RuntimeException;
+use Webkul\Whatsapp\Exceptions\CapabilityNotSupportedException;
 use Webkul\Whatsapp\Gateways\Contracts\Gateway;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
+use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
+use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
+use Webkul\Whatsapp\Gateways\Dto\SendResult;
+use Webkul\Whatsapp\Models\Conversation;
 
 /**
  * Shared plumbing for drivers. Every comparison is constant-time.
@@ -34,6 +40,73 @@ abstract class BaseGateway implements Gateway
      * Default: no messaging window. WhatsApp gateways override to 24.
      */
     public function messagingWindowHours(): ?int
+    {
+        return null;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Outbound defaults
+    |--------------------------------------------------------------------------
+    | Every send beyond plain text refuses by default, and each driver overrides
+    | only what it really implements.
+    |
+    | This is deliberate, and it is what keeps the contract safe to grow: adding
+    | a method to the interface with no default here would be a fatal error at
+    | boot for every driver that has not been updated yet — the CRM would simply
+    | not come up. With the defaults, a driver that lacks a capability answers
+    | 501 and everything else keeps working.
+    |
+    | The refusal is loud on purpose. A silent no-op would let the caller — the
+    | AI agent, most of the time — believe the customer was answered.
+    */
+
+    public function sendTemplate(
+        Conversation $conversation,
+        string $templateKey,
+        array $variables = [],
+        ?string $language = null,
+    ): SendResult {
+        throw new CapabilityNotSupportedException($this->key(), 'template');
+    }
+
+    public function sendMedia(
+        Conversation $conversation,
+        OutboundMedia $media,
+        ?string $replyToProviderId = null,
+    ): SendResult {
+        throw new CapabilityNotSupportedException($this->key(), $media->kind);
+    }
+
+    public function sendLocation(
+        Conversation $conversation,
+        OutboundLocation $location,
+        ?string $replyToProviderId = null,
+    ): SendResult {
+        throw new CapabilityNotSupportedException($this->key(), 'location');
+    }
+
+    public function sendInteractive(
+        Conversation $conversation,
+        OutboundInteractive $interactive,
+        ?string $replyToProviderId = null,
+    ): SendResult {
+        throw new CapabilityNotSupportedException($this->key(), 'interactive');
+    }
+
+    /**
+     * Default: the provider exposes no downloadable media.
+     *
+     * Null rather than an exception: unlike a send, nobody is waiting on this
+     * and there is nothing the user could do about it. The message is still
+     * stored, just without its file.
+     */
+    public function mediaReference(array $rawMessage): ?array
+    {
+        return null;
+    }
+
+    public function fetchMedia(string $mediaId): ?array
     {
         return null;
     }

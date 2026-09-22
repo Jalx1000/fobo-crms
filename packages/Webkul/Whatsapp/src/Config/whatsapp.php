@@ -13,6 +13,10 @@ $cloud = [
     'app_secret'      => env('WHATSAPP_APP_SECRET'),
     'verify_token'    => env('WHATSAPP_VERIFY_TOKEN'),
     'api_version'     => env('WHATSAPP_API_VERSION', 'v21.0'),
+
+    // La cuenta de WhatsApp Business, no el número: el catálogo de plantillas
+    // cuelga de la WABA, mientras que el envío cuelga del phone_number_id.
+    'waba_id'         => env('WHATSAPP_WABA_ID'),
 ];
 
 return [
@@ -79,6 +83,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Template catalogue
+    |--------------------------------------------------------------------------
+    | Approved templates are read from Meta and cached: the list barely changes
+    | and the inbox asks for it every time a conversation is opened. Refresh on
+    | demand with `php artisan whatsapp:templates --fresh`.
+    */
+    'templates' => [
+        'cache_minutes' => (int) env('WHATSAPP_TEMPLATES_CACHE_MINUTES', 30),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Saved locations
+    |--------------------------------------------------------------------------
+    | Addresses the team sends over and over (sucursal, depósito, punto de
+    | entrega). They show as one-click buttons in the composer's location panel;
+    | the advisor can still drag the pin or type coordinates for anything else.
+    */
+    'locations' => [
+        // [
+        //     'name'      => 'Sucursal Santa Cruz',
+        //     'address'   => 'Av. Ejemplo 123, Santa Cruz',
+        //     'latitude'  => -17.783330,
+        //     'longitude' => -63.182140,
+        // ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Unknown contacts
     |--------------------------------------------------------------------------
     | Register a Person automatically when someone writes from a number that is
@@ -86,6 +119,108 @@ return [
     | links it.
     */
     'auto_create_person' => env('WHATSAPP_AUTO_CREATE_PERSON', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pedido automático
+    |--------------------------------------------------------------------------
+    | Abrir un pedido cuando escribe alguien que no tiene ninguno. Sin esto, el
+    | contacto queda registrado pero no aparece en ningún pipeline: nadie lo ve,
+    | nadie lo sigue, y no entra en ninguna métrica. Estaban así 156 de 168
+    | conversaciones.
+    |
+    | El pedido se abre en la CIUDAD del contacto (que acá es el pipeline) y a
+    | nombre de su encargado; si no se conoce la ciudad, en el pipeline por
+    | defecto. Apagado = queda en null para que lo cree una persona desde el
+    | panel del cliente.
+    */
+    'auto_create_lead' => env('WHATSAPP_AUTO_CREATE_LEAD', true),
+
+    /*
+    | Dónde cae el pedido cuando NO se conoce la ciudad del contacto.
+    |
+    | Va al pipeline "Sin ciudad" y NO al pipeline por defecto (Tarija), aunque
+    | lo segundo parezca más útil. El motivo no es estético:
+    |
+    | CityRouter trata "el pipeline del lead" como la fuente MÁS FUERTE de la
+    | ciudad —por encima de lo que el cliente le diga al agente— porque asume
+    | que lo puso una persona del equipo. Un relleno automático en Tarija haría
+    | que un cliente de Santa Cruz quedara marcado como de Tarija para siempre,
+    | y que su propia respuesta al agente no pudiera corregirlo.
+    |
+    | "Sin ciudad" está en exclude_cities, así que la cascada lo ignora y la
+    | ciudad real sigue pudiendo resolverse. El pedido existe y se ve en el
+    | tablero; simplemente no miente sobre de dónde es.
+    */
+    'unknown_city_pipeline' => env('WHATSAPP_UNKNOWN_CITY_PIPELINE', 'Sin ciudad'),
+
+    /*
+    | Quién queda como dueño de esos pedidos sin ciudad. Vacío = sin dueño.
+    | Es el nombre exacto del usuario, para no clavar un id que cambia entre
+    | instalaciones.
+    */
+    'unknown_city_owner' => env('WHATSAPP_UNKNOWN_CITY_OWNER', 'Daniel Escalante'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Handoff (derivación a un asesor)
+    |--------------------------------------------------------------------------
+    | En kohlberg la ciudad ES el pipeline, y cada ciudad tiene un Encargado que
+    | la atiende. Por eso la derivación rutea por ciudad y no por dueño del lead.
+    */
+    'handoff' => [
+        'notify' => env('WHATSAPP_HANDOFF_NOTIFY', true),
+
+        // El rol que atiende WhatsApp. Todo lo demás (Administrador,
+        // Supervisores, y la cuenta Sistema que es el bot) queda afuera: una
+        // derivación que cae en alguien que no abre WhatsApp muere en silencio.
+        'advisor_roles' => ['Encargado'],
+
+        // Pipelines que existen pero no son una ciudad real. Rutear ahí sería
+        // una asignación falsa.
+        'exclude_cities' => ['Sin ciudad'],
+
+        /*
+        | Mapa explícito ciudad => usuario, cuando haga falta fijar una
+        | asignación. Vacío = se deduce de quién tiene los leads de esa ciudad,
+        | que es como está organizado el equipo hoy:
+        |
+        |   Tarija 14 · Santa Cruz 9 · La Paz 4 · Cochabamba 15
+        |   Sucre 7 · Potosí 8 · Oruro 3
+        |
+        | Se deja vacío a propósito: un mapa a mano se desactualiza en cuanto
+        | alguien entra o sale del equipo, y nadie se acuerda de tocarlo.
+        */
+        'city_agents' => [],
+
+        // A quién avisar cuando ninguna ciudad resuelve y la conversación queda
+        // en el pool. Vacío = no se manda mail de pool.
+        'pool_email' => env('WHATSAPP_HANDOFF_POOL_EMAIL'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mensajes interactivos (botones y listas)
+    |--------------------------------------------------------------------------
+    | El agente no aprende una API nueva: numera las opciones con un marcador y
+    | el CRM las convierte en botones o lista según cuántas sean.
+    |
+    | El marcador es ".-)" —"1.-) Santa Cruz"— y no el "1." de siempre, porque
+    | tiene que ser inequívoco: de los mensajes con lista numerada que hay en el
+    | historial, la mitad son menús y la mitad son enumeraciones informativas
+    | ("tenés 4 pedidos: 1. ... 2. ..."). Convertir esas segundas le pediría al
+    | cliente que elija algo que nadie le ofreció. Medido: ".-)" no aparece ni
+    | una vez en 457 mensajes reales, entrantes y salientes.
+    */
+    'interactive' => [
+        'enabled' => env('WHATSAPP_INTERACTIVE_ENABLED', true),
+
+        // Lo que va entre el número y el texto de la opción.
+        'marker' => env('WHATSAPP_INTERACTIVE_MARKER', '.-)'),
+
+        // El label del botón que abre una lista (máx. 20 caracteres).
+        'list_button' => env('WHATSAPP_INTERACTIVE_LIST_BUTTON', 'Ver opciones'),
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -111,5 +246,14 @@ return [
     */
     'ui' => [
         'use_mock' => env('WHATSAPP_UI_USE_MOCK', false),
+
+        /*
+         * Símbolo de la moneda del CRM (config('app.currency')) para las
+         * monedas cuyo símbolo corto ICU no conoce: NumberFormatter devuelve
+         * "BOB" y no "Bs". Lo que no esté acá lo resuelve ICU.
+         */
+        'currency_symbols' => [
+            'BOB' => 'Bs',
+        ],
     ],
 ];

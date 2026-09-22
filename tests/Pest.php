@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Support\Facades\DB;
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
@@ -12,6 +14,18 @@
  */
 
 uses(\Tests\TestCase::class)->in('Feature');
+
+/**
+ * ¿Los tests están apuntando a la base de producción?
+ *
+ * Sirve para saltear los tests que solo son correctos sobre una base vacía —
+ * los que afirman totales absolutos ("la respuesta trae 2 productos") — en vez
+ * de dejarlos borrar el catálogo para que su assert cierre.
+ */
+function apuntaAProduccion(): bool
+{
+    return DB::connection()->getDatabaseName() === 'kohlberg';
+}
 
 /*
 |--------------------------------------------------------------------------

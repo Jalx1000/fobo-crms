@@ -6,17 +6,15 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Lead\Models\PipelineProxy;
-use Webkul\Lead\Models\SourceProxy;
-use Webkul\Lead\Models\TypeProxy;
-use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Product\Models\ProductProxy;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
+use Webkul\Whatsapp\Services\LeadOpener;
+use Webkul\Whatsapp\Support\ConversationCity;
 
 /**
  * Standalone WhatsApp page: the conversation list pane. The thread itself is
@@ -86,7 +84,10 @@ class ChatController extends Controller
                     ->limit(1)
                     ->select('lead_pipeline_stages.name'),
                 'stage_name'
-            );
+            )
+            // La ciudad de la conversación, en cascada. Subconsulta en el
+            // select y no una consulta por fila: la lista trae 30 por página.
+            ->selectRaw(ConversationCity::sql().' as city_id');
 
         if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search) {
@@ -99,6 +100,21 @@ class ChatController extends Controller
         match ($request->input('filter')) {
             'unassigned' => $query->whereNull('person_id')->whereNull('lead_id'),
             'unread'     => $query->where('unread_count', '>', 0),
+
+            // Derivaciones. Son las que tienen a alguien esperando del otro
+            // lado, así que llegan primero que el resto en el orden de abajo.
+            'handoff'    => $query->whereIn('handoff_state', ['requested', 'assigned']),
+            // Sin asesor: el pool. Es la cola que nadie mira si no se la muestra.
+            'pool'       => $query->where('handoff_state', 'requested')->whereNull('assigned_user_id'),
+            /*
+             * whereNotNull antes de comparar: si no hay usuario en sesión,
+             * `where('assigned_user_id', null)` lo traduce a `IS NULL` y "Míos"
+             * devuelve TODO el pool — conversaciones que no son de nadie.
+             */
+            'mine'       => $query->whereIn('handoff_state', ['requested', 'assigned'])
+                ->whereNotNull('assigned_user_id')
+                ->where('assigned_user_id', auth()->guard('user')->id() ?? 0),
+
             default      => null,
         };
 
@@ -113,10 +129,53 @@ class ChatController extends Controller
             });
         }
 
+        /*
+         * Filtro por ciudad (pipeline). En kohlberg la ciudad ES el pipeline y
+         * cada una tiene su Encargado, pero la bandeja mostraba las 40
+         * conversaciones mezcladas.
+         *
+         * Va DESPUÉS de los filtros de arriba para que se combine con ellos en
+         * vez de reemplazarlos: "derivadas de Cochabamba" es la consulta que un
+         * asesor hace de verdad.
+         */
+        if (($city = trim((string) $request->input('city'))) !== '') {
+            if ($city === ConversationCity::NONE) {
+                $sinCiudad = ConversationCity::noneEquivalentPipelineIds();
+
+                // Sin dato y el pipeline llamado "Sin ciudad" van juntos: para
+                // el asesor significan lo mismo.
+                $query->where(function ($q) use ($sinCiudad) {
+                    $q->whereRaw(ConversationCity::sql().' is null');
+
+                    if ($sinCiudad) {
+                        $q->orWhereRaw(
+                            ConversationCity::sql().' in ('.implode(',', array_fill(0, count($sinCiudad), '?')).')',
+                            $sinCiudad
+                        );
+                    }
+                });
+            } elseif (is_numeric($city)) {
+                $query->whereRaw(ConversationCity::sql().' = ?', [(int) $city]);
+            }
+        }
+
         $conversations = $query
+            /*
+             * Las derivaciones arriba de todo. Una conversación con una persona
+             * esperando no puede quedar sepultada bajo mensajes más recientes
+             * que ya atiende el bot — y el pool primero, porque es el único
+             * caso donde nadie la tiene asignada.
+             */
+            ->orderByRaw("(handoff_state = 'requested' and assigned_user_id is null) desc")
+            ->orderByRaw("(handoff_state in ('requested','assigned')) desc")
             ->orderByRaw('last_message_at is null')
             ->orderByDesc('last_message_at')
             ->paginate(30);
+
+        // Dos consultas sueltas en vez de un join por fila: son un puñado de
+        // ciudades y de asesores, y así la lista no hace N+1.
+        $ciudades = DB::table('lead_pipelines')->pluck('name', 'id');
+        $asesores = DB::table('users')->pluck('name', 'id');
 
         return response()->json([
             'data' => collect($conversations->items())->map(fn ($c) => [
@@ -128,7 +187,16 @@ class ChatController extends Controller
                 'lead_id'      => $c->lead_id,
                 'unread_count' => (int) $c->unread_count,
                 'ai_enabled'   => $c->aiEffective(),
+                'handoff'      => $c->handoffOpen() ? [
+                    'pooled'  => $c->handoffPooled(),
+                    'city'    => $ciudades[$c->handoff_city_id] ?? null,
+                    'advisor' => $asesores[$c->assigned_user_id] ?? null,
+                    'is_mine' => $c->assigned_user_id !== null
+                        && (int) $c->assigned_user_id === (int) auth()->guard('user')->id(),
+                    'since'   => optional($c->handoff_requested_at)->toIso8601String(),
+                ] : null,
                 'stage'        => $c->stage_name,
+                'city'         => $ciudades[$c->city_id] ?? null,
                 'preview'      => $c->last_direction
                     ? ($c->last_direction === 'outbound' ? '↩ ' : '').Str::limit((string) $c->last_body, 60)
                     : null,
@@ -136,6 +204,74 @@ class ChatController extends Controller
             ]),
             'current_page' => $conversations->currentPage(),
             'last_page'    => $conversations->lastPage(),
+        ]);
+    }
+
+    /**
+     * Las ciudades con conversaciones, y cuántas tiene cada una.
+     *
+     * El conteo repite la MISMA deduplicación por ROW_NUMBER que la lista. Sin
+     * eso, un contacto con dos conversaciones (la misma línea guardada con y
+     * sin código de país) se cuenta dos veces en el desplegable y una sola en
+     * la lista: los números no coinciden y nadie sabe a cuál creerle.
+     *
+     * Las ciudades con 0 no se devuelven: un desplegable con siete opciones
+     * vacías no ayuda a nadie.
+     */
+    public function cities(): JsonResponse
+    {
+        $rankeadas = DB::table('whatsapp_conversations')->selectRaw(
+            "id as ranked_id, ROW_NUMBER() OVER (
+                PARTITION BY COALESCE(
+                    NULLIF(RIGHT(REGEXP_REPLACE(COALESCE(wa_phone, ''), '[^0-9]', ''), 8), ''),
+                    CONCAT('p', person_id),
+                    CONCAT('c', id)
+                )
+                ORDER BY (gateway = ?) DESC, (person_id IS NOT NULL) DESC, last_message_at DESC, id DESC
+            ) as rn",
+            [(string) config('whatsapp.gateway')]
+        );
+
+        $conteos = DB::table('whatsapp_conversations')
+            ->joinSub($rankeadas, 'ranked', fn ($join) => $join->on('ranked.ranked_id', '=', 'whatsapp_conversations.id'))
+            ->where('ranked.rn', 1)
+            ->selectRaw(ConversationCity::sql().' as city_id, count(*) as total')
+            ->groupByRaw(ConversationCity::sql())
+            ->pluck('total', 'city_id');
+
+        $nombres = DB::table('lead_pipelines')->pluck('name', 'id');
+        $comoSinCiudad = ConversationCity::noneEquivalentPipelineIds();
+
+        $ciudades = [];
+        $sinCiudad = 0;
+
+        foreach ($conteos as $id => $total) {
+            // El id llega como clave de array, así que "" es el NULL de SQL.
+            $id = $id === '' || $id === null ? null : (int) $id;
+
+            if ($id === null || in_array($id, $comoSinCiudad, true)) {
+                $sinCiudad += (int) $total;
+
+                continue;
+            }
+
+            $ciudades[] = [
+                'id'    => $id,
+                'name'  => $nombres[$id] ?? "Pipeline {$id}",
+                'count' => (int) $total,
+            ];
+        }
+
+        usort($ciudades, fn ($a, $b) => $b['count'] <=> $a['count']);
+
+        return response()->json([
+            'cities' => $ciudades,
+            'none'   => [
+                'value' => ConversationCity::NONE,
+                'name'  => 'Sin ciudad',
+                'count' => $sinCiudad,
+            ],
+            'total' => array_sum(array_column($ciudades, 'count')) + $sinCiudad,
         ]);
     }
 
@@ -202,10 +338,13 @@ class ChatController extends Controller
         // Shared media (images/documents) and links, WhatsApp-Web style.
         $media = $conversationIds->isNotEmpty()
             ? $messageModel::whereIn('conversation_id', $conversationIds)
-                ->whereIn('type', ['image', 'document'])
+                // Audio y video también: el panel del cliente es el archivo de
+                // la conversación, y dejarlos afuera hacía que un comprobante
+                // mandado como nota de voz no existiera en ningún lado.
+                ->whereIn('type', ['image', 'document', 'audio', 'video'])
                 ->whereNotNull('media_path')
                 ->orderByDesc('id')->limit(60)
-                ->get(['id', 'type', 'media_path', 'media_name', 'created_at'])
+                ->get(['id', 'type', 'media_path', 'media_name', 'media_mime', 'direction', 'created_at'])
             : collect();
 
         $links = $conversationIds->isNotEmpty()
@@ -282,14 +421,25 @@ class ChatController extends Controller
                     'type'  => $nextActivity->type,
                     'date'  => \Illuminate\Support\Carbon::parse($nextActivity->schedule_from)->format('d/m/Y H:i'),
                 ] : null,
-                'images'          => $media->where('type', 'image')->map(fn ($m) => [
-                    'url'  => $m->media_path,
-                    'date' => optional($m->created_at)->format('d/m/Y'),
+                /*
+                 * Se agrupa por cómo se mira, no por el tipo de WhatsApp:
+                 * imagen y video van a la galería, documento y audio a la
+                 * lista. `mine` distingue lo que mandó el asesor de lo que
+                 * mandó el cliente, que en un comprobante es la diferencia
+                 * entre "se lo enviamos" y "nos lo envió".
+                 */
+                'images'          => $media->whereIn('type', ['image', 'video'])->map(fn ($m) => [
+                    'url'   => $m->media_path,
+                    'type'  => $m->type,
+                    'date'  => optional($m->created_at)->format('d/m/Y'),
+                    'mine'  => $m->direction === 'outbound',
                 ])->values(),
-                'documents'       => $media->where('type', 'document')->map(fn ($m) => [
-                    'url'  => $m->media_path,
-                    'name' => $m->media_name ?: 'Documento',
-                    'date' => optional($m->created_at)->format('d/m/Y'),
+                'documents'       => $media->whereIn('type', ['document', 'audio'])->map(fn ($m) => [
+                    'url'   => $m->media_path,
+                    'type'  => $m->type,
+                    'name'  => $m->media_name ?: ($m->type === 'audio' ? 'Nota de voz' : 'Documento'),
+                    'date'  => optional($m->created_at)->format('d/m/Y'),
+                    'mine'  => $m->direction === 'outbound',
                 ])->values(),
                 'links'           => $links,
                 'products'        => $products->map(fn ($p) => [
@@ -314,9 +464,9 @@ class ChatController extends Controller
 
     /**
      * Quick lead creation from the client profile drawer. Sensible defaults:
-     * default pipeline + its first stage, "WhatsApp" as the source, first type.
+     * Abre el pedido en la CIUDAD del contacto y a nombre de su encargado.
      */
-    public function storeLead(Request $request, string $personId, LeadRepository $leads): JsonResponse
+    public function storeLead(Request $request, string $personId, LeadOpener $opener): JsonResponse
     {
         $data = $request->validate([
             'title'      => 'required|string|max:191',
@@ -325,29 +475,22 @@ class ChatController extends Controller
 
         $person = PersonProxy::modelClass()::findOrFail($personId);
 
-        $pipeline = PipelineProxy::modelClass()::where('is_default', 1)->first()
-            ?? PipelineProxy::modelClass()::firstOrFail();
+        /*
+         * Delega en LeadOpener para que este camino y el automático dejen
+         * pedidos IDÉNTICOS.
+         *
+         * Escrito a mano acá, este método abría el pedido siempre en el pipeline
+         * por defecto (ignorando la ciudad del contacto), SIN dueño, y con la
+         * fuente 'WhatsApp' — que no es la que existe ('Whatsapp', 537 pedidos),
+         * así que el primer uso habría creado una fuente duplicada.
+         */
+        $lead = $opener->open($person, $data['title'], (float) ($data['lead_value'] ?? 0));
 
-        $stage = $pipeline->stages()->orderBy('sort_order')->firstOrFail();
-
-        $source = SourceProxy::modelClass()::firstOrCreate(['name' => 'WhatsApp']);
-        $type = TypeProxy::modelClass()::firstOrFail();
-
-        Event::dispatch('lead.create.before');
-
-        $lead = $leads->create([
-            'entity_type'            => 'leads',
-            'title'                  => $data['title'],
-            'lead_value'             => $data['lead_value'] ?? 0,
-            'person'                 => ['id' => $person->id],
-            'lead_pipeline_id'       => $pipeline->id,
-            'lead_pipeline_stage_id' => $stage->id,
-            'lead_source_id'         => $source->id,
-            'lead_type_id'           => $type->id,
-            'status'                 => 1,
-        ]);
-
-        Event::dispatch('lead.create.after', $lead);
+        if (! $lead) {
+            return response()->json([
+                'message' => 'No se pudo crear el pedido. Revisá que haya pipelines y etapas configuradas.',
+            ], 422);
+        }
 
         return response()->json([
             'message' => 'Lead creado y vinculado al cliente.',

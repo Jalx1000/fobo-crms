@@ -11,6 +11,9 @@ use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
+use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
+use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\StatusUpdate;
 use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
@@ -31,9 +34,10 @@ class CloudApiGateway extends BaseGateway
 
     public function capabilities(): Capabilities
     {
-        // Only what is implemented today. Grows as sendMedia lands.
+        // Only what is implemented today: every entry below is wired to a
+        // real method, because the composer's action menu renders from this.
         return new Capabilities(
-            send: ['text', 'reply', 'emoji'],
+            send: ['text', 'reply', 'emoji', 'template', 'image', 'document', 'audio', 'video', 'location', 'buttons', 'list'],
             receive: ['text', 'image', 'audio', 'document', 'video', 'sticker', 'location', 'contact', 'interactive', 'button'],
         );
     }
@@ -114,7 +118,16 @@ class CloudApiGateway extends BaseGateway
                         ),
                         type: $type,
                         body: $this->extractBody($message, $type),
-                        replyToProviderId: $message['context']['id'] ?? null,
+                        /*
+                         * Una reacción ES una respuesta a otro mensaje, pero
+                         * Meta no la manda en `context`: el destino viaja en
+                         * `reaction.message_id`. Mapearlo acá deja que el hilo
+                         * la muestre con la cita del mensaje reaccionado
+                         * reusando el mecanismo de respuesta que ya existe, en
+                         * vez de inventar un segundo camino para lo mismo.
+                         */
+                        replyToProviderId: $message['context']['id']
+                            ?? ($message['reaction']['message_id'] ?? null),
                         raw: $message,
                     );
                 }
@@ -124,7 +137,11 @@ class CloudApiGateway extends BaseGateway
                         continue;
                     }
 
-                    $statuses[] = new StatusUpdate((string) $status['id'], (string) $status['status']);
+                    $statuses[] = new StatusUpdate(
+                        (string) $status['id'],
+                        (string) $status['status'],
+                        $this->statusError($status),
+                    );
                 }
             }
         }
@@ -146,6 +163,291 @@ class CloudApiGateway extends BaseGateway
             $payload['context'] = ['message_id' => $replyToProviderId];
         }
 
+        return new SendResult($this->post($payload));
+    }
+
+    /**
+     * Send an approved template.
+     *
+     * The only way to reach a customer once the 24h window has closed, which is
+     * exactly when it matters: outside it, plain text is rejected outright.
+     */
+    public function sendTemplate(
+        Conversation $conversation,
+        string $templateKey,
+        array $variables = [],
+        ?string $language = null,
+    ): SendResult {
+        $template = [
+            'name'     => $templateKey,
+            'language' => ['code' => $language ?: 'es'],
+        ];
+
+        /*
+         * Meta fills the placeholders BY POSITION, so the array is re-indexed
+         * before it goes out: a variables array that lost its 0..n keys (an
+         * unset, a filter) would silently shift {{2}} into {{1}}'s slot and
+         * send the customer a message with the values swapped.
+         */
+        $variables = array_values($variables);
+
+        if ($variables) {
+            $template['components'] = [[
+                'type'       => 'body',
+                'parameters' => array_map(
+                    fn ($value) => ['type' => 'text', 'text' => (string) $value],
+                    $variables,
+                ),
+            ]];
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'recipient_type'    => 'individual',
+            'to'                => PhoneNumber::digits($conversation->wa_phone),
+            'type'              => 'template',
+            'template'          => $template,
+        ];
+
+        return new SendResult($this->post($payload));
+    }
+
+    /**
+     * Send a file.
+     *
+     * Meta fetches it from `link`, so the URL must be publicly reachable and
+     * must answer with the mime we declare here — that is what MediaController
+     * exists for. Served straight off the filesystem, a voice note recorded as
+     * audio/mp4 goes out as video/mp4 and WhatsApp rejects it.
+     */
+    public function sendMedia(
+        Conversation $conversation,
+        OutboundMedia $media,
+        ?string $replyToProviderId = null,
+    ): SendResult {
+        $node = ['link' => $media->url];
+
+        // A caption is only legal on visual media and documents; Meta rejects
+        // the message outright if one rides along with an audio.
+        if ($media->caption && in_array($media->kind, ['image', 'video', 'document'], true)) {
+            $node['caption'] = $media->caption;
+        }
+
+        // Without it the customer sees a random hash as the file name.
+        if ($media->kind === 'document' && $media->filename) {
+            $node['filename'] = $media->filename;
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'recipient_type'    => 'individual',
+            'to'                => PhoneNumber::digits($conversation->wa_phone),
+            'type'              => $media->kind,
+            $media->kind        => $node,
+        ];
+
+        if ($replyToProviderId) {
+            $payload['context'] = ['message_id' => $replyToProviderId];
+        }
+
+        return new SendResult($this->post($payload));
+    }
+
+    /**
+     * Send a map pin, rendered natively by WhatsApp.
+     *
+     * Name and address are optional for Meta but sent whenever we have them:
+     * without them the customer gets bare coordinates and no way to act on them.
+     */
+    public function sendLocation(
+        Conversation $conversation,
+        OutboundLocation $location,
+        ?string $replyToProviderId = null,
+    ): SendResult {
+        $node = [
+            // Meta wants these as strings, not floats.
+            'latitude'  => (string) $location->latitude,
+            'longitude' => (string) $location->longitude,
+        ];
+
+        if ($location->name) {
+            $node['name'] = $location->name;
+        }
+
+        if ($location->address) {
+            $node['address'] = $location->address;
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'recipient_type'    => 'individual',
+            'to'                => PhoneNumber::digits($conversation->wa_phone),
+            'type'              => 'location',
+            'location'          => $node,
+        ];
+
+        if ($replyToProviderId) {
+            $payload['context'] = ['message_id' => $replyToProviderId];
+        }
+
+        return new SendResult($this->post($payload));
+    }
+
+    /**
+     * The media node Meta puts in the message, one level down under its type.
+     *
+     *     image:    { id, mime_type, sha256, caption? }
+     *     document: { id, mime_type, filename, caption? }
+     *     audio:    { id, mime_type, voice: true }
+     */
+    public function mediaReference(array $rawMessage): ?array
+    {
+        $type = $this->normalizeType((string) ($rawMessage['type'] ?? ''));
+
+        if (! in_array($type, ['image', 'document', 'audio', 'video', 'sticker'], true)) {
+            return null;
+        }
+
+        $node = $rawMessage[$rawMessage['type']] ?? null;
+
+        if (! is_array($node) || empty($node['id'])) {
+            return null;
+        }
+
+        return [
+            'id'       => (string) $node['id'],
+            'mime'     => $node['mime_type'] ?? null,
+            'filename' => $node['filename'] ?? null,
+        ];
+    }
+
+    /**
+     * Two hops, both authenticated: the id resolves to a short-lived URL, and
+     * that URL still needs the token — fetching it without one returns a 401
+     * body that would otherwise be stored as if it were the file.
+     */
+    public function fetchMedia(string $mediaId): ?array
+    {
+        $version = (string) ($this->config['api_version'] ?? 'v21.0');
+        $token = $this->required('token');
+
+        $meta = Http::withToken($token)
+            ->acceptJson()
+            ->get(sprintf('https://graph.facebook.com/%s/%s', $version, $mediaId));
+
+        if (! $meta->successful() || ! ($url = $meta->json('url'))) {
+            return null;
+        }
+
+        $file = Http::withToken($token)->get($url);
+
+        if (! $file->successful()) {
+            return null;
+        }
+
+        return [
+            'contents' => $file->body(),
+            // Meta's own header wins over the webhook's mime_type: it is what
+            // the bytes actually are.
+            'mime'     => $file->header('Content-Type') ?: $meta->json('mime_type'),
+        ];
+    }
+
+    /**
+     * Send a tappable menu.
+     *
+     * Meta keeps buttons and lists in the same `interactive` envelope but with
+     * different shapes underneath: buttons nest each option under `reply`, a
+     * list groups rows into sections and needs the label of the button that
+     * opens the sheet. One section is used deliberately — the parser produces a
+     * flat menu, and an unnamed section renders cleaner than a fake heading.
+     */
+    public function sendInteractive(
+        Conversation $conversation,
+        OutboundInteractive $interactive,
+        ?string $replyToProviderId = null,
+    ): SendResult {
+        $node = ['body' => ['text' => $interactive->body]];
+
+        if ($interactive->header) {
+            $node['header'] = ['type' => 'text', 'text' => $interactive->header];
+        }
+
+        if ($interactive->footer) {
+            $node['footer'] = ['text' => $interactive->footer];
+        }
+
+        if ($interactive->kind === OutboundInteractive::BUTTONS) {
+            $node['type'] = 'button';
+            $node['action'] = [
+                'buttons' => array_map(fn (array $option) => [
+                    'type'  => 'reply',
+                    'reply' => ['id' => $option['id'], 'title' => $option['title']],
+                ], $interactive->options),
+            ];
+        } else {
+            $node['type'] = 'list';
+            $node['action'] = [
+                'button'   => $interactive->listButton,
+                'sections' => [[
+                    'rows' => array_map(fn (array $option) => array_filter([
+                        'id'          => $option['id'],
+                        'title'       => $option['title'],
+                        'description' => $option['description'] ?? null,
+                    ]), $interactive->options),
+                ]],
+            ];
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'recipient_type'    => 'individual',
+            'to'                => PhoneNumber::digits($conversation->wa_phone),
+            'type'              => 'interactive',
+            'interactive'       => $node,
+        ];
+
+        if ($replyToProviderId) {
+            $payload['context'] = ['message_id' => $replyToProviderId];
+        }
+
+        return new SendResult($this->post($payload));
+    }
+
+    /**
+     * El motivo de un `failed`, legible.
+     *
+     * Meta lo manda en `statuses[].errors[]`: código, título y a veces un
+     * `error_data.details` con la explicación larga. Se juntan en una línea
+     * porque el código solo ("131049") no le dice nada a quien mira el hilo, y
+     * el título solo no se puede buscar en la documentación.
+     */
+    protected function statusError(array $status): ?string
+    {
+        $error = $status['errors'][0] ?? null;
+
+        if (! is_array($error)) {
+            return null;
+        }
+
+        $partes = array_filter([
+            isset($error['code']) ? (string) $error['code'] : null,
+            $error['title'] ?? null,
+            $error['error_data']['details'] ?? ($error['message'] ?? null),
+        ]);
+
+        return $partes ? implode(' · ', array_unique($partes)) : null;
+    }
+
+    /**
+     * POST to the messages endpoint and pull out the wamid.
+     *
+     * Shared by every send: without a wamid there is no idempotency key and no
+     * way to match the delivery receipt that arrives later, so a response
+     * without one is a failure even though Meta answered 200.
+     */
+    protected function post(array $payload): string
+    {
         $response = Http::withToken($this->required('token'))
             ->acceptJson()
             ->post($this->endpoint('messages'), $payload);
@@ -158,7 +460,7 @@ class CloudApiGateway extends BaseGateway
             throw new RuntimeException('Cloud API did not return a message id: '.$response->body());
         }
 
-        return new SendResult($wamid);
+        return $wamid;
     }
 
     /**
@@ -184,6 +486,17 @@ class CloudApiGateway extends BaseGateway
             'image', 'video', 'document', 'audio' => $message[$message['type']]['caption'] ?? null,
             'button'      => $message['button']['text'] ?? null,
             'interactive' => $this->interactiveSelection($message)['title'] ?? null,
+            /*
+             * El emoji es todo el contenido de una reacción.
+             *
+             * Cuando el cliente QUITA la reacción, Meta manda el mismo tipo con
+             * `emoji` vacío. Se distingue con null: sin esto, quitar una
+             * reacción y reaccionar con un emoji que no se pudo leer se veían
+             * igual en el hilo.
+             */
+            'reaction'    => ($message['reaction']['emoji'] ?? '') !== ''
+                ? $message['reaction']['emoji']
+                : null,
             default       => null,
         };
     }
@@ -215,19 +528,29 @@ class CloudApiGateway extends BaseGateway
             return null;
         }
 
-        $kind = $interactive['type'] ?? null;
-        $reply = is_array($interactive[$kind] ?? null) ? $interactive[$kind] : null;
+        /*
+         * Se buscan las claves conocidas DIRECTAMENTE, sin pasar por
+         * `interactive.type`.
+         *
+         * La versión anterior leía ese campo y lo usaba como nombre de la clave
+         * anidada. Funciona mientras Meta mande las dos cosas y coincidan, pero
+         * basta que falte `type` —o que traiga un valor nuevo— para que la
+         * opción tocada se pierda entera, y el síntoma es mudo: el cliente
+         * elige y el agente no recibe nada. Es como lo hace imprimir.
+         */
+        $reply = $interactive['button_reply'] ?? $interactive['list_reply'] ?? null;
 
-        if (! $reply) {
+        if (! is_array($reply) || ! isset($reply['id'])) {
             return null;
         }
 
         return [
-            'kind' => $kind,
-            'id'   => $reply['id'] ?? null,
-            // Meta always sends a title, but fall back to the id rather than
-            // handing the agent a null it will discard.
-            'title' => $reply['title'] ?? ($reply['id'] ?? null),
+            // El tipo se deduce de la clave que vino, no al revés.
+            'kind'  => isset($interactive['button_reply']) ? 'button_reply' : 'list_reply',
+            'id'    => (string) $reply['id'],
+            // Meta siempre manda title, pero si faltara es preferible el id
+            // antes que devolverle un null al agente.
+            'title' => (string) ($reply['title'] ?? $reply['id']),
         ];
     }
 

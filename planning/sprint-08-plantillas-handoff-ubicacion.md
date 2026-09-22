@@ -16,10 +16,11 @@ Tres tenants hermanos ya resolvieron partes de esto. Se porta, no se reinventa:
 |---|---|---|
 | `sendTemplate` + `TemplateCatalog` + `whatsapp:templates` | `odontoking-crm` | ❌ no existe |
 | `sendMedia` + `MediaController` (mime correcto al salir) | `odontoking-crm` | ❌ no existe |
-| `sendLocation` + `OutboundLocation` DTO | `c21_laravel` | ❌ no existe |
+| `sendLocation` + DTO `OutboundLocation` + **picker de mapa (Leaflet)** | `imprimir_laravel` | ❌ no existe |
 | Handoff por columnas + `Services\Handoff` + pool/claim | `imprimir_laravel` | ❌ no existe |
 | `whatsapp:reactivate-agent` + `ai_disabled_at` | `odontoking-crm` | ❌ no existe |
 | Handoff con tabla propia + idempotencia por índice único | `c21_laravel` | descartado (ver §B) |
+| Ubicación gateada por handoff sobre un `codigo` | `c21_laravel` | descartado (ver §C) |
 
 ## El cuello de botella: el contrato del gateway
 
@@ -44,10 +45,10 @@ Agregar al interface, siguiendo la firma que ya usan odontoking y c21:
 ```php
 public function sendTemplate(Conversation $c, string $templateKey, array $variables = [], ?string $language = null): SendResult;
 public function sendMedia(Conversation $c, OutboundMedia $media): SendResult;
-public function sendLocation(Conversation $c, OutboundLocation $location): SendResult;
+public function sendLocation(Conversation $c, OutboundLocation $location, ?string $replyToProviderId = null): SendResult;
 ```
 
-- DTOs nuevos: `Gateways\Dto\OutboundMedia`, `Gateways\Dto\OutboundLocation` (portar de c21).
+- DTOs nuevos: `Gateways\Dto\OutboundMedia`, `Gateways\Dto\OutboundLocation` (portar de imprimir).
 - `Capabilities::$send` de `CloudApiGateway` pasa de `['text', ...]` a incluir
   `template`, `image`, `document`, `video`, `location`.
 - **`KommoGateway` debe implementarlos también**, aunque sea lanzando la excepción de
@@ -118,6 +119,10 @@ Método nuevo `getTemplateSendStats()`, en línea con los ~30 que ya viven ahí.
 `whatsapp_messages` con `type='template'` por `payload->>'$.template'` y por `status`
 (`queued|sent|delivered|read|failed`), dentro del rango de fechas del tablero.
 
+**El filtro es `type='template'` + `sender='human'`.** Confirmado: el agente IA no manda
+plantillas en kohlberg, así que el reporte cuenta únicamente lo que sale del CRM. Filtrar solo
+por `type` funcionaría hoy y empezaría a mentir el día que el agente aprenda a mandarlas.
+
 > **Ojo con el eje temporal:** el resto del tablero cuenta por `created_at`, no por fecha de
 > cierre — decisión ya tomada para este CRM. El gráfico de plantillas se alinea a eso.
 
@@ -162,9 +167,11 @@ Port de `imprimir_laravel/.../Services/Handoff.php` con sus cuatro operaciones:
 clickeando a la vez y exactamente uno gana), `reassign()`, `resolve()`.
 
 Dos detalles que hay que **adaptar a kohlberg**, no copiar:
-- `ownerFor()` excluye roles de gestión vía `whatsapp.handoff.exclude_roles`. Acá el rol que
-  atiende es **Encargado** (los 8 asesores) y hay una cuenta **Sistema** que es el bot: ambos
-  tienen que quedar bien clasificados o cada derivación cae en alguien que no contesta.
+- `ownerFor()` excluye roles de gestión vía `whatsapp.handoff.exclude_roles`. **Confirmado:
+  Encargado es el único rol que recibe derivaciones**; todo lo demás — incluida la cuenta
+  **Sistema**, que es el bot — va a la lista de excluidos. Concretamente:
+  `'exclude_roles' => ['Administrador', 'Sistema', ...]`, es decir, todos menos `Encargado`.
+  Si esto queda mal, cada derivación cae en alguien que no abre WhatsApp.
 - El `audit()` deja una actividad `type='note'` en el timeline del lead y del contacto. Ya
   existe `InboxController::storeNote()` haciendo exactamente eso — reusar ese camino.
 
@@ -191,30 +198,82 @@ de derivar.
 
 ---
 
-# Bloque C · Envío de ubicación `[MEDIO]` — 1,5d
+# Bloque C · Envío de ubicación con selector en el mapa `[MEDIO]` — 2,5d
 
-Depende del Bloque 0. La pieza de gateway sale de c21 (`CloudApiGateway::sendLocation`,
-`KommoGateway::sendLocation`, DTO `OutboundLocation`); el render del mensaje en el thread sale
-de odontoking (`inbox-component.blade.php:166`, que ya dibuja `type === 'location'` entrante).
+**Corrección respecto de la primera versión de este plan: el origen es `imprimir_laravel`, no c21.**
+Son dos features distintas con el mismo nombre:
+
+| | c21_laravel | imprimir_laravel ✓ |
+|---|---|---|
+| Quién manda | el agente IA, por API | **el asesor, a mano desde el chat** |
+| De dónde sale el punto | ficha del inmueble (lat/lng guardados) | **pin arrastrable sobre un mapa Leaflet** |
+| Precondición | 409 si no hay handoff abierto sobre ese `codigo` | ninguna |
+| Acoplamiento | catálogo de inmuebles | ninguno |
+
+Lo que se pidió — *"seleccionar un punto en el mapa para que se envíe en el chat como mapa"* — es
+literalmente el modal de imprimir. c21 nunca abre un mapa: lee coordenadas que ya estaban cargadas.
+Por eso este bloque sube de 1,5d a **2,5d**: la mayor parte es frontend.
 
 ### HU-C1 · Gateway + DTO — 0,5d `[BACK]`
-Port directo. `OutboundLocation{lat, lng, name, address}`.
+Port de `sendLocation()` en ambos gateways y del DTO `Gateways\Dto\OutboundLocation`.
 
-### HU-C2 · Origen del dato — 0,5d `[BACK]`
-Acá kohlberg **no** puede copiar a c21: allá la ubicación sale de la ficha del inmueble y está
-gateada a que exista un handoff abierto sobre ese código. Kohlberg no tiene inmuebles.
+Ojo con la firma: imprimir lleva un tercer parámetro que c21 no tiene, y es el que corresponde
+porque el resto del módulo ya soporta responder citando un mensaje.
 
-La ubicación de kohlberg son **sus puntos de venta / depósitos por ciudad** — y la ciudad ya es
-el pipeline del lead. Propuesta: `config('whatsapp.locations')` indexado por ciudad
-(lat, lng, nombre, dirección), y el endpoint resuelve la ciudad desde el lead de la
-conversación. **Esta es la decisión de negocio a confirmar** — ver §Preguntas abiertas.
+```php
+public function sendLocation(Conversation $c, OutboundLocation $location, ?string $replyToProviderId = null): SendResult;
+```
 
-### HU-C3 · Endpoint + render saliente — 0,5d `[BACK/FRONT]`
-`POST /api/v1/whatsapp/conversations/{id}/location {ciudad?}` para el agente, y un botón en el
-composer para el asesor. El render `outbound` reusa la burbuja de ubicación que ya existe para
-entrantes.
+El DTO trae un detalle que vale conservar: `name` y `address` son opcionales, **pero mandarlos
+importa** — sin ellos WhatsApp dibuja coordenadas peladas, que nadie puede accionar. Y su
+método `label()` es lo que termina en la columna `body`, así que el preview de la lista de
+conversaciones y cualquier export en texto siguen diciendo algo útil.
+
+### HU-C2 · Endpoint de envío — 0,5d `[BACK]`
+`POST admin/whatsapp/send-location` con las validaciones de imprimir, que ya están bien puestas:
+
+```php
+'latitude'  => 'required|numeric|between:-90,90',
+'longitude' => 'required|numeric|between:-180,180',
+```
+
+Si el canal activo no puede mandar ubicaciones → 422 con motivo legible, antes de encolar nada.
+El mensaje se guarda con `type='location'` y `payload = ['location' => $location->toArray()]`.
+
+### HU-C3 · El picker en el composer — 1d `[FRONT]`
+Modal con las cuatro formas de fijar el punto que ya resolvió imprimir:
+
+1. **"Usar mi ubicación"** — GPS del navegador, mostrando la precisión aproximada en metros.
+2. **Mapa Leaflet** con pin arrastrable; un tap en el mapa también lo mueve.
+3. **Lat/lng a mano**, para pegar coordenadas de otro lado.
+4. **Ubicaciones guardadas** (`config('whatsapp.locations')`): sucursal, depósito, punto de
+   entrega. Botones de un click, y el asesor igual puede ajustar el pin después.
+
+`name` y `address` quedan como campos opcionales encima del botón de enviar.
+
+Tres detalles de implementación que imprimir ya pagó y no conviene redescubrir:
+
+- **Leaflet se carga del CDN la primera vez que se abre el picker**, no en el bundle. Son ~150 KB
+  que la mayoría de las sesiones nunca usa.
+- **El objeto del mapa NO va en `data()`.** Envuelto en la reactividad de Vue, Leaflet se rompe;
+  va como propiedad común de la instancia.
+- **Leaflet mide el contenedor al crearse**, y dentro de un modal que recién se abre ese
+  contenedor todavía mide cero: hay que invalidar el tamaño después de montar. El código de
+  imprimir además detecta el caso "contenedor sin alto" y avisa en vez de mostrar un mapa gris.
+
+> **Mockup antes de tocar el blade.** Tercera UI de este sprint (con HU-A4 y HU-B4).
+
+### HU-C4 · Render de la burbuja — 0,5d `[FRONT/BACK]`
+La burbuja de ubicación es un enlace a `https://www.google.com/maps?q=lat,lng`, con nombre,
+dirección y coordenadas a 5 decimales.
+
+El helper `locationOf()` de imprimir lee **las dos formas del `payload`**: `['location' => …]`
+para lo que mandamos nosotros, y el nodo crudo del proveedor para lo que llega entrante. Sin eso,
+las ubicaciones que manda un cliente se ven vacías — y hoy kohlberg ya recibe ubicaciones, solo
+que no las sabe mostrar.
 
 ---
+
 
 # Bloque D · Moneda en Bs `[BAJO]` — 0,5d
 
@@ -324,21 +383,22 @@ Bloque E (30 min)    ── independiente
 | 0 · Contrato del gateway | 2d |
 | A · Plantillas + reporte | 5d |
 | B · Handoff | 4d |
-| C · Ubicación | 1,5d |
+| C · Ubicación (con picker de mapa) | 2,5d |
 | D · Moneda Bs | 0,5d |
 | E · Reactivación 30 min | 1d |
 | F · Consolidación | 3d |
-| **Total** | **17d** |
+| **Total** | **18d** |
 
 ---
 
-## Preguntas abiertas
+## Decisiones confirmadas
 
-1. **Ubicación (HU-C2):** ¿qué ubicaciones manda kohlberg — puntos de venta por ciudad,
-   depósitos, o la dirección del cliente? Es lo único del sprint sin equivalente directo en los
-   otros tenants, porque el modelo de c21 asume un catálogo con titular por ficha.
-2. **Roles en `ownerFor()` (HU-B2):** confirmar que **Encargado** es el único rol que recibe
-   derivaciones y que **Sistema** (la cuenta del bot) queda excluida.
-3. **Reporte de plantillas (HU-A5):** ¿el gráfico cuenta solo los envíos manuales del inbox, o
-   también los que dispare el agente por API? Cambia si el filtro es por `type` o por
-   `type` + `sender`.
+Las tres preguntas que bloqueaban el arranque están cerradas:
+
+| # | Pregunta | Respuesta | Afecta |
+|---|---|---|---|
+| 1 | ¿Qué ubicación manda kohlberg? | **Ninguna fija.** El asesor elige el punto en un mapa, conversación por conversación. `config('whatsapp.locations')` queda solo como atajos guardados (sucursal, depósito), opcional | HU-C2, HU-C3 |
+| 2 | ¿Qué roles reciben derivaciones? | **Encargado, y nadie más.** Todo lo demás va a `exclude_roles`, incluida la cuenta Sistema (el bot) | HU-B2 |
+| 3 | ¿Qué cuenta el reporte de plantillas? | **Solo lo enviado desde el CRM.** El agente no manda plantillas → filtro `type='template'` + `sender='human'` | HU-A5 |
+
+**No queda nada bloqueando.** El sprint puede arrancar por D + E.

@@ -1,8 +1,81 @@
+@php
+    /*
+     * El símbolo de la moneda del CRM (config('app.currency')). Antes estaba
+     * escrito "$" a mano en cada monto, que en una instalación que cobra en
+     * bolivianos es un dato equivocado, no un detalle de estilo.
+     */
+    $waMoneda = \Webkul\Whatsapp\Support\Currency::symbol();
+@endphp
+
 @pushOnce('scripts')
     <style>
         .wa-scroll::-webkit-scrollbar { width: 6px; }
         .wa-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 3px; }
         .dark .wa-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); }
+
+        /* Visor de imágenes — CSS propio a propósito: el build de Tailwind del
+           admin está precompilado, así que una clase de utilidad nueva escrita
+           acá no se compilaría nunca y el visor saldría sin estilos. */
+        .wa-zoomable { cursor: zoom-in; }
+        .wa-viewer {
+            position: fixed; inset: 0; z-index: 10002; display: flex;
+            align-items: center; justify-content: center;
+            background: rgba(0,0,0,.92); backdrop-filter: blur(4px);
+            -webkit-user-select: none; user-select: none;
+        }
+        .wa-viewer__img {
+            max-height: 86vh; max-width: 92vw; border-radius: 10px;
+            object-fit: contain; box-shadow: 0 25px 60px -15px rgba(0,0,0,.7);
+            transition: transform .15s ease;
+        }
+        .wa-viewer__img.is-grab { cursor: grab; }
+        .wa-viewer__img.is-grabbing { cursor: grabbing; transition: none; }
+        .wa-toolbar {
+            position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+            z-index: 10; display: flex; align-items: center; gap: 2px; padding: 6px;
+            border-radius: 16px; border: 1px solid rgba(255,255,255,.12);
+            background: rgba(24,28,36,.82); backdrop-filter: blur(10px);
+            box-shadow: 0 8px 28px rgba(0,0,0,.45); color: rgba(255,255,255,.92);
+        }
+        .wa-tbtn {
+            display: flex; align-items: center; justify-content: center;
+            height: 38px; width: 38px; border-radius: 11px; color: inherit;
+            background: transparent; border: 0; cursor: pointer; transition: background .15s;
+        }
+        .wa-tbtn:hover { background: rgba(255,255,255,.14); }
+        .wa-tbtn:focus-visible { outline: 2px solid rgba(255,255,255,.55); outline-offset: 1px; }
+        .wa-tbtn--close:hover { background: rgba(239,68,68,.85); }
+        .wa-tsep { margin: 0 4px; height: 22px; width: 1px; background: rgba(255,255,255,.14); }
+        .wa-tpct {
+            min-width: 46px; text-align: center; font-size: 12px; font-weight: 600;
+            color: rgba(255,255,255,.72); font-variant-numeric: tabular-nums;
+        }
+        .wa-vicon { height: 20px; width: 20px; display: block; }
+        .wa-nav {
+            position: absolute; top: 50%; transform: translateY(-50%); z-index: 10;
+            display: flex; align-items: center; justify-content: center;
+            height: 46px; width: 46px; border-radius: 9999px; cursor: pointer;
+            border: 1px solid rgba(255,255,255,.12); background: rgba(24,28,36,.72);
+            backdrop-filter: blur(10px); box-shadow: 0 8px 28px rgba(0,0,0,.45);
+            color: rgba(255,255,255,.92); transition: background .15s;
+        }
+        .wa-nav:hover { background: rgba(24,28,36,.98); }
+        .wa-nav--prev { left: 18px; }
+        .wa-nav--next { right: 18px; }
+        .wa-counter {
+            position: absolute; top: 18px; right: 18px; z-index: 10;
+            border-radius: 9999px; border: 1px solid rgba(255,255,255,.12);
+            background: rgba(24,28,36,.82); backdrop-filter: blur(10px);
+            padding: 6px 13px; font-size: 12px; font-weight: 600;
+            color: rgba(255,255,255,.82); font-variant-numeric: tabular-nums;
+        }
+        .wa-caption {
+            position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+            z-index: 10; max-width: 80vw; white-space: pre-wrap; word-break: break-word;
+            border-radius: 12px; border: 1px solid rgba(255,255,255,.12);
+            background: rgba(24,28,36,.82); backdrop-filter: blur(10px);
+            padding: 9px 16px; text-align: center; font-size: 14px; color: rgba(255,255,255,.92);
+        }
     </style>
 
     <script type="text/x-template" id="v-whatsapp-inbox-template">
@@ -110,40 +183,47 @@
                             <div v-if="msg.type === 'text'" class="whitespace-pre-wrap break-words" v-html="formatText(msg.text)"></div>
 
                             <div v-else-if="msg.type === 'image'">
-                                <img :src="msg.media.url" class="max-h-56 rounded-md" alt="imagen">
+                                <img v-if="msg.media" :src="msg.media.url"
+                                     @click="openLightbox(msg.media.url, chatImageUrls())"
+                                     class="wa-zoomable max-h-56 rounded-md" alt="imagen">
                                 <div v-if="msg.text" class="mt-1 whitespace-pre-wrap break-words">@{{ msg.text }}</div>
                             </div>
 
+                            <!--
+                                Toda burbuja con archivo va guardada por `msg.media`.
+                                Un mensaje multimedia puede existir SIN archivo: la
+                                referencia de Meta caduca, y hasta que existió la
+                                descarga automática ninguna media entrante se guardó.
+                                Sin la guarda, `msg.media.url` sobre null tira
+                                TypeError en el render y la conversación entera
+                                queda en blanco — no solo esa burbuja.
+                            -->
                             <div v-else-if="msg.type === 'sticker'">
-                                <img :src="msg.media.url" class="h-28 w-28 object-contain" alt="sticker">
+                                <img v-if="msg.media" :src="msg.media.url" class="h-28 w-28 object-contain" alt="sticker">
+                                <span v-else class="text-xs italic text-gray-400">Sticker no disponible</span>
                             </div>
 
                             <div v-else-if="msg.type === 'audio'" class="min-w-[220px]">
-                                <audio controls :src="msg.media.url" class="w-full"></audio>
+                                <audio v-if="msg.media" controls :src="msg.media.url" class="w-full"></audio>
+                                <span v-else class="text-xs italic text-gray-400">Nota de voz no disponible</span>
                             </div>
 
                             <div v-else-if="msg.type === 'video'">
-                                <video controls :src="msg.media.url" class="max-h-56 rounded-md"></video>
+                                <video v-if="msg.media" controls :src="msg.media.url" class="max-h-56 rounded-md"></video>
+                                <span v-else class="text-xs italic text-gray-400">Video no disponible</span>
                             </div>
 
-                            <a v-else-if="msg.type === 'document'" :href="msg.media.url" target="_blank"
-                               class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
+                            <component :is="msg.media ? 'a' : 'div'" v-else-if="msg.type === 'document'"
+                                       :href="msg.media ? msg.media.url : null"
+                                       :target="msg.media ? '_blank' : null" rel="noopener"
+                                       class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
                                 <span class="icon-file text-xl"></span>
                                 <span class="flex flex-col">
-                                    <span class="font-medium">@{{ msg.media.filename || 'Documento' }}</span>
-                                    <span class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.media.meta }}</span>
+                                    <span class="font-medium">@{{ (msg.media && msg.media.filename) || 'Documento' }}</span>
+                                    <span v-if="msg.media" class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.media.meta }}</span>
+                                    <span v-else class="text-[11px] italic text-gray-400">Archivo no disponible</span>
                                 </span>
-                            </a>
-
-                            <div v-else-if="msg.type === 'location'" class="min-w-[200px]">
-                                <div class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
-                                    <span class="icon-map text-xl"></span>
-                                    <span class="flex flex-col">
-                                        <span class="font-medium">Ubicación</span>
-                                        <span class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.location.lat }}, @{{ msg.location.lng }}</span>
-                                    </span>
-                                </div>
-                            </div>
+                            </component>
 
                             <div v-else-if="msg.type === 'contact'" class="min-w-[200px]">
                                 <div class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-2 dark:bg-white/10">
@@ -153,6 +233,160 @@
                                         <span class="text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.contact.phone }}</span>
                                     </span>
                                 </div>
+                            </div>
+
+                            <!--
+                                Location. Rendered as a link to Maps rather than
+                                an embedded map: a tile per bubble would hit the
+                                tile server once for every pin in the thread.
+                            -->
+                            <!--
+                                Ubicación: el mapa ES el mensaje, abierto y
+                                dentro del hilo. Sin clic previo ni modal: un
+                                par de coordenadas no le dice nada a nadie, y
+                                obligar a abrir algo para ver dónde queda un
+                                punto es un paso de más en medio de una
+                                conversación.
+
+                                Se monta recién cuando entra en pantalla (ver
+                                registerBubbleMap), para no levantar veinte
+                                mapas de golpe al abrir un chat largo.
+                            -->
+                            <!--
+                                Las medidas van en `style` y no en clases de
+                                Tailwind con valor arbitrario (h-[220px]) a
+                                propósito: esas clases sólo existen si el CSS se
+                                recompiló, y con el CSS viejo la clase no aplica
+                                nada -> altura 0 -> Leaflet mide 0px, centra el
+                                marcador fuera de la caja y el mapa no se ve.
+                                Acá la altura no es decoración: es un requisito
+                                para que el mapa funcione.
+                            -->
+                            <div v-else-if="msg.type === 'location'" style="width: min(340px, 70vw)">
+                                <template v-if="msg.location">
+                                    <div :ref="el => registerBubbleMap(el, msg)"
+                                         style="height: 220px; width: 100%"
+                                         class="overflow-hidden rounded-lg border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-700"></div>
+
+                                    <div class="mt-1.5 flex items-start gap-2">
+                                        <span class="icon-location shrink-0 text-xl text-brandColor"></span>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="truncate font-medium">@{{ msg.location.name || 'Ubicación' }}</p>
+                                            <p v-if="msg.location.address"
+                                               class="truncate text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.location.address }}</p>
+                                            <p class="font-mono text-[11px] text-gray-400">
+                                                @{{ msg.location.lat.toFixed(5) }}, @{{ msg.location.lng.toFixed(5) }}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-1 flex items-center gap-3 text-[11px]">
+                                        <button type="button" @click="copiarCoords(msg)"
+                                                class="text-brandColor hover:underline">
+                                            @{{ coordsCopiadas === msg.id ? 'Copiado' : 'Copiar coordenadas' }}
+                                        </button>
+                                        <a :href="msg.location.url" target="_blank" rel="noopener"
+                                           class="text-brandColor hover:underline">Abrir en Google Maps</a>
+                                    </div>
+                                </template>
+
+                                <div v-else class="flex items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-2 dark:border-gray-700">
+                                    <span class="icon-location shrink-0 text-xl text-gray-400"></span>
+                                    <span class="italic text-gray-500">Ubicación sin coordenadas</span>
+                                </div>
+                            </div>
+
+                            <!--
+                                Menú tocable: lo que se le OFRECIÓ al cliente.
+                                Antes caía en el v-else de abajo y el asesor
+                                leía "Tipo no soportado" donde el agente había
+                                ofrecido siete ciudades. Al retomar una
+                                conversación derivada, eso es justo el contexto
+                                que necesita.
+                            -->
+                            <div v-else-if="msg.type === 'interactive'" style="min-width: 220px">
+                                <!--
+                                    Un mensaje "interactive" es una de DOS cosas
+                                    según quién lo mandó: el menú que nosotros
+                                    ofrecimos (msg.interactive, con opciones) o
+                                    la opción que el cliente tocó (msg.selection).
+                                    Sin distinguirlas, el tap caía en "Menú
+                                    enviado" — atribuyéndonos lo que hizo él.
+                                -->
+                                <div v-if="msg.selection" class="flex items-center gap-2">
+                                    <span class="icon-checkbox-select shrink-0 text-lg text-emerald-600 dark:text-emerald-400"></span>
+                                    <span class="flex min-w-0 flex-col">
+                                        <span class="text-xs text-gray-500 dark:text-gray-300">Eligió</span>
+                                        <span class="font-semibold">@{{ msg.selection.title || msg.text }}</span>
+                                    </span>
+                                </div>
+
+                                <div v-else-if="msg.interactive" class="whitespace-pre-wrap break-words"
+                                     v-html="formatText(msg.interactive.body)"></div>
+
+                                <!-- Ni una cosa ni la otra: al menos el texto, nunca un renglón vacío. -->
+                                <div v-else class="whitespace-pre-wrap break-words" v-html="formatText(msg.text || 'Mensaje interactivo')"></div>
+
+                                <div v-if="msg.interactive" class="mt-1.5 border-t border-gray-200 pt-1.5 dark:border-gray-600">
+                                    <!-- Botones: se ven de una, como los ve el cliente. -->
+                                    <div v-if="msg.interactive.kind === 'buttons'" class="flex flex-col gap-1">
+                                        <span v-for="opt in msg.interactive.options" :key="opt.id"
+                                              class="rounded border border-gray-300 px-2 py-1 text-center text-xs text-brandColor dark:border-gray-600">
+                                            @{{ opt.title }}
+                                        </span>
+                                    </div>
+
+                                    <!-- Lista: el label del menú y las opciones en línea. -->
+                                    <div v-else>
+                                        <span class="flex items-center gap-1.5 text-xs font-medium text-brandColor">
+                                            <span class="icon-menu shrink-0"></span>
+                                            @{{ msg.interactive.button || 'Ver opciones' }}
+                                            <span class="text-gray-400">(@{{ msg.interactive.options.length }})</span>
+                                        </span>
+                                        <p class="mt-0.5 text-[11px] leading-snug text-gray-500 dark:text-gray-300">
+                                            @{{ msg.interactive.options.map(o => o.title).join(' · ') }}
+                                        </p>
+                                    </div>
+
+                                    <p v-if="msg.interactive.footer"
+                                       class="mt-1 text-[11px] text-gray-400">@{{ msg.interactive.footer }}</p>
+                                </div>
+                            </div>
+
+                            <!--
+                                Reacción: el emoji que el cliente puso sobre un
+                                mensaje nuestro. Caía en el v-else de abajo y se
+                                leía "Tipo no soportado" — el asesor no tenía
+                                forma de saber que el cliente había respondido.
+
+                                La cita del mensaje reaccionado la dibuja el
+                                bloque `msg.replyTo` de más arriba: el gateway
+                                mapea reaction.message_id a replyTo justamente
+                                para no tener dos caminos para lo mismo.
+                            -->
+                            <div v-else-if="msg.type === 'reaction'" class="flex items-center gap-2">
+                                <span v-if="msg.reaction && msg.reaction.emoji" class="text-2xl leading-none">@{{ msg.reaction.emoji }}</span>
+                                <span class="text-xs italic text-gray-500 dark:text-gray-300">
+                                    @{{ (msg.reaction && msg.reaction.removed) ? 'quitó su reacción' : 'reaccionó' }}
+                                </span>
+                            </div>
+
+                            <!--
+                                Plantilla (HSM): el único mensaje que WhatsApp
+                                acepta fuera de la ventana de 24 h. Caía en el
+                                v-else de abajo y se leía "Tipo no soportado":
+                                14 plantillas enviadas y el asesor no las veía.
+
+                                Se marca como plantilla porque para el asesor
+                                importa saber que fue un mensaje pre-aprobado,
+                                no algo que escribió alguien.
+                            -->
+                            <div v-else-if="msg.type === 'template'">
+                                <div class="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">
+                                    <span class="icon-mail"></span>
+                                    Plantilla
+                                </div>
+                                <div class="whitespace-pre-wrap break-words" v-html="formatText(msg.text)"></div>
                             </div>
 
                             <div v-else class="italic text-gray-500">Tipo no soportado</div>
@@ -241,6 +475,51 @@
 
                 <template v-else>
 
+                <!--
+                    Derivación abierta. Va ANTES que el aviso del agente porque
+                    lo reemplaza: si la conversación fue derivada, el agente ya
+                    está apagado y lo que importa es quién la debe atender.
+                -->
+                <div v-if="handoff.open"
+                     class="mb-2 rounded-md px-3 py-2 text-xs"
+                     :class="handoff.pooled
+                        ? 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300'
+                        : 'bg-sky-50 text-sky-800 dark:bg-sky-900/20 dark:text-sky-300'">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="flex flex-wrap items-center gap-1.5">
+                            <span class="rounded px-1.5 py-0.5 text-[10px] font-bold"
+                                  :class="handoff.pooled ? 'bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100'
+                                                         : 'bg-sky-200 text-sky-900 dark:bg-sky-800 dark:text-sky-100'">
+                                @{{ handoff.pooled ? 'SIN ASESOR' : 'DERIVADA' }}
+                            </span>
+
+                            <span v-if="handoff.city" class="font-semibold">@{{ handoff.city }}</span>
+
+                            <span v-if="handoff.assigned_user">
+                                · @{{ handoff.is_mine ? 'Te toca a vos' : 'Atiende ' + handoff.assigned_user.name }}
+                            </span>
+                            <span v-else>· nadie la tomó todavía</span>
+
+                            <span v-if="handoffWaiting" class="opacity-70">· hace @{{ handoffWaiting }}</span>
+                        </span>
+
+                        <span class="flex shrink-0 gap-1.5">
+                            <button v-if="handoff.pooled" type="button" @click="claimHandoff" :disabled="handoffBusy"
+                                    class="rounded-md bg-amber-600 px-2.5 py-1 font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50">
+                                Tomar conversación
+                            </button>
+                            <button type="button" @click="resolveHandoff" :disabled="handoffBusy"
+                                    class="rounded-md border border-current px-2.5 py-1 font-semibold transition hover:bg-black/5">
+                                Cerrar derivación
+                            </button>
+                        </span>
+                    </div>
+
+                    <p v-if="handoff.reason" class="mt-1 opacity-90">
+                        <span class="font-semibold">Motivo:</span> @{{ handoff.reason }}
+                    </p>
+                </div>
+
                 <div v-if="!context.phone" class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
                     Este contacto no tiene número de WhatsApp. Asigna un teléfono para poder chatear.
                 </div>
@@ -250,8 +529,20 @@
                     <span>El agente IA está atendiendo esta conversación. <button class="font-semibold underline" @click="toggleAgent(false)">Desactivalo</button> para escribir a mano.</span>
                 </div>
 
-                <div v-else-if="window.applies && !window.open" class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
-                    Ventana de 24h cerrada. WhatsApp no permite texto libre hasta que el cliente vuelva a escribir (o usar una plantilla aprobada).
+                <!--
+                    Window closed. The old copy told the advisor to use a
+                    template and then gave them no way to do it: the composer,
+                    action menu included, is replaced by this box. Hence the
+                    button — it is the only path out of here.
+                -->
+                <div v-else-if="window.applies && !window.open"
+                     class="flex flex-wrap items-center justify-between gap-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                    <span>Ventana de 24h cerrada. Hasta que el cliente vuelva a escribir, solo podés contactarlo con una plantilla aprobada.</span>
+
+                    <button v-if="canSend('template')" type="button" @click="openTemplates"
+                            class="flex shrink-0 items-center gap-1.5 rounded-md bg-red-600 px-2.5 py-1.5 font-semibold text-white transition hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                        <span class="icon-sent"></span> Elegir plantilla
+                    </button>
                 </div>
 
                 <template v-else>
@@ -313,24 +604,58 @@
                         <span class="icon-bookmark text-xl"></span>
                     </button>
 
-                    <!-- Only rendered when the active provider can actually send attachments -->
-                    <div v-if="canAttach" class="js-pop relative">
+                    <!--
+                        Action menu. Every entry is rendered from the gateway's
+                        declared capabilities, never hard-coded: an option that
+                        is visible must actually work, or the advisor sends into
+                        a 501 they cannot interpret.
+                    -->
+                    <div v-if="canAct" class="js-pop relative">
                         <button type="button" @click="showAttach = !showAttach"
-                                aria-label="Adjuntar archivo"
+                                aria-label="Adjuntar o enviar"
+                                title="Adjuntar archivo, ubicación o plantilla"
                                 class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-700">
                             <span class="icon-attachment text-xl"></span>
                         </button>
-                        <div v-if="showAttach" class="absolute bottom-11 left-0 z-10 w-40 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                            <button v-if="canSend('image')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="mockAttach('image')">
-                                <span class="icon-image"></span> Imagen
+
+                        <div v-if="showAttach" class="absolute bottom-11 left-0 z-10 w-48 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                            <button v-for="opt in attachOptions" :key="opt.kind" type="button"
+                                    class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    @click="pickFile(opt.kind)">
+                                <span :class="opt.icon"></span> @{{ opt.label }}
                             </button>
-                            <button v-if="canSend('document')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="mockAttach('document')">
-                                <span class="icon-file"></span> Documento
+
+                            <div v-if="attachOptions.length && (canSend('location') || canSend('template'))"
+                                 class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+
+                            <button v-if="canSend('location')" type="button"
+                                    class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    @click="openLocation">
+                                <span class="icon-location"></span> Ubicación
                             </button>
-                            <button v-if="canSend('audio')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="mockAttach('audio')">
-                                <span class="icon-microphone"></span> Audio
+
+                            <!-- Also with the window open: a template is a fine
+                                 way to open a formal topic, not just a fallback. -->
+                            <button v-if="canSend('template')" type="button"
+                                    class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    @click="openTemplates">
+                                <span class="icon-sent"></span> Plantilla
                             </button>
                         </div>
+
+                        <!--
+                            ONE input whose `accept` changes with the chosen
+                            kind, not one per kind.
+
+                            In Vue 3 a string `ref` inside a v-for does NOT
+                            collect the elements into $refs: that was Vue 2
+                            behaviour. `$refs['file-image']` came back undefined,
+                            the optional chaining swallowed it, and clicking
+                            "Imagen" did nothing at all — no dialog, no error.
+                        -->
+                        <input ref="fileInput" type="file" class="hidden"
+                               :accept="pendingAccept"
+                               @change="stageFile">
                     </div>
 
                     <textarea
@@ -442,7 +767,7 @@
                                class="group mb-3 block rounded-lg border border-gray-200 p-2.5 transition hover:border-brandColor dark:border-gray-800">
                                 <div class="flex items-center justify-between gap-2">
                                     <span class="truncate text-sm font-medium text-gray-800 group-hover:text-brandColor dark:text-gray-200">@{{ profile.active_lead.title }}</span>
-                                    <span v-if="profile.active_lead.value" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">$@{{ profile.active_lead.value }}</span>
+                                    <span v-if="profile.active_lead.value" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">{{ $waMoneda }} @{{ profile.active_lead.value }}</span>
                                 </div>
                                 <div class="mt-1 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
                                     <span v-if="profile.active_lead.stage" class="rounded-full bg-sky-100 px-2 py-px font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">@{{ profile.active_lead.stage }}</span>
@@ -478,7 +803,7 @@
                                     <p class="text-[10px] text-gray-500 dark:text-gray-400">Pedidos</p>
                                 </div>
                                 <div class="rounded-lg border border-gray-200 p-2 text-center dark:border-gray-800">
-                                    <p class="truncate text-base font-bold text-brandColor">$@{{ profile.leads_total }}</p>
+                                    <p class="truncate text-base font-bold text-brandColor">{{ $waMoneda }} @{{ profile.leads_total }}</p>
                                     <p class="text-[10px] text-gray-500 dark:text-gray-400">Valor</p>
                                 </div>
                             </div>
@@ -516,29 +841,83 @@
                         <!-- Imágenes -->
                         <template v-else-if="profileTab === 'imagenes'">
                             <div v-if="profile.images.length" class="grid grid-cols-3 gap-1.5">
-                                <a v-for="(img, i) in profile.images" :key="'img-' + i" :href="img.url" target="_blank" :title="img.date">
-                                    <img :src="img.url" class="h-20 w-full rounded-md object-cover transition hover:opacity-80" alt="imagen compartida">
-                                </a>
+                                <!--
+                                    Los videos siguen abriéndose en una pestaña
+                                    nueva: el visor hace zoom y rotación, que a
+                                    un video no le sirven de nada.
+                                -->
+                                <component :is="img.type === 'video' ? 'a' : 'button'"
+                                           v-for="(img, i) in profile.images" :key="'img-' + i"
+                                           :type="img.type === 'video' ? null : 'button'"
+                                           :href="img.type === 'video' ? img.url : null"
+                                           :target="img.type === 'video' ? '_blank' : null"
+                                           rel="noopener"
+                                           :title="(img.mine ? 'Enviado' : 'Recibido') + ' · ' + img.date"
+                                           class="relative block w-full"
+                                           @click="img.type === 'video' ? null : openLightbox(img.url, profileImageUrls())">
+                                    <!-- Un video no se puede pintar con <img>: se
+                                         muestra el primer frame con el propio
+                                         <video>, sin controles ni descarga. -->
+                                    <video v-if="img.type === 'video'" :src="img.url" preload="metadata"
+                                           class="h-20 w-full rounded-md object-cover transition hover:opacity-80"></video>
+                                    <img v-else :src="img.url" alt="archivo compartido"
+                                         class="h-20 w-full rounded-md object-cover transition hover:opacity-80">
+
+                                    <!-- SVG en vez de la fuente de iconos: no hay
+                                         un icono de reproducción en esta fuente. -->
+                                    <span v-if="img.type === 'video'"
+                                          class="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                        <svg viewBox="0 0 24 24" class="h-7 w-7 drop-shadow" fill="rgba(255,255,255,.9)" aria-hidden="true">
+                                            <circle cx="12" cy="12" r="11" fill="rgba(0,0,0,.35)"/>
+                                            <path d="M10 8.5v7l5.5-3.5z"/>
+                                        </svg>
+                                    </span>
+
+                                    <!-- Quién lo mandó: en un comprobante es la
+                                         diferencia entre "se lo enviamos" y
+                                         "nos lo envió". -->
+                                    <span class="absolute bottom-0 left-0 rounded-tr-md rounded-bl-md px-1 text-[9px] font-medium text-white"
+                                          :class="img.mine ? 'bg-brandColor/80' : 'bg-gray-700/70'">
+                                        @{{ img.mine ? '↑' : '↓' }}
+                                    </span>
+                                </component>
                             </div>
                             <p v-else class="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-xs text-gray-400 dark:border-gray-700">
-                                Sin imágenes compartidas en la conversación.
+                                Sin imágenes ni videos en la conversación.
                             </p>
                         </template>
 
                         <!-- Documentos -->
                         <template v-else-if="profileTab === 'documentos'">
                             <div v-if="profile.documents.length" class="flex flex-col divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-                                <a v-for="(doc, i) in profile.documents" :key="'doc-' + i" :href="doc.url" target="_blank"
-                                   class="flex items-center gap-2 px-2.5 py-2 transition hover:bg-gray-50 dark:hover:bg-gray-800">
-                                    <span class="icon-file text-lg text-gray-400"></span>
-                                    <span class="min-w-0 flex-1">
-                                        <span class="block truncate text-sm text-gray-800 dark:text-gray-200">@{{ doc.name }}</span>
-                                        <span class="text-[11px] text-gray-400">@{{ doc.date }}</span>
-                                    </span>
-                                </a>
+                                <div v-for="(doc, i) in profile.documents" :key="'doc-' + i"
+                                     class="px-2.5 py-2 transition hover:bg-gray-50 dark:hover:bg-gray-800">
+                                    <a :href="doc.url" target="_blank" rel="noopener" class="flex items-center gap-2">
+                                        <!-- La fuente de iconos de este proyecto no
+                                             trae micrófono; para audio va un SVG. -->
+                                        <svg v-if="doc.type === 'audio'" viewBox="0 0 24 24"
+                                             class="h-4 w-4 shrink-0 text-gray-400" fill="none"
+                                             stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                            <rect x="9" y="2" width="6" height="11" rx="3"/>
+                                            <path stroke-linecap="round" d="M5 11a7 7 0 0014 0M12 18v4"/>
+                                        </svg>
+                                        <span v-else class="icon-file text-lg text-gray-400"></span>
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate text-sm text-gray-800 dark:text-gray-200">@{{ doc.name }}</span>
+                                            <span class="text-[11px] text-gray-400">
+                                                @{{ doc.mine ? 'Enviado' : 'Recibido' }} · @{{ doc.date }}
+                                            </span>
+                                        </span>
+                                    </a>
+
+                                    <!-- Una nota de voz se escucha acá mismo: bajarla
+                                         para oírla es una fricción que no hace falta. -->
+                                    <audio v-if="doc.type === 'audio'" :src="doc.url" controls preload="none"
+                                           class="mt-1.5 h-8 w-full"></audio>
+                                </div>
                             </div>
                             <p v-else class="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-xs text-gray-400 dark:border-gray-700">
-                                Sin documentos compartidos.
+                                Sin documentos ni audios compartidos.
                             </p>
                         </template>
 
@@ -562,11 +941,11 @@
                                 <div v-for="(prod, i) in profile.products" :key="'prod-' + i" class="px-2.5 py-2">
                                     <div class="flex items-center justify-between gap-2">
                                         <span class="truncate text-sm font-medium text-gray-800 dark:text-gray-200">@{{ prod.name }}</span>
-                                        <span v-if="prod.amount" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">$@{{ prod.amount }}</span>
+                                        <span v-if="prod.amount" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">{{ $waMoneda }} @{{ prod.amount }}</span>
                                     </div>
                                     <div class="mt-0.5 flex items-center gap-2 text-[11px] text-gray-400">
                                         <span>x@{{ prod.quantity }}</span>
-                                        <span v-if="prod.price">· $@{{ prod.price }} c/u</span>
+                                        <span v-if="prod.price">· {{ $waMoneda }} @{{ prod.price }} c/u</span>
                                         <span class="truncate">· @{{ prod.lead_title }}</span>
                                     </div>
                                 </div>
@@ -614,7 +993,7 @@
                                    class="group rounded-lg border border-gray-200 p-2.5 transition hover:border-brandColor hover:shadow-sm dark:border-gray-800 dark:hover:border-brandColor">
                                     <div class="flex items-center justify-between gap-2">
                                         <span class="truncate text-sm font-medium text-gray-800 group-hover:text-brandColor dark:text-gray-200 dark:group-hover:text-brandColor">@{{ lead.title }}</span>
-                                        <span v-if="lead.value" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">$@{{ lead.value }}</span>
+                                        <span v-if="lead.value" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">{{ $waMoneda }} @{{ lead.value }}</span>
                                     </div>
                                     <div class="mt-1 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
                                         <span v-if="lead.stage" class="rounded-full bg-sky-100 px-2 py-px font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">@{{ lead.stage }}</span>
@@ -637,6 +1016,212 @@
                     </div>
                 </template>
             </aside>
+
+            <!-- Visor de imágenes: zoom / rotación / paneo / navegación -->
+            <Teleport to="body">
+                <div v-if="viewer.open" @click="closeLightbox" @wheel.prevent="viewerWheel"
+                     class="wa-viewer" role="dialog" aria-modal="true" aria-label="Visor de imagen">
+
+                    <!-- barra de herramientas -->
+                    <div class="wa-toolbar" @click.stop>
+                        <button type="button" class="wa-tbtn" @click="viewerZoom(-0.25)" aria-label="Alejar" title="Alejar (−)">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                        </button>
+                        <span class="wa-tpct">@{{ Math.round(viewer.scale * 100) }}%</span>
+                        <button type="button" class="wa-tbtn" @click="viewerZoom(0.25)" aria-label="Acercar" title="Acercar (+)">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/></svg>
+                        </button>
+
+                        <span class="wa-tsep"></span>
+
+                        <button type="button" class="wa-tbtn" @click="viewerRotate(-90)" aria-label="Rotar a la izquierda" title="Rotar izquierda">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                        </button>
+                        <button type="button" class="wa-tbtn" @click="viewerRotate(90)" aria-label="Rotar a la derecha" title="Rotar derecha">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                        </button>
+                        <button type="button" class="wa-tbtn" @click="viewerReset" aria-label="Restablecer vista" title="Ajustar / Restablecer">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M8 21H5a2 2 0 0 1-2-2v-3m18 0v3a2 2 0 0 1-2 2h-3"/></svg>
+                        </button>
+
+                        <span class="wa-tsep"></span>
+
+                        <a class="wa-tbtn" :href="viewer.list[viewer.index]" download target="_blank" @click.stop aria-label="Descargar imagen" title="Descargar">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </a>
+                        <button type="button" class="wa-tbtn wa-tbtn--close" @click="closeLightbox" aria-label="Cerrar visor" title="Cerrar (Esc)">
+                            <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </div>
+
+                    <!-- contador -->
+                    <div v-if="viewer.list.length > 1" class="wa-counter" @click.stop>
+                        @{{ viewer.index + 1 }} / @{{ viewer.list.length }}
+                    </div>
+
+                    <!-- anterior / siguiente -->
+                    <button v-if="viewer.list.length > 1" type="button" class="wa-nav wa-nav--prev" @click.stop="viewerPrev" aria-label="Anterior">
+                        <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                    </button>
+                    <button v-if="viewer.list.length > 1" type="button" class="wa-nav wa-nav--next" @click.stop="viewerNext" aria-label="Siguiente">
+                        <svg class="wa-vicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </button>
+
+                    <!-- la imagen. @click.stop para que ampliarla no cierre el visor -->
+                    <img class="wa-viewer__img" :class="viewer.scale > 1 ? (viewer.dragging ? 'is-grabbing' : 'is-grab') : ''"
+                         :src="viewer.list[viewer.index]" :style="viewerStyle()" @click.stop @mousedown="viewerDragStart"
+                         alt="imagen ampliada" draggable="false">
+
+                    <!-- pie -->
+                    <div v-if="viewerCaption()" class="wa-caption" @click.stop>@{{ viewerCaption() }}</div>
+                </div>
+            </Teleport>
+
+            <!-- Location picker: browser GPS + a Leaflet map with a draggable pin -->
+            <Teleport to="body">
+                <x-admin::modal ref="locationModal">
+                    <x-slot:header>
+                        <h3 class="text-base font-semibold dark:text-white">Enviar ubicación</h3>
+                    </x-slot>
+
+                    <x-slot:content>
+                        <div v-if="savedLocations.length" class="mb-3 flex flex-wrap gap-1.5">
+                            <button v-for="(place, i) in savedLocations" :key="'sl-' + i" type="button"
+                                    class="rounded-full border border-gray-200 px-2.5 py-1 text-xs transition hover:border-brandColor hover:text-brandColor dark:border-gray-700"
+                                    @click="useSavedLocation(place)">
+                                <span class="icon-location"></span> @{{ place.name }}
+                            </button>
+                        </div>
+
+                        <div class="mb-2 flex items-center gap-2">
+                            <button type="button" @click="useMyLocation" :disabled="locating"
+                                    class="flex items-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium transition hover:border-brandColor hover:text-brandColor disabled:opacity-50 dark:border-gray-700">
+                                <span class="icon-location"></span>
+                                @{{ locating ? 'Buscando…' : 'Usar mi ubicación' }}
+                            </button>
+                            <span v-if="locationForm.accuracy" class="text-[11px] text-gray-500 dark:text-gray-400">
+                                Precisión aprox. @{{ Math.round(locationForm.accuracy) }} m
+                            </span>
+                        </div>
+
+                        <!--
+                            A plain style attribute for the height, not a Tailwind
+                            class: Leaflet renders into this node and measures it
+                            on creation. Inside a modal that has just opened the
+                            box can still be zero-height, and the map mounts
+                            invisible without erroring.
+                        -->
+                        <div ref="mapBox" style="height: 260px"
+                             class="w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"></div>
+
+                        <p v-if="mapError" class="mt-2 rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-700 dark:bg-amber-900/25 dark:text-amber-300">
+                            @{{ mapError }} Podés escribir las coordenadas a mano.
+                        </p>
+                        <p v-else class="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                            Arrastrá el pin (o tocá el mapa) para ajustar el punto exacto.
+                        </p>
+
+                        <div class="mt-2 grid grid-cols-2 gap-2">
+                            <label class="block">
+                                <span class="mb-1 block text-[11px] text-gray-500 dark:text-gray-400">Latitud</span>
+                                <input v-model="locationForm.latitude" type="text" inputmode="decimal"
+                                       @change="pinFromInputs"
+                                       class="w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-[11px] text-gray-500 dark:text-gray-400">Longitud</span>
+                                <input v-model="locationForm.longitude" type="text" inputmode="decimal"
+                                       @change="pinFromInputs"
+                                       class="w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                            </label>
+                        </div>
+
+                        <input v-model="locationForm.label" type="text" placeholder="Nombre del lugar (opcional)"
+                               class="mt-2 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                        <input v-model="locationForm.address" type="text" placeholder="Dirección (opcional)"
+                               class="mt-2 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+
+                        <p class="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                            Sin nombre ni dirección, WhatsApp muestra solo las coordenadas.
+                        </p>
+
+                        <div v-if="locationError" class="mt-2 rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700 dark:bg-red-900/25 dark:text-red-300">
+                            @{{ locationError }}
+                        </div>
+                    </x-slot>
+
+                    <x-slot:footer>
+                        <button type="button" class="primary-button"
+                                :disabled="locationSending || !hasPin" @click="sendLocation">
+                            @{{ locationSending ? 'Enviando…' : 'Enviar ubicación' }}
+                        </button>
+                    </x-slot>
+                </x-admin::modal>
+            </Teleport>
+
+            <!-- Template picker: the only way through a closed 24h window -->
+            <Teleport to="body">
+                <x-admin::modal ref="templateModal">
+                    <x-slot:header>
+                        <h3 class="text-base font-semibold dark:text-white">Enviar plantilla</h3>
+                    </x-slot>
+
+                    <x-slot:content>
+                        <div v-if="templatesLoading" class="flex justify-center py-8">
+                            <x-admin::spinner />
+                        </div>
+
+                        <p v-else-if="templatesReason" class="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500 dark:border-gray-700">
+                            @{{ templatesReason }}
+                        </p>
+
+                        <p v-else-if="!templates.length" class="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500 dark:border-gray-700">
+                            No hay plantillas aprobadas en esta cuenta.<br>
+                            <span class="text-xs text-gray-400">Se dan de alta en WhatsApp Manager; Meta tarda 24-48 h en aprobarlas.</span>
+                        </p>
+
+                        <template v-else>
+                            <div class="max-h-56 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+                                <button v-for="t in templates" :key="t.name + t.language" type="button"
+                                        class="flex w-full flex-col items-start px-3 py-2 text-left transition"
+                                        :class="isPickedTemplate(t) ? 'bg-brandColor/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800'"
+                                        @click="pickTemplate(t)">
+                                    <span class="flex w-full items-center justify-between gap-2">
+                                        <span class="truncate text-sm font-medium text-gray-800 dark:text-gray-200">@{{ t.name }}</span>
+                                        <span class="shrink-0 text-[11px] uppercase text-gray-400">@{{ t.language }}</span>
+                                    </span>
+                                    <span class="line-clamp-2 text-xs text-gray-500 dark:text-gray-400">@{{ t.body }}</span>
+                                </button>
+                            </div>
+
+                            <div v-if="pickedTemplate" class="mt-3">
+                                <div v-for="n in pickedTemplate.variables" :key="'v-' + n" class="mb-2">
+                                    <span class="mb-1 block text-[11px] text-gray-500 dark:text-gray-400">Variable @{{ n }} · @{{ placeholder(n) }}</span>
+                                    <input v-model="templateVars[n - 1]" type="text"
+                                           class="w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                                </div>
+
+                                <!-- The advisor sees exactly what the customer will get -->
+                                <div class="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                                    <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">Vista previa</span>
+                                    @{{ templatePreview }}
+                                </div>
+                            </div>
+
+                            <div v-if="templateError" class="mt-2 rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700 dark:bg-red-900/25 dark:text-red-300">
+                                @{{ templateError }}
+                            </div>
+                        </template>
+                    </x-slot>
+
+                    <x-slot:footer>
+                        <button type="button" class="primary-button"
+                                :disabled="templateSending || !pickedTemplate" @click="sendTemplate">
+                            @{{ templateSending ? 'Enviando…' : 'Enviar plantilla' }}
+                        </button>
+                    </x-slot>
+                </x-admin::modal>
+            </Teleport>
 
             <!-- Product picker: fills the producto/precio variables of a quick reply -->
             <Teleport to="body">
@@ -794,6 +1379,10 @@
                 quickRepliesUrl: { type: String, default: '' },
                 personUrlBase: { type: String, default: '' },
                 productsUrl: { type: String, default: '' },
+                sendMediaUrl: { type: String, default: '' },
+                sendLocationUrl: { type: String, default: '' },
+                templatesUrl: { type: String, default: '' },
+                sendTemplateUrl: { type: String, default: '' },
                 // Page mode: fill the parent instead of a bordered 440px card.
                 fullHeight: { type: Boolean, default: false },
             },
@@ -811,6 +1400,60 @@
                     // What the active provider can do. Conservative default:
                     // text only, until the server says otherwise.
                     capabilities: { send: ['text'], receive: [] },
+
+                    // Action menu: attachments, location and templates.
+                    savedLocations: [],
+                    mediaSending: false,
+                    pendingKind: null,
+
+                    // Derivación. Todas las claves presentes desde el arranque:
+                    // el thread reemplaza el objeto entero en cada poll, y una
+                    // clave ausente dejaría en pantalla el valor de la
+                    // conversación anterior.
+                    handoff: {
+                        state: null, open: false, pooled: false, reason: null,
+                        source: null, requested_at: null, city: null,
+                        assigned_user: null, assigned_at: null, is_mine: false,
+                    },
+                    handoffBusy: false,
+
+                    // Visor de imágenes: zoom, rotación, paneo y navegación.
+                    // Id del mensaje cuyas coordenadas se acaban de copiar,
+                    // para el "Copiado" de un segundo y medio.
+                    coordsCopiadas: null,
+
+                    viewer: {
+                        open: false,
+                        list: [],      // urls por las que navegan ‹ ›
+                        index: 0,
+                        scale: 1,
+                        rotation: 0,
+                        tx: 0,         // desplazamiento del paneo
+                        ty: 0,
+                        dragging: false,
+                        startX: 0,
+                        startY: 0,
+                    },
+
+                    /*
+                     * Leaflet is loaded from the CDN the first time the picker
+                     * opens, not in the bundle: it is ~150 KB that most sessions
+                     * never use. The map object itself is deliberately NOT in
+                     * data() — see mounted().
+                     */
+                    locating: false,
+                    locationSending: false,
+                    locationError: null,
+                    mapError: null,
+                    locationForm: { latitude: '', longitude: '', label: '', address: '', accuracy: null },
+
+                    templates: [],
+                    templatesLoading: false,
+                    templatesReason: null,
+                    templateError: null,
+                    templateSending: false,
+                    pickedTemplate: null,
+                    templateVars: [],
                     // WhatsApp 24h window; refreshed by every poll.
                     window: { applies: false, open: true, seconds_left: null },
                     conversationId: null,
@@ -833,7 +1476,7 @@
                     profileTab: 'info',
                     profileTabs: [
                         { id: 'info', label: 'Info' },
-                        { id: 'imagenes', label: 'Imágenes' },
+                        { id: 'imagenes', label: 'Media' },
                         { id: 'documentos', label: 'Docs' },
                         { id: 'enlaces', label: 'Enlaces' },
                         { id: 'productos', label: 'Productos' },
@@ -865,8 +1508,64 @@
                         .split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
                 },
 
+                /*
+                 * The file kinds the active gateway really accepts, each with
+                 * the `accept` string that keeps the OS picker from offering
+                 * something Meta would reject.
+                 */
+                attachOptions() {
+                    return [
+                        { kind: 'image',    label: 'Imagen',    icon: 'icon-image',      accept: 'image/jpeg,image/png,image/webp' },
+                        { kind: 'document', label: 'Documento', icon: 'icon-file',       accept: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv' },
+                        { kind: 'audio',    label: 'Audio',     icon: 'icon-sent',       accept: 'audio/mpeg,audio/ogg,audio/amr,audio/aac' },
+                        { kind: 'video',    label: 'Video',     icon: 'icon-video',      accept: 'video/mp4,video/3gpp' },
+                    ].filter(opt => this.canSend(opt.kind));
+                },
+
                 canAttach() {
-                    return ['image', 'document', 'audio'].some(type => this.canSend(type));
+                    return this.attachOptions.length > 0;
+                },
+
+                pendingAccept() {
+                    return this.attachOptions.find(o => o.kind === this.pendingKind)?.accept ?? '';
+                },
+
+                // The whole menu: it is worth showing for a location or a
+                // template even when no file kind is available.
+                canAct() {
+                    return this.canAttach || this.canSend('location') || this.canSend('template');
+                },
+
+                // Cuánto hace que espera. Es el número que decide si alguien
+                // tiene que meterse: "derivada" sin tiempo no dice nada.
+                handoffWaiting() {
+                    if (! this.handoff.open || ! this.handoff.requested_at) return null;
+
+                    const mins = Math.floor((Date.now() - new Date(this.handoff.requested_at)) / 60000);
+
+                    if (mins < 1) return 'un momento';
+                    if (mins < 60) return mins + ' min';
+
+                    return Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
+                },
+
+                hasPin() {
+                    return this.locationForm.latitude !== '' && this.locationForm.longitude !== '';
+                },
+
+                templatePreview() {
+                    if (! this.pickedTemplate) return '';
+
+                    const n = this.pickedTemplate.variables || 0;
+
+                    return Array.from({ length: n }, (_, i) => i).reduce(
+                        (body, i) => {
+                            const token = this.placeholder(i + 1);
+
+                            return body.split(token).join(this.templateVars[i] || token);
+                        },
+                        this.pickedTemplate.body,
+                    );
                 },
 
                 windowLabel() {
@@ -924,6 +1623,21 @@
             },
 
             mounted() {
+                /*
+                 * Deliberately NOT in data(): wrapped in Vue's reactivity proxy,
+                 * Leaflet breaks — it stores DOM nodes and internal handles on
+                 * these objects and compares them by identity, which a proxy
+                 * silently changes. They live on the instance instead, where Vue
+                 * leaves them alone.
+                 */
+                this.map = null;
+                this.marker = null;
+                this.leafletPromise = null;
+
+                // Mapas de las burbujas, por id de mensaje, y el del visor.
+                this.bubbleMaps = new Map();
+                this.bubbleMapObserver = null;
+
                 if (this.useMock) {
                     this.loadMock();
                 } else {
@@ -953,7 +1667,19 @@
                 this.visibilityObserver.observe(this.$el);
 
                 // Esc closes the profile drawer and any open picker.
+                // Con el visor abierto, el teclado es suyo: navega y hace zoom.
+                // Cerrado, Esc cierra los popovers y el panel del cliente.
                 this.escHandler = (event) => {
+                    if (this.viewer.open) {
+                        if (event.key === 'Escape')     { this.closeLightbox(); return; }
+                        if (event.key === 'ArrowLeft')  { this.viewerPrev(); return; }
+                        if (event.key === 'ArrowRight') { this.viewerNext(); return; }
+                        if (event.key === '+' || event.key === '=') { this.viewerZoom(0.25); return; }
+                        if (event.key === '-')          { this.viewerZoom(-0.25); return; }
+                        if (event.key.toLowerCase() === 'r') { this.viewerRotate(90); return; }
+                        return;
+                    }
+
                     if (event.key !== 'Escape') return;
                     this.showEmoji = false;
                     this.showAttach = false;
@@ -976,6 +1702,8 @@
                 if (this.visibilityObserver) this.visibilityObserver.disconnect();
                 if (this.escHandler) document.removeEventListener('keydown', this.escHandler);
                 if (this.docClickHandler) document.removeEventListener('click', this.docClickHandler);
+
+                this.destroyBubbleMaps();
             },
 
             methods: {
@@ -1054,6 +1782,8 @@
                         .then(res => {
                             if (res.data?.server_time) this.since = res.data.server_time;
                             if (res.data?.capabilities) this.capabilities = res.data.capabilities;
+                            if (res.data?.locations) this.savedLocations = res.data.locations;
+                            if (res.data?.handoff) this.handoff = res.data.handoff;
                             if (res.data?.window) this.window = res.data.window;
                             if (res.data?.conversation?.id) this.conversationId = res.data.conversation.id;
                             if (res.data?.conversation?.gateway) this.gateway = res.data.conversation.gateway;
@@ -1068,6 +1798,10 @@
                             let appended = false;
 
                             if (initial) {
+                                // Otro hilo: los mapas del anterior apuntan a
+                                // burbujas que están por desaparecer.
+                                this.destroyBubbleMaps();
+
                                 this.messages = incoming;
                             } else {
                                 for (const m of incoming) {
@@ -1364,18 +2098,622 @@
                         .finally(() => { this.noteSaving = false; });
                 },
 
-                mockAttach(type) {
+                /* ---------------- Adjuntos ---------------- */
+
+                pickFile(kind) {
                     this.showAttach = false;
-                    const samples = {
-                        image: { type: 'image', media: { url: 'https://placehold.co/320x200/075E54/ffffff?text=Adjunto' } },
-                        document: { type: 'document', media: { url: '#', filename: 'archivo.pdf', meta: 'PDF · 64 KB' } },
-                        audio: { type: 'audio', media: { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' } },
+                    this.pendingKind = kind;
+
+                    // nextTick so `accept` is already updated when the OS dialog
+                    // opens; otherwise the first pick offers the previous kind's
+                    // file types.
+                    this.$nextTick(() => this.$refs.fileInput?.click());
+                },
+
+                stageFile(event) {
+                    const file = event.target.files?.[0];
+
+                    // Cleared right away so picking the same file twice in a row
+                    // still fires @change the second time.
+                    event.target.value = '';
+
+                    if (! file || ! this.pendingKind) return;
+
+                    this.uploadMedia(this.pendingKind, file);
+                },
+
+                uploadMedia(kind, file) {
+                    if (this.mediaSending) return;
+
+                    this.mediaSending = true;
+
+                    const form = new FormData();
+                    form.append('kind', kind);
+                    form.append('file', file);
+
+                    // The typed draft rides along as the caption instead of
+                    // being lost: the advisor writes "acá va el plano" and then
+                    // attaches it, which is the natural order.
+                    if (this.draft.trim() && ['image', 'video', 'document'].includes(kind)) {
+                        form.append('caption', this.draft.trim());
+                    }
+
+                    if (this.conversationId) form.append('conversation_id', this.conversationId);
+                    if (this.context.phone) form.append('phone', this.context.phone);
+                    if (this.context.name) form.append('name', this.context.name);
+
+                    this.$axios.post(this.sendMediaUrl, form)
+                        .then(res => {
+                            this.messages.push(res.data.message);
+                            this.draft = '';
+                            this.scrollToBottom();
+                        })
+                        .catch(err => {
+                            this.$emitter.emit('add-flash', {
+                                type: 'error',
+                                message: err.response?.data?.message ?? 'No se pudo enviar el archivo.',
+                            });
+                        })
+                        .finally(() => { this.mediaSending = false; });
+                },
+
+                /* ---------------- Derivación ---------------- */
+
+                claimHandoff() {
+                    if (this.handoffBusy || ! this.conversationId) return;
+
+                    this.handoffBusy = true;
+
+                    this.$axios.post(`${this.agentUrlBase}/${this.conversationId}/handoff/claim`)
+                        .then(res => { this.handoff = res.data.handoff; })
+                        .catch(err => {
+                            // 409 = otro asesor llegó primero. No es un error del
+                            // usuario, así que se le dice qué pasó y se refresca.
+                            this.$emitter.emit('add-flash', {
+                                type: err.response?.status === 409 ? 'warning' : 'error',
+                                message: err.response?.data?.message ?? 'No se pudo tomar la conversación.',
+                            });
+                            this.fetchThread();
+                        })
+                        .finally(() => { this.handoffBusy = false; });
+                },
+
+                resolveHandoff() {
+                    if (this.handoffBusy || ! this.conversationId) return;
+
+                    this.handoffBusy = true;
+
+                    this.$axios.post(`${this.agentUrlBase}/${this.conversationId}/handoff/resolve`, {
+                        reactivate_ai: true,
+                    })
+                        .then(res => {
+                            this.handoff = res.data.handoff;
+                            if (res.data.agent) this.aiEnabled = res.data.agent.effective;
+                            this.$emitter.emit('add-flash', {
+                                type: 'success',
+                                message: 'Derivación cerrada. El agente vuelve a atender.',
+                            });
+                        })
+                        .catch(err => {
+                            this.$emitter.emit('add-flash', {
+                                type: 'error',
+                                message: err.response?.data?.message ?? 'No se pudo cerrar la derivación.',
+                            });
+                        })
+                        .finally(() => { this.handoffBusy = false; });
+                },
+
+                /* ---------------- Visor de imágenes ---------------- */
+
+                // Todas las imágenes del hilo, para poder pasar de una a otra
+                // con las flechas sin cerrar el visor.
+                // Solo las imágenes de la galería del perfil: un video en la
+                // lista de navegación dejaría al visor mostrando un cuadro roto.
+                profileImageUrls() {
+                    return (this.profile?.images ?? [])
+                        .filter(x => x.type !== 'video')
+                        .map(x => x.url);
+                },
+
+                chatImageUrls() {
+                    return this.messages
+                        .filter(m => m.type === 'image' && m.media && m.media.url)
+                        .map(m => m.media.url);
+                },
+
+                openLightbox(url, list = null) {
+                    if (! url) return;
+
+                    const urls = (Array.isArray(list) && list.length) ? list : [url];
+                    const index = Math.max(0, urls.indexOf(url));
+
+                    this.viewer = {
+                        open: true, list: urls, index,
+                        scale: 1, rotation: 0, tx: 0, ty: 0,
+                        dragging: false, startX: 0, startY: 0,
                     };
-                    this.messages.push({
-                        id: Date.now(), direction: 'outbound', sender: 'human',
-                        time: this.now(), date: this.today(), status: 'sent', ...samples[type],
+                },
+
+                closeLightbox() {
+                    this.viewer.open = false;
+                },
+
+                // El pie de la imagen abierta: un mensaje de imagen puede llevar
+                // caption. Las de la galería del perfil no tienen, así que ahí
+                // no se muestra nada.
+                viewerCaption() {
+                    const url = this.viewer.list[this.viewer.index];
+                    const m = this.messages.find(x => x.media && x.media.url === url && x.text);
+
+                    return m ? m.text : null;
+                },
+
+                viewerStyle() {
+                    const v = this.viewer;
+
+                    return {
+                        transform: `translate(${v.tx}px, ${v.ty}px) scale(${v.scale}) rotate(${v.rotation}deg)`,
+                        // Sin transición mientras se arrastra: el suavizado hace
+                        // que el paneo se sienta pegajoso.
+                        transition: v.dragging ? 'none' : 'transform .15s ease',
+                    };
+                },
+
+                viewerZoom(delta) {
+                    this.viewer.scale = Math.min(6, Math.max(0.25, +(this.viewer.scale + delta).toFixed(2)));
+
+                    // Al volver al 100% se recentra: si no, la imagen queda
+                    // corrida y no hay forma de arrastrarla de vuelta.
+                    if (this.viewer.scale === 1) { this.viewer.tx = 0; this.viewer.ty = 0; }
+                },
+
+                viewerWheel(event) {
+                    this.viewerZoom(event.deltaY < 0 ? 0.2 : -0.2);
+                },
+
+                viewerRotate(deg) {
+                    this.viewer.rotation += deg;
+                },
+
+                viewerReset() {
+                    Object.assign(this.viewer, { scale: 1, rotation: 0, tx: 0, ty: 0 });
+                },
+
+                viewerPrev() {
+                    if (this.viewer.list.length < 2) return;
+
+                    this.viewer.index = (this.viewer.index - 1 + this.viewer.list.length) % this.viewer.list.length;
+                    this.viewerReset();
+                },
+
+                viewerNext() {
+                    if (this.viewer.list.length < 2) return;
+
+                    this.viewer.index = (this.viewer.index + 1) % this.viewer.list.length;
+                    this.viewerReset();
+                },
+
+                /**
+                 * Arrastrar para desplazar la imagen ampliada.
+                 *
+                 * Los listeners van en `document`, no en la imagen: si el cursor
+                 * se sale de ella mientras se arrastra, el movimiento tiene que
+                 * seguir. Enganchados a la imagen, el paneo se corta apenas el
+                 * puntero cruza el borde.
+                 */
+                viewerDragStart(event) {
+                    if (this.viewer.scale <= 1) return;
+
+                    event.preventDefault();
+                    this.viewer.dragging = true;
+                    this.viewer.startX = event.clientX - this.viewer.tx;
+                    this.viewer.startY = event.clientY - this.viewer.ty;
+
+                    this._viewerDrag = (e) => {
+                        if (! this.viewer.dragging) return;
+
+                        this.viewer.tx = e.clientX - this.viewer.startX;
+                        this.viewer.ty = e.clientY - this.viewer.startY;
+                    };
+
+                    this._viewerDragEnd = () => {
+                        this.viewer.dragging = false;
+                        document.removeEventListener('mousemove', this._viewerDrag);
+                        document.removeEventListener('mouseup', this._viewerDragEnd);
+                    };
+
+                    document.addEventListener('mousemove', this._viewerDrag);
+                    document.addEventListener('mouseup', this._viewerDragEnd);
+                },
+
+                /* ---------------- Ubicación ---------------- */
+
+                openLocation() {
+                    this.showAttach = false;
+                    this.locationError = null;
+                    this.mapError = null;
+                    this.$refs.locationModal.open();
+
+                    // The modal is not in the DOM until it opens, so the map
+                    // container does not exist yet on this tick.
+                    this.$nextTick(() => this.mountMap());
+                },
+
+                /*
+                |------------------------------------------------------------
+                | Ubicaciones en el mapa
+                |------------------------------------------------------------
+                */
+
+                /**
+                 * Registra el contenedor del mapa de un mensaje de ubicación.
+                 *
+                 * No monta nada todavía: un chat con veinte ubicaciones
+                 * levantaría veinte mapas y otros tantos pedidos de tiles al
+                 * abrirse. El IntersectionObserver los monta cuando entran en
+                 * pantalla, y sólo esos. Por eso el mapa puede estar abierto
+                 * por defecto sin que abrir un chat largo cueste caro.
+                 */
+                registerBubbleMap(el, msg) {
+                    if (! msg) return;
+
+                    /*
+                     * Vue llama al ref con null cuando el elemento se
+                     * desmonta. Es la única señal de que esa burbuja se fue, y
+                     * sin destruir el mapa Leaflet queda con listeners sobre un
+                     * nodo que ya no está en el documento.
+                     */
+                    if (! el) {
+                        this.destroyBubbleMap(String(msg.id));
+
+                        return;
+                    }
+
+                    if (! msg.location) return;
+
+                    el.dataset.waMsg = String(msg.id);
+                    el.dataset.waLat = msg.location.lat;
+                    el.dataset.waLng = msg.location.lng;
+
+                    if (! this.bubbleMapObserver) {
+                        this.bubbleMapObserver = new IntersectionObserver(entries => {
+                            entries.forEach(entry => {
+                                if (entry.isIntersecting) {
+                                    this.mountBubbleMap(entry.target);
+                                    this.bubbleMapObserver.unobserve(entry.target);
+                                }
+                            });
+                        }, { rootMargin: '200px' });
+                    }
+
+                    this.bubbleMapObserver.observe(el);
+                },
+
+                mountBubbleMap(el) {
+                    const id = el.dataset.waMsg;
+
+                    if (! id || this.bubbleMaps.has(id)) return;
+
+                    const lat = Number(el.dataset.waLat);
+                    const lng = Number(el.dataset.waLng);
+
+                    if (! Number.isFinite(lat) || ! Number.isFinite(lng)) return;
+
+                    this.loadLeaflet()
+                        .then(() => {
+                            // El hilo pudo cambiar mientras cargaba el CDN.
+                            if (! el.isConnected || this.bubbleMaps.has(id)) return;
+
+                            const map = window.L.map(el, {
+                                /*
+                                 * Es el mapa principal, no una vista previa:
+                                 * se puede arrastrar y hay botones de zoom.
+                                 *
+                                 * Pero el zoom con la RUEDA queda apagado a
+                                 * propósito: dentro de un hilo que scrollea,
+                                 * un mapa que captura la rueda le traba el
+                                 * scroll al asesor cada vez que el cursor le
+                                 * pasa por encima. Los botones + / − hacen lo
+                                 * mismo sin ese costo.
+                                 */
+                                scrollWheelZoom: false,
+                                attributionControl: false,
+                            }).setView([lat, lng], 16);
+
+                            window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                maxZoom: 19,
+                            }).addTo(map);
+
+                            window.L.marker([lat, lng]).addTo(map);
+
+                            this.bubbleMaps.set(id, map);
+
+                            // Leaflet mide al crearse, y la burbuja puede seguir
+                            // creciendo en ese tick.
+                            this.$nextTick(() => map.invalidateSize());
+                        })
+                        .catch(() => {
+                            // Sin mapa la burbuja sigue mostrando nombre y
+                            // coordenadas, y el clic sigue abriendo el visor.
+                        });
+                },
+
+                destroyBubbleMap(id) {
+                    const map = this.bubbleMaps.get(id);
+
+                    if (map) {
+                        map.remove();
+                        this.bubbleMaps.delete(id);
+                    }
+                },
+
+                destroyBubbleMaps() {
+                    this.bubbleMaps.forEach(map => map.remove());
+                    this.bubbleMaps.clear();
+
+                    if (this.bubbleMapObserver) {
+                        this.bubbleMapObserver.disconnect();
+                        this.bubbleMapObserver = null;
+                    }
+                },
+
+                copiarCoords(msg) {
+                    const texto = `${msg.location.lat}, ${msg.location.lng}`;
+
+                    // clipboard exige contexto seguro; sin https no existe.
+                    if (! navigator.clipboard) {
+                        this.$emitter.emit('add-flash', { type: 'warning', message: texto });
+
+                        return;
+                    }
+
+                    navigator.clipboard.writeText(texto)
+                        .then(() => {
+                            this.coordsCopiadas = msg.id;
+                            setTimeout(() => {
+                                if (this.coordsCopiadas === msg.id) this.coordsCopiadas = null;
+                            }, 1500);
+                        })
+                        .catch(() => {
+                            this.$emitter.emit('add-flash', { type: 'error', message: 'No se pudo copiar.' });
+                        });
+                },
+
+                /**
+                 * Pull Leaflet from the CDN, once per page.
+                 */
+                loadLeaflet() {
+                    if (window.L) return Promise.resolve();
+                    if (this.leafletPromise) return this.leafletPromise;
+
+                    this.leafletPromise = new Promise((resolve, reject) => {
+                        const css = document.createElement('link');
+                        css.rel = 'stylesheet';
+                        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                        document.head.appendChild(css);
+
+                        const script = document.createElement('script');
+                        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                        script.onload = resolve;
+                        script.onerror = () => reject(new Error('No se pudo cargar el mapa.'));
+                        document.head.appendChild(script);
                     });
-                    this.scrollToBottom();
+
+                    return this.leafletPromise;
+                },
+
+                mountMap() {
+                    this.loadLeaflet()
+                        .then(() => {
+                            const box = this.$refs.mapBox;
+
+                            if (! box) {
+                                this.mapError = 'No se pudo montar el mapa en la página.';
+                                return;
+                            }
+
+                            if (this.map) {
+                                // Reopened: Leaflet measured the box while the
+                                // modal was closed, so it thinks it is 0px tall.
+                                this.$nextTick(() => this.map.invalidateSize());
+                                return;
+                            }
+
+                            // Start on the last pin, a saved location, or a wide
+                            // view of Santa Cruz.
+                            const start = this.hasPin
+                                ? [Number(this.locationForm.latitude), Number(this.locationForm.longitude)]
+                                : (this.savedLocations.length
+                                    ? [this.savedLocations[0].latitude, this.savedLocations[0].longitude]
+                                    : [-17.78333, -63.18214]);
+
+                            this.map = window.L.map(box).setView(start, this.hasPin ? 16 : 12);
+
+                            window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                attribution: '© OpenStreetMap',
+                                maxZoom: 19,
+                            }).addTo(this.map);
+
+                            this.map.on('click', e => this.setPin(e.latlng.lat, e.latlng.lng, { recenter: false }));
+
+                            if (this.hasPin) {
+                                this.setPin(Number(this.locationForm.latitude), Number(this.locationForm.longitude));
+                            }
+
+                            // Leaflet measures on creation, and inside a modal
+                            // that just opened the box can still be 0px tall.
+                            this.$nextTick(() => this.map.invalidateSize());
+                        })
+                        .catch(e => { this.mapError = e.message; });
+                },
+
+                setPin(lat, lng, { recenter = true } = {}) {
+                    if (! this.map) {
+                        this.writeCoords(lat, lng);
+                        return;
+                    }
+
+                    if (! this.marker) {
+                        this.marker = window.L.marker([lat, lng], { draggable: true }).addTo(this.map);
+                        this.marker.on('dragend', () => {
+                            const p = this.marker.getLatLng();
+                            this.writeCoords(p.lat, p.lng);
+                            // The GPS reading no longer describes this pin.
+                            this.locationForm.accuracy = null;
+                        });
+                    } else {
+                        this.marker.setLatLng([lat, lng]);
+                    }
+
+                    this.writeCoords(lat, lng);
+
+                    if (recenter) this.map.setView([lat, lng], Math.max(this.map.getZoom(), 16));
+                },
+
+                writeCoords(lat, lng) {
+                    this.locationForm.latitude = Number(lat).toFixed(6);
+                    this.locationForm.longitude = Number(lng).toFixed(6);
+                },
+
+                pinFromInputs() {
+                    const lat = Number(this.locationForm.latitude);
+                    const lng = Number(this.locationForm.longitude);
+
+                    if (Number.isFinite(lat) && Number.isFinite(lng)) this.setPin(lat, lng);
+                },
+
+                useMyLocation() {
+                    if (! navigator.geolocation) {
+                        this.locationError = 'Este navegador no comparte la ubicación.';
+                        return;
+                    }
+
+                    this.locating = true;
+                    this.locationError = null;
+
+                    navigator.geolocation.getCurrentPosition(
+                        pos => {
+                            this.locationForm.accuracy = pos.coords.accuracy;
+                            this.setPin(pos.coords.latitude, pos.coords.longitude);
+                            this.locating = false;
+                        },
+                        () => {
+                            // Denying the permission is a normal answer, not an
+                            // error: the map and the manual fields still work.
+                            this.locationError = 'No se pudo obtener tu ubicación. Marcá el punto en el mapa.';
+                            this.locating = false;
+                        },
+                        { enableHighAccuracy: true, timeout: 10000 },
+                    );
+                },
+
+                useSavedLocation(place) {
+                    this.locationForm.label = place.name;
+                    this.locationForm.address = place.address || '';
+                    this.locationForm.accuracy = null;
+                    this.setPin(place.latitude, place.longitude);
+                },
+
+                sendLocation() {
+                    if (this.locationSending || ! this.hasPin) return;
+
+                    this.locationSending = true;
+                    this.locationError = null;
+
+                    this.$axios.post(this.sendLocationUrl, {
+                        conversation_id: this.conversationId || null,
+                        phone: this.context.phone || null,
+                        name: this.context.name || null,
+                        latitude: this.locationForm.latitude,
+                        longitude: this.locationForm.longitude,
+                        label: this.locationForm.label || null,
+                        address: this.locationForm.address || null,
+                    })
+                        .then(res => {
+                            this.messages.push(res.data.message);
+                            this.$refs.locationModal.close();
+                            this.locationForm = { latitude: '', longitude: '', label: '', address: '', accuracy: null };
+                            this.scrollToBottom();
+                        })
+                        .catch(err => {
+                            this.locationError = err.response?.data?.message ?? 'No se pudo enviar la ubicación.';
+                        })
+                        .finally(() => { this.locationSending = false; });
+                },
+
+                /* ---------------- Plantillas ---------------- */
+
+                /**
+                 * El marcador de una variable: {NN} con llaves dobles.
+                 *
+                 * Se arma concatenando y NUNCA se escribe literal, porque este
+                 * archivo es Blade y dos llaves seguidas son sintaxis suya:
+                 *   - en el HTML, Vue corta la interpolación en el primer cierre
+                 *     y queda un string sin terminar -> el componente entero no
+                 *     compila y el chat se ve en blanco;
+                 *   - en el <script>, Blade las toma como suyas y deja una
+                 *     etiqueta PHP incrustada en medio del JavaScript.
+                 * Las dos cosas ya pasaron acá.
+                 */
+                placeholder(n) {
+                    return '{' + '{' + n + '}' + '}';
+                },
+
+                openTemplates() {
+                    this.showAttach = false;
+                    this.templateError = null;
+                    this.pickedTemplate = null;
+                    this.templateVars = [];
+                    this.$refs.templateModal.open();
+
+                    this.templatesLoading = true;
+                    this.templatesReason = null;
+
+                    this.$axios.get(this.templatesUrl)
+                        .then(res => {
+                            this.templates = res.data?.templates ?? [];
+                            this.templatesReason = res.data?.reason ?? null;
+                        })
+                        .catch(() => { this.templatesReason = 'No se pudo leer el catálogo de plantillas.'; })
+                        .finally(() => { this.templatesLoading = false; });
+                },
+
+                isPickedTemplate(t) {
+                    return this.pickedTemplate
+                        && this.pickedTemplate.name === t.name
+                        && this.pickedTemplate.language === t.language;
+                },
+
+                pickTemplate(t) {
+                    this.pickedTemplate = t;
+                    this.templateVars = Array.from({ length: t.variables }, () => '');
+                    this.templateError = null;
+                },
+
+                sendTemplate() {
+                    if (this.templateSending || ! this.pickedTemplate) return;
+
+                    this.templateSending = true;
+                    this.templateError = null;
+
+                    this.$axios.post(this.sendTemplateUrl, {
+                        conversation_id: this.conversationId || null,
+                        phone: this.context.phone || null,
+                        name: this.context.name || null,
+                        template: this.pickedTemplate.name,
+                        language: this.pickedTemplate.language,
+                        variables: this.templateVars,
+                    })
+                        .then(res => {
+                            this.messages.push(res.data.message);
+                            this.$refs.templateModal.close();
+                            this.pickedTemplate = null;
+                            this.scrollToBottom();
+                        })
+                        .catch(err => {
+                            this.templateError = err.response?.data?.message ?? 'No se pudo enviar la plantilla.';
+                        })
+                        .finally(() => { this.templateSending = false; });
                 },
 
                 statusTick(status) {
