@@ -6,6 +6,7 @@ use Webkul\Attribute\Models\AttributeProxy;
 use Webkul\Attribute\Models\AttributeValueProxy;
 use Webkul\Lead\Models\LeadProxy;
 use Webkul\Lead\Models\StageProxy;
+use Webkul\Lead\Support\CityPipelines;
 
 /**
  * Mantiene sincronizada la "ciudad" en sus tres representaciones:
@@ -49,6 +50,12 @@ class CitySyncService
         'pedidos-cancelados',
         'cliente-sin-inters',
         'otros-servicios',
+        /*
+         * Descartado cuenta como cerrado. Si no estuviera acá, los pedidos
+         * fantasma que se mueven a esa etapa seguirían contando como abiertos
+         * en el tablero: moverlos no arreglaría nada de lo que molesta.
+         */
+        'descartado',
     ];
 
     /**
@@ -117,7 +124,9 @@ class CitySyncService
 
         $city = $this->readAttributeValue('persons', $person->id, self::PERSON_CITY_ATTRIBUTE_CODE);
 
-        if (! $city) {
+        // Una ficha que dice "Sin ciudad" no sabe nada, así que no puede
+        // arrastrar a sus pedidos abiertos hacia ese pipeline.
+        if (! CityPipelines::isRealCity($city ? (int) $city : null)) {
             return;
         }
 
@@ -155,12 +164,27 @@ class CitySyncService
         $pipelineId = (int) $lead->lead_pipeline_id ?: null;
 
         if ($previousPipelineId !== null && $pipelineId !== $previousPipelineId) {
-            return $pipelineId;
+            return $this->soloSiEsCiudad($pipelineId);
         }
 
         $attributeCity = $this->readAttributeValue('leads', $lead->id, self::LEAD_CITY_ATTRIBUTE_CODE);
 
-        return $attributeCity ?: $pipelineId;
+        return $this->soloSiEsCiudad($attributeCity ?: $pipelineId);
+    }
+
+    /**
+     * "Sin ciudad" no es un dato sobre el cliente, así que no se propaga.
+     *
+     * El pedido puede vivir en ese pipeline —tiene que estar en alguno mientras
+     * no sepamos de dónde escribe—, pero escribirlo en la ficha dejaba la
+     * casilla ocupada por un no-dato: CityRouter::rememberOnPerson veía que la
+     * fila existía y se negaba a guardar la ciudad que el agente acababa de
+     * averiguar. El CRM no sabe la ciudad; el que la sabe es el agente, y esto
+     * le deja el camino libre.
+     */
+    private function soloSiEsCiudad(?int $pipelineId): ?int
+    {
+        return CityPipelines::isRealCity($pipelineId) ? $pipelineId : null;
     }
 
     /**

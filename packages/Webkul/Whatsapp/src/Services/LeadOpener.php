@@ -3,13 +3,17 @@
 namespace Webkul\Whatsapp\Services;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
+use Webkul\Lead\Models\LeadProxy;
 use Webkul\Lead\Models\PipelineProxy;
 use Webkul\Lead\Models\SourceProxy;
 use Webkul\Lead\Models\TypeProxy;
 use Webkul\Lead\Repositories\LeadRepository;
+use Webkul\Lead\Services\CitySyncService;
 use Webkul\User\Models\UserProxy;
 
 /**
@@ -27,6 +31,12 @@ use Webkul\User\Models\UserProxy;
  */
 class LeadOpener
 {
+    /**
+     * Prefijo del título de los pedidos que abre este servicio. Es la única
+     * marca que los distingue de uno cargado por una persona.
+     */
+    public const TITLE_PREFIX = 'WhatsApp - ';
+
     public function __construct(protected CityRouter $cities) {}
 
     /**
@@ -85,7 +95,7 @@ class LeadOpener
 
             $lead = app(LeadRepository::class)->create([
                 'entity_type'            => 'leads',
-                'title'                  => $title ?: 'WhatsApp - '.($person->name ?: 'Contacto'),
+                'title'                  => $title ?: self::TITLE_PREFIX.($person->name ?: 'Contacto'),
                 'lead_value'             => $value,
                 'person'                 => ['id' => $person->id],
                 'lead_pipeline_id'       => $pipeline->id,
@@ -120,6 +130,83 @@ class LeadOpener
 
             return null;
         }
+    }
+
+    /**
+     * El pedido automático de una conversación que TODAVÍA NADIE TOCÓ.
+     *
+     * Es la pieza que evita el pedido duplicado: el CRM abre uno vacío cuando
+     * alguien escribe, y minutos después el agente registra la venta por la API
+     * creando OTRO. Medido el 2026-09-22: 81 pedidos fantasma, cada uno en el
+     * pipeline y el asesor equivocados.
+     *
+     * "Intacto" es estricto a propósito. Si un asesor le puso etapa, monto o
+     * productos, deja de ser fantasma y el pedido nuevo se crea aparte: nadie
+     * pierde trabajo hecho a mano.
+     *
+     * Y se consume UNA SOLA VEZ. Por eso los multipedidos siguen funcionando:
+     * el primero llena el fantasma, el segundo ya no encuentra ninguno y crea
+     * uno nuevo, que es exactamente lo que tiene que pasar.
+     */
+    public function pendingLeadFor(Model $conversation): ?Model
+    {
+        if (! $conversation->lead_id) {
+            return null;
+        }
+
+        $lead = LeadProxy::modelClass()::find($conversation->lead_id);
+
+        return $lead && $this->isUntouched($lead) ? $lead : null;
+    }
+
+    /**
+     * ¿Sigue siendo el pedido vacío que abrió el CRM?
+     */
+    public function isUntouched(Model $lead): bool
+    {
+        // El título es la firma de que lo abrió este servicio.
+        if (! Str::startsWith((string) $lead->title, self::TITLE_PREFIX)) {
+            return false;
+        }
+
+        if ((float) $lead->lead_value > 0) {
+            return false;
+        }
+
+        if ((int) $lead->status !== 1) {
+            return false;
+        }
+
+        if (DB::table('lead_products')->where('lead_id', $lead->id)->exists()) {
+            return false;
+        }
+
+        /*
+         * La etapa ya NO se mira.
+         *
+         * Decía "etapa distinta de la inicial = alguien lo movió en el kanban",
+         * y era falso: el que mueve el fantasma es el propio agente. El #1697
+         * pasó a "Cliente contactado" a las 10:48 por el Agente, y a las 10:53
+         * el agente creó el #1698 aparte con el pedido real. Como ya no estaba
+         * en la etapa inicial, el fantasma quedaba a salvo. Pasa en 23 casos,
+         * todos en "Cliente contactado".
+         *
+         * También se probó detectarlo por el log de actividades —"sólo le
+         * cambiaron la etapa"— y no funciona: de 218 pedidos automáticos, el
+         * log marca 218 como "sólo etapa", incluidos 24 que SÍ tienen productos
+         * o valor. Los cambios de contenido no quedan registrados con un
+         * atributo que se pueda distinguir.
+         *
+         * Lo que sí distingue es el estado, que es lo que se mira arriba: sin
+         * productos y sin valor. Lo único que la etapa aporta es si el pedido
+         * ya está cerrado, y eso se respeta: un fantasma que alguien mandó a
+         * Cancelados o Descartado no se vuelve a tocar.
+         */
+        $etapa = DB::table('lead_pipeline_stages')
+            ->where('id', $lead->lead_pipeline_stage_id)
+            ->value('code');
+
+        return ! in_array($etapa, CitySyncService::CLOSED_STAGE_CODES, true);
     }
 
     /**

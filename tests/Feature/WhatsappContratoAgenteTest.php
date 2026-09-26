@@ -222,3 +222,118 @@ it('el marcador de texto sigue conviviendo con el endpoint', function () {
 
     expect(MessageProxy::modelClass()::findOrFail($r->json('message.id'))->type)->toBe('interactive');
 });
+
+// ---------------------------------------------------------------------------
+// El pedido ya abierto: lo que evita el duplicado
+// ---------------------------------------------------------------------------
+
+function conversacionConPedido(array $extra = []): object
+{
+    return ConversationProxy::modelClass()::create(array_merge([
+        'gateway'         => 'cloud_api',
+        'wa_phone'        => '+5917'.random_int(1000000, 9999999),
+        'wa_name'         => 'Contrato pedido',
+        'ai_enabled'      => true,
+        'last_inbound_at' => now(),
+    ], $extra));
+}
+
+function leadEnEtapa(string $code, array $extra = []): Webkul\Lead\Models\Lead
+{
+    $stageId = DB::table('lead_pipeline_stages')->where('code', $code)->value('id');
+
+    return Webkul\Lead\Models\Lead::create(array_merge([
+        'title'                  => 'Pedido contrato '.uniqid(),
+        'status'                 => 1,
+        'lead_pipeline_id'       => DB::table('lead_pipeline_stages')->where('id', $stageId)->value('lead_pipeline_id'),
+        'lead_pipeline_stage_id' => $stageId,
+        'user_id'                => getDefaultAdmin()->id,
+    ], $extra));
+}
+
+it('le dice al agente que el pedido sigue abierto', function () {
+    $lead = leadEnEtapa('no-atendido');
+    $conv = conversacionConPedido(['lead_id' => $lead->id]);
+
+    $payload = app(Webkul\Whatsapp\Services\AgentPayload::class)->lead($conv);
+
+    expect($payload['id'])->toBe($lead->id)
+        ->and($payload['is_open'])->toBeTrue();
+});
+
+it('marca cerrado un pedido entregado: el siguiente es un POST', function () {
+    $conv = conversacionConPedido(['lead_id' => leadEnEtapa('pedidos-entregados')->id]);
+
+    expect(app(Webkul\Whatsapp\Services\AgentPayload::class)->lead($conv)['is_open'])->toBeFalse();
+});
+
+it('tambien cierra "Cliente sin interes", no solo los entregados', function () {
+    // El #1577 estaba acá: con la regla estricta se habría revivido.
+    $conv = conversacionConPedido(['lead_id' => leadEnEtapa('cliente-sin-inters')->id]);
+
+    expect(app(Webkul\Whatsapp\Services\AgentPayload::class)->lead($conv)['is_open'])->toBeFalse();
+});
+
+it('manda la lista COMPLETA de productos, que es lo que el PUT reemplaza', function () {
+    $lead = leadEnEtapa('no-atendido');
+    $producto = DB::table('products')->orderBy('id')->first();
+
+    Webkul\Lead\Models\Product::create([
+        'lead_id' => $lead->id, 'product_id' => $producto->id, 'quantity' => 2, 'price' => 135,
+    ]);
+
+    $payload = app(Webkul\Whatsapp\Services\AgentPayload::class)->lead($conv = conversacionConPedido(['lead_id' => $lead->id]));
+
+    /*
+     * Sin esto el agente arma el PUT sólo con lo nuevo y borra lo anterior:
+     * el #1462 (Bs 270) desaparecía al registrarse el #1465 (Bs 225).
+     */
+    expect($payload['products'])->toHaveCount(1)
+        ->and($payload['products'][0]['product_id'])->toBe((int) $producto->id)
+        ->and($payload['products'][0]['quantity'])->toBe(2.0)
+        ->and($payload['products'][0]['price'])->toBe(135.0);
+});
+
+it('devuelve null si la conversación todavía no tiene pedido', function () {
+    expect(app(Webkul\Whatsapp\Services\AgentPayload::class)->lead(conversacionConPedido(['lead_id' => null])))->toBeNull();
+});
+
+it('el evento que recibe el agente incluye el bloque lead', function () {
+    $conv = conversacionConPedido(['lead_id' => leadEnEtapa('no-atendido')->id]);
+
+    $mensaje = $conv->messages()->create([
+        'direction'           => 'inbound', 'type' => 'text', 'body' => 'hola',
+        'provider_message_id' => 'wamid.'.uniqid(),
+    ]);
+
+    $evento = app(Webkul\Whatsapp\Services\AgentPayload::class)->event($mensaje->fresh());
+
+    expect($evento)->toHaveKey('lead')
+        ->and($evento['lead']['is_open'])->toBeTrue();
+});
+
+it('marca is_empty en el pedido que abrió el CRM: ese se rellena con PUT', function () {
+    $conv = conversacionConPedido(['lead_id' => leadEnEtapa('no-atendido')->id]);
+
+    expect(app(Webkul\Whatsapp\Services\AgentPayload::class)->lead($conv)['is_empty'])->toBeTrue();
+});
+
+it('un pedido con productos NO es is_empty: el siguiente va por POST', function () {
+    $lead = leadEnEtapa('no-atendido');
+
+    Webkul\Lead\Models\Product::create([
+        'lead_id'  => $lead->id, 'product_id' => DB::table('products')->value('id'),
+        'quantity' => 1, 'price' => 135,
+    ]);
+
+    $payload = app(Webkul\Whatsapp\Services\AgentPayload::class)
+        ->lead(conversacionConPedido(['lead_id' => $lead->id]));
+
+    /*
+     * La distinción que evitó fusionar 15 pedidos distintos: el pedido sigue
+     * ABIERTO (#648 y #1326 están a 33 días, los dos abiertos) pero ya tiene
+     * contenido, así que el que viene es otro pedido, no una corrección.
+     */
+    expect($payload['is_empty'])->toBeFalse()
+        ->and($payload['is_open'])->toBeTrue();
+});

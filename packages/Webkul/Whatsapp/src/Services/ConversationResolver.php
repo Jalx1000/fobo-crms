@@ -5,6 +5,7 @@ namespace Webkul\Whatsapp\Services;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Throwable;
+use Webkul\Contact\Models\PersonProxy;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Models\ConversationProxy;
@@ -83,6 +84,28 @@ class ConversationResolver
                 $updates['person_id'] = $person->id;
                 $updates['lead_id'] = $this->leads->forPerson($person);
                 $updates['status'] = 'open';
+            }
+        } elseif (! $conversation->lead_id) {
+            /*
+             * El pedido se completa aparte de la persona, a propósito.
+             *
+             * Antes las dos cosas vivían dentro del if de arriba, así que una
+             * conversación que YA tenía persona no volvía a mirar nunca si le
+             * faltaba el pedido — y `lead_id` sólo se escribía al crearla, en el
+             * momento en que esa persona todavía no tenía ninguno.
+             *
+             * La conv#968 nació el 15/09 sin pedido; el #2563 se registró el
+             * 23/09 y el mensaje que llegó cuatro segundos después pasó por acá
+             * sin enlazarlo. Desde WhatsApp no se veía a qué pedido pertenecía,
+             * y el payload le decía al agente que no había pedido: POST, y otro
+             * duplicado.
+             *
+             * La persona se resuelve una vez; el pedido aparece después.
+             */
+            $person = PersonProxy::modelClass()::find($conversation->person_id);
+
+            if ($person && $leadId = $this->leads->forPerson($person)) {
+                $updates['lead_id'] = $leadId;
             }
         }
 

@@ -110,14 +110,32 @@ class CityRouter
             return;
         }
 
-        $existe = DB::table('attribute_values')
+        $actual = DB::table('attribute_values')
             ->where('entity_type', 'persons')
             ->where('entity_id', $personId)
             ->where('attribute_id', $attribute)
-            ->exists();
+            ->value('integer_value');
 
-        // Nunca se pisa un valor cargado por una persona.
-        if ($existe) {
+        /*
+         * Nunca se pisa una ciudad cargada por una persona. Pero antes esto
+         * miraba si la FILA existía, no qué decía, y el propio CRM llenaba esa
+         * fila con "Sin ciudad" al abrir el pedido automático. La casilla
+         * quedaba ocupada por un no-dato y la ciudad que el agente averiguaba
+         * hablando con el cliente ya no entraba nunca: 43 fichas así.
+         *
+         * Un valor que no es una ciudad vale lo mismo que la casilla vacía.
+         */
+        if ($actual !== null && $this->esCiudadValida((int) $actual)) {
+            return;
+        }
+
+        if ($actual !== null) {
+            DB::table('attribute_values')
+                ->where('entity_type', 'persons')
+                ->where('entity_id', $personId)
+                ->where('attribute_id', $attribute)
+                ->update(['integer_value' => $cityId]);
+
             return;
         }
 

@@ -2,6 +2,8 @@
 
 namespace Webkul\Whatsapp\Services;
 
+use Webkul\Lead\Models\LeadProxy;
+use Webkul\Lead\Services\CitySyncService;
 use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Models\Conversation;
@@ -29,6 +31,7 @@ class AgentPayload
             'gateway'         => $conversation->gateway,
             'ai_enabled'      => $conversation->aiEffective(),
             'contact'         => $this->contact($conversation),
+            'lead'            => $this->lead($conversation),
             'message'         => $this->message($message),
             'history'         => $this->history($conversation),
             'window'          => [
@@ -93,6 +96,60 @@ class AgentPayload
             'name'      => $conversation->wa_name,
             'person_id' => $conversation->person_id,
             'lead_id'   => $conversation->lead_id,
+        ];
+    }
+
+    /**
+     * El pedido que el CRM ya abrió para este contacto.
+     *
+     * Existe para que el agente NO cree uno nuevo. Cuando alguien escribe por
+     * primera vez, LeadOpener le abre el person y el lead; si el agente después
+     * hace POST, quedan dos pedidos para la misma venta —pasó 81 veces—.
+     *
+     * El interruptor es `is_empty`, no `is_open`: un lead por pedido.
+     *
+     *   is_empty = true  => PUT sobre este id (es el que abrió el CRM, llenalo)
+     *   is_empty = false => POST (pedido nuevo, aunque el anterior siga abierto)
+     *
+     * Se midió por qué: de 25 segundos pedidos sobre un lead abierto CON
+     * productos, 15 eran pedidos genuinamente distintos —#648 y #1326 están a 33
+     * días y con productos distintos— y sólo 10 eran correcciones. Decidir por
+     * `is_open` los habría fusionado a los 15 en un pedido solo.
+     *
+     * `is_open` se mantiene porque sigue siendo cierto y útil para contexto,
+     * pero no es lo que decide PUT vs POST.
+     *
+     * 🔴 `products` viene completo a propósito. El PUT REEMPLAZA la lista, no la
+     * suma: lo que no se mande se borra. Importa cuando el agente corrige un
+     * pedido ya registrado (PUT sobre un lead con contenido): manda esto más lo
+     * nuevo y no pierde lo que ya estaba.
+     *
+     * @return array{id: int, is_empty: bool, is_open: bool, stage: ?string, lead_value: float, products: array}|null
+     */
+    public function lead(Conversation $conversation): ?array
+    {
+        if (! $conversation->lead_id) {
+            return null;
+        }
+
+        $lead = LeadProxy::modelClass()::with(['products', 'stage'])->find($conversation->lead_id);
+
+        if (! $lead) {
+            return null;
+        }
+
+        return [
+            'id'         => (int) $lead->id,
+            'is_empty'   => $lead->products->isEmpty(),
+            'is_open'    => ! in_array(optional($lead->stage)->code, CitySyncService::CLOSED_STAGE_CODES, true),
+            'stage'      => optional($lead->stage)->name,
+            'lead_value' => (float) $lead->lead_value,
+            'products'   => $lead->products->map(fn ($p) => [
+                'product_id' => (int) $p->product_id,
+                'name'       => $p->name,
+                'quantity'   => (float) $p->quantity,
+                'price'      => (float) $p->price,
+            ])->values()->all(),
         ];
     }
 
