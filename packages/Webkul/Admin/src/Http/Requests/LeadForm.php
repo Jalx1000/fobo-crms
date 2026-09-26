@@ -56,6 +56,20 @@ class LeadForm extends FormRequest
     protected function prepareForValidation(): void
     {
         if (! is_array($productos = $this->input('products'))) {
+            /*
+             * El formulario del admin manda la lista COMPLETA siempre, así que
+             * si no viene ninguna fila es porque el asesor las quitó todas. Se
+             * normaliza a un array vacío para que el repositorio lo lea como
+             * "esta es la lista, y está vacía" y borre las anteriores.
+             *
+             * La API no entra acá: para el agente, `products` ausente significa
+             * "no toques los productos" —va a mandar PUT parciales mientras
+             * conversa— y un array vacío implícito le vaciaría el pedido.
+             */
+            if (! $this->vieneDeLaApi()) {
+                $this->merge(['products' => []]);
+            }
+
             return;
         }
 
@@ -168,6 +182,10 @@ class LeadForm extends FormRequest
             'after:'.Carbon::yesterday()->format('Y-m-d'),
         ];
 
+        if ($this->vieneDeLaApi()) {
+            $this->rules['lead_value'] = [$this->reglaValorSinDetalle()];
+        }
+
         return [
             ...$this->rules,
             'products'              => 'array',
@@ -176,6 +194,46 @@ class LeadForm extends FormRequest
             'products.*.price'      => 'required_with:products.*.product_id',
             'products.*.quantity'   => 'required_with:products.*.product_id',
         ];
+    }
+
+    /**
+     * Sólo la API (el agente de WhatsApp). El formulario del admin queda fuera:
+     * ahí un supervisor puede fijar un valor manual sin productos
+     * (lead_value_is_manual) y es un caso legítimo.
+     */
+    protected function vieneDeLaApi(): bool
+    {
+        return $this->is('api/v1/leads', 'api/v1/leads/*');
+    }
+
+    /**
+     * Un pedido con monto y sin productos es un dato mutilado.
+     *
+     * Medido desde el 01/08/2026: 27 de 182 pedidos confirmados o entregados
+     * (15%) no tienen una sola línea de producto. Hay plata, hay cliente, hay
+     * asesor — pero no se sabe qué se vendió, así que no hay ranking, ni
+     * reposición, ni margen.
+     *
+     * Si el agente sabe cuánto cobrar, sabe qué está cobrando: no hay caso
+     * legítimo con el monto y sin el ítem. Mejor un 422 que el agente puede
+     * reintentar que un 200 que guarda a medias y nadie mira.
+     *
+     * El corte es angosto a propósito: sólo dispara con lead_value > 0 y cero
+     * productos. Sobre siete semanas de tráfico real eso son 5 requests.
+     */
+    protected function reglaValorSinDetalle(): \Closure
+    {
+        return function ($atributo, $valor, $fail) {
+            if ((float) $valor <= 0) {
+                return;
+            }
+
+            if (! empty(array_filter((array) $this->input('products', [])))) {
+                return;
+            }
+
+            $fail('Un pedido con lead_value no puede ir sin products[]: mandá las líneas (product_id, quantity, price) o no mandes el valor.');
+        };
     }
 
     /**

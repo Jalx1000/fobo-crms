@@ -6,6 +6,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Webkul\Lead\Repositories\ProductRepository;
 use Webkul\Lead\Repositories\StageRepository;
+use Webkul\Lead\Support\DiscardedLeads;
 
 class Product extends AbstractReporting
 {
@@ -63,6 +64,8 @@ class Product extends AbstractReporting
             ->select('*')
             ->addSelect(DB::raw('SUM('.$tablePrefix.'lead_products.amount) as revenue'))
             ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
+            // Un duplicado descartado no puede sumar su monto dos veces.
+            ->whereNotIn('leads.lead_pipeline_stage_id', DiscardedLeads::stageIds())
             ->having(DB::raw('SUM('.$tablePrefix.'lead_products.amount)'), '>', 0)
             ->groupBy('product_id')
             ->orderBy('revenue', 'DESC')

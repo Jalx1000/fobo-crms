@@ -339,8 +339,25 @@ class LeadRepository extends Repository
             }
         }
 
-        foreach ($previousProductIds as $productId) {
-            $this->productRepository->delete($productId);
+        /*
+         * Sólo se borran los sobrantes cuando el payload TRAJO la lista.
+         *
+         * Este foreach estaba fuera del if de arriba, así que un PUT sin la
+         * clave `products` borraba todos los productos del pedido. Con el
+         * formulario del admin no se notaba —siempre manda la lista—, pero el
+         * agente va a pasar a escribir el lead en vivo: un PUT por cada dato
+         * que le da el cliente (ciudad, nombre, edad). Cada uno de esos PUT
+         * habría vaciado el pedido que ya estaba cargado.
+         *
+         * `products` ausente ahora significa "no toques los productos".
+         * `products` presente —incluso vacío— sigue siendo la lista completa,
+         * que es lo que hace que quitar la última fila desde el formulario siga
+         * funcionando.
+         */
+        if (array_key_exists('products', $data)) {
+            foreach ($previousProductIds as $productId) {
+                $this->productRepository->delete($productId);
+            }
         }
 
         $this->applyLeadValueRule($lead, $data);
@@ -387,6 +404,30 @@ class LeadRepository extends Repository
             // previously froze it as a manual override.
             $lead->lead_value = $productSum;
         }
+
+        $lead->save();
+    }
+
+    /**
+     * Recalcula lead_value desde los productos, sin pasar por un save del lead.
+     *
+     * applyLeadValueRule sólo corre cuando el save trae 'products', y agregar o
+     * quitar un producto desde la vista del pedido es OTRA ruta
+     * (PUT|DELETE admin/leads/product/{id}), así que nunca la tocaba: el pedido
+     * #1764 quedó con Bs 285 en productos y lead_value 0.
+     *
+     * Respeta el override manual de un supervisor: si alguien congeló el valor
+     * a propósito, agregar un producto no se lo pisa.
+     */
+    public function recalcularValorDesdeProductos(int $leadId): void
+    {
+        $lead = $this->find($leadId);
+
+        if (! $lead || $lead->lead_value_is_manual) {
+            return;
+        }
+
+        $lead->lead_value = (float) $lead->products()->sum(DB::raw('price * quantity'));
 
         $lead->save();
     }

@@ -839,6 +839,8 @@ class LeadController extends Controller
             )
         );
 
+        $this->leadRepository->recalcularValorDesdeProductos($leadId);
+
         return response()->json([
             'data'    => $product,
             'message' => trans('admin::app.leads.update-success'),
@@ -859,6 +861,8 @@ class LeadController extends Controller
             ]);
 
             Event::dispatch('lead.product.delete.after', $id);
+
+            $this->leadRepository->recalcularValorDesdeProductos($id);
 
             return response()->json([
                 'message' => trans('admin::app.leads.destroy-success'),

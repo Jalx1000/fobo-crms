@@ -4,6 +4,7 @@ namespace Webkul\Lead\Providers;
 
 use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;
+use Webkul\Lead\Console\Commands\ReportLeadsWithoutDetail;
 
 class LeadServiceProvider extends ServiceProvider
 {
@@ -15,6 +16,12 @@ class LeadServiceProvider extends ServiceProvider
     public function boot(Router $router)
     {
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                ReportLeadsWithoutDetail::class,
+            ]);
+        }
     }
 
     /**

@@ -5,6 +5,7 @@ namespace Webkul\Admin\Helpers\Reporting;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Webkul\Contact\Repositories\OrganizationRepository;
+use Webkul\Lead\Support\DiscardedLeads;
 
 class Organization extends AbstractReporting
 {
@@ -60,6 +61,7 @@ class Organization extends AbstractReporting
             ->select('*', 'persons.id as id')
             ->addSelect(DB::raw('SUM('.$tablePrefix.'leads.lead_value) as revenue'))
             ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
+            ->whereNotIn('leads.lead_pipeline_stage_id', DiscardedLeads::stageIds())
             ->having(DB::raw('SUM('.$tablePrefix.'leads.lead_value)'), '>', 0)
             ->groupBy('organization_id')
             ->orderBy('revenue', 'DESC')
