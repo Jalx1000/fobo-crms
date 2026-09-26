@@ -69,9 +69,19 @@ class Conversation extends Model implements ConversationContract
     /**
      * Resolve whether the AI agent is effectively enabled for this conversation,
      * falling back to the global default when the per-conversation flag is null.
+     *
+     * Una derivación abierta manda por encima del flag. Handoff::request() apaga
+     * ai_enabled, pero eso es un dato que se puede desincronizar: la conversación
+     * #323 llevaba 12 días asignada a un asesor con ai_enabled en true, así que
+     * el agente seguía contestando por encima de la persona que la atendía.
+     * Mientras haya alguien del otro lado, el agente calla.
      */
     public function aiEffective(): bool
     {
+        if ($this->handoffOpen()) {
+            return false;
+        }
+
         return $this->ai_enabled ?? (bool) config('whatsapp.ai.enabled');
     }
 

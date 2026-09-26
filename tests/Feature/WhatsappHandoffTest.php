@@ -260,8 +260,129 @@ it('las derivaciones suben al tope de la lista', function () {
     $respuesta = app(\Webkul\Whatsapp\Http\Controllers\ChatController::class)
         ->conversations(\Illuminate\Http\Request::create('/', 'GET', ['filter' => 'all']));
 
-    $primera = json_decode($respuesta->getContent(), true)['data'][0];
+    $filas = collect(json_decode($respuesta->getContent(), true)['data']);
 
-    expect($primera['id'])->toBe($conv->id)
-        ->and($primera['handoff']['pooled'])->toBeTrue();
+    /*
+     * No se afirma que sea la PRIMERA fila: la suite corre contra la base de
+     * producción, donde puede haber derivaciones reales en el pool más
+     * recientes que esta conversación de prueba —y es correcto que vayan
+     * arriba. Lo que se fija es la regla: una derivación con un mensaje de
+     * hace seis meses igual queda por encima de cualquier conversación SIN
+     * derivación, que es lo que evita que quede sepultada.
+     */
+    $posicion = $filas->search(fn ($f) => $f['id'] === $conv->id);
+
+    expect($posicion)->not->toBeFalse('La derivación no apareció en la lista.')
+        ->and($filas[$posicion]['handoff']['pooled'])->toBeTrue();
+
+    $primeraSinHandoff = $filas->search(fn ($f) => empty($f['handoff']));
+
+    if ($primeraSinHandoff !== false) {
+        expect($posicion)->toBeLessThan($primeraSinHandoff);
+    }
+});
+
+it('una derivación abierta calla al agente aunque ai_enabled siga en true', function () {
+    $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
+
+    app(Handoff::class)->request($conv, 'motivo');
+
+    // El caso real: la conversación #323 llevaba 12 días asignada con el flag
+    // en true, así que el agente contestaba por encima del asesor.
+    $conv->fresh()->forceFill(['ai_enabled' => true])->save();
+
+    expect($conv->fresh()->aiEffective())->toBeFalse();
+});
+
+it('el agente vuelve cuando se cierra la derivación', function () {
+    $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
+
+    app(Handoff::class)->request($conv, 'motivo');
+    app(Handoff::class)->resolve($conv->fresh());
+
+    expect($conv->fresh()->aiEffective())->toBeTrue();
+});
+
+// ---------------------------------------------------------------------------
+// Cierre automático: la derivación que nadie contestó vuelve al bot
+// ---------------------------------------------------------------------------
+
+it('cierra la derivación que lleva más de 24 h sin mensaje del cliente', function () {
+    $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
+    app(Handoff::class)->request($conv, 'motivo');
+
+    $conv->fresh()->forceFill(['last_inbound_at' => now()->subHours(30)])->save();
+
+    test()->artisan('whatsapp:cerrar-derivaciones-inactivas')->assertSuccessful();
+
+    $cerrada = $conv->fresh();
+
+    expect($cerrada->handoffOpen())->toBeFalse()
+        // Cerrar la derivación ES devolverla al bot.
+        ->and($cerrada->aiEffective())->toBeTrue();
+});
+
+it('no toca la que sigue viva', function () {
+    $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
+    app(Handoff::class)->request($conv, 'motivo');
+
+    $conv->fresh()->forceFill(['last_inbound_at' => now()->subHours(3)])->save();
+
+    test()->artisan('whatsapp:cerrar-derivaciones-inactivas');
+
+    expect($conv->fresh()->handoffOpen())->toBeTrue();
+});
+
+it('cuenta desde el último mensaje del cliente, no desde la derivación', function () {
+    $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
+    app(Handoff::class)->request($conv, 'derivada hace rato');
+
+    // Derivación vieja, pero el cliente escribió recién: sigue viva.
+    $conv->fresh()->forceFill([
+        'handoff_requested_at' => now()->subDays(5),
+        'last_inbound_at'      => now()->subMinutes(10),
+    ])->save();
+
+    test()->artisan('whatsapp:cerrar-derivaciones-inactivas');
+
+    expect($conv->fresh()->handoffOpen())->toBeTrue();
+});
+
+it('con --dry-run no escribe nada', function () {
+    $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
+    app(Handoff::class)->request($conv, 'motivo');
+
+    $conv->fresh()->forceFill(['last_inbound_at' => now()->subHours(30)])->save();
+
+    test()->artisan('whatsapp:cerrar-derivaciones-inactivas', ['--dry-run' => true]);
+
+    expect($conv->fresh()->handoffOpen())->toBeTrue();
+});
+
+it('deja la auditoría diciendo que fue por inactividad', function () {
+    $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
+    app(Handoff::class)->request($conv, 'motivo');
+
+    $conv->fresh()->forceFill(['last_inbound_at' => now()->subHours(30)])->save();
+
+    test()->artisan('whatsapp:cerrar-derivaciones-inactivas');
+
+    $comentario = DB::table('activities')
+        ->where('comment', 'like', '%sin respuesta del cliente%')
+        ->orderByDesc('id')
+        ->value('comment');
+
+    expect($comentario)->toContain('Cerrada automáticamente');
+});
+
+it('ignora la conversación que nunca recibió un mensaje', function () {
+    $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
+    app(Handoff::class)->request($conv, 'motivo');
+
+    // Sin last_inbound_at no hay desde cuándo contar.
+    $conv->fresh()->forceFill(['last_inbound_at' => null])->save();
+
+    test()->artisan('whatsapp:cerrar-derivaciones-inactivas');
+
+    expect($conv->fresh()->handoffOpen())->toBeTrue();
 });

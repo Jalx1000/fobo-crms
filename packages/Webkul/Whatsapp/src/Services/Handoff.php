@@ -191,7 +191,7 @@ class Handoff
      *
      * @throws HandoffConflictException
      */
-    public function resolve(Conversation $conversation, ?int $actorUserId = null, bool $reactivateAi = true): Conversation
+    public function resolve(Conversation $conversation, ?int $actorUserId = null, bool $reactivateAi = true, ?string $motivo = null): Conversation
     {
         if (! $conversation->handoffOpen()) {
             throw HandoffConflictException::notOpen();
@@ -205,6 +205,7 @@ class Handoff
         $this->audit(
             $conversation,
             'Derivación cerrada'.($actorUserId ? ' por '.$this->userName($actorUserId) : '').'.'
+                .($motivo ? ' '.$motivo : '')
                 .($reactivateAi ? ' El agente IA vuelve a atender.' : ' El agente IA queda desactivado.'),
             $actorUserId,
         );
