@@ -36,15 +36,19 @@ class AccountController extends Controller
             'password'         => 'nullable|min:6|confirmed',
             'current_password' => 'required|min:6',
             'image.*'          => 'nullable|mimes:bmp,jpeg,jpg,png,webp',
+            'cargo'            => 'nullable|string|max:120',
+            'firma.*'          => 'nullable|mimes:jpeg,jpg,png,webp|max:2048',
         ]);
 
         $data = request()->only([
             'name',
+            'cargo',
             'email',
             'password',
             'password_confirmation',
             'current_password',
             'image',
+            'firma',
         ]);
 
         if (! Hash::check($data['current_password'], $user->password)) {
@@ -81,6 +85,27 @@ class AccountController extends Controller
             } else {
                 $data['image'] = $user->image;
             }
+        }
+
+        /*
+        | La firma sigue la misma lógica de tres estados que el avatar:
+        | archivo nuevo → se reemplaza; campo ausente → se borra (el asesor la
+        | quitó desde el componente); campo presente sin archivo → se conserva.
+        */
+        if (request()->hasFile('firma')) {
+            if ($user->firma) {
+                Storage::delete($user->firma);
+            }
+
+            $data['firma'] = current(request()->file('firma'))->store('admins/'.$user->id.'/firma');
+        } elseif (! isset($data['firma'])) {
+            if ($user->firma) {
+                Storage::delete($user->firma);
+            }
+
+            $data['firma'] = null;
+        } else {
+            $data['firma'] = $user->firma;
         }
 
         $user->update($data);

@@ -11,6 +11,26 @@
     >
         @if (bouncer()->hasPermission('quotes'))
             <div class="p-3">
+                {{-- Cabecera: crear desde cero o recotizar copiando la última.
+                     Recotizar es lo habitual —el cliente pide otra cantidad o
+                     se le mejora el precio— y antes obligaba a transcribir a
+                     mano el cliente y las ocho condiciones comerciales. --}}
+                <div v-if="quotes.length" class="mb-3 flex items-center justify-end gap-2">
+                    <a
+                        class="secondary-button"
+                        href="{{ route('admin.quotes.create', $lead->id) }}?from=lead"
+                    >
+                        @lang('admin::app.leads.view.quotes.add-btn')
+                    </a>
+
+                    <a
+                        class="primary-button"
+                        :href="'{{ route('admin.quotes.create', $lead->id) }}?from=lead&copiar_de=' + ultima.id"
+                    >
+                        @lang('admin::app.leads.view.quotes.recotizar')
+                    </a>
+                </div>
+
                 {!! view_render_event('admin.leads.view.quotes.table.before', ['lead' => $lead]) !!}
 
                 <x-admin::table v-if="quotes.length">
@@ -98,6 +118,18 @@
                                             </x-admin::dropdown.menu.item>
 
                                             {!! view_render_event('admin.leads.view.quotes.table.table_body.dropdown.item.after', ['lead' => $lead]) !!}
+                                        @endif
+
+                                        @if (bouncer()->hasPermission('quotes.create'))
+                                            <x-admin::dropdown.menu.item>
+                                                <a :href="'{{ route('admin.quotes.create', $lead->id) }}?from=lead&copiar_de=' + quote.id">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="icon-copy text-2xl"></span>
+
+                                                        @lang('admin::app.leads.view.quotes.recotizar')
+                                                    </div>
+                                                </a>
+                                            </x-admin::dropdown.menu.item>
                                         @endif
 
                                         @if (bouncer()->hasPermission('quotes.print'))
@@ -197,6 +229,17 @@
                 return {
                     quotes: @json($lead->quotes()->with(['person', 'user'])->get())
                 }
+            },
+
+            computed: {
+                /**
+                 * La cotización más reciente del pedido: la que se copia al
+                 * recotizar. Las que llegan del servidor vienen en orden de
+                 * creación, así que la última del array es la más nueva.
+                 */
+                ultima() {
+                    return this.quotes.length ? this.quotes[this.quotes.length - 1] : {};
+                },
             },
 
             methods: {

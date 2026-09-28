@@ -37,29 +37,38 @@ class ProductoController extends Controller
      *         in="query",
      *         required=true,
      *         description="ID del valor del atributo ciudad_producto_sucursal por el que filtrar",
+     *
      *         @OA\Schema(type="integer", example=5)
      *     ),
+     *
      *     @OA\Parameter(
      *         name="page",
      *         in="query",
      *         required=false,
      *         description="Número de página",
+     *
      *         @OA\Schema(type="integer", example=1)
      *     ),
+     *
      *     @OA\Parameter(
      *         name="limit",
      *         in="query",
      *         required=false,
      *         description="Cantidad de resultados por página (máximo 100)",
+     *
      *         @OA\Schema(type="integer", example=15)
      *     ),
      *
      *     @OA\Response(
      *         response=200,
      *         description="Lista de productos",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="data", type="array",
+     *
      *                 @OA\Items(
+     *
      *                     @OA\Property(property="id", type="integer", example=1),
      *                     @OA\Property(property="sku", type="string", example="PROD-001"),
      *                     @OA\Property(property="name", type="string", example="Producto Ejemplo"),
@@ -78,24 +87,33 @@ class ProductoController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=400,
      *         description="Parámetro requerido faltante o inválido",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="El parámetro ciudad_producto_sucursal es requerido y debe ser un entero positivo")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="No autenticado",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="Unauthenticated.")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=404,
      *         description="Atributo ciudad_producto_sucursal no encontrado",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="El atributo ciudad_producto_sucursal no está configurado en el sistema")
      *         )
      *     )
@@ -128,7 +146,7 @@ class ProductoController extends Controller
         }
 
         $limit = min(max((int) $request->query('limit', 15), 1), 100);
-        $page  = max((int) $request->query('page', 1), 1);
+        $page = max((int) $request->query('page', 1), 1);
 
         // Products matching the requested filter value
         $filteredIds = DB::table('attribute_values')
@@ -146,9 +164,9 @@ class ProductoController extends Controller
 
         $allIds = $filteredIds->merge($alwaysIds)->unique()->values();
 
-        $total     = $allIds->count();
-        $lastPage  = (int) ceil($total / $limit);
-        $pageIds   = $allIds->forPage($page, $limit);
+        $total = $allIds->count();
+        $lastPage = (int) ceil($total / $limit);
+        $pageIds = $allIds->forPage($page, $limit);
 
         $products = DB::table('products')
             ->whereIn('id', $pageIds)

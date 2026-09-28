@@ -16,7 +16,12 @@ class QuoteItem extends Model implements QuoteItemContract
      */
     protected $fillable = [
         'sku',
+        'codigo_tr4',
+        'codigo_barra',
         'name',
+        'medida',
+        'unidad',
+        'variante',
         'quantity',
         'price',
         'coupon_code',
@@ -27,6 +32,10 @@ class QuoteItem extends Model implements QuoteItemContract
         'total',
         'product_id',
         'quote_id',
+    ];
+
+    protected $casts = [
+        'variante' => 'array',
     ];
 
     /**

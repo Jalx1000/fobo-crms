@@ -243,7 +243,7 @@
                                         <!-- Titles repeat: date + value + stage are what tell them apart. -->
                                         <span class="wa-orderrow__meta">
                                             <span v-if="lead.stage" class="wa-tag">@{{ lead.stage }}</span>
-                                            <span v-if="lead.value" class="font-semibold">$@{{ lead.value }}</span>
+                                            <span v-if="lead.value" class="font-semibold">Bs @{{ lead.value }}</span>
                                             <span>@{{ lead.created_at }}</span>
                                             <span v-if="!lead.is_open" class="wa-tag wa-tag--muted">cerrado</span>
                                         </span>
@@ -412,6 +412,53 @@
                             <div v-else-if="msg.type === 'template'" class="whitespace-pre-wrap break-words">
                                 <span class="mb-1 inline-block rounded bg-black/10 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide dark:bg-white/10">Plantilla</span>
                                 <div v-html="formatText(msg.text)"></div>
+                            </div>
+
+                            <!-- Interactivo: en un sentido las opciones que
+                                 le ofrecimos al cliente, en el otro la que
+                                 tocó. Sin esta rama el hilo mostraba "Tipo no
+                                 soportado" para un mensaje que sí se entregó, y
+                                 el asesor no podía saber qué se ofreció ni qué
+                                 eligió. -->
+                            <div v-else-if="msg.type === 'interactive' && msg.interactive" class="min-w-[200px]">
+                                <template v-if="msg.interactive.direccion === 'respuesta'">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="icon-check text-base text-green-600"></span>
+                                        <span class="font-medium">@{{ msg.interactive.elegido }}</span>
+                                    </div>
+                                    <div class="mt-0.5 text-[10px] uppercase tracking-wide text-gray-400">
+                                        Eligió de @{{ msg.interactive.formato === 'list' ? 'una lista' : 'los botones' }}
+                                    </div>
+                                </template>
+
+                                <template v-else>
+                                    <div v-if="msg.text" class="whitespace-pre-wrap break-words">@{{ msg.text }}</div>
+                                    <div v-if="msg.interactive.footer" class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-300">@{{ msg.interactive.footer }}</div>
+
+                                    <div class="mt-1.5 flex flex-col gap-1">
+                                        <span v-for="(op, i) in msg.interactive.opciones" :key="i"
+                                              class="rounded-md border border-black/10 px-2 py-1 text-center text-[12px] dark:border-white/20">
+                                            @{{ op }}
+                                        </span>
+                                    </div>
+
+                                    <div class="mt-1 text-[10px] uppercase tracking-wide text-gray-400">
+                                        @{{ msg.interactive.formato === 'list' ? 'Lista' : 'Botones' }}
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Una reacción es un emoji sobre OTRO mensaje. Se
+                                 muestra citando a cuál, porque un emoji suelto
+                                 en el hilo no se entiende. -->
+                            <div v-else-if="msg.type === 'reaction' && msg.reaction" class="flex items-center gap-2">
+                                <span v-if="!msg.reaction.quitada" class="text-xl leading-none">@{{ msg.reaction.emoji }}</span>
+                                <span class="flex flex-col text-[12px]">
+                                    <span class="text-gray-500 dark:text-gray-300">
+                                        @{{ msg.reaction.quitada ? 'Quitó su reacción' : 'Reaccionó' }}
+                                    </span>
+                                    <span v-if="msg.reaction.sobre" class="truncate italic text-gray-400">«@{{ msg.reaction.sobre }}»</span>
+                                </span>
                             </div>
 
                             <div v-else class="italic text-gray-500">Tipo no soportado</div>
@@ -898,7 +945,7 @@
                                class="group mb-3 block rounded-lg border border-gray-200 p-2.5 transition hover:border-brandColor dark:border-gray-800">
                                 <div class="flex items-center justify-between gap-2">
                                     <span class="truncate text-sm font-medium text-gray-800 group-hover:text-brandColor dark:text-gray-200">@{{ profile.active_lead.title }}</span>
-                                    <span v-if="profile.active_lead.value" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">$@{{ profile.active_lead.value }}</span>
+                                    <span v-if="profile.active_lead.value" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">Bs @{{ profile.active_lead.value }}</span>
                                 </div>
                                 <div class="mt-1 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
                                     <span v-if="profile.active_lead.stage" class="rounded-full bg-sky-100 px-2 py-px font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">@{{ profile.active_lead.stage }}</span>
@@ -934,7 +981,7 @@
                                     <p class="text-[10px] text-gray-500 dark:text-gray-400">Pedidos</p>
                                 </div>
                                 <div class="rounded-lg border border-gray-200 p-2 text-center dark:border-gray-800">
-                                    <p class="truncate text-base font-bold text-brandColor">$@{{ profile.leads_total }}</p>
+                                    <p class="truncate text-base font-bold text-brandColor">Bs @{{ profile.leads_total }}</p>
                                     <p class="text-[10px] text-gray-500 dark:text-gray-400">Valor</p>
                                 </div>
                             </div>
@@ -1019,7 +1066,7 @@
                                 <div v-for="(prod, i) in profile.products" :key="'prod-' + i" class="px-2.5 py-2">
                                     <div class="flex items-center justify-between gap-2">
                                         <span class="truncate text-sm font-medium text-gray-800 dark:text-gray-200">@{{ prod.name }}</span>
-                                        <span v-if="prod.amount" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">$@{{ prod.amount }}</span>
+                                        <span v-if="prod.amount" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">Bs @{{ prod.amount }}</span>
                                     </div>
                                     <div class="mt-0.5 flex items-center gap-2 text-[11px] text-gray-400">
                                         <span>x@{{ prod.quantity }}</span>
@@ -1073,7 +1120,7 @@
                                      class="group rounded-lg border border-gray-200 p-2.5 transition hover:border-brandColor hover:shadow-sm dark:border-gray-800 dark:hover:border-brandColor">
                                     <a :href="lead.url" target="_blank" class="flex items-center justify-between gap-2">
                                         <span class="truncate text-sm font-medium text-gray-800 group-hover:text-brandColor dark:text-gray-200 dark:group-hover:text-brandColor">@{{ lead.title }}</span>
-                                        <span v-if="lead.value" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">$@{{ lead.value }}</span>
+                                        <span v-if="lead.value" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">Bs @{{ lead.value }}</span>
                                     </a>
 
                                     <div class="mt-1.5 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">

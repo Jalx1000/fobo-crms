@@ -4,7 +4,6 @@ namespace Webkul\Doctor\Repositories;
 
 use Illuminate\Container\Container;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\DB;
 use Webkul\Core\Eloquent\Repository;
 use Webkul\Doctor\Contracts\Doctor as DoctorContract;
 
@@ -76,7 +75,7 @@ class DoctorRepository extends Repository
         if (array_key_exists('email', $data)) {
             $data['email'] = trim((string) $data['email']);
         }
-        
+
         if (! isset($data['unique_id']) && isset($data['name'])) {
             $data['unique_id'] = implode('|', array_filter([$data['number'] ?? null, $data['name'] ?? null]));
         }

@@ -16,12 +16,40 @@ class EventServiceProvider extends ServiceProvider
             'Webkul\Admin\Listeners\Person@linkToEmail',
         ],
 
+        /*
+        | La ciudad del cliente viaja en los dos sentidos entre el contacto, la
+        | oportunidad y la cotización: decide la zona del precio y quién
+        | atiende, así que tenerla distinta en cada lado es un error caro.
+        */
         'lead.create.after' => [
             'Webkul\Admin\Listeners\Lead@linkToEmail',
+            'Webkul\Admin\Listeners\Ciudad@deOportunidad',
+            'Webkul\Admin\Listeners\ValorPedido@deOportunidad',
         ],
 
         'lead.update.after' => [
             'Webkul\Admin\Listeners\Lead@handleLeadUpdate',
+            'Webkul\Admin\Listeners\Ciudad@deOportunidad',
+            'Webkul\Admin\Listeners\ValorPedido@deOportunidad',
+        ],
+
+        /*
+        | El NIT viaja en los dos sentidos entre la cotización y la persona.
+        | Se engancha acá y no en el controlador del CRM porque la API REST
+        | dispara los mismos eventos: así el `register_cotizacion` del agente
+        | pasa por el mismo camino que un asesor cargando a mano.
+        */
+        'quote.create.after' => [
+            'Webkul\Admin\Listeners\Nit@sincronizar',
+            'Webkul\Admin\Listeners\Ciudad@deCotizacion',
+            'Webkul\Admin\Listeners\Sucursal@desdeElProducto',
+            'Webkul\Admin\Listeners\ValorPedido@deCotizacion',
+        ],
+
+        'quote.update.after' => [
+            'Webkul\Admin\Listeners\Nit@sincronizar',
+            'Webkul\Admin\Listeners\Ciudad@deCotizacion',
+            'Webkul\Admin\Listeners\ValorPedido@deCotizacion',
         ],
 
         'activity.create.after' => [

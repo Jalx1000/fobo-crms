@@ -119,7 +119,7 @@ class IngestInboundPayload implements ShouldQueue
 
         // Hand the message to the AI agent — but only while it is enabled for
         // this conversation. Off = a human is handling it.
-        if ($conversation->aiEffective()) {
+        if ($conversation->agenteDebeResponder()) {
             NotifyAgent::dispatch($created->id)->onQueue(config('whatsapp.queue'));
         }
     }

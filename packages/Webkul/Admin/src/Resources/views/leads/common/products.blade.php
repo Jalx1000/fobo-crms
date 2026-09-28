@@ -92,22 +92,25 @@
             <!-- Product Name -->
             <x-admin::table.td>
                 <x-admin::form.control-group class="!mb-0">
+                    {{--
+                        El campo que viaja es `[product_id]`, que es lo único que
+                        guarda `lead_products`.
+
+                        Antes el buscador escribía en `[name]` —y lo que escribe
+                        es el ID del producto, no su nombre—, así que el
+                        formulario mandaba `name=1298` a un campo que la tabla
+                        no tiene y que se descartaba en silencio. El `product_id`
+                        de verdad iba en un segundo input oculto, duplicando el
+                        mismo dato en dos campos con nombres distintos.
+                    --}}
                     <x-admin::lookup
                         ::src="src"
-                        ::name="`${inputName}[name]`"
-                        ::params="params"
-                        :placeholder="trans('admin::app.leads.common.products.product-name')"
-                        @on-selected="(product) => addProduct(product)"
-                        ::value="{ id: product.product_id, name: product.name }"
-                    />
-
-                    <x-admin::form.control-group.control
-                        type="hidden"
                         ::name="`${inputName}[product_id]`"
-                        v-model="product.product_id"
                         rules="required"
                         :label="trans('admin::app.leads.common.products.product-name')"
                         :placeholder="trans('admin::app.leads.common.products.product-name')"
+                        @on-selected="(product) => addProduct(product)"
+                        ::value="{ id: product.product_id, name: product.name }"
                     />
 
                     <x-admin::form.control-group.error ::name="`${inputName}[product_id]`" />
@@ -240,12 +243,6 @@
 
             props: ['index', 'product'],
 
-            data() {
-                return {
-                    products: [],
-                }
-            },
-
             computed: {
                 inputName() {
                     if (this.product.id) {
@@ -259,13 +256,6 @@
                     return '{{ route('admin.products.search') }}';
                 },
 
-                params() {
-                    return {
-                        params: {
-                            query: this.product.name,
-                        },
-                    };
-                },
             },
 
             methods: {

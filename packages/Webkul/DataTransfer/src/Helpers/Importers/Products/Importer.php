@@ -363,7 +363,7 @@ class Importer extends AbstractImporter
             }
 
             foreach ($values as $valueRow) {
-                $valueRow['entity_id']   = (int) $product['id'];
+                $valueRow['entity_id'] = (int) $product['id'];
                 $valueRow['entity_type'] = 'products';
 
                 $uniqueId = implode('|', array_filter([

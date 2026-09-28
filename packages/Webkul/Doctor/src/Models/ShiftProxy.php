@@ -4,6 +4,4 @@ namespace Webkul\Doctor\Models;
 
 use Konekt\Concord\Proxies\ModelProxy;
 
-class ShiftProxy extends ModelProxy
-{
-}
+class ShiftProxy extends ModelProxy {}

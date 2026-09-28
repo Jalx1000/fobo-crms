@@ -5,12 +5,12 @@ namespace Webkul\Doctor\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
 use Illuminate\Support\Str;
+use Illuminate\View\View;
 use Webkul\Admin\Http\Controllers\Controller;
+use Webkul\Admin\Services\ShareMeDataService;
 use Webkul\Doctor\DataGrids\SpecialtyDataGrid;
 use Webkul\Doctor\Repositories\SpecialtyRepository;
-use Webkul\Admin\Services\ShareMeDataService;
 
 class SpecialtyController extends Controller
 {
@@ -39,7 +39,7 @@ class SpecialtyController extends Controller
                 session()->flash('info', "No se encontraron especialidades nuevas para sincronizar. ({$result['existed']} ya existían)");
             }
         } catch (\Exception $e) {
-            session()->flash('error', 'Error al sincronizar con ShareMeData: ' . $e->getMessage());
+            session()->flash('error', 'Error al sincronizar con ShareMeData: '.$e->getMessage());
         }
 
         return redirect()->route('admin.specialties.index');

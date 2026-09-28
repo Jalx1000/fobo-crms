@@ -12,6 +12,7 @@ use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
 use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
 use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
@@ -38,8 +39,8 @@ class CloudApiGateway extends BaseGateway
         // Only what is implemented today. 'contact' is still receive-only: it
         // needs a vCard builder the composer has no UI for yet.
         return new Capabilities(
-            send: ['text', 'reply', 'emoji', 'template', 'image', 'audio', 'document', 'video', 'sticker', 'location'],
-            receive: ['text', 'image', 'audio', 'document', 'video', 'sticker', 'location', 'contact'],
+            send: ['text', 'reply', 'emoji', 'template', 'image', 'audio', 'document', 'video', 'sticker', 'location', 'interactive'],
+            receive: ['text', 'image', 'audio', 'document', 'video', 'sticker', 'location', 'contact', 'interactive', 'reaction'],
         );
     }
 
@@ -221,6 +222,25 @@ class CloudApiGateway extends BaseGateway
             'name'      => $location->name,
             'address'   => $location->address,
         ], fn ($value) => $value !== null && $value !== ''), $replyToProviderId);
+    }
+
+    /**
+     * Botones de respuesta o lista de opciones.
+     *
+     * No necesita aprobación previa como una plantilla, pero sí la ventana de
+     * 24 h abierta: es un mensaje de forma libre como cualquier otro.
+     *
+     * La validación de los límites de Meta vive en el DTO. Si algo se pasa de
+     * largo, esto no llega a salir: Meta contesta un 400 genérico que no dice
+     * qué campo fue, y depurarlo desde el hilo es imposible.
+     */
+    public function sendInteractive(Conversation $conversation, OutboundInteractive $interactive, ?string $replyToProviderId = null): SendResult
+    {
+        if ($problema = $interactive->problema()) {
+            throw new RuntimeException("Cloud API: {$problema}");
+        }
+
+        return $this->deliver($conversation, 'interactive', $interactive->toNode(), $replyToProviderId);
     }
 
     /**
@@ -459,10 +479,58 @@ class CloudApiGateway extends BaseGateway
             'text'   => $message['text']['body'] ?? null,
             'image', 'video', 'document', 'audio' => $message[$type]['caption'] ?? null,
             'button'   => $message['button']['text'] ?? null,
-            'location' => $message['location']['name'] ?? $message['location']['address'] ?? 'Ubicación',
-            'contact'  => $message['contacts'][0]['name']['formatted_name'] ?? 'Contacto',
-            default    => null,
+            /*
+            | Lo que el cliente tocó, como si lo hubiera escrito.
+            |
+            | Sin esto el mensaje llega con body null: el hilo muestra un renglón
+            | en blanco y el agente recibe text=null justo cuando el cliente
+            | acaba de responderle. El id viaja aparte, en el payload.
+            */
+            'interactive' => $this->interactiveReply($message)['title'] ?? null,
+            /*
+            | Una reacción es un emoji sobre OTRO mensaje, no un mensaje con
+            | contenido propio. Se guarda el emoji como cuerpo para que el hilo
+            | y la vista previa de la lista de conversaciones muestren algo; a
+            | qué mensaje aplica viaja en el payload.
+            |
+            | Emoji vacío = el cliente QUITÓ su reacción. Es un evento real y se
+            | nombra, en vez de quedar como un renglón en blanco.
+            */
+            'reaction' => ($message['reaction']['emoji'] ?? '') !== ''
+                ? $message['reaction']['emoji']
+                : 'Quitó su reacción',
+            'location'    => $message['location']['name'] ?? $message['location']['address'] ?? 'Ubicación',
+            'contact'     => $message['contacts'][0]['name']['formatted_name'] ?? 'Contacto',
+            default       => null,
         };
+    }
+
+    /**
+     * La opción que el cliente eligió en un botón o una lista.
+     *
+     * Meta manda `button_reply` o `list_reply` según el formato, con la misma
+     * forma adentro. Devuelve null para cualquier otro mensaje.
+     *
+     * @return array{id: string, title: string}|null
+     */
+    public function interactiveReply(array $message): ?array
+    {
+        $interactive = $message['interactive'] ?? null;
+
+        if (! is_array($interactive)) {
+            return null;
+        }
+
+        $respuesta = $interactive['button_reply'] ?? $interactive['list_reply'] ?? null;
+
+        if (! is_array($respuesta) || ! isset($respuesta['id'])) {
+            return null;
+        }
+
+        return [
+            'id'    => (string) $respuesta['id'],
+            'title' => (string) ($respuesta['title'] ?? ''),
+        ];
     }
 
     protected function endpoint(string $path): string

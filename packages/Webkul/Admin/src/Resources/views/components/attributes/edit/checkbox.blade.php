@@ -5,7 +5,9 @@
 
     $selectedOption = old($attribute->code, $value);
 
-    $selectedOption = is_array($selectedOption) ? $selectedOption : explode(',', $selectedOption);
+    // (string) explícito: explode(',', null) emite deprecation en PHP 8.1+.
+    // El '' que deja explode('') es inofensivo acá porque nunca coincide con un id.
+    $selectedOption = is_array($selectedOption) ? $selectedOption : explode(',', (string) $selectedOption);
 @endphp
 
 <input type="hidden" name="{{ $attribute->code }}" />

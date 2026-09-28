@@ -17,6 +17,7 @@ use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
 use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\StatusUpdate;
@@ -38,6 +39,11 @@ use Webkul\Whatsapp\Models\Conversation;
  */
 class MessengerGateway extends BaseGateway
 {
+    /** Límites de quick replies en la Send API de Messenger. */
+    public const MAX_QUICK_REPLIES = 13;
+
+    public const MAX_QUICK_REPLY_TITLE = 20;
+
     /** Page connections resolved during this delivery, keyed by page id. */
     protected array $connections = [];
 
@@ -59,11 +65,11 @@ class MessengerGateway extends BaseGateway
     public function capabilities(): Capabilities
     {
         return new Capabilities(
-            send: ['text', 'reply', 'emoji', 'image', 'audio', 'video', 'document'],
+            send: ['text', 'reply', 'emoji', 'image', 'audio', 'video', 'document', 'interactive'],
             // A Messenger sticker arrives as an image and is stored as one, so
             // 'sticker' is deliberately absent: capabilities list what the
             // driver actually produces.
-            receive: ['text', 'image', 'audio', 'video', 'document', 'location'],
+            receive: ['text', 'image', 'audio', 'video', 'document', 'location', 'interactive'],
         );
     }
 
@@ -208,6 +214,96 @@ class MessengerGateway extends BaseGateway
             ]));
 
         return new SendResult($this->messageIdFrom($response));
+    }
+
+    /**
+     * Botones de respuesta o lista de opciones, como quick replies.
+     *
+     * Messenger no tiene el interactivo de WhatsApp, pero sí quick replies:
+     * hasta 13 burbujas tocables encima del teclado, cada una con un payload
+     * propio. Es el equivalente funcional y cubre los dos formatos del DTO —3
+     * botones o 10 filas de lista— sin quedarse corto.
+     *
+     * Se eligieron quick replies y no el button template porque:
+     *   - el template tope 3 botones y la lista del agente llega a 10;
+     *   - la respuesta vuelve como un mensaje normal con `quick_reply.payload`,
+     *     que es exactamente el id que el agente ruteó al mandarlas;
+     *   - las burbujas desaparecen al elegir, así el hilo no queda con menús
+     *     viejos todavía tocables.
+     *
+     * El header y el pie se pegan al cuerpo: acá no existen como campos.
+     */
+    public function sendInteractive(Conversation $conversation, OutboundInteractive $interactive, ?string $replyToProviderId = null): SendResult
+    {
+        if ($problema = $interactive->problema()) {
+            throw new RuntimeException("Messenger: {$problema}");
+        }
+
+        $opciones = $this->quickReplies($interactive);
+
+        if (count($opciones) > self::MAX_QUICK_REPLIES) {
+            throw new RuntimeException(
+                'Messenger admite como máximo '.self::MAX_QUICK_REPLIES.' opciones, llegaron '.count($opciones).'.'
+            );
+        }
+
+        $connection = $this->connectionForConversation($conversation);
+
+        $response = Http::withToken($connection->access_token)
+            ->acceptJson()
+            ->post($this->endpoint($connection->account_id), array_filter([
+                'recipient'      => ['id' => $this->psidOf($conversation)],
+                'messaging_type' => 'RESPONSE',
+                'message'        => [
+                    'text'          => $this->textoDe($interactive),
+                    'quick_replies' => $opciones,
+                ],
+                'reply_to' => $replyToProviderId ? ['mid' => $replyToProviderId] : null,
+            ]));
+
+        return new SendResult($this->messageIdFrom($response));
+    }
+
+    /**
+     * Encabezado, cuerpo y pie en un solo texto.
+     *
+     * El botón que abre la lista (`list_button`) no se incluye: en Messenger no
+     * hay nada que abrir, las opciones ya están a la vista.
+     */
+    protected function textoDe(OutboundInteractive $interactive): string
+    {
+        $partes = array_filter([
+            $interactive->header,
+            $interactive->body,
+            $interactive->footer,
+        ], fn ($p) => $p !== null && trim($p) !== '');
+
+        return implode("\n\n", $partes);
+    }
+
+    /**
+     * Las opciones del DTO aplanadas a quick replies.
+     *
+     * Los títulos de sección se pierden: Messenger no tiene secciones y meterlos
+     * como una burbuja falsa daría una opción que no se puede elegir. Si el menú
+     * necesita agruparse, el agente lo dice en el cuerpo.
+     *
+     * @return array<int, array{content_type: string, title: string, payload: string}>
+     */
+    protected function quickReplies(OutboundInteractive $interactive): array
+    {
+        $opciones = $interactive->format === 'button'
+            ? $interactive->buttons
+            : array_merge(...array_map(fn ($s) => $s['rows'] ?? [], $interactive->sections));
+
+        return array_map(fn ($o) => [
+            'content_type' => 'text',
+            // 20 caracteres es el tope de Messenger y es MENOR que los 24 que
+            // admite una fila de lista de WhatsApp: sin recortar, Meta devuelve
+            // un 400 genérico por un título que el DTO ya dio por válido.
+            'title'        => mb_strimwidth((string) $o['title'], 0, self::MAX_QUICK_REPLY_TITLE, '…'),
+            'payload'      => (string) $o['id'],
+        ], array_values($opciones));
     }
 
     /**
@@ -407,6 +503,27 @@ class MessengerGateway extends BaseGateway
      */
     protected function contentOf(array $item): ?array
     {
+        /*
+        | El cliente tocó una quick reply o un botón de plantilla.
+        |
+        | Se guarda con la MISMA forma que deja la Cloud API —
+        | interactive.button_reply{id,title}— porque es de ahí que
+        | AgentPayload::selection() y el hilo leen la opción elegida. Traducir
+        | acá es lo que hace que el agente rutee por `selection.id` sin saber
+        | por qué canal llegó.
+        */
+        if ($eleccion = $this->seleccionDe($item)) {
+            return [
+                'type'      => 'interactive',
+                'body'      => $eleccion['title'],
+                'media_url' => null,
+                'raw'       => $item + ['interactive' => [
+                    'type'         => 'button_reply',
+                    'button_reply' => $eleccion,
+                ]],
+            ];
+        }
+
         if ($postback = data_get($item, 'postback')) {
             return [
                 'type'      => 'text',
@@ -477,6 +594,39 @@ class MessengerGateway extends BaseGateway
             'body'      => $message['text'] ?? null,
             'media_url' => data_get($attachment, 'payload.url'),
             'raw'       => $item,
+        ];
+    }
+
+    /**
+     * La opción elegida, venga de una quick reply o de un postback con payload.
+     *
+     * El postback de "Comenzar" y los de los menús persistentes de la página no
+     * son nuestros: su payload no es un id de opción del agente. Por eso solo se
+     * toman los que traen título, que es lo que manda un botón de plantilla.
+     *
+     * @return array{id: string, title: string}|null
+     */
+    protected function seleccionDe(array $item): ?array
+    {
+        $payload = data_get($item, 'message.quick_reply.payload');
+        $titulo = data_get($item, 'message.text');
+
+        if ($payload === null) {
+            if (data_get($item, 'postback.title') === null) {
+                return null;
+            }
+
+            $payload = data_get($item, 'postback.payload');
+            $titulo = data_get($item, 'postback.title');
+        }
+
+        if ($payload === null || $payload === '') {
+            return null;
+        }
+
+        return [
+            'id'    => (string) $payload,
+            'title' => (string) ($titulo ?? ''),
         ];
     }
 

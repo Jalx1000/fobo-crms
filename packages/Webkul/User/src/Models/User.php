@@ -19,14 +19,17 @@ class User extends Authenticatable implements UserContract
      */
     protected $fillable = [
         'name',
+        'cargo',
         'email',
         'image',
+        'firma',
         'password',
         'api_token',
         'role_id',
         'status',
         'view_permission',
         'horario',
+        'telefono',
     ];
 
     /**
@@ -61,6 +64,17 @@ class User extends Authenticatable implements UserContract
     }
 
     /**
+     * URL pública de la firma, o null si el asesor no cargó ninguna.
+     *
+     * Mismo mecanismo que el avatar: la columna guarda la ruta en el disco
+     * público y la URL se arma al leer, así mover el storage no rompe nada.
+     */
+    public function getFirmaUrlAttribute(): ?string
+    {
+        return $this->firma ? Storage::url($this->firma) : null;
+    }
+
+    /**
      * @return array
      */
     public function toArray()
@@ -68,8 +82,17 @@ class User extends Authenticatable implements UserContract
         $array = parent::toArray();
 
         $array['image_url'] = $this->image_url;
+        $array['firma_url'] = $this->firma_url;
 
         return $array;
+    }
+
+    /**
+     * Lo que atiende en la matriz producto × ciudad (round robin).
+     */
+    public function atiende()
+    {
+        return $this->hasMany(\Webkul\Product\Models\ProductoResponsableProxy::modelClass());
     }
 
     /**

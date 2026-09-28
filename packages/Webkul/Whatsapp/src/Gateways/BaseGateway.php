@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Webkul\Whatsapp\Exceptions\UnsupportedMessageException;
 use Webkul\Whatsapp\Gateways\Contracts\Gateway;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
 use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
 use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
@@ -61,6 +62,14 @@ abstract class BaseGateway implements Gateway
     public function sendLocation(Conversation $conversation, OutboundLocation $location, ?string $replyToProviderId = null): SendResult
     {
         throw UnsupportedMessageException::type($this->key(), 'location');
+    }
+
+    /**
+     * Default: no interactive support.
+     */
+    public function sendInteractive(Conversation $conversation, OutboundInteractive $interactive, ?string $replyToProviderId = null): SendResult
+    {
+        throw UnsupportedMessageException::type($this->key(), 'interactive');
     }
 
     /**

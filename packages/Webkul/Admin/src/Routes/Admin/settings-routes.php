@@ -15,6 +15,7 @@ use Webkul\Admin\Http\Controllers\Settings\SourceController;
 use Webkul\Admin\Http\Controllers\Settings\TagController;
 use Webkul\Admin\Http\Controllers\Settings\TypeController;
 use Webkul\Admin\Http\Controllers\Settings\UserController;
+use Webkul\Admin\Http\Controllers\Settings\EquipoVentasController;
 use Webkul\Admin\Http\Controllers\Settings\Warehouse\ActivityController;
 use Webkul\Admin\Http\Controllers\Settings\Warehouse\TagController as WarehouseTagController;
 use Webkul\Admin\Http\Controllers\Settings\Warehouse\WarehouseController;
@@ -33,6 +34,13 @@ Route::prefix('settings')->group(function () {
         Route::get('', 'index')->name('admin.settings.index');
 
         Route::get('search', 'search')->name('admin.settings.search');
+    });
+
+    /**
+     * Equipo de ventas: la matriz producto × ciudad vista por persona.
+     */
+    Route::controller(EquipoVentasController::class)->prefix('equipo-ventas')->group(function () {
+        Route::get('', 'index')->name('admin.settings.equipo_ventas.index');
     });
 
     /**

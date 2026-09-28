@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
 use Webkul\Whatsapp\Gateways\Dto\Capabilities;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
 use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
 use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
@@ -64,6 +65,14 @@ class SendMessage implements ShouldQueue
             return $gateway->sendLocation(
                 $message->conversation,
                 OutboundLocation::fromArray($message->payload['location'] ?? []),
+                $replyTo,
+            );
+        }
+
+        if ($message->type === 'interactive') {
+            return $gateway->sendInteractive(
+                $message->conversation,
+                OutboundInteractive::fromArray($message->payload['interactive'] ?? []),
                 $replyTo,
             );
         }

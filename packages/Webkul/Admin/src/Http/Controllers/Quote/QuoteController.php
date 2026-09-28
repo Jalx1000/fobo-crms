@@ -7,6 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -16,9 +17,11 @@ use Webkul\Admin\DataGrids\Quote\QuoteDataGrid;
 use Webkul\Admin\Http\Controllers\Controller;
 use Webkul\Admin\Http\Requests\AttributeForm;
 use Webkul\Admin\Http\Requests\MassDestroyRequest;
+use Webkul\Admin\Http\Resources\ProductResource;
 use Webkul\Admin\Http\Resources\QuoteResource;
 use Webkul\Core\Traits\PDFHandler;
 use Webkul\Lead\Repositories\LeadRepository;
+use Webkul\Product\Models\ProductProxy;
 use Webkul\Quote\Repositories\QuoteRepository;
 use Webkul\Whatsapp\Exceptions\AttachmentStorageException;
 use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
@@ -79,7 +82,23 @@ class QuoteController extends Controller
     {
         $lead = $this->leadRepository->find(request('id'));
 
-        return view('admin::quotes.create', compact('lead'));
+        /*
+        | Recotizar: el formulario arranca con los datos de una cotización
+        | anterior del mismo pedido.
+        |
+        | Casi toda recotización repite el cliente y las condiciones —forma de
+        | pago, entrega, NIT, marca, ciudad, sucursal— y cambia solo lo que se
+        | pide. Copiar eso a mano era transcribir ocho campos para cambiar uno.
+        |
+        | Los productos NO se copian a propósito: se recotiza justamente porque
+        | lo pedido cambió, y arrastrar las líneas viejas invita a mandar una
+        | cotización con cantidades que ya nadie pidió.
+        */
+        $copia = request('copiar_de')
+            ? $this->quoteRepository->find(request('copiar_de'))
+            : null;
+
+        return view('admin::quotes.create', compact('lead', 'copia'));
     }
 
     /**
@@ -87,6 +106,8 @@ class QuoteController extends Controller
      */
     public function store(AttributeForm $request): RedirectResponse
     {
+        $this->razonSocialPorDefecto($request);
+
         Event::dispatch('quote.create.before');
 
         $quote = $this->quoteRepository->create($request->all());
@@ -115,7 +136,38 @@ class QuoteController extends Controller
     {
         $quote = $this->quoteRepository->findOrFail($id);
 
-        return view('admin::quotes.edit', compact('quote'));
+        return view('admin::quotes.edit', [
+            'quote' => $quote,
+            'items' => $this->itemsConVariantes($quote),
+        ]);
+    }
+
+    /**
+     * Los ítems con las variantes y la entrega de su producto.
+     *
+     * Al crear, la fila recibe eso del buscador de productos. Al editar no hay
+     * búsqueda: si no viene de acá, el select de variante aparece vacío y el
+     * asesor no puede cambiar una tapa por otra sin borrar la fila.
+     *
+     * Un producto borrado deja la fila igual —los códigos ya están copiados en
+     * el ítem— pero sin variantes para elegir.
+     */
+    protected function itemsConVariantes($quote): array
+    {
+        $productos = ProductProxy::modelClass()::with('variantes')
+            ->whereIn('id', $quote->items->pluck('product_id')->filter()->unique())
+            ->get()
+            ->keyBy('id');
+
+        return $quote->items->map(function ($item) use ($productos) {
+            $producto = $productos->get($item->product_id);
+
+            $extra = $producto
+                ? Arr::only((new ProductResource($producto))->resolve(), ['variantes', 'entrega'])
+                : ['variantes' => [], 'entrega' => null];
+
+            return $item->toArray() + $extra;
+        })->values()->all();
     }
 
     /**
@@ -123,6 +175,8 @@ class QuoteController extends Controller
      */
     public function update(AttributeForm $request, int $id): RedirectResponse
     {
+        $this->razonSocialPorDefecto($request);
+
         Event::dispatch('quote.update.before', $id);
 
         $quote = $this->quoteRepository->update($request->all(), $id);
@@ -415,5 +469,34 @@ class QuoteController extends Controller
             view('admin::quotes.pdf', compact('quote'))->render(),
             'Quote_'.$quote->subject.'_'.$quote->created_at->format('d-m-Y')
         );
+    }
+
+    /**
+     * Razón social por defecto: el nombre del cliente.
+     *
+     * El formato RG-VCO-005 separa CLIENTE de RAZÓN SOCIAL, pero en la mayoría
+     * de los casos se factura a nombre de quien compra. Dejarla vacía saca el
+     * PDF con un campo en blanco justo donde va el dato de facturación.
+     *
+     * Solo se completa si vino vacía: lo que el asesor escriba manda, porque
+     * es el caso que justifica que el campo exista — se cotiza a una persona y
+     * se factura a la empresa de su grupo.
+     *
+     * Se resuelve en el servidor y no solo en el formulario para que valga
+     * también en la cotización que pre-elabora el agente.
+     */
+    protected function razonSocialPorDefecto(AttributeForm $request): void
+    {
+        if (trim((string) $request->input('razon_social')) !== '') {
+            return;
+        }
+
+        $person = $request->input('person_id')
+            ? app(\Webkul\Contact\Repositories\PersonRepository::class)->find($request->input('person_id'))
+            : null;
+
+        if ($person?->name) {
+            $request->merge(['razon_social' => $person->name]);
+        }
     }
 }

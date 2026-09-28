@@ -30,7 +30,7 @@ class ConfirmedLeadNotification extends Mailable
     public function build()
     {
         return $this->from(core()->getSenderEmailDetails()['email'], core()->getSenderEmailDetails()['name'])
-                    ->subject(trans('admin::app.emails.leads.confirmed.subject', ['id' => $this->lead->id]))
-                    ->view('admin::emails.leads.confirmed');
+            ->subject(trans('admin::app.emails.leads.confirmed.subject', ['id' => $this->lead->id]))
+            ->view('admin::emails.leads.confirmed');
     }
 }

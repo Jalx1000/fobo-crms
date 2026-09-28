@@ -4,13 +4,12 @@ namespace Webkul\Doctor\DataGrids;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
-use Webkul\DataGrid\DataGrid;
 use Illuminate\Support\Facades\Schema;
+use Webkul\DataGrid\DataGrid;
 
 class DoctorDataGrid extends DataGrid
 {
     protected $sortColumn = 'id';
-
 
     protected $itemsPerPage = 20;
 
@@ -31,7 +30,7 @@ class DoctorDataGrid extends DataGrid
                 $hasUniqueIdColumn ? 'doctors.unique_id' : DB::raw('NULL as unique_id'),
                 $hasIsActiveColumn ? 'doctors.is_active' : DB::raw('NULL as is_active'),
                 $hasSpecialtyTables
-                    ? DB::raw('GROUP_CONCAT(DISTINCT ' . $prefix . 'specialties.name SEPARATOR ", ") as specialties')
+                    ? DB::raw('GROUP_CONCAT(DISTINCT '.$prefix.'specialties.name SEPARATOR ", ") as specialties')
                     : DB::raw('"" as specialties')
             );
 

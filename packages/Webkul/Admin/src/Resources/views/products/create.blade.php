@@ -9,6 +9,7 @@
 
     <x-admin::form
         :action="route('admin.products.store')"
+        enctype="multipart/form-data"
         method="POST"
     >
         <div class="flex flex-col gap-4">
@@ -64,6 +65,24 @@
 
                         {!! view_render_event('admin.products.create.attributes.after') !!}
                     </div>
+
+                    @include('admin::products._caracteristicas')
+
+                    @include('admin::products._precios')
+
+                    @include('admin::products._variantes')
+
+                    @include('admin::products._entrega')
+
+                    @include('admin::products._sucursal-responsables')
+
+                    {{--
+                        La galería completa no está acá: reordenar, portada y
+                        borrar necesitan el producto ya creado. Lo que sí se
+                        puede es soltar las primeras imágenes, que viajan con el
+                        formulario y se guardan al crear.
+                    --}}
+                    @include('admin::products._fotos-al-crear')
                 </div>
 
                 <!-- Right sub-component -->

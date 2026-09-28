@@ -92,6 +92,45 @@
                         <x-admin::form.control-group.error control-name="name" />
                     </x-admin::form.control-group>
 
+                    <!-- Cargo -->
+                    <x-admin::form.control-group>
+                        <x-admin::form.control-group.label>
+                            @lang('admin::app.account.edit.cargo')
+                        </x-admin::form.control-group.label>
+
+                        <x-admin::form.control-group.control
+                            type="text"
+                            name="cargo"
+                            :value="old('cargo') ?: $user->cargo"
+                            :label="trans('admin::app.account.edit.cargo')"
+                            :placeholder="trans('admin::app.account.edit.cargo-placeholder')"
+                        />
+
+                        <x-admin::form.control-group.error control-name="cargo" />
+                    </x-admin::form.control-group>
+
+                    {{--
+                        Firma: mismo componente que el avatar, para que subir, ver y
+                        quitar se comporten igual en los dos y el asesor no tenga que
+                        aprender dos mecanismos en la misma pantalla.
+                    --}}
+                    <x-admin::form.control-group>
+                        <x-admin::form.control-group.label>
+                            @lang('admin::app.account.edit.firma')
+                        </x-admin::form.control-group.label>
+
+                        <x-admin::media.images
+                            name="firma"
+                            :uploaded-images="$user->firma ? [['id' => 'firma', 'url' => $user->firma_url]] : []"
+                        />
+
+                        <p class="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                            @lang('admin::app.account.edit.firma-help')
+                        </p>
+
+                        <x-admin::form.control-group.error control-name="firma" />
+                    </x-admin::form.control-group>
+
                     <!-- Email -->
                     <x-admin::form.control-group class="!mb-0">
                         <x-admin::form.control-group.label class="required">

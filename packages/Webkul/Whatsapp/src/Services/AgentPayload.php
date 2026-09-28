@@ -30,12 +30,24 @@ class AgentPayload
             'event'           => 'message.received',
             'conversation_id' => $conversation->id,
             'gateway'         => $conversation->gateway,
-            'ai_enabled'      => $conversation->aiEffective(),
+            /*
+            | Lo que el agente necesita saber es «¿contesto yo?», no «¿está la
+            | IA encendida?». Con un handoff pedido son cosas distintas: la IA
+            | sigue encendida pero el turno es del asesor.
+            */
+            'ai_enabled'      => $conversation->agenteDebeResponder(),
             'contact'         => $this->contact($conversation),
             'message'         => [
                 'id'        => $message->id,
                 'type'      => $message->type,
                 'text'      => $message->body,
+                /*
+                | Presente solo cuando el cliente tocó un botón o eligió de una
+                | lista. `text` ya trae el título —lo que el cliente ve—, pero el
+                | agente debe rutear por el `id`: los títulos se acortan a 20/24
+                | caracteres y pueden repetirse entre menús, el id no.
+                */
+                'selection' => $this->selection($message),
                 'timestamp' => optional($message->created_at)->toIso8601String(),
             ],
             'history' => $this->history($conversation),
@@ -48,6 +60,35 @@ class AgentPayload
                 'method' => 'POST',
                 'url'    => url("api/v1/whatsapp/conversations/{$conversation->id}/messages"),
             ],
+        ];
+    }
+
+    /**
+     * La opción que el cliente eligió, si el mensaje vino de un botón o lista.
+     *
+     * Se lee del payload crudo que guardó el webhook en vez de una columna
+     * propia: es el mismo dato que mandó Meta, sin una copia que pueda quedar
+     * desincronizada.
+     *
+     * @return array{id: string, title: string}|null
+     */
+    protected function selection(Message $message): ?array
+    {
+        $interactive = $message->payload['interactive'] ?? null;
+
+        if (! is_array($interactive)) {
+            return null;
+        }
+
+        $respuesta = $interactive['button_reply'] ?? $interactive['list_reply'] ?? null;
+
+        if (! is_array($respuesta) || ! isset($respuesta['id'])) {
+            return null;
+        }
+
+        return [
+            'id'    => (string) $respuesta['id'],
+            'title' => (string) ($respuesta['title'] ?? ''),
         ];
     }
 
@@ -68,7 +109,16 @@ class AgentPayload
     /**
      * Recent messages as role/content pairs for the agent's context.
      *
-     * @return array<int, array{role: string, content: ?string, type: string}>
+     * `sender` dice QUIEN escribió cada mensaje: 'ia', 'human' o 'contact'.
+     *
+     * Sin ese dato, todo lo saliente viajaba como `role: assistant` y el agente
+     * leía como PROPIAS las palabras de un asesor. Con eso pasó lo del 16/09:
+     * un asesor cerró con «Ok gracias por escribirnos», el agente lo tomó como
+     * su propia despedida y no volvió a contestarle al cliente, que escribió
+     * tres veces más. El `role` no cambia —los modelos esperan user/assistant—;
+     * el quién viaja al lado.
+     *
+     * @return array<int, array{role: string, sender: ?string, content: ?string, type: string}>
      */
     public function history(Conversation $conversation): array
     {
@@ -81,6 +131,7 @@ class AgentPayload
             ->sortBy('id')
             ->map(fn (Message $m) => [
                 'role'    => $m->direction === 'inbound' ? 'user' : 'assistant',
+                'sender'  => $m->sender,
                 'content' => $m->body,
                 'type'    => $m->type,
             ])

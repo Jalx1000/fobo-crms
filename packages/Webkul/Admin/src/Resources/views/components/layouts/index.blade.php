@@ -360,10 +360,18 @@
                 },
                 computed: {
                     model() {
-                        if (typeof this.modelValue === 'string') {
-                            return this.modelValue ? this.modelValue.split(',') : [];
-                        }
-                        return Array.isArray(this.modelValue) ? this.modelValue.map(String) : [];
+                        const crudo = typeof this.modelValue === 'string'
+                            ? (this.modelValue ? this.modelValue.split(',') : [])
+                            : (Array.isArray(this.modelValue) ? this.modelValue : []);
+
+                        /*
+                         * Se filtran los vacíos: el caso string ya lo hacía, el de
+                         * array no. Un [''] —que es lo que entrega explode(',', '')
+                         * del lado de PHP, y lo que puede devolver vee-validate al
+                         * quitar el último chip— dibujaba un chip sin texto, porque
+                         * getItemName('') no encuentra opción y devuelve el id crudo.
+                         */
+                        return crudo.map(String).filter(valor => valor !== '');
                     },
                     filteredItems() {
                         const q = this.searchTerm.trim().toLowerCase();

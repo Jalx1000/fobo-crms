@@ -22,5 +22,12 @@ class LeadServiceProvider extends ServiceProvider
      *
      * @return void
      */
-    public function register() {}
+    public function register()
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                \Webkul\Lead\Console\Commands\RecalcularPedidos::class,
+            ]);
+        }
+    }
 }

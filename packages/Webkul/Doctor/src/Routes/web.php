@@ -2,8 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use Webkul\Doctor\Http\Controllers\DoctorController;
-use Webkul\Doctor\Http\Controllers\SpecialtyController;
 use Webkul\Doctor\Http\Controllers\ScheduleController;
+use Webkul\Doctor\Http\Controllers\SpecialtyController;
 
 Route::prefix('doctor')->group(function () {
     Route::get('', [DoctorController::class, 'index'])->name('admin.doctor.index');

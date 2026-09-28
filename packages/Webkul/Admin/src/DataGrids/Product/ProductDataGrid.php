@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\DB;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\DataGrid\DataGrid;
 use Webkul\Product\Repositories\ProductRepository;
-use Webkul\Tag\Repositories\TagRepository;
 
 class ProductDataGrid extends DataGrid
 {

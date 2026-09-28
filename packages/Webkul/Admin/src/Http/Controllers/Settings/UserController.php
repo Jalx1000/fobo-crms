@@ -7,6 +7,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Prettus\Repository\Criteria\RequestCriteria;
 use Webkul\Admin\DataGrids\Settings\UserDataGrid;
@@ -15,6 +16,8 @@ use Webkul\Admin\Http\Requests\MassDestroyRequest;
 use Webkul\Admin\Http\Requests\MassUpdateRequest;
 use Webkul\Admin\Http\Resources\UserResource;
 use Webkul\Admin\Notifications\User\Create as UserCreatedNotification;
+use Webkul\Product\Repositories\ProductRepository;
+use Webkul\Product\Services\Responsables;
 use Webkul\User\Repositories\GroupRepository;
 use Webkul\User\Repositories\RoleRepository;
 use Webkul\User\Repositories\UserRepository;
@@ -45,7 +48,13 @@ class UserController extends Controller
 
         $groups = $this->groupRepository->all();
 
-        return view('admin::settings.users.index', compact('roles', 'groups'));
+        // Para la grilla «Atiende» del modal: qué producto en qué ciudad. Los
+        // productos son las líneas de Imprimir (cuatro), no un catálogo largo.
+        $productos = app(ProductRepository::class)->getModel()->newQuery()->orderBy('id')->get(['id', 'name']);
+
+        $ciudades = Responsables::ciudades();
+
+        return view('admin::settings.users.index', compact('roles', 'groups', 'productos', 'ciudades'));
     }
 
     /**
@@ -62,9 +71,19 @@ class UserController extends Controller
             'status'           => 'boolean|in:0,1',
             'view_permission'  => 'string|in:global,group,individual',
             'horario'          => 'nullable|string',
+            'cargo'            => 'nullable|string|max:120',
+            'telefono'         => 'nullable|string|max:30',
+            'atiende'          => 'nullable|array',
+            'atiende.*'        => 'nullable|array',
+            'atiende.*.*'      => 'string|max:60',
+            'firma'            => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
         ]);
 
-        $data = request()->all();
+        $data = request()->except('atiende');
+
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('users', 'telefono')) {
+            unset($data['telefono']);
+        }
 
         if (
             isset($data['password'])
@@ -73,9 +92,17 @@ class UserController extends Controller
             $data['password'] = bcrypt($data['password']);
         }
 
+        // El archivo no va por el repositorio: se guarda aparte, con el id.
+        unset($data['firma']);
+
         Event::dispatch('settings.user.create.before');
 
         $admin = $this->userRepository->create($data);
+
+        // Después de crear: la carpeta lleva el id, que recién existe acá.
+        if ($firma = $this->guardarFirma($admin)) {
+            $admin->update(['firma' => $firma]);
+        }
 
         $admin->groups()->sync($data['groups'] ?? []);
 
@@ -83,6 +110,12 @@ class UserController extends Controller
             Mail::queue(new UserCreatedNotification($admin));
         } catch (\Exception $e) {
             report($e);
+        }
+
+        // Qué atiende: la matriz producto × ciudad, guardada aparte del
+        // usuario porque vive en su propia tabla (ver Responsables).
+        if (request()->has('atiende')) {
+            app(Responsables::class)->guardarDe($admin->id, (array) request()->input('atiende', []));
         }
 
         Event::dispatch('settings.user.create.after', $admin);
@@ -100,8 +133,12 @@ class UserController extends Controller
     {
         $admin = $this->userRepository->with(['role', 'groups'])->findOrFail($id);
 
+        $productos = app(ProductRepository::class)->getModel()->newQuery()->orderBy('id')->get(['id']);
+
         return new JsonResponse([
-            'data'   => $admin,
+            'data' => $admin->toArray() + [
+                'atiende' => app(Responsables::class)->matrizDe($admin->id, $productos),
+            ],
         ]);
     }
 
@@ -119,9 +156,21 @@ class UserController extends Controller
             'status'           => 'nullable|boolean|in:0,1',
             'view_permission'  => 'required|string|in:global,group,individual',
             'horario'          => 'nullable|string',
+            'cargo'            => 'nullable|string|max:120',
+            'telefono'         => 'nullable|string|max:30',
+            'atiende'          => 'nullable|array',
+            'atiende.*'        => 'nullable|array',
+            'atiende.*.*'      => 'string|max:60',
+            'firma'            => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
         ]);
 
-        $data = request()->all();
+        $data = request()->except('atiende');
+
+        // Hasta que corra la migración del round robin la columna no existe;
+        // que falte un teléfono no puede impedir editar el resto del usuario.
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('users', 'telefono')) {
+            unset($data['telefono']);
+        }
 
         if (empty($data['password'])) {
             $data = Arr::except($data, ['password', 'confirm_password']);
@@ -137,9 +186,28 @@ class UserController extends Controller
 
         Event::dispatch('settings.user.update.before', $id);
 
+        /*
+        | La firma solo se toca si vino un archivo. El modal manda FormData con
+        | todos los campos, y `firma` ausente no significa «borrala», significa
+        | que no la cambiaron: pisarla con null cada vez que editan el cargo
+        | dejaría a los asesores sin firma sin que nadie entienda por qué.
+        */
+        unset($data['firma']);
+
+        if ($firma = $this->guardarFirma($this->userRepository->find($id))) {
+            $data['firma'] = $firma;
+        }
+
         $admin = $this->userRepository->update($data, $id);
 
         $admin->groups()->sync($data['groups'] ?? []);
+
+        // `has` y no `filled`: un formulario con todas las casillas
+        // desmarcadas manda `atiende` vacío y eso significa «ya no atiende
+        // nada», mientras que un cliente que no manda el campo no lo toca.
+        if (request()->has('atiende')) {
+            app(Responsables::class)->guardarDe($admin->id, (array) request()->input('atiende', []));
+        }
 
         Event::dispatch('settings.user.update.after', $admin);
 
@@ -258,5 +326,25 @@ class UserController extends Controller
         return response()->json([
             'message' => trans('admin::app.settings.users.index.mass-delete-success'),
         ]);
+    }
+
+    /**
+     * Guarda la firma subida y devuelve su ruta, o null si no vino ninguna.
+     *
+     * Misma carpeta y disco que el avatar (`admins/{id}`), con un nombre propio
+     * para que no se pisen. La anterior se borra: una firma vieja suelta en el
+     * disco no sirve para nada y ocupa lugar.
+     */
+    protected function guardarFirma($user): ?string
+    {
+        if (! $user || ! request()->hasFile('firma')) {
+            return null;
+        }
+
+        if ($user->firma) {
+            Storage::delete($user->firma);
+        }
+
+        return request()->file('firma')->store('admins/'.$user->id.'/firma');
     }
 }

@@ -97,15 +97,31 @@ class AttributeRepository extends Repository
      * @param  string  $code
      * @return \Webkul\Attribute\Contracts\Attribute
      */
-    public function getAttributeByCode($code)
+    /**
+     * El atributo de un código, dentro de una entidad.
+     *
+     * `$entityType` es opcional por compatibilidad, pero pasarlo importa: el
+     * mismo código puede existir en dos entidades. `nit` está en `persons` y en
+     * `quotes`, y sin la entidad esta búsqueda devuelve siempre el primero que
+     * encuentra — así una cotización terminaba leyendo el id del atributo de la
+     * persona y devolviendo null para un valor que sí estaba guardado.
+     *
+     * La caché también se indexa por entidad, no solo por código, o el primero
+     * en consultarse le fijaría la respuesta al otro para el resto del request.
+     */
+    public function getAttributeByCode($code, ?string $entityType = null)
     {
         static $attributes = [];
 
-        if (array_key_exists($code, $attributes)) {
-            return $attributes[$code];
+        $clave = $entityType ? $entityType.'.'.$code : $code;
+
+        if (array_key_exists($clave, $attributes)) {
+            return $attributes[$clave];
         }
 
-        return $attributes[$code] = $this->findOneByField('code', $code);
+        return $attributes[$clave] = $entityType
+            ? $this->findOneWhere(['code' => $code, 'entity_type' => $entityType])
+            : $this->findOneByField('code', $code);
     }
 
     /**

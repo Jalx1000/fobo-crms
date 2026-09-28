@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
 use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
 use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
@@ -113,6 +114,14 @@ interface Gateway
      * @throws \Webkul\Whatsapp\Exceptions\UnsupportedMessageException
      */
     public function sendLocation(Conversation $conversation, OutboundLocation $location, ?string $replyToProviderId = null): SendResult;
+
+    /**
+     * Send interactive reply buttons or an option list.
+     *
+     * Unlike a template, this needs no prior approval — but it only works
+     * inside the 24h window, same as any free-form message.
+     */
+    public function sendInteractive(Conversation $conversation, OutboundInteractive $interactive, ?string $replyToProviderId = null): SendResult;
 
     /**
      * Send an approved template (HSM).

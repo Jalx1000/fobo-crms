@@ -654,3 +654,23 @@
 .tox.tox-silver-sink.tox-tinymce-aux {
     z-index: 99999;
 }
+
+/*
+ | Quien tiene activado «reducir movimiento» en su sistema no quiere
+ | transiciones ni animaciones. Se respeta globalmente en vez de por
+ | componente: el admin tiene cientos y ninguno lo consideraba.
+ |
+ | Se conserva una duracion minima (0.01ms) y no 0 para que los eventos
+ | `transitionend`/`animationend` de los que dependen algunos componentes
+ | sigan disparandose.
+ */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

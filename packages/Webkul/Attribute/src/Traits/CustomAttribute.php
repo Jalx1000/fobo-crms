@@ -48,7 +48,12 @@ trait CustomAttribute
             if (isset($this->id)) {
                 $this->attributes[$key] = '';
 
-                $attribute = app(AttributeRepository::class)->getAttributeByCode($key);
+                /*
+                | Se pasa la entidad: el mismo código puede existir en dos
+                | (`nit` está en persons y en quotes) y sin esto el modelo lee
+                | el atributo del otro y devuelve null.
+                */
+                $attribute = app(AttributeRepository::class)->getAttributeByCode($key, $this->getTable());
 
                 $this->attributes[$key] = $this->getCustomAttributeValue($attribute);
 

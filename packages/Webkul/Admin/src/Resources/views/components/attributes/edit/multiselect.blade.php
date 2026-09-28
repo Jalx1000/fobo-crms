@@ -4,6 +4,19 @@
         : $attribute->options()->orderBy('sort_order')->get();
 
     $selectedOption = old($attribute->code) ?: $value;
+
+    /*
+    | explode(',', '') devuelve [''] — un array con una cadena vacía, no un array
+    | vacío. Sin filtrar, el multiselect dibuja un chip sin texto para ese '' y,
+    | peor, lo manda en el submit como una opción más.
+    |
+    | array_values() no es cosmético: array_filter conserva las claves, y un array
+    | con huecos se serializa como objeto JSON ({"1":"10"}) en vez de lista.
+    */
+    $selectedOptions = array_values(array_filter(
+        is_array($selectedOption) ? $selectedOption : explode(',', (string) $selectedOption),
+        fn ($opcion) => $opcion !== '' && $opcion !== null,
+    ));
 @endphp
 
 <v-field
@@ -14,7 +27,7 @@
 >
     <v-multiselect
         :items="{{ json_encode($options) }}"
-        :model-value="field.value || {{ json_encode(is_array($selectedOption) ? $selectedOption : explode(',', $selectedOption)) }}"
+        :model-value="field.value || {{ json_encode($selectedOptions) }}"
         @update:model-value="setValue($event)"
         placeholder="{{ $attribute->name }}"
         name="{{ $attribute->code }}[]"

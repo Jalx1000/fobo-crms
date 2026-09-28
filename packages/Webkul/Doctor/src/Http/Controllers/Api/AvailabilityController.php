@@ -20,19 +20,19 @@ class AvailabilityController extends Controller
     public function getForMonth(Request $request, $doctorId, $year, $month): JsonResponse
     {
         // 1. Validation
-        if (!is_numeric($year) || !is_numeric($month) || $month < 1 || $month > 12) {
+        if (! is_numeric($year) || ! is_numeric($month) || $month < 1 || $month > 12) {
             return response()->json(['message' => 'Invalid year or month value'], 400);
         }
 
         // 2. Check Doctor
         $doctor = $this->doctorRepository->find($doctorId);
-        if (!$doctor) {
+        if (! $doctor) {
             return response()->json(['message' => 'Doctor not found'], 404);
         }
 
         try {
             $includeBooked = filter_var($request->query('includeBooked', false), FILTER_VALIDATE_BOOLEAN);
-            
+
             // 3. Date Range
             $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
             $endDate = $startDate->copy()->endOfMonth();
@@ -48,13 +48,13 @@ class AvailabilityController extends Controller
             // Assuming activities table stores appointments and 'doctor_activities' links them
             // or 'participants' logic. Based on ActivityController, it seems we check 'doctor_activities'.
             // And also 'doctor_shifts' are the availability.
-            
+
             // We need to fetch booked slots.
             // Let's assume 'activities' with type 'meeting' or 'call' are bookings.
             // And 'time_off' also blocks availability.
-            
+
             // Reusing logic from ActivityController::get logic effectively.
-            
+
             $bookings = DB::table('activities')
                 ->join('doctor_activities', 'activities.id', '=', 'doctor_activities.activity_id')
                 ->where('doctor_activities.doctor_id', $doctorId)
@@ -69,13 +69,13 @@ class AvailabilityController extends Controller
             while ($cursor->lte($endDate)) {
                 $dateStr = $cursor->toDateString();
                 $dayShifts = $shifts->where('date', $dateStr); // Collection check
-                
+
                 // If using repository findWhere returns Collection of models.
                 // Shift model has 'date' (Carbon or string? likely cast to Date).
                 // Let's assume date is Carbon object in model.
-                
+
                 $dayShifts = $shifts->filter(function ($shift) use ($dateStr) {
-                    return $shift->date instanceof Carbon 
+                    return $shift->date instanceof Carbon
                         ? $shift->date->toDateString() === $dateStr
                         : $shift->date === $dateStr;
                 });
@@ -88,25 +88,27 @@ class AvailabilityController extends Controller
                     // Or we can return the shift ranges minus bookings.
                     // The example: 09:00-09:30, 09:30-10:00.
                     // I'll assume 30 minutes for now.
-                    
+
                     $slotDuration = 30; // minutes
-                    
-                    $shiftStart = Carbon::parse($dateStr . ' ' . $shift->start_time);
-                    $shiftEnd = Carbon::parse($dateStr . ' ' . $shift->end_time);
-                    
+
+                    $shiftStart = Carbon::parse($dateStr.' '.$shift->start_time);
+                    $shiftEnd = Carbon::parse($dateStr.' '.$shift->end_time);
+
                     $slotCursor = $shiftStart->copy();
-                    
+
                     while ($slotCursor->lt($shiftEnd)) {
                         $slotEnd = $slotCursor->copy()->addMinutes($slotDuration);
-                        if ($slotEnd->gt($shiftEnd)) break;
-                        
+                        if ($slotEnd->gt($shiftEnd)) {
+                            break;
+                        }
+
                         $isBooked = false;
-                        
+
                         // Check against bookings
                         foreach ($bookings as $booking) {
                             $bStart = Carbon::parse($booking->schedule_from);
                             $bEnd = Carbon::parse($booking->schedule_to);
-                            
+
                             // Check overlap
                             // Slot overlaps booking if: SlotStart < BookingEnd AND SlotEnd > BookingStart
                             if ($slotCursor->lt($bEnd) && $slotEnd->gt($bStart)) {
@@ -114,27 +116,27 @@ class AvailabilityController extends Controller
                                 break;
                             }
                         }
-                        
-                        if (!$isBooked || $includeBooked) {
+
+                        if (! $isBooked || $includeBooked) {
                             $daySlots[] = [
                                 'startTime' => $slotCursor->format('H:i'),
-                                'endTime' => $slotEnd->format('H:i'),
-                                'isBooked' => $isBooked
+                                'endTime'   => $slotEnd->format('H:i'),
+                                'isBooked'  => $isBooked,
                             ];
                         }
-                        
+
                         $slotCursor->addMinutes($slotDuration);
                     }
                 }
-                
+
                 if (count($daySlots) > 0 || $includeBooked) {
-                     // Sort slots by time
-                     usort($daySlots, fn($a, $b) => strcmp($a['startTime'], $b['startTime']));
-                     
-                     $result[] = [
-                         'date' => $dateStr,
-                         'slots' => $daySlots
-                     ];
+                    // Sort slots by time
+                    usort($daySlots, fn ($a, $b) => strcmp($a['startTime'], $b['startTime']));
+
+                    $result[] = [
+                        'date'  => $dateStr,
+                        'slots' => $daySlots,
+                    ];
                 }
 
                 $cursor->addDay();
@@ -143,7 +145,7 @@ class AvailabilityController extends Controller
             return response()->json($result);
 
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Internal Server Error: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Internal Server Error: '.$e->getMessage()], 500);
         }
     }
 }

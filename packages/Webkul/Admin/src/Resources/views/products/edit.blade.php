@@ -63,6 +63,18 @@
 
                         {!! view_render_event('admin.products.edit.attributes.after', ['product' => $product]) !!}
                     </div>
+                
+                    @include('admin::products._caracteristicas')
+
+                    @include('admin::products._precios')
+
+                    @include('admin::products._variantes')
+
+                    @include('admin::products._entrega')
+
+                    @include('admin::products._sucursal-responsables')
+
+                    @include('admin::products._galeria')
                 </div>
 
                 <!-- Right sub-component -->

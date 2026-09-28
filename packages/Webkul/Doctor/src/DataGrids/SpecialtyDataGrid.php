@@ -4,7 +4,6 @@ namespace Webkul\Doctor\DataGrids;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Webkul\DataGrid\DataGrid;
 
 class SpecialtyDataGrid extends DataGrid

@@ -2,10 +2,10 @@
 
 namespace Webkul\Admin\Listeners;
 
+use Illuminate\Support\Facades\Log;
+use Webkul\Admin\Jobs\NotifyWarehouseManager;
 use Webkul\Email\Repositories\EmailRepository;
 use Webkul\Lead\Repositories\LeadRepository;
-use Webkul\Admin\Jobs\NotifyWarehouseManager;
-use Illuminate\Support\Facades\Log;
 
 class Lead
 {
@@ -49,29 +49,30 @@ class Lead
             }
 
             $stage = $lead->stage;
-            if (!$stage) {
+            if (! $stage) {
                 return;
             }
 
             // Check if stage is "Confirmado" (by code or name)
             $stageName = strtolower($stage->name ?? '');
             $stageCode = strtolower($stage->code ?? '');
-            
-            if ($stageCode !== 'confirmado' && !str_contains($stageName, 'confirmado')) {
+
+            if ($stageCode !== 'confirmado' && ! str_contains($stageName, 'confirmado')) {
                 return;
             }
 
             // Identify Warehouse (Ciudad) attribute
             // We assume the attribute code is 'ciudad' as per user request context
             $warehouseId = $lead->getCustomAttributeValue($lead->getCustomAttributes()->where('code', 'ciudad')->first());
-            
-            if (!$warehouseId) {
+
+            if (! $warehouseId) {
                 // Try 'warehouse_id' as fallback
                 $warehouseId = $lead->getCustomAttributeValue($lead->getCustomAttributes()->where('code', 'warehouse_id')->first());
             }
 
-            if (!$warehouseId) {
+            if (! $warehouseId) {
                 Log::warning("Lead Notification: No warehouse/ciudad associated with Lead #{$lead->id}");
+
                 return;
             }
 
@@ -79,7 +80,7 @@ class Lead
             NotifyWarehouseManager::dispatch($lead, $warehouseId);
 
         } catch (\Exception $e) {
-            Log::error("Lead Notification Listener Error: " . $e->getMessage());
+            Log::error('Lead Notification Listener Error: '.$e->getMessage());
         }
     }
 }

@@ -20,13 +20,13 @@ class SpecialtyController extends Controller
             $specialties = $this->specialtyRepository->all();
 
             return response()->json([
-                'data' => $specialties
+                'data' => $specialties,
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Internal Server Error',
-                'error' => $e->getMessage()
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }
@@ -36,10 +36,14 @@ class SpecialtyController extends Controller
      *     path="/api/specialties",
      *     summary="Create a new specialty",
      *      tags={"Specialties"},
+     *
      *     @OA\RequestBody(
+     *
      *         @OA\MediaType(
      *             mediaType="application/json",
+     *
      *             @OA\Schema(
+     *
      *                 @OA\Property(
      *                     property="name",
      *                     type="string"
@@ -52,6 +56,7 @@ class SpecialtyController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=201,
      *         description="Specialty created successfully"

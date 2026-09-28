@@ -107,6 +107,14 @@ Route::get('/public/chat-history', function (Request $request) {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
+    /*
+    | Los recursos de krayin/rest-api devuelven una lista fija de campos y ningún
+    | atributo personalizado: `nit` se guarda bien pero la respuesta lo omite.
+    | Esto lo complementa; no se parchea el recurso porque vive en vendor/.
+    */
+    Route::get('/v1/atributos/{entidad}/{id}', [\App\Http\Controllers\Api\AtributosController::class, 'show'])
+        ->whereNumber('id');
+
     Route::get('/horarios', [\App\Http\Controllers\Api\ScheduleController::class, 'getHorarios']);
     Route::get('/disponibilidad', [\App\Http\Controllers\Api\ScheduleController::class, 'getDisponibilidad']);
 });

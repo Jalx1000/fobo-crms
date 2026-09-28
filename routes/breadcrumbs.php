@@ -367,6 +367,12 @@ Breadcrumbs::for('settings.web_forms.edit', function (BreadcrumbTrail $trail, $w
     $trail->push(trans('admin::app.settings.webforms.edit.title'), route('admin.settings.web_forms.edit', $webForm->id));
 });
 
+// Settings > Equipo de ventas
+Breadcrumbs::for('settings.equipo_ventas', function (BreadcrumbTrail $trail) {
+    $trail->parent('settings');
+    $trail->push(trans('admin::app.settings.equipo-ventas.index.title'), route('admin.settings.equipo_ventas.index'));
+});
+
 // Settings > Warehouse
 Breadcrumbs::for('settings.warehouses', function (BreadcrumbTrail $trail) {
     $trail->parent('settings');

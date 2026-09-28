@@ -69,6 +69,8 @@
             <!-- Lead Attributes -->
             @include ('admin::leads.view.attributes')
 
+            @include ('admin::leads.view.resumen')
+
             <!-- Contact Person -->
             @include ('admin::leads.view.person')
         </div>
@@ -85,7 +87,10 @@
             <!-- Activities -->
             {!! view_render_event('admin.leads.view.activities.before', ['lead' => $lead]) !!}
 
-            <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : 'all'" :extra-types="[
+            {{-- La pestaña que se abre sola es WhatsApp: casi todo pedido de
+                 Imprimir nace y se sigue por ahí, así que es lo primero que un
+                 asesor quiere leer. Viniendo desde una cotización manda esa. --}}
+            <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : 'whatsapp'" :extra-types="[
                 ['name' => 'quotes', 'label' => trans('admin::app.leads.view.tabs.quotes')],
                 ['name' => 'whatsapp', 'label' => 'WhatsApp'],
                 ['name' => 'archivos', 'label' => 'Archivos'],

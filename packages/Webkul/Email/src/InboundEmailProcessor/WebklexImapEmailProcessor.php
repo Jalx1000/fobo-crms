@@ -108,8 +108,8 @@ class WebklexImapEmailProcessor implements InboundEmailProcessor
          * To Do: Review this.
          */
         $rawFolderName = $message->getFolder()->name;
-        $segments      = explode('/', $rawFolderName);
-        $baseName      = end($segments);
+        $segments = explode('/', $rawFolderName);
+        $baseName = end($segments);
 
         switch (strtolower($baseName)) {
             case 'inbox':

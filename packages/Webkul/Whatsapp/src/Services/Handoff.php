@@ -224,7 +224,14 @@ class Handoff
         // attends is not a valid assignee. Most leads are owned by an admin, so
         // without this nearly every handoff would land on someone who does not
         // answer WhatsApp — and never reach the sales pool.
-        if ($roles = array_filter((array) config('whatsapp.handoff.exclude_roles', []))) {
+        //
+        // Except when the owner is in the responsables matrix: being listed
+        // there means they attend, whatever their role says (half of Imprimir's
+        // sales team are "Supervisores"). Sending those to the pool would undo
+        // the round robin that picked them.
+        $roles = array_filter((array) config('whatsapp.handoff.exclude_roles', []));
+
+        if ($roles && ! app(\Webkul\Product\Services\Responsables::class)->atiende((int) $candidate)) {
             $query->whereHas('role', fn ($q) => $q->whereNotIn('name', $roles));
         }
 

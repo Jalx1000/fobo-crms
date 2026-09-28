@@ -645,7 +645,18 @@
                     });
                 } */
 
-                this.selectedType = 'all';
+                /*
+                | La pestaña inicial la decide quien usa el componente con
+                | `active-type`. Acá se ponía 'all' sin condición y pisaba esa
+                | decisión: la ficha del pedido pedía abrir en WhatsApp y
+                | siempre terminaba en «Todas».
+                |
+                | El respaldo sigue siendo 'all' para una pestaña que no existe,
+                | así no queda una vista en blanco.
+                */
+                if (! this.types.find(type => type.name === this.selectedType)) {
+                    this.selectedType = 'all';
+                }
 
                 this.$emitter.on('on-activity-added', (activity) => this.activities.unshift(activity));
             },

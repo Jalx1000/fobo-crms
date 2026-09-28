@@ -262,6 +262,62 @@
                                 <x-admin::form.control-group.error control-name="name" />
                             </x-admin::form.control-group>
 
+                            <!-- Cargo -->
+                            <x-admin::form.control-group>
+                                <x-admin::form.control-group.label>
+                                    @lang('admin::app.settings.users.index.create.cargo')
+                                </x-admin::form.control-group.label>
+
+                                <x-admin::form.control-group.control
+                                    type="text"
+                                    id="cargo"
+                                    name="cargo"
+                                    v-model="user.cargo"
+                                    :label="trans('admin::app.settings.users.index.create.cargo')"
+                                    :placeholder="trans('admin::app.settings.users.index.create.cargo-placeholder')"
+                                />
+
+                                <x-admin::form.control-group.error control-name="cargo" />
+                            </x-admin::form.control-group>
+
+                            <!-- Firma -->
+                            <x-admin::form.control-group>
+                                <x-admin::form.control-group.label>
+                                    @lang('admin::app.settings.users.index.create.firma')
+                                </x-admin::form.control-group.label>
+
+                                {{--
+                                    La actual se muestra arriba del input: sin esto el
+                                    asesor no sabe si ya tiene firma cargada ni cuál, y
+                                    la vuelve a subir cada vez «por las dudas».
+                                --}}
+                                <div v-if="user.firma_url" class="mb-2 flex items-center gap-3">
+                                    <img
+                                        :src="user.firma_url"
+                                        class="h-14 max-w-[220px] rounded border border-gray-200 bg-white object-contain p-1 dark:border-gray-800"
+                                        alt="Firma actual"
+                                    />
+
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                                        @lang('admin::app.settings.users.index.create.firma-actual')
+                                    </span>
+                                </div>
+
+                                <input
+                                    type="file"
+                                    id="firma"
+                                    name="firma"
+                                    accept="image/png,image/jpeg,image/webp"
+                                    class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                                />
+
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    @lang('admin::app.settings.users.index.create.firma-help')
+                                </p>
+
+                                <x-admin::form.control-group.error control-name="firma" />
+                            </x-admin::form.control-group>
+
                             {!! view_render_event('admin.settings.users.index.form.name.after') !!}
 
                             {!! view_render_event('admin.settings.users.index.form.email.before') !!}
@@ -390,24 +446,86 @@
                                 </x-admin::form.control-group>
                             </div>
 
-                            <div>
-                                <x-admin::form.control-group>
+                            <div class="flex gap-4">
+                                <x-admin::form.control-group class="flex-1">
                                     <x-admin::form.control-group.label>
                                         @lang('admin::app.settings.users.index.create.horario')
                                     </x-admin::form.control-group.label>
 
                                     <x-admin::form.control-group.control
-                                        type="textarea"
+                                        type="text"
                                         id="horario"
                                         name="horario"
                                         v-model="user.horario"
                                         :label="trans('admin::app.settings.users.index.create.horario')"
-                                        :placeholder="trans('admin::app.settings.users.index.create.horario')"
+                                        :placeholder="trans('admin::app.settings.users.index.create.horario-placeholder')"
                                     />
 
                                     <x-admin::form.control-group.error control-name="horario" />
                                 </x-admin::form.control-group>
+
+                                <x-admin::form.control-group class="flex-1">
+                                    <x-admin::form.control-group.label>
+                                        @lang('admin::app.settings.users.index.create.telefono')
+                                    </x-admin::form.control-group.label>
+
+                                    <x-admin::form.control-group.control
+                                        type="text"
+                                        id="telefono"
+                                        name="telefono"
+                                        v-model="user.telefono"
+                                        :label="trans('admin::app.settings.users.index.create.telefono')"
+                                        :placeholder="trans('admin::app.settings.users.index.create.telefono-placeholder')"
+                                    />
+
+                                    <x-admin::form.control-group.error control-name="telefono" />
+                                </x-admin::form.control-group>
                             </div>
+
+                            {{--
+                                Qué atiende: producto × ciudad. Plegado, porque la mayoría de
+                                los usuarios no vende y el modal ya es largo. Varias personas
+                                en la misma casilla se turnan; «Bolivia» cubre donde no hay
+                                nadie local. Se guarda en producto_responsables.
+                            --}}
+                            @if ($productos->isNotEmpty())
+                                <details class="mb-4 rounded-md border border-gray-200 dark:border-gray-800" :open="atiendeAlgo">
+                                    <summary class="cursor-pointer select-none px-3 py-2 text-sm font-medium text-gray-800 dark:text-white">
+                                        @lang('admin::app.settings.users.index.create.atiende')
+                                        <span class="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">
+                                            @{{ atiendeResumen }}
+                                        </span>
+                                    </summary>
+
+                                    <div class="border-t border-gray-100 px-3 py-2 dark:border-gray-800">
+                                        <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                                            @lang('admin::app.settings.users.index.create.atiende-help')
+                                        </p>
+
+                                        @foreach ($productos as $producto)
+                                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 py-1 text-sm">
+                                                <span class="w-40 shrink-0 text-gray-800 dark:text-gray-300">{{ $producto->name }}</span>
+
+                                                @foreach ($ciudades as $ciudad)
+                                                    <label class="flex cursor-pointer items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
+                                                        <input
+                                                            type="checkbox"
+                                                            name="atiende[{{ $producto->id }}][]"
+                                                            value="{{ $ciudad }}"
+                                                            class="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 text-brandColor focus:ring-brandColor dark:border-gray-600 dark:bg-gray-900"
+                                                            v-model="user.atiende[{{ $producto->id }}]"
+                                                        />
+                                                        {{ $ciudad }}
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        @endforeach
+                                    </div>
+
+                                    {{-- Con nada marcado igual viaja la clave: «no atiende nada» también se guarda. --}}
+                                    <input type="hidden" name="atiende[]" value="" />
+                                </details>
+                            @endif
 
                             {!! view_render_event('admin.settings.users.index.form.role_id.after') !!}
 
@@ -511,6 +629,7 @@
 
                         user: {
                             view_permission: 'global',
+                            atiende: this.atiendeVacio(),
                         },
                     };
                 },
@@ -533,11 +652,28 @@
                     selectedType() {
                         return this.user.id ? 'edit' : 'create';
                     },
+
+                    atiendeAlgo() {
+                        return Object.values(this.user.atiende || {}).some(lista => lista.length);
+                    },
+
+                    // «2 productos · 3 casillas», para saber si vale la pena desplegar.
+                    atiendeResumen() {
+                        const listas = Object.values(this.user.atiende || {}).filter(l => l.length);
+
+                        if (! listas.length) {
+                            return "@lang('admin::app.settings.users.index.create.atiende-nada')";
+                        }
+
+                        return listas.length + ' / ' + listas.reduce((n, l) => n + l.length, 0);
+                    },
                 },
 
                 mounted() {
                     @if (request('action') === 'create')
                         this.openModal();
+                    @elseif (request('action') === 'edit' && request()->integer('id'))
+                        this.editModal("{{ route('admin.settings.users.edit', request()->integer('id')) }}");
                     @endif
                 },
 
@@ -554,9 +690,16 @@
                         window.history.replaceState({}, '', url);
                     },
 
+                    // Una clave por producto, siempre: un v-model de checkbox sobre
+                    // una clave inexistente se comporta como booleano y pierde la ciudad.
+                    atiendeVacio() {
+                        return Object.fromEntries(@json($productos->pluck('id')).map(id => [id, []]));
+                    },
+
                     openModal() {
                         this.user = {
                             groups: [],
+                            atiende: this.atiendeVacio(),
                         };
 
                         this.$refs.userUpdateAndCreateModal.toggle();
@@ -605,6 +748,8 @@
                                 this.user = response.data.data;
 
                                 this.user.groups = this.user.groups.map(group => group.id);
+
+                                this.user.atiende = Object.assign(this.atiendeVacio(), this.user.atiende || {});
 
                                 this.$refs.userUpdateAndCreateModal.toggle();
                             })

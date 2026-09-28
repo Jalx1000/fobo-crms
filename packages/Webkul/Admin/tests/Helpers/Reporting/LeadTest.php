@@ -2,13 +2,12 @@
 
 namespace Webkul\Admin\Tests\Helpers\Reporting;
 
-use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
-use Webkul\User\Models\User;
-use Webkul\User\Models\Role;
-use Webkul\Lead\Models\Lead;
+use Tests\TestCase;
 use Webkul\Activity\Models\Activity as LeadActivity;
+use Webkul\Lead\Models\Lead;
+use Webkul\User\Models\Role;
+use Webkul\User\Models\User;
 
 class LeadTest extends TestCase
 {
@@ -16,7 +15,7 @@ class LeadTest extends TestCase
 
     protected $user;
 
-    public function setUp(): void
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -30,14 +29,14 @@ class LeadTest extends TestCase
         $lead = Lead::factory()->create();
 
         LeadActivity::factory()->create([
-            'lead_id' => $lead->id,
-            'user_id' => $this->user->id,
+            'lead_id'    => $lead->id,
+            'user_id'    => $this->user->id,
             'created_at' => now()->subMinutes(30),
         ]);
 
         LeadActivity::factory()->create([
-            'lead_id' => $lead->id,
-            'user_id' => $this->user->id,
+            'lead_id'    => $lead->id,
+            'user_id'    => $this->user->id,
             'created_at' => now()->subMinutes(15),
         ]);
 
@@ -67,20 +66,20 @@ class LeadTest extends TestCase
         $lead2 = Lead::factory()->create();
 
         LeadActivity::factory()->create([
-            'lead_id' => $lead1->id,
-            'user_id' => $this->user->id,
+            'lead_id'    => $lead1->id,
+            'user_id'    => $this->user->id,
             'created_at' => now()->subMinutes(60),
         ]);
 
         LeadActivity::factory()->create([
-            'lead_id' => $lead1->id,
-            'user_id' => $this->user->id,
+            'lead_id'    => $lead1->id,
+            'user_id'    => $this->user->id,
             'created_at' => now()->subMinutes(45),
         ]);
 
         LeadActivity::factory()->create([
-            'lead_id' => $lead2->id,
-            'user_id' => $this->user->id,
+            'lead_id'    => $lead2->id,
+            'user_id'    => $this->user->id,
             'created_at' => now()->subMinutes(20),
         ]);
 

@@ -53,7 +53,7 @@ class NotifyAgent implements ShouldQueue
         }
 
         // Re-check at run time: the human may have taken over since enqueue.
-        if (! $message->conversation->aiEffective()) {
+        if (! $message->conversation->agenteDebeResponder()) {
             return;
         }
 

@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Queue;
 use Webkul\Messenger\Gateways\MessengerGateway;
 use Webkul\Messenger\Models\SocialConnection;
 use Webkul\Messenger\Services\MessengerProfile;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\IngestInboundPayload;
 use Webkul\Whatsapp\Models\Conversation;
@@ -371,4 +372,115 @@ it('waits for the phone before registering a contact on a phone channel', functi
     );
 
     expect($person)->toBeNull();
+});
+
+/*
+|--------------------------------------------------------------------------
+| Botones
+|--------------------------------------------------------------------------
+|
+| Messenger no tiene el interactivo de WhatsApp, pero sí quick replies. El
+| DTO y el controlador del agente no cambian: la traducción vive sola en el
+| driver, y la elección vuelve con la misma forma que deja la Cloud API para
+| que `selection.id` sirva igual en los dos canales.
+*/
+
+it('manda los botones del agente como quick replies', function () {
+    connectPage('PAGE-1');
+
+    Http::fake(['graph.facebook.com/*' => Http::response(['message_id' => 'mid-qr'], 200)]);
+
+    $conversation = (new Conversation)->forceFill([
+        'id'                       => 1,
+        'gateway'                  => 'messenger',
+        'provider_conversation_id' => 'PSID-1',
+        'provider_account_id'      => 'PAGE-1',
+    ]);
+
+    messengerGateway()->sendInteractive($conversation, new OutboundInteractive(
+        format: 'button',
+        body: '¿Qué te muestro?',
+        header: 'Imprimir',
+        footer: 'Elegí una opción',
+        buttons: [
+            ['id' => 'prod:bolsas', 'title' => 'Bolsas'],
+            ['id' => 'prod:tapas', 'title' => 'Tapas'],
+        ],
+    ));
+
+    Http::assertSent(function ($request) {
+        return $request['message']['text'] === "Imprimir\n\n¿Qué te muestro?\n\nElegí una opción"
+            && $request['message']['quick_replies'] === [
+                ['content_type' => 'text', 'title' => 'Bolsas', 'payload' => 'prod:bolsas'],
+                ['content_type' => 'text', 'title' => 'Tapas', 'payload' => 'prod:tapas'],
+            ];
+    });
+});
+
+it('aplana las secciones de una lista y recorta los títulos al tope de Messenger', function () {
+    connectPage('PAGE-1');
+
+    Http::fake(['graph.facebook.com/*' => Http::response(['message_id' => 'mid-qr'], 200)]);
+
+    $conversation = (new Conversation)->forceFill([
+        'id'                       => 1,
+        'gateway'                  => 'messenger',
+        'provider_conversation_id' => 'PSID-1',
+        'provider_account_id'      => 'PAGE-1',
+    ]);
+
+    messengerGateway()->sendInteractive($conversation, new OutboundInteractive(
+        format: 'list',
+        body: 'Nuestros productos',
+        listButton: 'Ver productos',
+        sections: [
+            ['title' => 'Embalaje', 'rows' => [
+                // 24 caracteres: válido para WhatsApp, pasado para Messenger.
+                ['id' => '1', 'title' => 'Bolsas de alta densidad'],
+            ]],
+            ['title' => 'Tapas', 'rows' => [
+                ['id' => '2', 'title' => 'Tapas'],
+            ]],
+        ],
+    ));
+
+    Http::assertSent(function ($request) {
+        $opciones = $request['message']['quick_replies'];
+
+        return count($opciones) === 2
+            && mb_strlen($opciones[0]['title']) <= MessengerGateway::MAX_QUICK_REPLY_TITLE
+            && $opciones[0]['payload'] === '1'
+            && $opciones[1]['title'] === 'Tapas'
+            // El botón que abre la lista no va: las opciones ya están a la vista.
+            && ! str_contains($request['message']['text'], 'Ver productos');
+    });
+});
+
+it('anuncia que puede mandar y recibir interactivos', function () {
+    expect(messengerGateway()->capabilities()->canSend('interactive'))->toBeTrue();
+});
+
+it('devuelve la opción elegida con la misma forma que la Cloud API', function () {
+    connectPage('PAGE-1');
+
+    $evento = [
+        'sender'    => ['id' => 'PSID-1'],
+        'recipient' => ['id' => 'PAGE-1'],
+        'timestamp' => 1700000000000,
+        'message'   => [
+            'mid'         => 'mid-qr-in',
+            'text'        => 'Bolsas',
+            'quick_reply' => ['payload' => 'prod:bolsas'],
+        ],
+    ];
+
+    $batch = messengerGateway()->parseWebhook(messagingPayload($evento));
+
+    $mensaje = $batch->messages[0];
+
+    expect($mensaje->type)->toBe('interactive')
+        ->and($mensaje->body)->toBe('Bolsas')
+        // Es lo que lee AgentPayload::selection() para armar message.selection.
+        ->and($mensaje->raw['interactive']['button_reply'])
+        ->toBe(['id' => 'prod:bolsas', 'title' => 'Bolsas']);
 });

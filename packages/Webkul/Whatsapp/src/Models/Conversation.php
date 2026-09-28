@@ -115,6 +115,23 @@ class Conversation extends Model implements ConversationContract
      * While this holds, the AI agent must stay out — see Services\Handoff and
      * the guard in InboxController::toggleAgent().
      */
+    /**
+     * Si el CRM debe rutearle este mensaje al agente de IA.
+     *
+     * `aiEffective()` sola no alcanza: contesta «la IA está encendida», que no
+     * es lo mismo que «el agente debe contestar». Con un handoff pedido la IA
+     * sigue encendida —el asesor puede devolverla— pero el turno ya es de un
+     * humano.
+     *
+     * Sin esto el CRM invitaba al agente a responder y después le rechazaba la
+     * respuesta con 409 desde `AgentController::send()`: el agente arrancaba un
+     * segundo flujo sobre una conversación ya derivada.
+     */
+    public function agenteDebeResponder(): bool
+    {
+        return $this->aiEffective() && ! $this->handoffOpen();
+    }
+
     public function handoffOpen(): bool
     {
         return in_array($this->handoff_state, self::HANDOFF_OPEN_STATES, true);

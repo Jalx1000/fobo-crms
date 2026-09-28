@@ -2,15 +2,13 @@
 
 namespace Webkul\Doctor\Http\Controllers;
 
-use Illuminate\Routing\Controller;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Bus\DispatchesJobs;
 use Illuminate\Foundation\Validation\ValidatesRequests;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\View\View;
+use Illuminate\Routing\Controller;
+use Prettus\Repository\Criteria\RequestCriteria;
 use Webkul\Doctor\Repositories\DoctorRepository;
 use Webkul\Doctor\Repositories\SpecialtyRepository;
-use Prettus\Repository\Criteria\RequestCriteria;
 
 class DoctorController extends Controller
 {

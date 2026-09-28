@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\DB;
+
 use function Pest\Laravel\get;
 
 it('retrieves all specialties', function () {
@@ -20,13 +21,13 @@ it('retrieves all specialties', function () {
     $response->assertStatus(200);
     $response->assertJsonStructure([
         'data' => [
-            '*' => ['id', 'name', 'slug']
-        ]
+            '*' => ['id', 'name', 'slug'],
+        ],
     ]);
-    
+
     $json = $response->json();
     expect($json['data'])->toHaveCount(3);
-    
+
     // Check specific data
     $names = array_column($json['data'], 'name');
     expect($names)->toContain('Cardiología');
@@ -42,6 +43,6 @@ it('returns empty list when no specialties exist', function () {
 
     $response->assertStatus(200);
     $response->assertJson([
-        'data' => []
+        'data' => [],
     ]);
 });

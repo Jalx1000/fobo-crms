@@ -1056,12 +1056,102 @@ class InboxController extends Controller
             // The thread renders these two from structured data, not from a
             // file. Both live in `payload`: outbound writes it directly, inbound
             // gets the provider's raw node.
-            'location'  => $this->locationOf($message),
-            'contact'   => $this->contactOf($message),
-            'replyTo'   => $message->replyTo ? [
+            'location'    => $this->locationOf($message),
+            'contact'     => $this->contactOf($message),
+            'interactive' => $this->interactiveOf($message),
+            'reaction'    => $this->reactionOf($message),
+            'replyTo'     => $message->replyTo ? [
                 'author'  => $message->replyTo->direction === 'inbound' ? 'Cliente' : 'Agente',
                 'preview' => \Illuminate\Support\Str::limit((string) $message->replyTo->body, 60),
             ] : null,
+        ];
+    }
+
+    /**
+     * Botones o lista de un mensaje interactivo, en las dos direcciones.
+     *
+     * Saliente: las opciones que le ofrecimos al cliente, para que el asesor vea
+     * en el hilo lo mismo que vio él. Entrante: la que tocó.
+     *
+     * Sin esto el hilo caía en «Tipo no soportado»: el mensaje existía, estaba
+     * entregado, y el asesor no tenía forma de saber qué se le había ofrecido
+     * ni qué había elegido el cliente.
+     */
+    protected function interactiveOf($message): ?array
+    {
+        if ($message->type !== 'interactive') {
+            return null;
+        }
+
+        $nodo = (array) ($message->payload['interactive'] ?? []);
+
+        if (! $nodo) {
+            return null;
+        }
+
+        // Entrante: lo que el cliente eligió.
+        $respuesta = $nodo['button_reply'] ?? $nodo['list_reply'] ?? null;
+
+        if (is_array($respuesta)) {
+            return [
+                'direccion' => 'respuesta',
+                'formato'   => isset($nodo['list_reply']) ? 'list' : 'button',
+                'elegido'   => (string) ($respuesta['title'] ?? ''),
+                'opciones'  => [],
+            ];
+        }
+
+        // Saliente: lo que le ofrecimos.
+        $opciones = [];
+
+        foreach ($nodo['buttons'] ?? [] as $boton) {
+            $opciones[] = (string) ($boton['title'] ?? '');
+        }
+
+        foreach ($nodo['sections'] ?? [] as $seccion) {
+            foreach ($seccion['rows'] ?? [] as $fila) {
+                $opciones[] = (string) ($fila['title'] ?? '');
+            }
+        }
+
+        return [
+            'direccion' => 'oferta',
+            'formato'   => (string) ($nodo['format'] ?? 'button'),
+            'elegido'   => null,
+            'opciones'  => array_values(array_filter($opciones)),
+            'boton'     => $nodo['list_button'] ?? null,
+            'footer'    => $nodo['footer'] ?? null,
+        ];
+    }
+
+    /**
+     * Emoji de una reacción y a qué mensaje aplica.
+     *
+     * Una reacción no es un mensaje con contenido propio: es un emoji sobre
+     * otro. Se resuelve el mensaje referido para poder mostrar «reaccionó 👍 a
+     * "…"» en vez de un emoji suelto que no se entiende.
+     */
+    protected function reactionOf($message): ?array
+    {
+        if ($message->type !== 'reaction') {
+            return null;
+        }
+
+        $nodo = (array) ($message->payload['reaction'] ?? []);
+
+        $referido = null;
+
+        if ($wamid = ($nodo['message_id'] ?? null)) {
+            $referido = $message->newQuery()
+                ->where('conversation_id', $message->conversation_id)
+                ->where('wa_message_id', $wamid)
+                ->value('body');
+        }
+
+        return [
+            'emoji'   => (string) ($nodo['emoji'] ?? ''),
+            'quitada' => ($nodo['emoji'] ?? '') === '',
+            'sobre'   => $referido ? \Illuminate\Support\Str::limit((string) $referido, 60) : null,
         ];
     }
 

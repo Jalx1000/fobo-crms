@@ -24,6 +24,38 @@
         $brandColor = '#000DBB';
     }
 
+    /*
+    | El color de marca se usa como COLOR DE TEXTO (encabezados de tabla, rol
+    | de las firmas, titulo de observaciones). Lo edita el negocio desde
+    | configuracion, y un color claro deja el PDF ilegible sin que nada avise.
+    |
+    | Si no llega a 4.5:1 sobre blanco (WCAG AA para texto normal), se oscurece
+    | hasta que llegue. La marca sigue reconocible —mismo tono— y el texto se
+    | lee. Los dos colores cargados hoy (#002677, #3e6950) pasan sin tocar.
+    */
+    $legible = function (string $hex): string {
+        $lum = function (array $rgb): float {
+            [$r, $g, $b] = array_map(function ($c) {
+                $c /= 255;
+
+                return $c <= 0.03928 ? $c / 12.92 : pow(($c + 0.055) / 1.055, 2.4);
+            }, $rgb);
+
+            return 0.2126 * $r + 0.7152 * $g + 0.0722 * $b;
+        };
+
+        $rgb = sscanf($hex, '#%02x%02x%02x');
+
+        // 1.05 / (L + 0.05) >= 4.5  ⇔  L <= 0.1833
+        for ($i = 0; $i < 12 && $lum($rgb) > 0.1833; $i++) {
+            $rgb = array_map(fn ($c) => (int) round($c * 0.85), $rgb);
+        }
+
+        return sprintf('#%02X%02X%02X', ...$rgb);
+    };
+
+    $brandColor = $legible($brandColor);
+
     // Tinte claro para fondos de tabla y bordes: el #E9EFFC del diseno original
     // es justamente el azul de marca mezclado con ~92% de blanco.
     [$r, $g, $b] = sscanf($brandColor, '#%02x%02x%02x');
@@ -44,6 +76,53 @@
     $brandLogoSrc = $brandLogo && Storage::exists($brandLogo)
         ? 'data:'.Storage::mimeType($brandLogo).';base64,'.base64_encode(Storage::get($brandLogo))
         : null;
+
+    /*
+    | Bloque de firmas al pie: el asesor asignado a la cotizacion y el cliente.
+    |
+    | La firma del asesor va embebida como data URI por el mismo motivo que el
+    | logo: dompdf no puede hacerse una request HTTP a si mismo. Si el asesor no
+    | cargo firma, queda la linea para firmar a mano — el bloque existe igual,
+    | porque el cliente firma en su columna aunque el asesor no tenga imagen.
+    |
+    | Se lee $quote->user (el asesor asignado a ESTA cotizacion) y no el usuario
+    | logueado: quien imprime no siempre es quien vende.
+    */
+    $asesor = $quote->user;
+
+    $firmaAsesorSrc = $asesor?->firma && Storage::exists($asesor->firma)
+        ? 'data:'.Storage::mimeType($asesor->firma).';base64,'.base64_encode(Storage::get($asesor->firma))
+        : null;
+
+    $cliente = $quote->person;
+
+    $clienteEmpresa = $cliente?->organization?->name;
+    $clienteNit = $quote->nit ?: ($cliente?->nit ?? null);
+
+    /*
+    | Condiciones comerciales del formato RG-VCO-005.
+    |
+    | Los selects (`lugar_entrega`, `forma_pago`, `sucursal`) guardan el ID de la
+    | opcion, no su nombre: sin resolverlos el PDF imprimiria «24» en vez de
+    | «A domicilio». Es el mismo problema que la plantilla ya resolvia a mano
+    | para `marca`, ahora en un helper.
+    */
+    $doc = config('cotizacion.documento');
+
+    $razonSocial = $quote->razon_social ?: $clienteEmpresa;
+    $sucursal = \Webkul\Product\Support\Opciones::nombre($quote->sucursal);
+    $ordenCompra = $quote->orden_compra;
+
+    $tiempoEntrega = $quote->tiempo_entrega ?: 'Inmediata';
+    $formaPago = \Webkul\Product\Support\Opciones::nombre($quote->forma_pago, 'Al contado');
+    $lugarEntrega = \Webkul\Product\Support\Opciones::nombre($quote->lugar_entrega, 'Puesto almacén cliente');
+    $observaciones = $quote->observaciones;
+
+    // Validez en dias, desde la fecha de la cotizacion: el formato la expresa
+    // asi («10 DIAS») y no como fecha de vencimiento.
+    $validezDias = $quote->created_at && $quote->expired_at
+        ? $quote->created_at->startOfDay()->diffInDays(\Carbon\Carbon::parse($quote->expired_at)->startOfDay())
+        : config('cotizacion.validez_dias', 10);
 @endphp
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html
@@ -198,6 +277,150 @@
                 padding: 5px 10px;
             }
 
+            /*
+             | La tabla de items tiene NUEVE columnas. Con el padding general de
+             | 18px la suma se pasa del ancho de la hoja y dompdf corta la ultima
+             | columna (MONTO) sin avisar: el PDF sale sin el importe de cada
+             | linea. Aca lleva su propio espaciado.
+             */
+            .items table thead th,
+            .items table tbody td {
+                padding: 5px 4px;
+                font-size: 8px;
+            }
+
+            .items table tbody td {
+                vertical-align: middle;
+            }
+
+            .items .item-nombre {
+                font-size: 8.5px;
+            }
+
+            .condiciones {
+                clear: both;
+                margin-top: 18px;
+            }
+
+            .condiciones table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            .condiciones td {
+                border: 1px solid {{ $brandTint }};
+                padding: 4px 8px;
+                font-size: 9px;
+            }
+
+            .condiciones .etiqueta {
+                width: 15%;
+                background-color: {{ $brandTint }};
+                font-family: "{{ $fontFamily['bold'] }}";
+                text-transform: uppercase;
+            }
+
+            .condiciones .valor {
+                width: 35%;
+                text-align: center;
+            }
+
+            .legal {
+                margin-top: 14px;
+                font-size: 8px;
+                line-height: 1.5;
+                font-family: "{{ $fontFamily['bold'] }}";
+            }
+
+            .observaciones {
+                margin-top: 24px;
+                page-break-inside: avoid;
+            }
+
+            .observaciones .titulo {
+                background-color: {{ $brandTint }};
+                color: {{ $brandColor }};
+                font-family: "{{ $fontFamily['bold'] }}";
+                font-size: 9px;
+                text-transform: uppercase;
+                padding: 4px 8px;
+            }
+
+            .observaciones .cuerpo {
+                border: 1px solid {{ $brandTint }};
+                border-top: none;
+                padding: 8px;
+                font-size: 9px;
+                min-height: 28px;
+            }
+
+            .doc-codigo {
+                position: absolute;
+                top: 18px;
+                right: 12px;
+                text-align: right;
+                font-size: 8px;
+                line-height: 1.5;
+            }
+
+            .firmas {
+                /*
+                 | clear: la tabla de totales flota a la derecha y, sin esto,
+                 | dompdf dibuja las firmas al lado y por debajo de ella: la
+                 | columna del cliente terminaba encima del Total General.
+                 */
+                clear: both;
+                margin-top: 48px;
+                page-break-inside: avoid;
+            }
+
+            .firmas table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            .firmas td {
+                width: 50%;
+                vertical-align: bottom;
+                padding: 0 18px;
+                text-align: center;
+                border: none;
+            }
+
+            .firmas .firma-img {
+                height: 56px;
+                display: block;
+                margin: 0 auto 4px auto;
+            }
+
+            .firmas .firma-espacio {
+                height: 56px;
+            }
+
+            .firmas .linea {
+                border-top: 1px solid #091341;
+                margin: 0 auto 6px auto;
+                width: 80%;
+            }
+
+            .firmas .nombre {
+                font-family: "{{ $fontFamily['bold'] }}";
+                font-size: 10px;
+            }
+
+            .firmas .detalle {
+                font-size: 9px;
+                color: #4a5578;
+            }
+
+            .firmas .rol {
+                font-size: 8px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                color: {{ $brandColor }};
+                margin-top: 4px;
+            }
+
             .summary table td:nth-child(2) {
                 text-align: center;
             }
@@ -222,209 +445,142 @@
             </td>
 
             <td style="width:34%; text-align:center;">
-                <b style="font-size:24px; color:{{ $brandColor }};">
-                    @lang('admin::app.quotes.index.pdf.title')
+                <b style="font-size:10px; color:{{ $brandColor }};">
+                    @lang('admin::app.quotes.index.pdf.registro')
+                </b>
+                <br>
+                <b style="font-size:12px; color:{{ $brandColor }};">
+                    {{ $doc['titulo'] }}
                 </b>
             </td>
 
-            <td style="width:33%;"></td>
+            {{--
+                Codigo del documento del sistema de calidad de Imprimir. Sale de
+                config y no de la plantilla: cambia de version sin que cambie el
+                codigo.
+            --}}
+            <td style="width:33%; text-align:right; font-size:8px; line-height:1.6;">
+                @lang('admin::app.quotes.index.pdf.codigo'): {{ $doc['codigo'] }}<br>
+                @lang('admin::app.quotes.index.pdf.version'): {{ $doc['version'] }}<br>
+                @lang('admin::app.quotes.index.pdf.edicion'): {{ $doc['edicion'] }}
+            </td>
         </tr>
         </table>
 
             <div class="page-content">
                 <!-- Invoice Information -->
-                <table class="{{ app()->getLocale   () }}">
+                {{--
+                    Cabecera del formato RG-VCO-005: fecha, cliente, razon
+                    social, NIT, sucursal y orden de compra. El vendedor y el
+                    numero de cotizacion se mantienen porque son del CRM y le
+                    sirven al asesor.
+
+                    El asunto se quito: repite lo que ya dice el detalle de
+                    items —producto y variante— y en las cotizaciones del agente
+                    sale como un texto armado ("Bolsas Magia Verde - 75 L ·
+                    TRADICIONAL · Interior") que no es lenguaje de propuesta.
+                    Sigue guardado en la cotizacion y visible en el CRM.
+
+                    Razon social NO es lo mismo que cliente: se cotiza a una
+                    persona y se factura a su empresa.
+                --}}
+                <table class="{{ app()->getLocale() }}" style="width:100%;">
                     <tbody>
                         <tr>
                             <td style="width: 50%; padding: 2px 18px;border:none;">
-                                <b>
-                                    @lang('admin::app.quotes.index.pdf.quote-id'): 
-                                </b>
-
-                                <span>
-                                    #{{ $quote->id }}
-                                </span>
+                                <b>@lang('admin::app.quotes.index.pdf.date'):</b>
+                                <span>{{ core()->formatDate($quote->created_at, 'd-m-Y') }}</span>
                             </td>
 
                             <td style="width: 50%; padding: 2px 18px;border:none;">
-                                <b>
-                                    @lang('admin::app.quotes.index.pdf.person'):
-                                </b>
-
-                                <span>
-                                    {{ $quote->person->name }}
-                                </span>
+                                <b>@lang('admin::app.quotes.index.pdf.cliente'):</b>
+                                <span>{{ $quote->person?->name }}</span>
                             </td>
                         </tr>
 
                         <tr>
                             <td style="width: 50%; padding: 2px 18px;border:none;">
-                                <b>
-                                    @lang('admin::app.quotes.index.pdf.sales-person'): 
-                                </b>
-
-                                <span>
-                                    {{ $quote->user->name }}
-                                </span>
+                                <b>@lang('admin::app.quotes.index.pdf.razon-social'):</b>
+                                <span>{{ $razonSocial }}</span>
                             </td>
 
                             <td style="width: 50%; padding: 2px 18px;border:none;">
-                                <b>
-                                    @lang('admin::app.quotes.index.pdf.subject'):
-                                </b>
-
-                                <span>
-                                    {{ $quote->subject }}
-                                </span>
-                            </td>
-                        </tr>
-                        
-                        <tr>
-                            <td style="width: 50%; padding: 2px 18px;border:none;">
-                                <b>
-                                    @lang('admin::app.quotes.index.pdf.date'):
-                                </b>
-
-                                <span>
-                                    {{ core()->formatDate($quote->created_at, 'd-m-Y') }}
-                                </span>
-                            </td>
-
-                            <td style="width: 50%; padding: 2px 18px;border:none;">
-                                <b>
-                                    @lang('admin::app.quotes.index.pdf.sales-person'):
-                                </b>
-
-                                <span>
-                                    {{ $quote->user->name }}
-                                </span>
+                                <b>@lang('admin::app.quotes.index.pdf.nit'):</b>
+                                <span>{{ $clienteNit }}</span>
                             </td>
                         </tr>
 
                         <tr>
                             <td style="width: 50%; padding: 2px 18px;border:none;">
-                                <b>
-                                    @lang('admin::app.quotes.index.pdf.expired-at'):
-                                </b>
+                                <b>@lang('admin::app.quotes.index.pdf.sucursal'):</b>
+                                <span>{{ $sucursal }}</span>
+                            </td>
 
-                                <span>
-                                    {{ core()->formatDate($quote->expired_at, 'd-m-Y') }}
-                                </span>
+                            <td style="width: 50%; padding: 2px 18px;border:none;">
+                                <b>@lang('admin::app.quotes.index.pdf.orden-compra'):</b>
+                                <span>{{ $ordenCompra }}</span>
                             </td>
                         </tr>
+
+                        <tr>
+                            <td style="width: 50%; padding: 2px 18px;border:none;">
+                                <b>@lang('admin::app.quotes.index.pdf.sales-person'):</b>
+                                <span>{{ $asesor?->name }}</span>
+                            </td>
+
+                            <td style="width: 50%; padding: 2px 18px;border:none;">
+                                <b>@lang('admin::app.quotes.index.pdf.quote-id'):</b>
+                                <span>#{{ $quote->id }}</span>
+                            </td>
+                        </tr>
+
                     </tbody>
                 </table>
 
-                <!-- Billing & Shipping Address -->
-                <table class="{{ $locale }}">
-                    <thead>
-                        <tr>
-                            @if ($quote->billing_address)
-                                <th style="width: 50%;">
-                                    <b>
-                                        @lang('admin::app.quotes.index.pdf.billing-address')
-                                    </b>
-                                </th>
-                            @endif
+                {{--
+                    El bloque de direcciones se quito el 11/09: el formato
+                    RG-VCO-005 no lo lleva. Los datos siguen guardados en las
+                    cotizaciones que ya los tenian.
+                --}}
 
-                            @if ($quote->shipping_address)
-                                <th style="width: 50%">
-                                    <b>
-                                        @lang('admin::app.quotes.index.pdf.shipping-address')
-                                    </b>
-                                </th>
-                            @endif
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        <tr>
-                            @if ($quote->billing_address)
-                                <td style="width: 50%">
-                                    <div>{{ $quote->billing_address['address'] ?? '' }}</div>
-
-                                    <div>{{ $quote->billing_address['postcode'] ?? '' . ' ' .$quote->billing_address['city'] ?? '' }} </div>
-
-                                    <div>{{ $quote->billing_address['state'] ?? '' }}</div>
-
-                                    <div>{{ core()->country_name($quote->billing_address['country'] ?? '') }}</div>
-                                </td>
-                            @endif
-                            
-                            @if ($quote->shipping_address)
-                                <td style="width: 50%">
-                                    <div>{{ $quote->shipping_address['address'] ?? ''}}</div>
-
-                                    <div>{{ $quote->shipping_address['postcode'] ?? '' . ' ' .$quote->shipping_address['city'] ?? '' }} </div>
-
-                                    <div>{{ $quote->shipping_address['state'] ?? '' }}</div>
-
-                                    <div>{{ core()->country_name($quote->shipping_address['country'] ?? '') }}</div>
-                                </td>
-                            @endif
-                        </tr>
-                    </tbody>
-                </table>
-
-                <!-- Items -->
+                <!-- Items: las columnas del formato RG-VCO-005 -->
                 <div class="items">
-                    <table class="{{ app()->getLocale   () }}">
+                    <table class="{{ app()->getLocale() }}">
                         <thead>
                             <tr>
-                                <th>
-                                    @lang('admin::app.quotes.index.pdf.sku')
-                                </th>
-
-                                <th>
-                                    @lang('admin::app.quotes.index.pdf.product-name')
-                                </th>
-
-                                <th>
-                                    @lang('admin::app.quotes.index.pdf.price')
-                                </th>
-
-                                <th>
-                                    @lang('admin::app.quotes.index.pdf.quantity')
-                                </th>
-
-                                <th>
-                                    @lang('admin::app.quotes.index.pdf.amount')
-                                </th>
-
-                                <th>
-                                    @lang('admin::app.quotes.index.pdf.discount')
-                                </th>
-
-                                <th>
-                                    @lang('admin::app.quotes.index.pdf.tax')
-                                </th>
-
-                                <th>
-                                    @lang('admin::app.quotes.index.pdf.grand-total')
-                                </th>
+                                <th style="width:18px;" class="text-center">N°</th>
+                                <th>@lang('admin::app.quotes.index.pdf.product-name')</th>
+                                <th style="width:62px;" class="text-center">@lang('admin::app.quotes.index.pdf.medida')</th>
+                                <th style="width:64px;" class="text-center">@lang('admin::app.quotes.index.pdf.cod-tr4')</th>
+                                <th style="width:76px;" class="text-center">@lang('admin::app.quotes.index.pdf.cod-barra')</th>
+                                <th style="width:30px;" class="text-center">@lang('admin::app.quotes.index.pdf.unidad')</th>
+                                <th style="width:44px;" class="text-center">@lang('admin::app.quotes.index.pdf.quantity')</th>
+                                <th style="width:58px;" class="text-center">@lang('admin::app.quotes.index.pdf.price')</th>
+                                <th style="width:66px;" class="text-center">@lang('admin::app.quotes.index.pdf.amount')</th>
                             </tr>
                         </thead>
 
                         <tbody>
-                            @foreach ($quote->items as $item)
+                            @foreach ($quote->items as $i => $item)
                                 <tr>
-                                    <td>{{ $item->sku }}</td>
+                                    <td class="text-center">{{ $i + 1 }}</td>
 
-                                    <td>
-                                        {{ $item->name }}
-                                    </td>
+                                    <td class="item-nombre">{{ $item->name }}</td>
 
-                                    <td>{!! core()->formatBasePrice($item->price, true) !!}</td>
+                                    {{--
+                                        Codigos: son la FOTO que el item guardo al
+                                        cotizar, no una lectura del catalogo. Si
+                                        alguien corrige un TR4 manana, esta
+                                        cotizacion sigue diciendo lo que se emitio.
+                                    --}}
+                                    <td class="text-center">{{ $item->medida }}</td>
+                                    <td class="text-center">{{ $item->codigo_tr4 }}</td>
+                                    <td class="text-center">{{ $item->codigo_barra }}</td>
+                                    <td class="text-center">{{ $item->unidad }}</td>
 
                                     <td class="text-center">{{ $item->quantity }}</td>
-
+                                    <td class="text-center">{!! core()->formatBasePrice($item->price, true) !!}</td>
                                     <td class="text-center">{!! core()->formatBasePrice($item->total, true) !!}</td>
-
-                                    <td class="text-center">{!! core()->formatBasePrice($item->discount_amount, true) !!}</td>
-
-                                    <td class="text-center">{!! core()->formatBasePrice($item->tax_amount, true) !!}</td>
-                                    
-                                    <td class="text-center">{!! core()->formatBasePrice($item->total + $item->tax_amount - $item->discount_amount, true) !!}</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -467,6 +623,76 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Condiciones comerciales -->
+                <div class="condiciones">
+                    <table>
+                        <tr>
+                            <td class="etiqueta">@lang('admin::app.quotes.index.pdf.tiempo-entrega')</td>
+                            <td class="valor">{{ $tiempoEntrega }}</td>
+                            <td class="etiqueta">@lang('admin::app.quotes.index.pdf.forma-pago')</td>
+                            <td class="valor">{{ $formaPago }}</td>
+                        </tr>
+                        <tr>
+                            <td class="etiqueta">@lang('admin::app.quotes.index.pdf.validez')</td>
+                            <td class="valor">{{ $validezDias }} @lang('admin::app.quotes.index.pdf.dias')</td>
+                            <td class="etiqueta">@lang('admin::app.quotes.index.pdf.lugar-entrega')</td>
+                            <td class="valor">{{ $lugarEntrega }}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <p class="legal">{{ config('cotizacion.texto_legal') }}</p>
+
+                <!-- Firmas: asesor y cliente, en dos columnas -->
+                <div class="firmas">
+                    <table>
+                        <tr>
+                            <td>
+                                @if ($firmaAsesorSrc)
+                                    <img src="{{ $firmaAsesorSrc }}" class="firma-img" alt="" />
+                                @else
+                                    <div class="firma-espacio"></div>
+                                @endif
+
+                                <div class="linea"></div>
+
+                                <div class="nombre">{{ $asesor?->name ?? '—' }}</div>
+
+                                @if ($asesor?->cargo)
+                                    <div class="detalle">{{ $asesor->cargo }}</div>
+                                @endif
+
+                                <div class="rol">@lang('admin::app.quotes.index.pdf.firma-asesor')</div>
+                            </td>
+
+                            <td>
+                                <div class="firma-espacio"></div>
+
+                                <div class="linea"></div>
+
+                                <div class="nombre">{{ $cliente?->name ?? '—' }}</div>
+
+                                @if ($clienteEmpresa)
+                                    <div class="detalle">{{ $clienteEmpresa }}</div>
+                                @endif
+
+                                @if ($clienteNit)
+                                    <div class="detalle">NIT {{ $clienteNit }}</div>
+                                @endif
+
+                                <div class="rol">@lang('admin::app.quotes.index.pdf.firma-cliente')</div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                @if ($observaciones)
+                    <div class="observaciones">
+                        <div class="titulo">@lang('admin::app.quotes.index.pdf.observaciones')</div>
+                        <div class="cuerpo">{{ $observaciones }}</div>
+                    </div>
+                @endif
             </div>
         </div>
     </body>

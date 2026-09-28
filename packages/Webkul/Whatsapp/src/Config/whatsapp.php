@@ -300,4 +300,18 @@ return [
     'ui' => [
         'use_mock' => env('WHATSAPP_UI_USE_MOCK', false),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Ventana anti-duplicado del agente
+    |--------------------------------------------------------------------------
+    | Segundos durante los cuales un mensaje de texto del agente que repite el
+    | menú interactivo recién enviado se rechaza con 409.
+    |
+    | El modelo tiende a llamar a `mostrar_opciones` y ADEMÁS escribir la misma
+    | pregunta como texto: el cliente la recibe dos veces, una con botones y otra
+    | sin ellos. En 0 se desactiva la defensa.
+    */
+    'antiduplicado_segundos' => env('WHATSAPP_ANTIDUPLICADO_SEGUNDOS', 120),
+
 ];

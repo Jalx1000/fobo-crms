@@ -277,6 +277,11 @@ return [
         'route' => ['admin.settings.users.delete', 'admin.settings.users.mass_delete'],
         'sort'  => 3,
     ], [
+        'key'   => 'settings.user.equipo_ventas',
+        'name'  => 'admin::app.acl.equipo-ventas',
+        'route' => 'admin.settings.equipo_ventas.index',
+        'sort'  => 4,
+    ], [
         'key'   => 'settings.lead',
         'name'  => 'admin::app.acl.lead',
         'route' => ['admin.settings.pipelines.index', 'admin.settings.sources.index', 'admin.settings.types.index'],

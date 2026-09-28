@@ -1,0 +1,199 @@
+{
+  "info": {
+    "name": "WhatsApp Cloud API · Imprimir / Casa Rica",
+    "description": "Plantillas de WhatsApp por Graph API. Antes de usar: completá WHATSAPP_TOKEN en el environment (nunca en la colección). phone_number_id y WABA son los de Imprimir.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{WHATSAPP_TOKEN}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1 · Enviar hello_world (prueba de conexión)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{GRAPH_URL}}/{{GRAPH_VERSION}}/{{PHONE_NUMBER_ID}}/messages",
+          "host": [
+            "{{GRAPH_URL}}"
+          ],
+          "path": [
+            "{{GRAPH_VERSION}}",
+            "{{PHONE_NUMBER_ID}}",
+            "messages"
+          ]
+        },
+        "description": "Plantilla de ejemplo de Meta, sin parámetros. Sirve para probar que el número entrega. Si le mandás `components` responde error 132000.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"messaging_product\": \"whatsapp\",\n  \"recipient_type\": \"individual\",\n  \"to\": \"{{TO}}\",\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"hello_world\",\n    \"language\": {\n      \"code\": \"en_US\"\n    }\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2 · Enviar carrito_abandonado_casa_rica",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{GRAPH_URL}}/{{GRAPH_VERSION}}/{{PHONE_NUMBER_ID}}/messages",
+          "host": [
+            "{{GRAPH_URL}}"
+          ],
+          "path": [
+            "{{GRAPH_VERSION}}",
+            "{{PHONE_NUMBER_ID}}",
+            "messages"
+          ]
+        },
+        "description": "Plantilla aprobada (id 2336001903885069). Variables:\n- NOMBRE → customer.first_name\n- CANTIDAD → items_count + ' producto' / ' productos' (con la palabra)\n- CARRITO_SUFIJO → cart.recovery_url SIN el dominio y url-encodeado (@→%40, cada +→%2B). El botón está registrado como https://casarica.com.bo/{{1}}.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"messaging_product\": \"whatsapp\",\n  \"recipient_type\": \"individual\",\n  \"to\": \"{{TO}}\",\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"carrito_abandonado_casa_rica\",\n    \"language\": {\n      \"code\": \"es\"\n    },\n    \"components\": [\n      {\n        \"type\": \"body\",\n        \"parameters\": [\n          {\n            \"type\": \"text\",\n            \"text\": \"{{NOMBRE}}\"\n          },\n          {\n            \"type\": \"text\",\n            \"text\": \"{{CANTIDAD}}\"\n          }\n        ]\n      },\n      {\n        \"type\": \"button\",\n        \"sub_type\": \"url\",\n        \"index\": \"0\",\n        \"parameters\": [\n          {\n            \"type\": \"text\",\n            \"text\": \"{{CARRITO_SUFIJO}}\"\n          }\n        ]\n      }\n    ]\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3 · Listar plantillas y su estado",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{GRAPH_URL}}/{{GRAPH_VERSION}}/{{WABA_ID}}/message_templates?fields=name,status,language,category,rejected_reason&limit=50",
+          "host": [
+            "{{GRAPH_URL}}"
+          ],
+          "path": [
+            "{{GRAPH_VERSION}}",
+            "{{WABA_ID}}",
+            "message_templates"
+          ],
+          "query": [
+            {
+              "key": "fields",
+              "value": "name,status,language,category,rejected_reason"
+            },
+            {
+              "key": "limit",
+              "value": "50"
+            }
+          ]
+        },
+        "description": "Muestra nombre, idioma, estado (PENDING / APPROVED / REJECTED) y motivo de rechazo."
+      },
+      "response": []
+    },
+    {
+      "name": "4 · Crear plantilla carrito_abandonado (referencia)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{GRAPH_URL}}/{{GRAPH_VERSION}}/{{WABA_ID}}/message_templates",
+          "host": [
+            "{{GRAPH_URL}}"
+          ],
+          "path": [
+            "{{GRAPH_VERSION}}",
+            "{{WABA_ID}}",
+            "message_templates"
+          ]
+        },
+        "description": "YA ESTÁ CREADA Y APROBADA. Solo correr si se borra o si se cambia el texto — en ese caso con otro `name`, porque el nombre no se libera hasta borrar la anterior. El header no admite emojis.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"carrito_abandonado_casa_rica\",\n  \"language\": \"es\",\n  \"category\": \"MARKETING\",\n  \"components\": [\n    {\n      \"type\": \"HEADER\",\n      \"format\": \"TEXT\",\n      \"text\": \"Tu canasta quedó a un paso\"\n    },\n    {\n      \"type\": \"BODY\",\n      \"text\": \"🥬 Hola {{1}}, todavía guardamos tu carrito con {{2}}.\\n\\nConfirmá hoy y entra en el reparto de mañana temprano, con todo recién cosechado.\\n\\nTocá el botón y terminá tu pedido 👇\",\n      \"example\": {\n        \"body_text\": [\n          [\n            \"Fabi\",\n            \"1 producto\"\n          ]\n        ]\n      }\n    },\n    {\n      \"type\": \"FOOTER\",\n      \"text\": \"Casa Rica · Frutas y verduras\"\n    },\n    {\n      \"type\": \"BUTTONS\",\n      \"buttons\": [\n        {\n          \"type\": \"URL\",\n          \"text\": \"Ir a mi carrito\",\n          \"url\": \"https://casarica.com.bo/{{1}}\",\n          \"example\": [\n            \"https://casarica.com.bo/?wcal_action=track_links&user_email=fperez%40fobo.digital&validate=GQBf\"\n          ]\n        }\n      ]\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5 · Borrar plantilla (cuidado)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{GRAPH_URL}}/{{GRAPH_VERSION}}/{{WABA_ID}}/message_templates?name=carrito_abandonado_casa_rica",
+          "host": [
+            "{{GRAPH_URL}}"
+          ],
+          "path": [
+            "{{GRAPH_VERSION}}",
+            "{{WABA_ID}}",
+            "message_templates"
+          ],
+          "query": [
+            {
+              "key": "name",
+              "value": "carrito_abandonado_casa_rica"
+            }
+          ]
+        },
+        "description": "Borra la plantilla por nombre. Irreversible: hay que volver a crearla y esperar la aprobación."
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "1",
+      "value": "{{1}}",
+      "description": "Placeholder literal de Meta: NO tocar. Evita que Postman lo resuelva como variable vacía."
+    },
+    {
+      "key": "2",
+      "value": "{{2}}",
+      "description": "Ídem."
+    }
+  ]
+}

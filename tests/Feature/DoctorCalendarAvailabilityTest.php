@@ -1,7 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 it('retorna disponibilidad de doctores en el calendario', function () {
     $admin = getDefaultAdmin();
@@ -9,7 +9,7 @@ it('retorna disponibilidad de doctores en el calendario', function () {
 
     // Crear doctor mínimo
     $doctorId = DB::table('doctors')->insertGetId([
-        'name'       => 'Dr. Prueba ' . rand(100, 999),
+        'name'       => 'Dr. Prueba '.rand(100, 999),
         'number'     => null,
         'title'      => null,
         'unique_id'  => null,
@@ -56,8 +56,7 @@ it('retorna disponibilidad de doctores en el calendario', function () {
     expect($json['availability'])->toBeArray();
 
     // Verificar que existen los dos bloques de disponibilidad creados
-    $availForDoctorDay = array_values(array_filter($json['availability'], fn ($s) =>
-        (int)($s['doctor_id'] ?? 0) === (int)$doctorId && ($s['date'] ?? '') === $date
+    $availForDoctorDay = array_values(array_filter($json['availability'], fn ($s) => (int) ($s['doctor_id'] ?? 0) === (int) $doctorId && ($s['date'] ?? '') === $date
     ));
 
     expect(count($availForDoctorDay))->toBeGreaterThanOrEqual(2);

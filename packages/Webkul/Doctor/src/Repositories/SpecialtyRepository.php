@@ -38,4 +38,3 @@ class SpecialtyRepository extends Repository
         ]);
     }
 }
-

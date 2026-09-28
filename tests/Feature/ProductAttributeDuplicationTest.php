@@ -60,4 +60,3 @@ it('muestra el atributo una sola vez en la vista de producto', function () {
     expect(substr_count($html, __('installer::app.seeders.attributes.products.sku')) <= 1)
         ->toBeTrue();
 });
-

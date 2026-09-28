@@ -176,6 +176,14 @@ return [
         'icon-class' => 'icon-user',
     ],
     [
+        'key'        => 'settings.user.equipo_ventas',
+        'name'       => 'admin::app.layouts.equipo-ventas',
+        'info'       => 'admin::app.layouts.equipo-ventas-info',
+        'route'      => 'admin.settings.equipo_ventas.index',
+        'sort'       => 4,
+        'icon-class' => 'icon-user',
+    ],
+    [
         'key'        => 'settings.lead',
         'name'       => 'admin::app.layouts.lead',
         'info'       => 'admin::app.layouts.lead-info',
