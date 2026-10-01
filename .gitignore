@@ -1,5 +1,8 @@
 .env
 .env.testing
+# Backups de .env: llevan credenciales reales, jamás commitearlos
+.env.bak*
+.env.save*
 .idea
 .php_cs.cache
 .phpunit.result.cache
@@ -33,3 +36,13 @@ node_modules/
 /test-results/
 /blob-report/
 /playwright/.cache/
+
+# Exports de workflows de n8n: llevan tokens y credenciales embebidos en texto
+# plano. Se guardan en la raíz solo como referencia; nunca deben commitearse.
+/*.json
+!/composer.json
+!/package.json
+!/package-lock.json
+!/phpunit.xml
+# Build de Vite del admin: artefacto generado, se compila en cada servidor
+/public/admin/build
