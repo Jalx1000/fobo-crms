@@ -97,16 +97,13 @@ return [
     ],
 
     /*
-    | Correos al registrarse un contacto nuevo (bienvenida al cliente y aviso
-    | al asesor). Apagado por defecto: encenderlo manda correos reales a
-    | clientes, así que es una decisión explícita en el .env.
-    | Spec: docs/specs/correo-contacto-nuevo.md
+    | Correo al crearse una cotización (detalles de la cotización, el cliente y
+    | la oportunidad) para el asesor. Apagado por defecto: encenderlo manda
+    | correos reales. La copia recibe TODOS los avisos, además del asesor;
+    | varios correos separados por coma.
     */
-    'contacto_nuevo' => env('MAIL_CONTACTO_NUEVO', false),
-
-    // Copia del aviso interno para TODOS los contactos nuevos, además de los
-    // asesores designados. Varios correos separados por coma.
-    'contacto_nuevo_copia' => env('MAIL_CONTACTO_NUEVO_COPIA', ''),
+    'cotizacion_nueva'       => env('MAIL_COTIZACION_NUEVA', false),
+    'cotizacion_nueva_copia' => env('MAIL_COTIZACION_NUEVA_COPIA', ''),
 
     /*
     |--------------------------------------------------------------------------

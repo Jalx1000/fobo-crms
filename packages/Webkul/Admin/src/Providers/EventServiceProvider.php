@@ -14,8 +14,6 @@ class EventServiceProvider extends ServiceProvider
     protected $listen = [
         'contacts.person.create.after' => [
             'Webkul\Admin\Listeners\Person@linkToEmail',
-            // Bienvenida al cliente y aviso al asesor (MAIL_CONTACTO_NUEVO).
-            'Webkul\Admin\Listeners\ContactoNuevo@handle',
         ],
 
         /*
@@ -46,6 +44,9 @@ class EventServiceProvider extends ServiceProvider
             'Webkul\Admin\Listeners\Ciudad@deCotizacion',
             'Webkul\Admin\Listeners\Sucursal@desdeElProducto',
             'Webkul\Admin\Listeners\ValorPedido@deCotizacion',
+            // Correo con el detalle al asesor (MAIL_COTIZACION_NUEVA). Último:
+            // los de arriba completan ciudad y sucursal antes de que se lea.
+            'Webkul\Admin\Listeners\CotizacionNueva@handle',
         ],
 
         'quote.update.after' => [
