@@ -48,6 +48,9 @@ use Webkul\Whatsapp\Models\Conversation;
  */
 class KommoGateway extends BaseGateway
 {
+    /** Lo que entra por el webhook: texto y los adjuntos que mapea attachmentFrom(). */
+    protected const RECEIVES = ['text', 'image', 'audio', 'video', 'document', 'sticker'];
+
     /** El gateway que envía en modo mixto, resuelto una sola vez. */
     protected ?Gateway $sender = null;
 
@@ -64,11 +67,11 @@ class KommoGateway extends BaseGateway
             // que Meta pueda citar.
             $send = array_values(array_diff($sender->capabilities()->send, ['reply']));
 
-            return new Capabilities(send: $send, receive: ['text']);
+            return new Capabilities(send: $send, receive: self::RECEIVES);
         }
 
         // The salesbot only relays the text field today.
-        return new Capabilities(send: ['text'], receive: ['text']);
+        return new Capabilities(send: ['text'], receive: self::RECEIVES);
     }
 
     /**
@@ -212,6 +215,8 @@ class KommoGateway extends BaseGateway
 
             $contactId = isset($event['contact_id']) ? (string) $event['contact_id'] : null;
 
+            $attachment = $this->attachmentFrom($event);
+
             $messages[] = new InboundMessage(
                 providerMessageId: (string) $event['id'],
                 contact: new ContactIdentity(
@@ -219,17 +224,137 @@ class KommoGateway extends BaseGateway
                     providerId: $contactId,
                     name: data_get($event, 'author.name'),
                 ),
-                type: 'text',
-                body: $event['text'] ?? null,
+                type: $attachment['type'],
+                body: $attachment['body'],
                 // element_id and entity_id are the same lead id; element_id is
                 // what the send path addresses.
                 providerConversationId: isset($event['element_id']) ? (string) $event['element_id'] : null,
                 raw: $event,
+                // El link de Kommo viaja como mediaId y downloadMedia() lo baja,
+                // igual que Messenger: la ingesta no distingue de dónde vino.
+                mediaId: $attachment['link'],
+                mediaFilename: $attachment['name'],
             );
         }
 
         // Kommo reports no delivery receipts.
         return new InboundBatch($messages);
+    }
+
+    /**
+     * Un evento de Kommo → (type, body, link, name).
+     *
+     * Kommo trae el adjunto en `attachment` (link/type/file_name) y repite el tipo
+     * en `message_type`. Mapeo validado contra payloads reales en odontoking
+     * (commit 0e85239). Lo que no trae archivo (vCard, ubicación) entra como texto
+     * legible: el hilo nunca muestra una burbuja vacía.
+     *
+     * @return array{type: string, body: ?string, link: ?string, name: ?string}
+     */
+    protected function attachmentFrom(array $event): array
+    {
+        $link = data_get($event, 'attachment.link');
+        $kind = data_get($event, 'attachment.type') ?? ($event['message_type'] ?? 'text');
+
+        $map = [
+            'picture'  => 'image',
+            'image'    => 'image',
+            'video'    => 'video',
+            'voice'    => 'audio',
+            'audio'    => 'audio',
+            'file'     => 'document',
+            'document' => 'document',
+            'sticker'  => 'sticker',
+        ];
+
+        $text = $event['text'] ?? null;
+        $text = $text === '' ? null : $text;
+
+        if ($link && isset($map[$kind])) {
+            return [
+                'type' => $map[$kind],
+                // El pie de foto que Kommo reenvía viaja como cuerpo.
+                'body' => $text,
+                'link' => (string) $link,
+                'name' => data_get($event, 'attachment.file_name'),
+            ];
+        }
+
+        $body = $text ?? match ($kind) {
+            'contact'  => '[Contacto compartido]',
+            'location' => '[Ubicación compartida]',
+            default    => null,
+        };
+
+        return ['type' => 'text', 'body' => $body, 'link' => null, 'name' => null];
+    }
+
+    /**
+     * Baja un adjunto entrante desde su link de Kommo.
+     *
+     * Hay que copiarlo en la ingesta: los links de amojo.kommo.com vencen en
+     * pocos días (comprobado en odontoking).
+     *
+     * El link viene del payload, y el webhook de Kommo puede estar sin
+     * autenticar (KOMMO_WEBHOOK_INSECURE): sin la lista de hosts, cualquiera
+     * podría hacer que el servidor pida una URL interna (SSRF). Solo https y
+     * solo dominios de Kommo, y con tope de tamaño.
+     */
+    public function downloadMedia(?string $mediaId): ?array
+    {
+        if (! $mediaId || ! $this->isKommoFileUrl($mediaId)) {
+            if ($mediaId) {
+                Log::warning('Kommo: adjunto con link fuera de Kommo, no se descarga', ['link' => $mediaId]);
+            }
+
+            return null;
+        }
+
+        try {
+            $response = Http::timeout(20)->get($mediaId);
+
+            if (! $response->successful() || $response->body() === '') {
+                Log::warning('Kommo: no se pudo bajar el adjunto', ['status' => $response->status()]);
+
+                return null;
+            }
+
+            $maxBytes = ((int) ($this->config['max_media_kb'] ?? 25600)) * 1024;
+
+            if (strlen($response->body()) > $maxBytes) {
+                Log::warning('Kommo: adjunto mayor a max_media_kb, descartado', ['bytes' => strlen($response->body())]);
+
+                return null;
+            }
+
+            return [
+                'contents' => $response->body(),
+                'mime'     => $response->header('Content-Type'),
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('Kommo: fallo la descarga del adjunto', ['error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    protected function isKommoFileUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+
+        if (($parts['scheme'] ?? '') !== 'https' || empty($parts['host'])) {
+            return false;
+        }
+
+        $host = strtolower($parts['host']);
+
+        foreach (['kommo.com', 'amocrm.com', 'amocrm.ru'] as $domain) {
+            if ($host === $domain || str_ends_with($host, '.'.$domain)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function sendText(Conversation $conversation, string $body, ?string $replyToProviderId = null): SendResult
