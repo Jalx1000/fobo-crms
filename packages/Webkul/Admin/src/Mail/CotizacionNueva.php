@@ -7,6 +7,7 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Webkul\Admin\Listeners\Ciudad;
+use Webkul\Lead\Models\LeadProxy;
 use Webkul\Product\Support\Opciones;
 
 /**
@@ -28,13 +29,28 @@ class CotizacionNueva extends Mailable
 
     public function build()
     {
-        $quote = $this->quote->loadMissing(['items', 'person.organization', 'user', 'leads.stage', 'leads.pipeline', 'leads.user']);
+        $quote = $this->quote->loadMissing(['items', 'person.organization', 'user']);
 
         return $this->subject("Nueva cotización #{$quote->id}: {$quote->subject}")
             ->view('admin::emails.cotizacion-nueva', [
                 'datos' => $this->datos($quote),
-                'lead'  => $quote->leads->first(),
+                'lead'  => $this->oportunidad($quote),
             ]);
+    }
+
+    /**
+     * La oportunidad vinculada, leída del pivot y no de $quote->leads: Lead
+     * trata cualquier propiedad como atributo personalizado, así que `pivot`
+     * vuelve null y BelongsToMany revienta ("quote_id on null") en cuanto la
+     * cotización tiene una oportunidad (caso real: cotización #1980).
+     */
+    protected function oportunidad($quote)
+    {
+        $leadId = DB::table('lead_quotes')->where('quote_id', $quote->id)->orderBy('lead_id')->value('lead_id');
+
+        return $leadId
+            ? LeadProxy::modelClass()::with(['stage', 'pipeline', 'user'])->find($leadId)
+            : null;
     }
 
     /**

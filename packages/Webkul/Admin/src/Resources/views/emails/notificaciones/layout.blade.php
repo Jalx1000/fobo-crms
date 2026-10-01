@@ -1,5 +1,5 @@
 {{--
-    Marco común de los correos de contacto nuevo: logo, tarjeta blanca y pie.
+    Marco común de los correos de notificación: logo, tarjeta blanca y pie.
     Tablas y estilos en línea a propósito: es lo único que Gmail y Outlook
     respetan de forma pareja.
 --}}
@@ -20,7 +20,7 @@
     <tr>
     <td style="padding: 24px 0; text-align: center;">
         <a href="https://imprimir.com.bo/">
-            <img style="max-width: 180px; border: 0; text-decoration: none;" src="https://imprimir.com.bo/wp-content/uploads/2023/10/logo-con-texto-imprimir.png" alt="Imprimir" width="180" />
+            <img style="max-width: 180px; border: 0; text-decoration: none;" src="https://imprimir.com.bo/wp-content/uploads/2023/10/logo-con-texto-imprimir-300x203.png" alt="Imprimir" width="180" />
         </a>
     </td>
     </tr>

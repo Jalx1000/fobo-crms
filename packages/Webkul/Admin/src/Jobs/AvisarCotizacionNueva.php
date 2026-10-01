@@ -34,7 +34,7 @@ class AvisarCotizacionNueva implements ShouldQueue
 
     public function handle(DestinatariosAviso $destinatarios, Ciudad $ciudades): void
     {
-        $quote = QuoteProxy::modelClass()::with(['items', 'person', 'user', 'leads'])->find($this->quoteId);
+        $quote = QuoteProxy::modelClass()::with(['items', 'person', 'user'])->find($this->quoteId);
 
         if (! $quote) {
             return;

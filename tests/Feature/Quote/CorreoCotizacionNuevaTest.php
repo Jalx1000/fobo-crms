@@ -157,6 +157,29 @@ it('el cliente no recibe este correo: lleva datos internos', function () {
     Mail::assertNotSent(CorreoCotizacion::class, fn ($m) => $m->hasTo('cliente@test.local'));
 });
 
+// Caso real del 2026-10-01 (cotización #1980): con una oportunidad vinculada,
+// with('leads') revienta porque Lead intercepta `pivot` como atributo
+// personalizado ("Attempt to read property quote_id on null").
+it('una cotización vinculada a una oportunidad se envía y muestra la oportunidad', function () {
+    $asesor = cqAsesor('Dueño');
+    $leadId = DB::table('leads')->insertGetId([
+        'title'                  => 'Oportunidad CQ', 'user_id' => $asesor->id, 'status' => 1,
+        'lead_pipeline_id'       => DB::table('lead_pipelines')->value('id'),
+        'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')->value('id'),
+        'created_at'             => now(), 'updated_at' => now(),
+    ]);
+
+    $quote = cqCotizacion($this->producto, $asesor, $leadId);
+
+    app()->call([new AvisarCotizacionNueva($quote->id), 'handle']);
+
+    Mail::assertSent(CorreoCotizacion::class, fn ($m) => $m->hasTo($asesor->email));
+
+    expect((new CorreoCotizacion($quote, $asesor))->render())
+        ->toContain('Oportunidad CQ')
+        ->toContain(route('admin.leads.view', $leadId));
+});
+
 it('el listener encola el aviso en la cola whatsapp, después del commit', function () {
     Queue::fake();
 
@@ -191,7 +214,7 @@ it('el correo muestra cotización, cliente, oportunidad y productos con el forma
     $html = (new CorreoCotizacion($quote, null, ['Dueño']))->render();
 
     expect($html)
-        ->toContain('logo-con-texto-imprimir.png')
+        ->toContain('logo-con-texto-imprimir')
         ->toContain('#D41E35')
         ->toContain('#'.$quote->id)
         ->toContain(e($quote->subject))
