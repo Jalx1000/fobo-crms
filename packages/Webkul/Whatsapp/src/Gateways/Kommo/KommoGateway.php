@@ -9,13 +9,19 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Webkul\Whatsapp\Gateways\BaseGateway;
+use Webkul\Whatsapp\Gateways\Contracts\Gateway;
 use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
+use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
+use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
+use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
 use Webkul\Whatsapp\Gateways\Dto\WebhookSecurity;
+use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Models\Conversation;
 
 /**
@@ -34,9 +40,17 @@ use Webkul\Whatsapp\Models\Conversation;
  * - Sending returns no id, so one is synthesized.
  * - No delivery receipts: outbound stops at "sent".
  * - The webhook is unsigned, so the URL secret is the only credential.
+ *
+ * Modo mixto (`send_via`): Kommo solo recibe y cada envío se delega en otro
+ * gateway (Cloud API), que llega al cliente por su teléfono y sabe mandar
+ * plantillas, archivos, ubicación e interactivos. Ver
+ * docs/specs/kommo-paridad-cloud-api.md.
  */
 class KommoGateway extends BaseGateway
 {
+    /** El gateway que envía en modo mixto, resuelto una sola vez. */
+    protected ?Gateway $sender = null;
+
     public function key(): string
     {
         return 'kommo';
@@ -44,8 +58,96 @@ class KommoGateway extends BaseGateway
 
     public function capabilities(): Capabilities
     {
+        if ($sender = $this->sender()) {
+            // Lo que se envía es lo del gateway que envía. Menos 'reply': lo que
+            // el cliente escribió llegó por Kommo, así que su id no es un wamid
+            // que Meta pueda citar.
+            $send = array_values(array_diff($sender->capabilities()->send, ['reply']));
+
+            return new Capabilities(send: $send, receive: ['text']);
+        }
+
         // The salesbot only relays the text field today.
         return new Capabilities(send: ['text'], receive: ['text']);
+    }
+
+    /**
+     * El gateway que envía en modo mixto, o null cuando envía el salesbot.
+     *
+     * Composición y no un cambio en GatewayManager: el resto del sistema sigue
+     * preguntándole a UN gateway por conversación, y la mezcla queda encerrada acá.
+     */
+    protected function sender(): ?Gateway
+    {
+        $via = (string) ($this->config['send_via'] ?? $this->key());
+
+        if ($via === '' || $via === $this->key()) {
+            return null;
+        }
+
+        return $this->sender ??= app(GatewayManager::class)->driver($via);
+    }
+
+    /**
+     * El gateway que envía, listo para dirigirse a la conversación por teléfono.
+     */
+    protected function senderFor(Conversation $conversation): Gateway
+    {
+        if (! $conversation->wa_phone) {
+            throw new RuntimeException(
+                "La conversación #{$conversation->id} no tiene teléfono: Kommo todavía no lo informó, "
+                .'así que no se le puede enviar por WhatsApp. Se completa solo cuando el cliente vuelva a escribir.'
+            );
+        }
+
+        return $this->sender();
+    }
+
+    /**
+     * Solo se cita un mensaje que Meta conoce. Los ids de Kommo (entrantes, o
+     * los "kommo-…" sintetizados) harían que Meta rechace el envío entero.
+     */
+    protected function citable(?string $replyToProviderId): ?string
+    {
+        return $replyToProviderId && str_starts_with($replyToProviderId, 'wamid.')
+            ? $replyToProviderId
+            : null;
+    }
+
+    public function sendMedia(Conversation $conversation, OutboundMedia $media, ?string $replyToProviderId = null): SendResult
+    {
+        if (! $this->sender()) {
+            return parent::sendMedia($conversation, $media, $replyToProviderId);
+        }
+
+        return $this->senderFor($conversation)->sendMedia($conversation, $media, $this->citable($replyToProviderId));
+    }
+
+    public function sendLocation(Conversation $conversation, OutboundLocation $location, ?string $replyToProviderId = null): SendResult
+    {
+        if (! $this->sender()) {
+            return parent::sendLocation($conversation, $location, $replyToProviderId);
+        }
+
+        return $this->senderFor($conversation)->sendLocation($conversation, $location, $this->citable($replyToProviderId));
+    }
+
+    public function sendInteractive(Conversation $conversation, OutboundInteractive $interactive, ?string $replyToProviderId = null): SendResult
+    {
+        if (! $this->sender()) {
+            return parent::sendInteractive($conversation, $interactive, $replyToProviderId);
+        }
+
+        return $this->senderFor($conversation)->sendInteractive($conversation, $interactive, $this->citable($replyToProviderId));
+    }
+
+    public function sendTemplate(Conversation $conversation, OutboundTemplate $template, ?string $replyToProviderId = null): SendResult
+    {
+        if (! $this->sender()) {
+            return parent::sendTemplate($conversation, $template, $replyToProviderId);
+        }
+
+        return $this->senderFor($conversation)->sendTemplate($conversation, $template, $this->citable($replyToProviderId));
     }
 
     public function messagingWindowHours(): ?int
@@ -132,6 +234,10 @@ class KommoGateway extends BaseGateway
 
     public function sendText(Conversation $conversation, string $body, ?string $replyToProviderId = null): SendResult
     {
+        if ($this->sender()) {
+            return $this->senderFor($conversation)->sendText($conversation, $body, $this->citable($replyToProviderId));
+        }
+
         $leadId = $conversation->provider_conversation_id;
 
         if (! $leadId) {

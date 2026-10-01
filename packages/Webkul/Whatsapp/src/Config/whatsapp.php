@@ -65,6 +65,12 @@ return [
             'subdomain'   => env('KOMMO_SUBDOMAIN'),
             'token'       => env('KOMMO_TOKEN'),
 
+            // Modo mixto: Kommo solo RECIBE y todo envío sale por este gateway
+            // (normalmente 'cloud_api', el mismo número de WhatsApp). 'kommo'
+            // = el salesbot de siempre, que solo sabe mandar texto. Por defecto
+            // 'kommo' para que activarlo sea una decisión explícita en el .env.
+            'send_via'    => env('KOMMO_SEND_VIA', 'kommo'),
+
             // Kommo signs nothing, so this secret in the webhook URL is the
             // only thing standing between the inbox and forged messages.
             // Generate with: php artisan whatsapp:webhook-info
