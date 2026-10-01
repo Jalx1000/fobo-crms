@@ -20,7 +20,18 @@
     <tr>
     <td style="padding: 24px 0; text-align: center;">
         <a href="https://imprimir.com.bo/">
-            <img style="max-width: 180px; border: 0; text-decoration: none;" src="https://imprimir.com.bo/wp-content/uploads/2023/10/logo-con-texto-imprimir-300x203.png" alt="Imprimir" width="180" />
+            @php
+                /*
+                 * El logo va INCRUSTADO en el correo (CID), no enlazado: Gmail
+                 * oculta las imágenes externas de remitentes nuevos o en spam,
+                 * y una incrustada viaja con el mensaje. $message solo existe
+                 * al enviar; al renderizar (vista previa, tests) se usa la URL.
+                 */
+                $logo = isset($message)
+                    ? $message->embed(base_path('packages/Webkul/Admin/src/Resources/assets/images/emails/logo-imprimir.png'))
+                    : 'https://imprimir.com.bo/wp-content/uploads/2023/10/logo-con-texto-imprimir-300x203.png';
+            @endphp
+            <img style="max-width: 180px; border: 0; text-decoration: none;" src="{{ $logo }}" alt="Imprimir" width="180" />
         </a>
     </td>
     </tr>

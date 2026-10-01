@@ -214,7 +214,8 @@ it('el correo muestra cotización, cliente, oportunidad y productos con el forma
     $html = (new CorreoCotizacion($quote, null, ['Dueño']))->render();
 
     expect($html)
-        ->toContain('logo-con-texto-imprimir')
+        // El logo va incrustado: en la vista previa Laravel lo pone como data URI.
+        ->toContain('src="data:image/png;base64,')
         ->toContain('#D41E35')
         ->toContain('#'.$quote->id)
         ->toContain(e($quote->subject))
@@ -225,4 +226,17 @@ it('el correo muestra cotización, cliente, oportunidad y productos con el forma
         ->toContain(route('admin.quotes.edit', $quote->id));
 
     expect((new CorreoCotizacion($quote, $asesor))->render())->toContain('Hola Dueño')->not->toContain('Avisado a:');
+});
+
+it('al enviarse, el logo va incrustado en el correo y no como enlace externo', function () {
+    // Mailer `array` directo (el facade está falseado): arma el correo real
+    // como para el SMTP, pero lo guarda en memoria.
+    $mailer = (new \Illuminate\Mail\MailManager(app()))->mailer('array');
+
+    $mailer->to('x@test.local')->send(new CorreoCotizacion(cqCotizacion($this->producto, cqAsesor('Dueño'))));
+
+    $email = $mailer->getSymfonyTransport()->messages()->last()->getOriginalMessage();
+
+    expect($email->getHtmlBody())->toContain('src="cid:')->not->toContain('imprimir.com.bo/wp-content')
+        ->and(collect($email->getAttachments())->map->getMediaType()->all())->toContain('image');
 });
