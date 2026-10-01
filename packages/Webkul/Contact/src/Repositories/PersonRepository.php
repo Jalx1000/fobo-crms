@@ -8,6 +8,7 @@ use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
 use Webkul\Contact\Contracts\Person;
 use Webkul\Core\Eloquent\Repository;
+use Webkul\Core\Services\PhoneNumber;
 use Webkul\Lead\Services\CitySyncService;
 
 class PersonRepository extends Repository
@@ -168,6 +169,70 @@ class PersonRepository extends Repository
             ->whereBetween('created_at', [$startDate, $endDate])
             ->get()
             ->count();
+    }
+
+    /**
+     * The person that owns a phone number, or null.
+     *
+     * Numbers are stored free-form in the `contact_numbers` JSON column, so the
+     * same line lives in the CRM as "76616013", "591 76616013" or
+     * "+591 76616013". Matching on the raw string therefore misses, which is how
+     * one WhatsApp number ended up with two persons and a split order history.
+     *
+     * Strategy: prefilter in SQL on the last digits (index-less but cheap and
+     * selective), then confirm in PHP with the normalized comparison.
+     */
+    public function findByPhone(?string $phone)
+    {
+        $tail = PhoneNumber::tail($phone);
+
+        // Too short to identify anybody — matching on it would merge strangers.
+        if (strlen($tail) < 7) {
+            return null;
+        }
+
+        $candidates = $this->model
+            ->where('contact_numbers', 'like', '%'.$tail.'%')
+            ->get();
+
+        // The repository's builder is stateful; leaving this where() on it would
+        // leak into the next query made through the same instance.
+        $this->resetModel();
+
+        return $candidates->first(fn ($person) => $this->hasPhone($person, $phone));
+    }
+
+    /**
+     * The person owning any of the given contact numbers (the shape the API and
+     * the contact form both post: [['label' => ..., 'value' => ...], ...]).
+     */
+    public function findByContactNumbers($numbers)
+    {
+        foreach ((array) $numbers as $number) {
+            $value = is_array($number) ? ($number['value'] ?? null) : $number;
+
+            if ($value && $person = $this->findByPhone($value)) {
+                return $person;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Does this person answer at that number?
+     */
+    public function hasPhone($person, ?string $phone): bool
+    {
+        foreach ((array) $person->contact_numbers as $number) {
+            $value = is_array($number) ? ($number['value'] ?? '') : $number;
+
+            if (PhoneNumber::same($value, $phone)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

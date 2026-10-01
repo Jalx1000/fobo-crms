@@ -38,7 +38,17 @@
                 {!! view_render_event('admin.leads.create.save_button.after') !!}
             </div>
 
-            @if (request('stage_id'))
+            {{--
+                Sólo se reenvían si son un id de verdad.
+
+                Desde la lista sin filtrar, el botón "Crear" arrastra
+                ?pipeline_id=all, y esto lo imprimía tal cual: el POST viajaba
+                con lead_pipeline_id="all", el controlador hacía findOrFail("all")
+                y Laravel respondía 404 al guardar. Un 404 en un formulario que
+                se abrió bien no le dice nada a nadie, y como Laravel no reporta
+                ModelNotFoundException, tampoco quedaba nada en el log.
+            --}}
+            @if (is_numeric(request('stage_id')))
                 <input
                     type="hidden"
                     id="lead_pipeline_stage_id"
@@ -47,7 +57,7 @@
                 />
             @endif
 
-            @if (request('pipeline_id'))
+            @if (is_numeric(request('pipeline_id')))
                 <input
                     type="hidden"
                     id="lead_pipeline_id"

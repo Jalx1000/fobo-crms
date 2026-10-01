@@ -498,18 +498,28 @@ class LeadController extends Controller
 
         $data['status'] = 1;
 
-        if (! empty($data['lead_pipeline_stage_id'])) {
-            $stage = $this->stageRepository->findOrFail($data['lead_pipeline_stage_id']);
+        /*
+         * Un pipeline o etapa que no existe cae al valor por defecto, no a un 404.
+         *
+         * findOrFail() acá respondía 404 al GUARDAR un formulario que se había
+         * abierto bien, que es una respuesta que no le sirve a nadie: la ruta
+         * existe, el problema es un dato. Encima Laravel no reporta
+         * ModelNotFoundException, así que no quedaba rastro en el log.
+         */
+        $stage = ! empty($data['lead_pipeline_stage_id'])
+            ? $this->stageRepository->find($data['lead_pipeline_stage_id'])
+            : null;
 
+        if ($stage) {
             $data['lead_pipeline_id'] = $stage->lead_pipeline_id;
         } else {
-            if (empty($data['lead_pipeline_id'])) {
-                $pipeline = $this->pipelineRepository->getDefaultPipeline();
+            $pipeline = ! empty($data['lead_pipeline_id'])
+                ? $this->pipelineRepository->find($data['lead_pipeline_id'])
+                : null;
 
-                $data['lead_pipeline_id'] = $pipeline->id;
-            } else {
-                $pipeline = $this->pipelineRepository->findOrFail($data['lead_pipeline_id']);
-            }
+            $pipeline ??= $this->pipelineRepository->getDefaultPipeline();
+
+            $data['lead_pipeline_id'] = $pipeline->id;
 
             $stage = $pipeline->stages()->first();
 
@@ -801,6 +811,20 @@ class LeadController extends Controller
      */
     public function addProduct(int $leadId): JsonResponse
     {
+        /*
+         * Sin esto, una fila sin producto elegido llegaba con product_id nulo y
+         * la respuesta era un 500 de MySQL ("Column 'product_id' cannot be
+         * null"): el asesor veía una pantalla rota en vez de qué le faltaba
+         * completar.
+         */
+        request()->validate([
+            'product_id' => 'required|integer|exists:products,id',
+            'quantity'   => 'nullable|numeric|min:0',
+            'price'      => 'nullable|numeric|min:0',
+        ], [
+            'product_id.required' => trans('admin::app.leads.common.products.product-name').': campo requerido.',
+        ]);
+
         $product = $this->productRepository->updateOrCreate(
             [
                 'lead_id'    => $leadId,
@@ -810,7 +834,7 @@ class LeadController extends Controller
                 request()->all(),
                 [
                     'lead_id' => $leadId,
-                    'amount'  => request()->input('price') * request()->input('quantity'),
+                    'amount'  => (float) request()->input('price', 0) * (float) request()->input('quantity', 0),
                 ],
             )
         );

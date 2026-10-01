@@ -277,6 +277,23 @@
                  * @return {void}
                  */
                 addProduct(result) {
+                    /*
+                     * El lookup emite `on-selected` con un objeto VACÍO cuando
+                     * se quita el producto elegido (ver su método remove()).
+                     * Tomarlo sin mirar dejaba la fila con product_id
+                     * `undefined`, se enviaba vacía, y el insert moría con
+                     * "Column 'product_id' cannot be null" — un 500 sin ninguna
+                     * pista de cuál fila era.
+                     */
+                    if (! result || ! result.id) {
+                        this.product.product_id = null;
+                        this.product.name = '';
+                        this.product.price = 0;
+                        this.product.amount = null;
+
+                        return;
+                    }
+
                     this.product.product_id = result.id;
 
                     this.product.name = result.name;

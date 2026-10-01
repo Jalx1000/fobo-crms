@@ -90,8 +90,26 @@
             <!-- Activities -->
             <x-admin::activities
                 :endpoint="route('admin.contacts.persons.activities.index', $person->id)"
-                :extra-types="[['name' => 'historial', 'label' => 'Historial IA']]"
+                :extra-types="array_merge(
+                    /*
+                     * La pestaña sólo existe para quien tiene el módulo.
+                     * Aparecía para todos, incluido un rol sin permiso de
+                     * WhatsApp: el menú lateral lo ocultaba y la pestaña no,
+                     * así que el mismo usuario tenía y no tenía el módulo
+                     * según por dónde entrara.
+                     */
+                    bouncer()->hasPermission('whatsapp')
+                        ? [['name' => 'whatsapp', 'label' => 'WhatsApp']]
+                        : [],
+                    [['name' => 'historial', 'label' => 'Historial IA']],
+                )"
             >
+                @if (bouncer()->hasPermission('whatsapp'))
+                    <x-slot:whatsapp>
+                        @include('whatsapp::inbox')
+                    </x-slot>
+                @endif
+
                 <x-slot:historial>
                     @include('admin::contacts.persons.view.historial-ia')
                 </x-slot>

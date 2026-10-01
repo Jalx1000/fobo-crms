@@ -43,6 +43,7 @@ return [
                 'annotations' => [
                     base_path('vendor/krayin/rest-api/src/Docs'),
                     base_path('packages/Webkul/Doctor/src/Http/Controllers/Api'),
+                    base_path('packages/Webkul/Whatsapp/src/Http/Controllers/Api'),
                 ],
 
             ],

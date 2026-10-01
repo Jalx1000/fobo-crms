@@ -85,12 +85,30 @@
             <!-- Activities -->
             {!! view_render_event('admin.leads.view.activities.before', ['lead' => $lead]) !!}
 
-            <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : 'all'" :extra-types="[
-                ['name' => 'historial', 'label' => 'Historial IA'],
-                ['name' => 'description', 'label' => trans('admin::app.leads.view.tabs.description')],
-                ['name' => 'products', 'label' => trans('admin::app.leads.view.tabs.products')],
-                // ['name' => 'quotes', 'label' => trans('admin::app.leads.view.tabs.quotes')],
-            ]">
+            <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : 'all'" :extra-types="array_merge(
+                /*
+                 * La pestaña sólo existe para quien tiene el módulo. Aparecía
+                 * para todos, incluido un rol sin permiso de WhatsApp: el menú
+                 * lateral lo ocultaba y la pestaña no, así que el mismo usuario
+                 * tenía y no tenía el módulo según por dónde entrara.
+                 */
+                bouncer()->hasPermission('whatsapp')
+                    ? [['name' => 'whatsapp', 'label' => 'WhatsApp']]
+                    : [],
+                [
+                    ['name' => 'historial', 'label' => 'Historial IA'],
+                    ['name' => 'description', 'label' => trans('admin::app.leads.view.tabs.description')],
+                    ['name' => 'products', 'label' => trans('admin::app.leads.view.tabs.products')],
+                    // ['name' => 'quotes', 'label' => trans('admin::app.leads.view.tabs.quotes')],
+                ],
+            )">
+                {{-- WhatsApp Inbox --}}
+                @if (bouncer()->hasPermission('whatsapp'))
+                    <x-slot:whatsapp>
+                        @include('whatsapp::inbox')
+                    </x-slot>
+                @endif
+
                 {{-- Historial IA --}}
                 <x-slot:historial>
                     @include('admin::leads.view.historial-ia')

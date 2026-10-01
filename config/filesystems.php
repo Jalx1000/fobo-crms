@@ -40,6 +40,19 @@ return [
             'root'       => storage_path('app/public'),
             'url'        => env('APP_URL').'/storage',
             'visibility' => 'public',
+
+            /*
+            | Explícito a propósito. Por defecto Laravel crea los directorios
+            | con 0755, y el dueño es quien los crea: un `php artisan` corrido
+            | como root deja un directorio en el que php-fpm (www-data) no puede
+            | escribir, y la subida falla sin dejar rastro en el log.
+            |
+            | Pasó con storage/app/public/whatsapp/outbound.
+            */
+            'permissions' => [
+                'file' => ['public' => 0664, 'private' => 0600],
+                'dir'  => ['public' => 0775, 'private' => 0700],
+            ],
         ],
 
         's3' => [

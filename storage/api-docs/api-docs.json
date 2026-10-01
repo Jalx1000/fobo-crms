@@ -10,7 +10,7 @@
     },
     "servers": [
         {
-            "url": "https://kohlberg.sofopolis.com",
+            "url": "https://sensia.sofopolis.com",
             "description": "Krayin Rest API."
         }
     ],
