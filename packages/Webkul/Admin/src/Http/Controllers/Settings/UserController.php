@@ -162,9 +162,10 @@ class UserController extends Controller
             'atiende.*'        => 'nullable|array',
             'atiende.*.*'      => 'string|max:60',
             'firma'            => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
+            'quitar_firma'     => 'nullable|boolean',
         ]);
 
-        $data = request()->except('atiende');
+        $data = request()->except('atiende', 'quitar_firma');
 
         // Hasta que corra la migración del round robin la columna no existe;
         // que falte un teléfono no puede impedir editar el resto del usuario.
@@ -187,15 +188,23 @@ class UserController extends Controller
         Event::dispatch('settings.user.update.before', $id);
 
         /*
-        | La firma solo se toca si vino un archivo. El modal manda FormData con
-        | todos los campos, y `firma` ausente no significa «borrala», significa
-        | que no la cambiaron: pisarla con null cada vez que editan el cargo
-        | dejaría a los asesores sin firma sin que nadie entienda por qué.
+        | La firma solo se toca si vino un archivo o si la quitaron. El modal
+        | manda FormData con todos los campos, y `firma` ausente no significa
+        | «borrala», significa que no la cambiaron: pisarla con null cada vez
+        | que editan el cargo dejaría a los asesores sin firma sin que nadie
+        | entienda por qué. Quitarla es explícito (`quitar_firma`), y una nueva
+        | subida en el mismo guardado gana.
         */
         unset($data['firma']);
 
-        if ($firma = $this->guardarFirma($this->userRepository->find($id))) {
+        $user = $this->userRepository->find($id);
+
+        if ($firma = $this->guardarFirma($user)) {
             $data['firma'] = $firma;
+        } elseif (request()->boolean('quitar_firma') && $user?->firma) {
+            Storage::delete($user->firma);
+
+            $data['firma'] = null;
         }
 
         $admin = $this->userRepository->update($data, $id);

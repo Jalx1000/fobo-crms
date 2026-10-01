@@ -1308,6 +1308,9 @@ return [
                     'cargo-placeholder'        => 'Ej. Ejecutivo comercial',
                     'firma'                    => 'Firma',
                     'firma-actual'             => 'Firma actual. Subí otra para reemplazarla.',
+                    'firma-quitar'             => 'Quitar firma',
+                    'firma-se-quitara'         => 'Se quitará al guardar.',
+                    'firma-deshacer'           => 'Deshacer',
                     'firma-help'               => 'PNG, JPG o WebP, hasta 2 MB. Ideal: fondo transparente.',
                 ],
                 'edit' => [

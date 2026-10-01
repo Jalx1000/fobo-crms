@@ -295,13 +295,49 @@
                                     <img
                                         :src="user.firma_url"
                                         class="h-14 max-w-[220px] rounded border border-gray-200 bg-white object-contain p-1 dark:border-gray-800"
+                                        {{-- Estilo en línea: opacity-40/grayscale no están en el CSS compilado. --}}
+                                        :style="user.quitar_firma ? 'opacity: .4; filter: grayscale(1);' : ''"
                                         alt="Firma actual"
                                     />
 
-                                    <span class="text-xs text-gray-500 dark:text-gray-400">
-                                        @lang('admin::app.settings.users.index.create.firma-actual')
-                                    </span>
+                                    {{-- Quitar no borra en el acto: se marca y se borra al
+                                         guardar, para que un clic de más se pueda deshacer. --}}
+                                    <div class="flex flex-col gap-1">
+                                        <template v-if="! user.quitar_firma">
+                                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                                @lang('admin::app.settings.users.index.create.firma-actual')
+                                            </span>
+
+                                            <button
+                                                type="button"
+                                                class="w-fit text-xs font-semibold text-red-600 hover:underline"
+                                                @click="user.quitar_firma = true"
+                                            >
+                                                @lang('admin::app.settings.users.index.create.firma-quitar')
+                                            </button>
+                                        </template>
+
+                                        <template v-else>
+                                            <span class="text-xs font-semibold text-red-600">
+                                                @lang('admin::app.settings.users.index.create.firma-se-quitara')
+                                            </span>
+
+                                            <button
+                                                type="button"
+                                                class="w-fit text-xs font-semibold text-brandColor hover:underline"
+                                                @click="user.quitar_firma = false"
+                                            >
+                                                @lang('admin::app.settings.users.index.create.firma-deshacer')
+                                            </button>
+                                        </template>
+                                    </div>
                                 </div>
+
+                                <input
+                                    type="hidden"
+                                    name="quitar_firma"
+                                    :value="user.quitar_firma ? 1 : 0"
+                                />
 
                                 <input
                                     type="file"
@@ -700,6 +736,7 @@
                         this.user = {
                             groups: [],
                             atiende: this.atiendeVacio(),
+                            quitar_firma: false,
                         };
 
                         this.$refs.userUpdateAndCreateModal.toggle();
@@ -750,6 +787,10 @@
                                 this.user.groups = this.user.groups.map(group => group.id);
 
                                 this.user.atiende = Object.assign(this.atiendeVacio(), this.user.atiende || {});
+
+                                // Cada apertura arranca sin marca: no arrastrar un «quitar»
+                                // pendiente de otro usuario.
+                                this.user.quitar_firma = false;
 
                                 this.$refs.userUpdateAndCreateModal.toggle();
                             })
