@@ -78,7 +78,8 @@
             "Webkul\\WebForm\\": "packages/Webkul/WebForm/src",
             "Webkul\\Automation\\": "packages/Webkul/Automation/src",
             "Webkul\\Doctor\\": "packages/Webkul/Doctor/src",
-            "Webkul\\Whatsapp\\": "packages/Webkul/Whatsapp/src"
+            "Webkul\\Whatsapp\\": "packages/Webkul/Whatsapp/src",
+            "Webkul\\Distribuidor\\": "packages/Webkul/Distribuidor/src"
         }
     },
     "autoload-dev": {

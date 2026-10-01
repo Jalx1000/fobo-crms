@@ -21,6 +21,7 @@ return [
         \Webkul\DataTransfer\Providers\ModuleServiceProvider::class,
         \Webkul\Doctor\Providers\ModuleServiceProvider::class,
         \Webkul\Whatsapp\Providers\ModuleServiceProvider::class,
+        \Webkul\Distribuidor\Providers\ModuleServiceProvider::class,
     ],
 
     'register_route_models' => true,

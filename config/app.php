@@ -226,6 +226,7 @@ return [
 
         Webkul\Doctor\Providers\DoctorServiceProvider::class,
         Webkul\Whatsapp\Providers\WhatsappServiceProvider::class,
+        Webkul\Distribuidor\Providers\DistribuidorServiceProvider::class,
 
     ])->toArray(),
 

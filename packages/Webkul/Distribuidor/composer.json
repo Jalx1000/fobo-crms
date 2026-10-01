@@ -1,0 +1,20 @@
+{
+    "name": "krayin/laravel-distribuidor",
+    "license": "MIT",
+    "description": "Punto de Distribuidor: pedidos, contactos, cobros y WhatsApp en una sola pantalla táctil.",
+    "authors": [{ "name": "Javier", "email": "jalejandromogro1@gmail.com" }],
+    "require": {
+        "krayin/laravel-core": "^1.0",
+        "krayin/laravel-user": "^1.0",
+        "krayin/laravel-contact": "^1.0",
+        "krayin/laravel-lead": "^1.0"
+    },
+    "autoload": { "psr-4": { "Webkul\\Distribuidor\\": "src/" } },
+    "extra": {
+        "laravel": {
+            "providers": ["Webkul\\Distribuidor\\Providers\\DistribuidorServiceProvider"],
+            "aliases": {}
+        }
+    },
+    "minimum-stability": "dev"
+}

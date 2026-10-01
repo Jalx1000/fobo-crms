@@ -6,6 +6,7 @@ module.exports = {
         "./src/Resources/**/*.blade.php",
         "./src/Resources/**/*.js",
         path.resolve(__dirname, "../Whatsapp/src/Resources/**/*.blade.php"),
+        path.resolve(__dirname, "../Distribuidor/src/Resources/**/*.blade.php"),
     ],
 
     theme: {
