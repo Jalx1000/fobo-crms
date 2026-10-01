@@ -104,6 +104,10 @@ return [
     */
     'contacto_nuevo' => env('MAIL_CONTACTO_NUEVO', false),
 
+    // Copia del aviso interno para TODOS los contactos nuevos, además de los
+    // asesores designados. Varios correos separados por coma.
+    'contacto_nuevo_copia' => env('MAIL_CONTACTO_NUEVO_COPIA', ''),
+
     /*
     |--------------------------------------------------------------------------
     | Default Mailer Domain

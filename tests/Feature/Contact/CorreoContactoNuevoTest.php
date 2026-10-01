@@ -170,6 +170,38 @@ it('un contacto avisa una sola vez aunque el evento llegue dos veces', function 
     Mail::assertSent(AvisoContactoNuevo::class, 1);
 });
 
+it('manda copia del aviso a los correos fijos, además de los designados', function () {
+    config(['mail.contacto_nuevo_copia' => 'copia@test.local, otra@test.local']);
+
+    $asesor = cnAsesor('Asignado');
+    $contacto = cnContacto('Cobija', $asesor);
+
+    app()->call([new AvisarContactoNuevo($contacto->id), 'handle']);
+
+    Mail::assertSent(AvisoContactoNuevo::class, fn ($m) => $m->hasTo($asesor->email));
+    Mail::assertSent(AvisoContactoNuevo::class, fn ($m) => $m->hasTo('copia@test.local') && in_array('Asignado', $m->designados, true));
+    Mail::assertSent(AvisoContactoNuevo::class, fn ($m) => $m->hasTo('otra@test.local'));
+    Mail::assertSent(AvisoContactoNuevo::class, 3);
+});
+
+it('la copia llega aunque no haya ningún asesor designado', function () {
+    config(['mail.contacto_nuevo_copia' => 'copia@test.local']);
+
+    // Cobija sin nadie y sin asesor: los de Bolivia (reales o no) + la copia.
+    app()->call([new AvisarContactoNuevo(cnContacto('Cobija', null, null)->id), 'handle']);
+
+    Mail::assertSent(AvisoContactoNuevo::class, fn ($m) => $m->hasTo('copia@test.local'));
+});
+
+it('si el correo de copia ya es de un asesor designado, recibe uno solo', function () {
+    $asesor = cnAsesor('Asignado');
+    config(['mail.contacto_nuevo_copia' => strtoupper($asesor->email)]);
+
+    app()->call([new AvisarContactoNuevo(cnContacto('Cobija', $asesor)->id), 'handle']);
+
+    Mail::assertSent(AvisoContactoNuevo::class, 1);
+});
+
 it('el listener encola el aviso en la cola whatsapp, sin demora', function () {
     Queue::fake();
 

@@ -58,7 +58,15 @@ class AvisarContactoNuevo implements ShouldQueue
                 Mail::to($asesor->email)->send(new AvisoContactoNuevo($person, $asesor, $para['ciudad']));
             }
 
+            // La copia fija ve el mismo aviso y a quiénes se les designó.
+            $designados = $para['equipo']->pluck('name')->all();
+
+            foreach ($this->copias($para['equipo']) as $email) {
+                Mail::to($email)->send(new AvisoContactoNuevo($person, null, $para['ciudad'], $designados));
+            }
+
             Log::info('Contacto nuevo: correos enviados', [
+                'copias'    => count($this->copias($para['equipo'])),
                 'person_id' => $person->id,
                 'cliente'   => count($para['cliente']),
                 'equipo'    => $para['equipo']->pluck('id')->all(),
@@ -68,5 +76,24 @@ class AvisarContactoNuevo implements ShouldQueue
 
             throw $e;
         }
+    }
+
+    /**
+     * Los correos de MAIL_CONTACTO_NUEVO_COPIA, sin los que ya recibieron el
+     * aviso como asesores (nadie recibe dos).
+     *
+     * @return array<int, string>
+     */
+    protected function copias($equipo): array
+    {
+        $yaAvisados = $equipo->pluck('email')->map(fn ($email) => strtolower($email))->all();
+
+        return collect(explode(',', (string) config('mail.contacto_nuevo_copia')))
+            ->map(fn ($email) => strtolower(trim($email)))
+            ->filter(fn ($email) => filter_var($email, FILTER_VALIDATE_EMAIL))
+            ->reject(fn ($email) => in_array($email, $yaAvisados, true))
+            ->unique()
+            ->values()
+            ->all();
     }
 }

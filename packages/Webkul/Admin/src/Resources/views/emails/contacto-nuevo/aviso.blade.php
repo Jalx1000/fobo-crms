@@ -17,7 +17,11 @@
             Nuevo contacto registrado
         </div>
 
-        <p>Hola {{ $asesor->name }}, se registró un contacto que te corresponde:</p>
+        @if ($asesor)
+            <p>Hola {{ $asesor->name }}, se registró un contacto que te corresponde:</p>
+        @else
+            <p>Se registró un contacto nuevo:</p>
+        @endif
 
         <div class="detail-row">
             <span class="label">Nombre:</span> {{ $person->name }}
@@ -31,6 +35,12 @@
         <div class="detail-row">
             <span class="label">Email:</span> {{ collect($person->emails ?? [])->pluck('value')->filter()->implode(', ') ?: '—' }}
         </div>
+
+        @unless ($asesor)
+            <div class="detail-row">
+                <span class="label">Avisado a:</span> {{ $designados ? implode(', ', $designados) : 'Ningún asesor (revisar asignación)' }}
+            </div>
+        @endunless
 
         <a class="button" href="{{ route('admin.contacts.persons.view', $person->id) }}">Ver contacto en el CRM</a>
 

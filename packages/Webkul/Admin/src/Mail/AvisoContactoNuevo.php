@@ -9,6 +9,9 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Aviso interno a un asesor: se registró un contacto que le toca (asignado a
  * él, de su ciudad, o sin ciudad para la cobertura nacional).
+ *
+ * Sin $asesor es la copia fija (MAIL_CONTACTO_NUEVO_COPIA), que además lista a
+ * quiénes se les designó.
  */
 class AvisoContactoNuevo extends Mailable
 {
@@ -16,8 +19,9 @@ class AvisoContactoNuevo extends Mailable
 
     public function __construct(
         public $person,
-        public $asesor,
+        public $asesor = null,
         public ?string $ciudad = null,
+        public array $designados = [],
     ) {}
 
     public function build()
