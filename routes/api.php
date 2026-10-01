@@ -2,11 +2,9 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\DB;
-use Webkul\Product\Models\Product;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
-use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Product\Models\Product;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,7 +28,7 @@ Route::get('/public/products', function (Request $request) {
     if ($search) {
         $query->where(function ($q) use ($search) {
             $q->where('name', 'like', '%'.$search.'%')
-              ->orWhere('sku', 'like', '%'.$search.'%');
+                ->orWhere('sku', 'like', '%'.$search.'%');
         });
     }
 
@@ -46,7 +44,7 @@ Route::get('/public/products', function (Request $request) {
         if ($attribute) {
             $query->whereHas('attribute_values', function ($q) use ($attribute, $available) {
                 $q->where('attribute_id', $attribute->id)
-                  ->where('boolean_value', (int) $available);
+                    ->where('boolean_value', (int) $available);
             });
         }
     }
@@ -69,46 +67,36 @@ Route::get('/public/products', function (Request $request) {
     return response()->json(['data' => $products]);
 });
 
-Route::get('/public/chat-history', function (Request $request) {
-    $email = $request->query('email');  
-
-    if (! $email) {
-        return response()->json(['error' => 'email es requerido'], 400);
-    }
-
-    $singleTable = env('EXTERNAL_PGSQL_CHAT_TABLE');
-    if ($singleTable) {
-        $tables = [trim($singleTable)];
-    } else {
-        $tablesEnv = env('EXTERNAL_PGSQL_CHAT_TABLES');
-        $tables = $tablesEnv ? array_values(array_filter(array_map('trim', explode(',', $tablesEnv)))) : ['EXTERNAL_PGSQL_CHAT_TABLE=n8n_chat_histories_odonto'];
-    }
-
-    $messages = collect();
-
-    foreach ($tables as $table) {
-        $rows = DB::connection('external_pgsql')
-            ->table($table)
-            ->select('id', 'session_id', 'message')
-            ->where('session_id', $email)
-            ->orderBy('id', 'asc')
-            ->get();
-
-        foreach ($rows as $row) {
-            $messages->push($row->message);
-        }
-    }
-
-    return response()->json([
-        'email' => $email,
-        'messages' => $messages,
-        'count' => $messages->count(),
-    ]);
-});
+/*
+ * Historial de la memoria del agente de IA.
+ *
+ * Antes esta ruta era pública: recibía un email por query string y devolvía la
+ * conversación completa. Como el `session_id` de n8n es `<telefono>@whatsapp…`,
+ * con sólo saber un número de teléfono se leía todo lo que un cliente habló,
+ * desde internet y sin credenciales.
+ *
+ * Queda detrás de un token para que la siga consumiendo una máquina (n8n), y se
+ * publica además bajo el admin —abajo— para la pestaña del CRM, que autentica
+ * por sesión y no por token.
+ */
+Route::middleware('auth:sanctum')->get('/public/chat-history', [
+    \App\Http\Controllers\Api\ChatHistoryController::class, 'byEmail',
+])->name('api.chat-history');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/horarios', [\App\Http\Controllers\Api\ScheduleController::class, 'getHorarios']);
     Route::get('/disponibilidad', [\App\Http\Controllers\Api\ScheduleController::class, 'getDisponibilidad']);
+
+    // Historial de pedidos por teléfono, en una sola llamada y sin depender de
+    // cómo esté escrito el número (con o sin código de país, con o sin "+").
+    Route::get('/pedidos/por-telefono', [\App\Http\Controllers\Api\LeadLookupController::class, 'byPhone'])
+        ->name('api.pedidos.por-telefono');
+
+    // La ficha del contacto por teléfono, con sus atributos personalizados
+    // (Ciudad, Sucursal). El /search de la REST API no sirve acá: matchea el
+    // número con un LIKE crudo sobre el JSON y no devuelve atributos custom.
+    Route::get('/personas/por-telefono', [\App\Http\Controllers\Api\PersonLookupController::class, 'byPhone'])
+        ->name('api.personas.por-telefono');
 });
 
 /**

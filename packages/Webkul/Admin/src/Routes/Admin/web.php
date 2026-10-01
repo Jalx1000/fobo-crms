@@ -49,3 +49,13 @@ require 'configuration-routes.php';
  * Rest routes.
  */
 require 'rest-routes.php';
+
+/**
+ * Historial del agente de IA.
+ *
+ * Bajo el admin ('web' + 'user') porque la pestaña del CRM autentica por sesión:
+ * el grupo 'api' no es stateful en esta app, así que la cookie del navegador no
+ * sirve ahí. Antes la pestaña pegaba a la versión pública de este endpoint.
+ */
+Route::get('chat-history', [\App\Http\Controllers\Api\ChatHistoryController::class, 'byEmail'])
+    ->name('admin.chat-history');

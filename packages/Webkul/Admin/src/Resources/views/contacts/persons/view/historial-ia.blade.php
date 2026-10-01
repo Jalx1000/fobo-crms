@@ -78,7 +78,7 @@
                 },
 
                 endpoint() {
-                    return "{{ url('api/public/chat-history') }}";
+                    return "{{ route('admin.chat-history') }}";
                 },
 
                 pairedRows() {
