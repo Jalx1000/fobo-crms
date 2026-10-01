@@ -5,6 +5,7 @@ namespace Webkul\Lead\Repositories;
 use Carbon\Carbon;
 use Illuminate\Container\Container;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
@@ -134,6 +135,9 @@ class LeadRepository extends Repository
                 $person = $this->personRepository->create(array_merge($data['person'], [
                     'entity_type' => 'persons',
                 ]));
+
+                // Un contacto creado junto con la oportunidad es un alta como cualquier otra.
+                Event::dispatch('contacts.person.create.after', $person);
             }
 
             $data['person_id'] = $person->id;
@@ -221,6 +225,9 @@ class LeadRepository extends Repository
                 $person = $this->personRepository->create(array_merge($data['person'], [
                     'entity_type' => 'persons',
                 ]));
+
+                // Un contacto creado junto con la oportunidad es un alta como cualquier otra.
+                Event::dispatch('contacts.person.create.after', $person);
             }
 
             $data['person_id'] = $person->id;

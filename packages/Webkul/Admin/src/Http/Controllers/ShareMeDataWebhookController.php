@@ -131,6 +131,7 @@ class ShareMeDataWebhookController extends Controller
                         'contact_numbers' => [['value' => $phone, 'label' => 'work']],
                         'entity_type'     => 'persons',
                     ]);
+                    \Illuminate\Support\Facades\Event::dispatch('contacts.person.create.after', $person);
                     $personId = $person->id;
                 } else {
                     $personId = $person->id;

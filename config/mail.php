@@ -97,6 +97,14 @@ return [
     ],
 
     /*
+    | Correos al registrarse un contacto nuevo (bienvenida al cliente y aviso
+    | al asesor). Apagado por defecto: encenderlo manda correos reales a
+    | clientes, así que es una decisión explícita en el .env.
+    | Spec: docs/specs/correo-contacto-nuevo.md
+    */
+    'contacto_nuevo' => env('MAIL_CONTACTO_NUEVO', false),
+
+    /*
     |--------------------------------------------------------------------------
     | Default Mailer Domain
     |--------------------------------------------------------------------------

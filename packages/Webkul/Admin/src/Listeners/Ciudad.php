@@ -99,7 +99,7 @@ class Ciudad
      * El nombre de la ciudad a partir de lo guardado, que en un select es el id
      * de la opción. Devuelve null cuando no hay dato.
      */
-    protected function nombreDe(string $entityType, mixed $valor): ?string
+    public function nombreDe(string $entityType, mixed $valor): ?string
     {
         $valor = trim((string) ($valor ?? ''));
 

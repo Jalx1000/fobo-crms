@@ -327,6 +327,10 @@ class ConversationResolver
                 ...($digits ? ['contact_numbers' => [['label' => 'work', 'value' => $digits]]] : []),
             ]);
 
+            // El mismo evento que un alta a mano: avisos, automatizaciones y
+            // listeners no distinguen si el contacto llegó por WhatsApp.
+            Event::dispatch('contacts.person.create.after', $person);
+
             Log::info('Messaging: registered a new person for an unknown contact', [
                 'person_id' => $person->id,
                 'name'      => $person->name,
