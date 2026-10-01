@@ -33,7 +33,8 @@ use Webkul\Whatsapp\Services\ConversationResolver;
 uses(DatabaseTransactions::class);
 
 beforeEach(function () {
-    config(['cache.default' => 'array', 'mail.contacto_nuevo' => true]);
+    // La copia fija del .env no debe colarse en los conteos: cada test la pone si la necesita.
+    config(['cache.default' => 'array', 'mail.contacto_nuevo' => true, 'mail.contacto_nuevo_copia' => '']);
 
     Http::fake();
     Mail::fake();
@@ -239,4 +240,22 @@ it('un contacto creado por WhatsApp también dispara el alta', function () {
     );
 
     Event::assertDispatched('contacts.person.create.after');
+});
+
+it('los dos correos se renderizan con el formato y el logo de Imprimir', function () {
+    $contacto = cnContacto('Cobija', null, 'cliente@test.local');
+
+    $bienvenida = (new BienvenidaContacto($contacto))->render();
+    $aviso = (new AvisoContactoNuevo($contacto, null, 'Cobija', ['Fabio', 'Mariano']))->render();
+    $avisoAsesor = (new AvisoContactoNuevo($contacto, (object) ['name' => 'Fabio'], 'Cobija'))->render();
+
+    foreach ([$bienvenida, $aviso, $avisoAsesor] as $html) {
+        expect($html)->toContain('logo-con-texto-imprimir.png')
+            ->toContain('#D41E35')
+            ->toContain('Imprimir');
+    }
+
+    expect($bienvenida)->toContain('¡Hola, '.e($contacto->name).'!');
+    expect($aviso)->toContain('Avisado a:')->toContain('Fabio, Mariano')->toContain('Cobija');
+    expect($avisoAsesor)->toContain('Hola Fabio')->not->toContain('Avisado a:');
 });

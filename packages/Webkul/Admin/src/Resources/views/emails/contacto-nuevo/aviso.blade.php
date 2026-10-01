@@ -1,52 +1,49 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { width: 80%; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
-        .header { font-size: 18px; font-weight: bold; border-bottom: 2px solid #BA2831; padding-bottom: 10px; margin-bottom: 20px; color: #BA2831; }
-        .detail-row { margin-bottom: 10px; }
-        .label { font-weight: bold; width: 150px; display: inline-block; }
-        .button { display: inline-block; margin-top: 15px; padding: 10px 18px; background: #BA2831; color: #fff !important; text-decoration: none; border-radius: 4px; }
-        .footer { margin-top: 30px; font-size: 12px; color: #777; border-top: 1px solid #eee; padding-top: 10px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            Nuevo contacto registrado
-        </div>
+@extends('admin::emails.contacto-nuevo.layout')
 
+@section('titulo', 'Nuevo contacto registrado')
+
+@section('contenido')
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
         @if ($asesor)
-            <p>Hola {{ $asesor->name }}, se registró un contacto que te corresponde:</p>
+            Hola {{ $asesor->name }}, se registró un contacto que te corresponde. A continuación se detallan los datos capturados:
         @else
-            <p>Se registró un contacto nuevo:</p>
+            Se ha registrado un nuevo contacto en el CRM. A continuación se detallan los datos capturados:
         @endif
+    </p>
 
-        <div class="detail-row">
-            <span class="label">Nombre:</span> {{ $person->name }}
-        </div>
-        <div class="detail-row">
-            <span class="label">Ciudad:</span> {{ $ciudad ?? 'Sin ciudad' }}
-        </div>
-        <div class="detail-row">
-            <span class="label">Teléfono:</span> {{ collect($person->contact_numbers ?? [])->pluck('value')->filter()->implode(', ') ?: '—' }}
-        </div>
-        <div class="detail-row">
-            <span class="label">Email:</span> {{ collect($person->emails ?? [])->pluck('value')->filter()->implode(', ') ?: '—' }}
-        </div>
+    @php
+        $telefonos = collect($person->contact_numbers ?? [])->pluck('value')->filter()->implode(', ');
+        $emails = collect($person->emails ?? [])->pluck('value')->filter()->implode(', ');
+    @endphp
 
+    <div style="background-color: #f8faf5; border: 1px solid #E5E7EB; border-left: 4px solid #D41E35; padding: 16px; margin: 24px 0; border-radius: 6px;">
+        <div style="margin-bottom: 8px; font-size: 14px;">
+            <strong style="color: #111827;">Nombre:</strong> {{ $person->name }}
+        </div>
+        <div style="margin-bottom: 8px; font-size: 14px;">
+            <strong style="color: #111827;">Teléfono:</strong> {{ $telefonos ?: '—' }}
+        </div>
+        <div style="margin-bottom: 8px; font-size: 14px;">
+            <strong style="color: #111827;">Email:</strong> {{ $emails ?: '—' }}
+        </div>
+        <div style="margin-bottom: 8px; font-size: 14px;">
+            <strong style="color: #111827;">ID del Contacto:</strong> {{ $person->id }}
+        </div>
+        <div style="margin-bottom: {{ $asesor ? '0' : '8px' }}; font-size: 14px;">
+            <strong style="color: #111827;">Ciudad:</strong> {{ $ciudad ?? 'Sin ciudad' }}
+        </div>
         @unless ($asesor)
-            <div class="detail-row">
-                <span class="label">Avisado a:</span> {{ $designados ? implode(', ', $designados) : 'Ningún asesor (revisar asignación)' }}
+            <div style="margin-bottom: 0; font-size: 14px;">
+                <strong style="color: #111827;">Avisado a:</strong> {{ $designados ? implode(', ', $designados) : 'Ningún asesor (revisar asignación)' }}
             </div>
         @endunless
-
-        <a class="button" href="{{ route('admin.contacts.persons.view', $person->id) }}">Ver contacto en el CRM</a>
-
-        <div class="footer">
-            {{ config('app.name') }} · Aviso automático del CRM.
-        </div>
     </div>
-</body>
-</html>
+
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
+        Por favor, revisar este registro y dar seguimiento según el flujo comercial correspondiente.
+    </p>
+
+    <p style="margin: 24px 0 0 0;">
+        <a href="{{ route('admin.contacts.persons.view', $person->id) }}" style="display: inline-block; padding: 10px 18px; background-color: #D41E35; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: bold;">Ver contacto en el CRM</a>
+    </p>
+@endsection

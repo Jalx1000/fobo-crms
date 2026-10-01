@@ -1,26 +1,17 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { width: 80%; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
-        .header { font-size: 18px; font-weight: bold; border-bottom: 2px solid #BA2831; padding-bottom: 10px; margin-bottom: 20px; color: #BA2831; }
-        .footer { margin-top: 30px; font-size: 12px; color: #777; border-top: 1px solid #eee; padding-top: 10px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            ¡Hola, {{ $person->name }}!
-        </div>
+@extends('admin::emails.contacto-nuevo.layout')
 
-        <p>Gracias por contactarte con <strong>{{ config('app.name') }}</strong>. Ya registramos tus datos y un asesor te va a atender a la brevedad.</p>
+@section('titulo', '¡Hola, '.$person->name.'!')
 
-        <p>Si querés adelantar tu consulta, podés responder este correo o escribirnos por WhatsApp.</p>
+@section('firma', 'Equipo de Imprimir')
 
-        <div class="footer">
-            {{ config('app.name') }} · Este es un mensaje automático.
-        </div>
+@section('pie', 'Este es un mensaje automático de Imprimir')
+
+@section('contenido')
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
+        Gracias por contactarte con <strong style="color: #111827;">Imprimir</strong>. Ya registramos tus datos y un asesor te va a atender a la brevedad.
+    </p>
+
+    <div style="background-color: #f8faf5; border: 1px solid #E5E7EB; border-left: 4px solid #D41E35; padding: 16px; margin: 24px 0; border-radius: 6px; font-size: 14px; line-height: 1.6;">
+        Si querés adelantar tu consulta, podés responder este correo o escribirnos por WhatsApp.
     </div>
-</body>
-</html>
+@endsection
