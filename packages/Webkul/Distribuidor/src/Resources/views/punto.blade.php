@@ -707,8 +707,66 @@
 
                         if (! archivo) return;
 
-                        this.entrega.archivo = archivo;
-                        this.entrega.preview = URL.createObjectURL(archivo);
+                        this.aviso = null;
+
+                        this.comprimir(archivo)
+                            .then(comprimida => {
+                                this.entrega.archivo = comprimida;
+                                this.entrega.preview = URL.createObjectURL(comprimida);
+                            })
+                            .catch(() => {
+                                // Si la compresión falla se manda el original: es mejor
+                                // intentar con el archivo grande que dejar al distribuidor
+                                // sin poder confirmar la entrega.
+                                this.entrega.archivo = archivo;
+                                this.entrega.preview = URL.createObjectURL(archivo);
+                            });
+                    },
+
+                    /**
+                     * Reduce la foto antes de subirla.
+                     *
+                     * La cámara de un celular saca 3 a 8 MB, y nginx corta el cuerpo de la
+                     * petición en 1 MB: el 413 llegaba como HTML, sin JSON, y el asesor
+                     * sólo veía "No se pudo confirmar la entrega".
+                     *
+                     * Se comprime en el cliente y no se sube el original porque también es
+                     * lo correcto para el caso de uso: esto es una prueba de entrega, no
+                     * una foto de catálogo. A 1600px de lado mayor y JPEG 0.75 queda en
+                     * 200-400 KB —se ve perfecto quién recibió y dónde— y sube rápido con
+                     * datos móviles, que es la red real de un distribuidor en la calle.
+                     */
+                    comprimir(archivo, ladoMaximo = 1600, calidad = 0.75) {
+                        return new Promise((resolve, reject) => {
+                            const img = new Image();
+                            const url = URL.createObjectURL(archivo);
+
+                            img.onload = () => {
+                                URL.revokeObjectURL(url);
+
+                                const escala = Math.min(1, ladoMaximo / Math.max(img.width, img.height));
+
+                                const canvas = document.createElement('canvas');
+                                canvas.width = Math.round(img.width * escala);
+                                canvas.height = Math.round(img.height * escala);
+                                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                                canvas.toBlob(
+                                    blob => blob
+                                        ? resolve(new File([blob], 'entrega.jpg', { type: 'image/jpeg' }))
+                                        : reject(new Error('toBlob vacío')),
+                                    'image/jpeg',
+                                    calidad,
+                                );
+                            };
+
+                            img.onerror = () => {
+                                URL.revokeObjectURL(url);
+                                reject(new Error('no se pudo leer la imagen'));
+                            };
+
+                            img.src = url;
+                        });
                     },
 
                     cancelarEntrega() {
@@ -774,9 +832,29 @@
                         }[code] || 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
                     },
 
-                    /** El motivo real del backend, que es lo que el asesor puede corregir. */
+                    /**
+                     * El motivo real, que es lo que el asesor puede corregir.
+                     *
+                     * Un 413 lo contesta nginx con HTML y sin `message`, así que sin este
+                     * caso especial el error quedaba en un genérico que no decía nada —
+                     * exactamente el síntoma que tuvimos con las fotos de entrega.
+                     */
                     mensaje(e, porDefecto) {
-                        return e?.response?.data?.message || porDefecto;
+                        const status = e?.response?.status;
+
+                        if (status === 413) {
+                            return 'El archivo es demasiado grande para el servidor. Sacá la foto de nuevo con menos resolución.';
+                        }
+
+                        if (status === 419) {
+                            return 'La sesión expiró. Recargá la página e intentá otra vez.';
+                        }
+
+                        if (! e?.response) {
+                            return 'Sin conexión con el servidor. Revisá la señal e intentá otra vez.';
+                        }
+
+                        return e.response.data?.message || porDefecto;
                     },
                 },
             });
