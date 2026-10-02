@@ -798,3 +798,66 @@ it('con sólo dirección escrita arma una búsqueda con la ciudad y el país', f
     DB::table('leads')->where('id', $pedido['id'])->delete();
     DB::table('persons')->where('id', $contacto['id'])->delete();
 });
+
+it('"Para entregar" muestra sólo los confirmados, no los prospectos', function () {
+    $sucursal = primeraSucursal();
+
+    if (! $sucursal['ciudad_id']) {
+        test()->markTestSkipped('La sucursal no tiene una ciudad equivalente.');
+    }
+
+    $user = distribuidor();
+    $producto = app(Catalogo::class)->productosDe($sucursal['id'])[0];
+
+    $abrir = function () use ($user, $sucursal, $producto) {
+        $contacto = test()->actingAs($user, 'user')
+            ->postJson(route('admin.distribuidor.contacto.store'), [
+                'telefono' => '549388'.random_int(1000000, 9999999),
+                'nombre'   => 'Cliente etapa '.uniqid(),
+            ])->json('persona');
+
+        $pedido = test()->actingAs($user, 'user')
+            ->postJson(route('admin.distribuidor.pedido.store'), [
+                'person_id' => $contacto['id'],
+                'ciudad_id' => $sucursal['ciudad_id'],
+                'productos' => [['product_id' => $producto['id'], 'quantity' => 1, 'price' => 100]],
+            ])->assertCreated()->json('pedido');
+
+        return [$contacto['id'], $pedido['id']];
+    };
+
+    [$pProspecto, $lProspecto] = $abrir();
+    [$pConfirmado, $lConfirmado] = $abrir();
+
+    test()->actingAs($user, 'user')
+        ->patchJson(route('admin.distribuidor.pedido.etapa', $lConfirmado), ['etapa' => 'confirmado'])
+        ->assertOk();
+
+    $ids = collect(
+        test()->actingAs($user, 'user')
+            ->getJson(route('admin.distribuidor.pedidos', ['filtro' => 'pendientes']))
+            ->assertOk()
+            ->json('pedidos')
+    )->pluck('id');
+
+    /*
+     * Un prospecto no es trabajo de reparto: nadie lo confirmó todavía, y mezclarlo
+     * con la ruta del día obliga a decidir en cada tarjeta si corresponde salir con
+     * ella. El que sale a la calle quiere una lista de cosas que hay que llevar.
+     */
+    expect($ids)->toContain($lConfirmado)
+        ->and($ids)->not->toContain($lProspecto);
+
+    // Y el prospecto sigue siendo visible donde se lo confirma.
+    $hoy = collect(
+        test()->actingAs($user, 'user')
+            ->getJson(route('admin.distribuidor.pedidos', ['filtro' => 'hoy']))
+            ->json('pedidos')
+    )->pluck('id');
+
+    expect($hoy)->toContain($lProspecto);
+
+    DB::table('lead_products')->whereIn('lead_id', [$lProspecto, $lConfirmado])->delete();
+    DB::table('leads')->whereIn('id', [$lProspecto, $lConfirmado])->delete();
+    DB::table('persons')->whereIn('id', [$pProspecto, $pConfirmado])->delete();
+});

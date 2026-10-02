@@ -263,7 +263,7 @@
                                 :class="filtro === 'pendientes'
                                     ? 'border-brandColor bg-brandColor text-white'
                                     : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'">
-                            Pendientes
+                            Para entregar
                         </button>
                         <button type="button" @click="cambiarFiltro('hoy')"
                                 class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 text-base font-bold transition-colors duration-200"
@@ -301,7 +301,9 @@
                     <div v-if="cargando" class="py-10 text-center text-base text-gray-600 dark:text-gray-400">Cargando…</div>
 
                     <div v-else-if="!pedidos.length" class="rounded-xl border-2 border-dashed border-gray-300 px-4 py-10 text-center text-base text-gray-600 dark:text-gray-400 dark:border-gray-700">
-                        @{{ filtro === 'pendientes' ? 'No hay pedidos pendientes acá.' : 'Todavía no tomaste pedidos hoy.' }}
+                        @{{ filtro === 'pendientes'
+                            ? 'No hay pedidos confirmados para entregar acá. Los que acabás de cargar están en "Mis pedidos de hoy", para confirmarlos.'
+                            : 'Todavía no tomaste pedidos hoy.' }}
                     </div>
 
                     <div v-for="pe in pedidos" :key="pe.id" class="mb-3 rounded-2xl border-2 border-gray-200 p-4 dark:border-gray-800">
@@ -385,38 +387,58 @@
                             </a>
                         </div>
 
-                        {{-- Acciones: grandes, y sólo las que aplican a esta etapa --}}
+                        {{--
+                            UNA acción principal por paso.
+
+                            Antes la tarjeta mostraba Confirmar, Cobrar, WhatsApp y Cancelar
+                            al mismo tiempo: cuatro botones del mismo tamaño obligaban a
+                            decidir cuál toca ahora, en cada tarjeta, con el pedido en la
+                            mano. El avance de un pedido es lineal, así que la tarjeta
+                            muestra sólo el paso que sigue:
+
+                              Prospecto  → Confirmar
+                              Confirmado → Entregar (abre la cámara)
+                              Entregado con saldo → Cobrar
+                              Entregado y cobrado → nada, está cerrado
+
+                            WhatsApp y Cancelar quedan abajo y más chicos: no son pasos del
+                            pedido, son salidas laterales.
+                        --}}
+                        <button v-if="pe.etapa_code === 'prospectos'" type="button" @click="avanzar(pe, 'confirmado')"
+                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-2 min-h-[64px] w-full rounded-xl bg-brandColor text-xl font-bold text-white transition-colors duration-200">
+                            Confirmar
+                        </button>
+
+                        {{--
+                            Entregar abre la cámara: la foto es la prueba de que el pedido
+                            llegó, y es obligatoria. `capture="environment"` abre la cámara
+                            trasera nativa — más confiable que getUserMedia en iOS, y no pide
+                            permisos hasta que el usuario toca el botón.
+                        --}}
+                        <button v-else-if="pe.etapa_code === 'pedidos-confirmado'" type="button" @click="pedirFoto(pe)"
+                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-2 min-h-[64px] w-full rounded-xl bg-emerald-600 text-xl font-bold text-white transition-colors duration-200">
+                            <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.9 47.9 0 0 0-1.134-.175a2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0a2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>Entregar
+                        </button>
+
+                        <button v-else-if="pe.etapa_code === 'pedido-entregado' && pe.saldo > 0" type="button" @click="abrirCobro(pe)"
+                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-2 min-h-[64px] w-full rounded-xl bg-emerald-600 text-xl font-bold text-white transition-colors duration-200">
+                            Cobrar @{{ money(pe.saldo) }}
+                        </button>
+
+                        <p v-else-if="pe.etapa_code === 'pedido-entregado'" class="mb-2 rounded-xl bg-emerald-50 py-3 text-center text-base font-bold text-emerald-800 dark:bg-emerald-900/25 dark:text-emerald-300">
+                            Entregado y cobrado
+                        </p>
+
+                        {{-- Salidas laterales: no son pasos del pedido. --}}
                         <div class="grid grid-cols-2 gap-2">
-                            <button v-if="pe.etapa_code === 'prospectos'" type="button" @click="avanzar(pe, 'confirmado')"
-                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-brandColor text-lg font-bold text-white">
-                                Confirmar
-                            </button>
-
-                            {{--
-                                Entregar abre la cámara: la foto es la prueba de que el
-                                pedido llegó, y es obligatoria. `capture="environment"`
-                                abre la cámara trasera nativa del dispositivo — más
-                                confiable que getUserMedia en iOS, y no pide permisos
-                                hasta que el usuario toca el botón.
-                            --}}
-                            <button v-if="pe.etapa_code === 'pedidos-confirmado'" type="button" @click="pedirFoto(pe)"
-                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-600 text-lg font-bold text-white">
-                                <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.9 47.9 0 0 0-1.134-.175a2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0a2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>Entregar
-                            </button>
-
-                            <button v-if="pe.saldo > 0" type="button" @click="abrirCobro(pe)"
-                                    class="min-h-[64px] rounded-xl border-2 border-emerald-600 text-lg font-bold text-emerald-700 dark:text-emerald-400">
-                                Cobrar
-                            </button>
-
                             <a :href="'{{ url(config('app.admin_path').'/distribuidor/whatsapp') }}/' + pe.id"
-                               class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 flex min-h-[64px] items-center justify-center rounded-xl border-2 border-emerald-600 text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                               class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 flex min-h-[56px] items-center justify-center rounded-xl border-2 border-gray-300 text-base font-semibold text-gray-700 transition-colors duration-200 dark:border-gray-700 dark:text-gray-300">
                                 WhatsApp
                             </a>
 
                             <button v-if="pe.etapa_code !== 'pedidos-cancelado' && pe.etapa_code !== 'pedido-entregado'"
                                     type="button" @click="avanzar(pe, 'cancelado')"
-                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-red-300 text-base font-semibold text-red-600 dark:border-red-800">
+                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-red-300 text-base font-semibold text-red-600 transition-colors duration-200 dark:border-red-800">
                                 Cancelar
                             </button>
                         </div>

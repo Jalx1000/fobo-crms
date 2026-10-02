@@ -240,15 +240,24 @@ class PuntoController extends Controller
                 ->whereDate('created_at', now()->toDateString());
         } else {
             /*
-             * "Pendientes" es trabajo de la ciudad, no de una persona: lo que
-             * falta entregar lo puede levantar cualquiera que esté en la calle,
-             * así que no se filtra por dueño. Sin fecha tampoco: un pedido de
-             * antes de ayer que sigue sin entregar es más urgente, no menos.
+             * "Para entregar" son SÓLO los confirmados.
+             *
+             * Un prospecto no es trabajo de reparto: es un pedido que todavía
+             * nadie confirmó, y mezclarlo con la ruta del día obliga a decidir
+             * en cada tarjeta si corresponde salir con ella o no. El que sale a
+             * la calle quiere una lista de cosas que hay que llevar.
+             *
+             * Los prospectos se confirman desde "Mis pedidos de hoy", que es
+             * donde aparece lo que el distribuidor acaba de cargar.
+             *
+             * Es trabajo de la ciudad y no de una persona, así que no se filtra
+             * por dueño. Sin fecha tampoco: un pedido de antes de ayer que sigue
+             * sin entregar es más urgente, no menos.
              */
-            $query->whereHas('stage', fn ($q) => $q->whereIn('code', [
-                config('distribuidor.etapas.inicial'),
+            $query->whereHas('stage', fn ($q) => $q->where(
+                'code',
                 config('distribuidor.etapas.confirmado'),
-            ]));
+            ));
         }
 
         if (! empty($data['ciudad'])) {
