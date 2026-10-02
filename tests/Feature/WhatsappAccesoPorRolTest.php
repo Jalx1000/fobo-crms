@@ -120,3 +120,54 @@ it('la pestaña sí se dibuja para un administrador', function () {
 
     expect($html)->toContain('v-whatsapp-inbox');
 });
+
+// ---------------------------------------------------------------------------
+// Visibilidad del fallo del agente
+// ---------------------------------------------------------------------------
+
+it('registra el rechazo del agente con su status y su cuerpo', function () {
+    \Illuminate\Support\Facades\Config::set('whatsapp.ai.enabled', true);
+    \Illuminate\Support\Facades\Config::set('whatsapp.ai.webhook_url', 'https://agente.test/api/v1/crm/webhook');
+    \Illuminate\Support\Facades\Config::set('whatsapp.ai.token', 'token-equivocado');
+
+    \Illuminate\Support\Facades\Http::fake([
+        'agente.test/*' => \Illuminate\Support\Facades\Http::response(['detail' => 'Unauthorized'], 401),
+    ]);
+
+    $conv = \Webkul\Whatsapp\Models\ConversationProxy::modelClass()::create([
+        'gateway'    => 'cloud_api',
+        'wa_phone'   => '5917'.random_int(1000000, 9999999),
+        'wa_name'    => 'Cliente agente',
+        'status'     => 'open',
+        'ai_enabled' => true,
+    ]);
+
+    $msg = \Webkul\Whatsapp\Models\MessageProxy::modelClass()::create([
+        'conversation_id' => $conv->id,
+        'direction'       => 'inbound',
+        'type'            => 'text',
+        'body'            => 'Hola',
+        'status'          => 'delivered',
+        'sender'          => 'contact',
+    ]);
+
+    \Illuminate\Support\Facades\Log::spy();
+
+    /*
+     * El fallo era invisible: con QUEUE_CONNECTION=sync el job corre dentro del
+     * request del webhook, la excepción de throw() subía por ahí y el webhook
+     * igual contestaba 200 a Meta. El agente nunca se enteraba y no quedaba una
+     * línea en el log — costó una sesión entera de diagnóstico.
+     */
+    try {
+        (new \Webkul\Whatsapp\Jobs\NotifyAgent($msg->id))->handle(app(\Webkul\Whatsapp\Services\AgentPayload::class));
+    } catch (\Throwable $e) {
+        // throw() sigue reventando a propósito: el job debe poder reintentarse.
+    }
+
+    \Illuminate\Support\Facades\Log::shouldHaveReceived('error')
+        ->withArgs(fn ($mensaje, $contexto = []) => $mensaje === 'WhatsApp: el agente rechazó el evento'
+            && ($contexto['status'] ?? null) === 401
+            && str_contains($contexto['respuesta'] ?? '', 'Unauthorized')
+            && ($contexto['conversation_id'] ?? null) === $conv->id);
+});

@@ -48,9 +48,35 @@ class NotifyAgent implements ShouldQueue
             return;
         }
 
-        Http::withToken((string) config('whatsapp.ai.token'))
+        $respuesta = Http::withToken((string) config('whatsapp.ai.token'))
             ->acceptJson()
-            ->post($url, $payloads->event($message))
-            ->throw();
+            ->post($url, $payloads->event($message));
+
+        /*
+         * Un rechazo del agente se registra con su status y su cuerpo ANTES de
+         * reventar.
+         *
+         * Sin esto el fallo era completamente invisible, y costó una sesión de
+         * diagnóstico: con `QUEUE_CONNECTION=sync` el job corre dentro del request
+         * del webhook, así que la excepción de `throw()` subía por ahí y el webhook
+         * igual contestaba 200 a Meta. Resultado: el mensaje se guardaba, Meta
+         * quedaba conforme, el agente nunca se enteraba y no quedaba ni una línea
+         * en el log. Todo parecía andar y el cliente no recibía respuesta.
+         *
+         * El caso real fue un 401: el token del CRM estaba copiado de otro tenant.
+         * Con el status y el cuerpo a la vista, eso se diagnostica en diez segundos.
+         */
+        if ($respuesta->failed()) {
+            Log::error('WhatsApp: el agente rechazó el evento', [
+                'conversation_id' => $message->conversation_id,
+                'message_id'      => $message->id,
+                'status'          => $respuesta->status(),
+                // Acotado: el cuerpo de un error puede ser una página HTML entera.
+                'respuesta'       => mb_substr((string) $respuesta->body(), 0, 300),
+                'url'             => $url,
+            ]);
+        }
+
+        $respuesta->throw();
     }
 }
