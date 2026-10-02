@@ -1,7 +1,18 @@
 <?php
 
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
+
+/*
+ * Dentro de una transacción: la suite corre contra la base REAL.
+ *
+ * Sin esto, cada corrida dejaba filas permanentes. Medido: 17 personas "Test
+ * Person", 7 "Export City Prospect" y 3 pipelines "Bogotá Export" acumulados en
+ * producción, que además aparecían en los selectores del Punto de Distribuidor y
+ * en el ruteo de derivaciones de WhatsApp.
+ */
+uses(DatabaseTransactions::class);
 
 it('retorna datos para vista mensual con days/doctors/appointments/availability', function () {
     $admin = getDefaultAdmin();
@@ -9,7 +20,7 @@ it('retorna datos para vista mensual con days/doctors/appointments/availability'
 
     // Crear doctor
     $doctorId = DB::table('doctors')->insertGetId([
-        'name'       => 'Dr. Mes ' . rand(100, 999),
+        'name'       => 'Dr. Mes '.rand(100, 999),
         'created_at' => now(),
         'updated_at' => now(),
     ]);
@@ -44,8 +55,7 @@ it('retorna datos para vista mensual con days/doctors/appointments/availability'
     expect(is_array($json['days']))->toBeTrue();
     expect(count($json['days']))->toBeGreaterThanOrEqual(28);
 
-    $availForMonth = array_values(array_filter($json['availability'], fn ($s) =>
-        (int)($s['doctor_id'] ?? 0) === (int)$doctorId
+    $availForMonth = array_values(array_filter($json['availability'], fn ($s) => (int) ($s['doctor_id'] ?? 0) === (int) $doctorId
     ));
     expect(count($availForMonth))->toBeGreaterThanOrEqual(1);
 });

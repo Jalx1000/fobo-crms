@@ -226,7 +226,7 @@ class PuntoController extends Controller
     public function pedidos(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'ciudad' => 'nullable|integer',
+            'ciudad' => 'required|integer',
             'filtro' => 'nullable|string|in:pendientes,hoy',
         ]);
 
@@ -235,7 +235,8 @@ class PuntoController extends Controller
         $query = LeadProxy::modelClass()::query();
 
         if ($filtro === 'hoy') {
-            // "Hoy" es la caja propia: lo que ESTE distribuidor tomó en el día.
+            // "Hoy" es lo propio: lo que ESTE distribuidor tomó en el día, en esta
+            // sucursal (la ciudad la aplica el scope de abajo, para los dos filtros).
             $query->where('user_id', auth()->guard('user')->id())
                 ->whereDate('created_at', now()->toDateString());
         } else {
@@ -260,18 +261,26 @@ class PuntoController extends Controller
             ));
         }
 
-        if (! empty($data['ciudad'])) {
-            abort_if(
-                ! $this->alcance->puedeVerCiudad((int) $data['ciudad']),
-                403,
-                'Esa ciudad no está en tu alcance.',
-            );
+        /*
+         * El pedido se ve SÓLO desde su propia sucursal.
+         *
+         * Los de Jujuy no ven los de Palpalá ni al revés: son operaciones
+         * distintas, con su propio catálogo y sus propios precios, y un pedido de
+         * otra ciudad en la lista es ruido que alguien puede llegar a tocar.
+         *
+         * La ciudad es obligatoria, no un filtro opcional: sin ella la consulta
+         * devolvería todo, que es justamente lo que no debe pasar. El Punto la
+         * manda siempre desde el selector del encabezado.
+         */
+        abort_if(empty($data['ciudad']), 422, 'Falta la sucursal.');
 
-            $query->where('lead_pipeline_id', $data['ciudad']);
-        } elseif (($permitidas = $this->alcance->ciudadesPermitidas()) !== null) {
-            // Sin filtro explícito, "todas" son todas LAS SUYAS.
-            $query->whereIn('lead_pipeline_id', $permitidas);
-        }
+        abort_if(
+            ! $this->alcance->puedeVerCiudad((int) $data['ciudad']),
+            403,
+            'Esa sucursal no está en tu alcance.',
+        );
+
+        $query->where('lead_pipeline_id', (int) $data['ciudad']);
 
         $ids = $query->orderByDesc('id')->limit(100)->pluck('id')->all();
 

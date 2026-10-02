@@ -172,7 +172,8 @@ it('abre el pedido en la etapa inicial de la ciudad de la sucursal', function ()
             ]],
         ])->assertCreated()->json('pedido');
 
-    expect($pedido['etapa_code'])->toBe(config('distribuidor.etapas.inicial'))
+    // Nace confirmado: en el Punto lo carga alguien con el cliente delante.
+    expect($pedido['etapa_code'])->toBe(config('distribuidor.etapas.al_crear'))
         ->and($pedido['ciudad_id'])->toBe($sucursal['ciudad_id'])
         // (float): el JSON devuelve 42000 y no 42000.0 cuando no hay decimales.
         ->and((float) $pedido['total'])->toBe(round($producto['price'] * 3, 2))
@@ -829,13 +830,23 @@ it('"Para entregar" muestra sólo los confirmados, no los prospectos', function 
     [$pProspecto, $lProspecto] = $abrir();
     [$pConfirmado, $lConfirmado] = $abrir();
 
-    test()->actingAs($user, 'user')
-        ->patchJson(route('admin.distribuidor.pedido.etapa', $lConfirmado), ['etapa' => 'confirmado'])
-        ->assertOk();
+    /*
+     * El Punto crea los pedidos ya confirmados, así que para tener un prospecto
+     * —como los que entran por el agente de WhatsApp o la web— hay que ponerlo en
+     * esa etapa a mano.
+     */
+    DB::table('leads')->where('id', $lProspecto)->update([
+        'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')
+            ->where('lead_pipeline_id', $sucursal['ciudad_id'])
+            ->where('code', config('distribuidor.etapas.inicial'))
+            ->value('id'),
+    ]);
 
     $ids = collect(
         test()->actingAs($user, 'user')
-            ->getJson(route('admin.distribuidor.pedidos', ['filtro' => 'pendientes']))
+            ->getJson(route('admin.distribuidor.pedidos', [
+                'filtro' => 'pendientes', 'ciudad' => $sucursal['ciudad_id'],
+            ]))
             ->assertOk()
             ->json('pedidos')
     )->pluck('id');
@@ -851,7 +862,9 @@ it('"Para entregar" muestra sólo los confirmados, no los prospectos', function 
     // Y el prospecto sigue siendo visible donde se lo confirma.
     $hoy = collect(
         test()->actingAs($user, 'user')
-            ->getJson(route('admin.distribuidor.pedidos', ['filtro' => 'hoy']))
+            ->getJson(route('admin.distribuidor.pedidos', [
+                'filtro' => 'hoy', 'ciudad' => $sucursal['ciudad_id'],
+            ]))
             ->json('pedidos')
     )->pluck('id');
 
@@ -992,6 +1005,103 @@ it('avanzar de etapa no borra los productos del pedido', function () {
         ->and($pedido['productos'])->toHaveCount(1)
         // Y el total sigue siendo el que se cobró.
         ->and((float) $pedido['total'])->toBe(1000.0);
+
+    DB::table('lead_products')->where('lead_id', $pedido['id'])->delete();
+    DB::table('leads')->where('id', $pedido['id'])->delete();
+    DB::table('persons')->where('id', $contacto['id'])->delete();
+});
+
+it('el pedido del Punto nace confirmado, sin paso de confirmación', function () {
+    $sucursal = primeraSucursal();
+
+    if (! $sucursal['ciudad_id']) {
+        test()->markTestSkipped('La sucursal no tiene una ciudad equivalente.');
+    }
+
+    $user = distribuidor();
+    $producto = app(Catalogo::class)->productosDe($sucursal['id'])[0];
+
+    $contacto = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => '549388'.random_int(1000000, 9999999),
+            'nombre'   => 'Cliente directo '.uniqid(),
+        ])->json('persona');
+
+    $pedido = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.pedido.store'), [
+            'person_id' => $contacto['id'],
+            'ciudad_id' => $sucursal['ciudad_id'],
+            'productos' => [['product_id' => $producto['id'], 'quantity' => 1, 'price' => 100]],
+        ])->assertCreated()->json('pedido');
+
+    /*
+     * En el Punto el pedido lo carga una persona con el cliente delante: ya está
+     * confirmado. Arrancarlo como prospecto obligaba a cargarlo, cambiar de
+     * pestaña, confirmarlo y volver.
+     */
+    expect($pedido['etapa_code'])->toBe('pedidos-confirmado');
+
+    // Y por eso aparece de una en la lista de reparto, sin pasos intermedios.
+    $ids = collect(
+        test()->actingAs($user, 'user')
+            ->getJson(route('admin.distribuidor.pedidos', [
+                'filtro' => 'pendientes', 'ciudad' => $sucursal['ciudad_id'],
+            ]))->assertOk()->json('pedidos')
+    )->pluck('id');
+
+    expect($ids)->toContain($pedido['id']);
+
+    DB::table('lead_products')->where('lead_id', $pedido['id'])->delete();
+    DB::table('leads')->where('id', $pedido['id'])->delete();
+    DB::table('persons')->where('id', $contacto['id'])->delete();
+});
+
+it('una sucursal no ve los pedidos de otra', function () {
+    $user = distribuidor();
+
+    test()->actingAs($user, 'user');
+
+    $ciudades = app(\Webkul\Distribuidor\Services\Alcance::class)->ciudades();
+
+    if (count($ciudades) < 2) {
+        test()->markTestSkipped('Hacen falta dos ciudades.');
+    }
+
+    [$jujuy, $otra] = [$ciudades[0], $ciudades[1]];
+
+    $contacto = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => '549388'.random_int(1000000, 9999999),
+            'nombre'   => 'Cliente aislado '.uniqid(),
+        ])->json('persona');
+
+    $sucursalDeJujuy = collect(app(Catalogo::class)->sucursales())->firstWhere('ciudad_id', $jujuy['id']);
+    $producto = app(Catalogo::class)->productosDe($sucursalDeJujuy['id'])[0];
+
+    $pedido = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.pedido.store'), [
+            'person_id' => $contacto['id'],
+            'ciudad_id' => $jujuy['id'],
+            'productos' => [['product_id' => $producto['id'], 'quantity' => 1, 'price' => 100]],
+        ])->assertCreated()->json('pedido');
+
+    /*
+     * Son operaciones distintas, con su catálogo y sus precios. Un pedido de otra
+     * ciudad en la lista es ruido que alguien puede llegar a tocar.
+     */
+    $enSuCiudad = collect(test()->actingAs($user, 'user')
+        ->getJson(route('admin.distribuidor.pedidos', ['ciudad' => $jujuy['id']]))->json('pedidos'))->pluck('id');
+
+    $enLaOtra = collect(test()->actingAs($user, 'user')
+        ->getJson(route('admin.distribuidor.pedidos', ['ciudad' => $otra['id']]))->json('pedidos'))->pluck('id');
+
+    expect($enSuCiudad)->toContain($pedido['id'])
+        ->and($enLaOtra)->not->toContain($pedido['id']);
+
+    // Y sin sucursal el backend rechaza: devolvería todas las ciudades.
+    test()->actingAs($user, 'user')
+        ->getJson(route('admin.distribuidor.pedidos'))
+        ->assertStatus(422);
 
     DB::table('lead_products')->where('lead_id', $pedido['id'])->delete();
     DB::table('leads')->where('id', $pedido['id'])->delete();

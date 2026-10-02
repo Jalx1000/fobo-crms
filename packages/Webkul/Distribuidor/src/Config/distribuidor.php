@@ -26,6 +26,21 @@ return [
     */
     'etapas' => [
         'inicial'    => 'prospectos',
+
+        /*
+        | Con qué etapa NACE un pedido tomado en el Punto.
+        |
+        | Confirmado, no prospecto: en el Punto lo carga una persona con el cliente
+        | delante, así que ya está confirmado por definición. Arrancarlo como
+        | prospecto obligaba a cargarlo, cambiar de pestaña, confirmarlo y volver —
+        | dos cambios de pestaña para una sola interacción con el cliente, medido
+        | recorriendo el flujo a mano.
+        |
+        | `inicial` queda para los pedidos que entran por otro lado (el agente de
+        | WhatsApp, la web), donde todavía nadie los confirmó. Si el Punto alguna vez
+        | necesita ese paso, se cambia esta línea y vuelve.
+        */
+        'al_crear'   => env('DISTRIBUIDOR_ETAPA_AL_CREAR', 'pedidos-confirmado'),
         'confirmado' => 'pedidos-confirmado',
         'entregado'  => 'pedido-entregado',
         'cancelado'  => 'pedidos-cancelado',

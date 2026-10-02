@@ -1,7 +1,18 @@
 <?php
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Webkul\Product\Models\Product;
+
+/*
+ * Dentro de una transacción: la suite corre contra la base REAL.
+ *
+ * Sin esto, cada corrida dejaba filas permanentes. Medido: 17 personas "Test
+ * Person", 7 "Export City Prospect" y 3 pipelines "Bogotá Export" acumulados en
+ * producción, que además aparecían en los selectores del Punto de Distribuidor y
+ * en el ruteo de derivaciones de WhatsApp.
+ */
+uses(DatabaseTransactions::class);
 
 it('muestra el atributo una sola vez en la vista de producto', function () {
     // Crear producto mínimo
@@ -60,4 +71,3 @@ it('muestra el atributo una sola vez en la vista de producto', function () {
     expect(substr_count($html, __('installer::app.seeders.attributes.products.sku')) <= 1)
         ->toBeTrue();
 });
-

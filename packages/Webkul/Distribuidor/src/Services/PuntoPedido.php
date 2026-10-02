@@ -55,7 +55,19 @@ class PuntoPedido
      */
     public function crear(int $personId, int $ciudadId, array $productos, ?string $nota = null)
     {
-        $etapa = $this->etapaDe($ciudadId, config('distribuidor.etapas.inicial'));
+        /*
+         * Nace confirmado: en el Punto el pedido lo carga una persona con el
+         * cliente delante, así que ya está confirmado por definición. Arrancarlo
+         * como prospecto obligaba a cargarlo, cambiar de pestaña, confirmarlo y
+         * volver — dos cambios de pestaña para una sola interacción con el
+         * cliente. Ver `distribuidor.etapas.al_crear`.
+         *
+         * Con fallback a la etapa inicial si la configurada no existe en esa
+         * ciudad: es preferible un pedido en prospectos que uno sin etapa, que no
+         * aparecería en ningún tablero.
+         */
+        $etapa = $this->etapaDe($ciudadId, config('distribuidor.etapas.al_crear'))
+            ?? $this->etapaDe($ciudadId, config('distribuidor.etapas.inicial'));
 
         $persona = $this->personas->find($personId);
 

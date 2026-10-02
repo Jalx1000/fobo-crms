@@ -275,28 +275,11 @@
                     </div>
 
                     {{--
-                        Alcance: dos botones, no una segunda lista de lugares.
-
-                        El lugar ya se eligió arriba. Acá sólo se decide si se mira lo de
-                        ese lugar o todo, que es la única pregunta que el selector de
-                        arriba no contesta.
+                        No hay selector de alcance: el pedido se ve SÓLO desde su propia
+                        sucursal. Los de Jujuy no ven los de Palpalá ni al revés — son
+                        operaciones distintas, con su catálogo y sus precios. Un "Todas"
+                        acá era una invitación a tocar el pedido de otra ciudad.
                     --}}
-                    <div class="mb-4 grid grid-cols-2 gap-2">
-                        <button type="button" @click="verSoloMiLugar(true)"
-                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 px-3 text-base font-semibold transition-colors duration-200"
-                                :class="soloMiLugar
-                                    ? 'border-brandColor bg-brandColor text-white'
-                                    : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'">
-                            @{{ sucursal ? sucursal.name : 'Mi lugar' }}
-                        </button>
-                        <button type="button" @click="verSoloMiLugar(false)"
-                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 px-3 text-base font-semibold transition-colors duration-200"
-                                :class="!soloMiLugar
-                                    ? 'border-gray-800 bg-gray-800 text-white dark:border-gray-200 dark:bg-gray-200 dark:text-gray-900'
-                                    : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'">
-                            Todas
-                        </button>
-                    </div>
 
                     <div v-if="cargando" class="py-10 text-center text-base text-gray-600 dark:text-gray-400">Cargando…</div>
 
@@ -641,8 +624,6 @@
                         // product_id => precio editado (sólo los que se tocaron)
                         precios: {},
                         filtro: 'pendientes',
-                        // El lugar sale del selector del encabezado; esto sólo lo acota.
-                        soloMiLugar: true,
                         telefono: '',
                         nombre: '',
                         cliente: null,
@@ -892,19 +873,17 @@
                         this.cargarPedidos();
                     },
 
-                    verSoloMiLugar(valor) {
-                        this.soloMiLugar = valor;
-                        this.cargarPedidos();
-                    },
-
                     cargarPedidos() {
+                        if (! this.sucursal) return;
+
                         this.cargando = true;
 
                         this.$axios.get(this.pedidosUrl, {
                             params: {
                                 filtro: this.filtro,
-                                // La ciudad la define el selector del encabezado.
-                                ciudad: (this.soloMiLugar && this.sucursal) ? this.sucursal.ciudad_id : undefined,
+                                // Obligatoria: el backend rechaza la consulta sin sucursal,
+                                // porque sin ella devolvería pedidos de otras ciudades.
+                                ciudad: this.sucursal ? this.sucursal.ciudad_id : null,
                             },
                         })
                             .then(r => { this.pedidos = r.data.pedidos; })

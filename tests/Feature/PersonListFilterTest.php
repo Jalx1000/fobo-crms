@@ -1,7 +1,18 @@
 <?php
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Webkul\Attribute\Models\Attribute;
+
+/*
+ * Dentro de una transacción: la suite corre contra la base REAL.
+ *
+ * Sin esto, cada corrida dejaba filas permanentes. Medido: 17 personas "Test
+ * Person", 7 "Export City Prospect" y 3 pipelines "Bogotá Export" acumulados en
+ * producción, que además aparecían en los selectores del Punto de Distribuidor y
+ * en el ruteo de derivaciones de WhatsApp.
+ */
+uses(DatabaseTransactions::class);
 
 /**
  * Ensures the "cliente_ciudad" select attribute (lookup to lead_pipelines)
