@@ -33,6 +33,36 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Zona de reparto
+    |--------------------------------------------------------------------------
+    | Se reparte sólo en Jujuy, Argentina: San Salvador de Jujuy, Palpalá y
+    | Barrio Alto Comedero (que es un barrio de la capital).
+    |
+    | El recuadro NO es decoración: las coordenadas llegan a veces mal formadas
+    | —n8n guardó "latitude17754821longitude631973421", sin punto ni signo— y hay
+    | que reconstruirlas. Validar contra una zona chica es lo que distingue una
+    | reconstrucción correcta de una que da un punto cualquiera. Un pin equivocado
+    | manda al distribuidor a otra dirección, que es peor que no tener pin.
+    |
+    | Cubre la provincia entera con margen, y excluye de hecho a Bolivia (Santa
+    | Cruz está en -17.7) y al resto del país.
+    */
+    'zona' => [
+        'lat_min' => (float) env('DISTRIBUIDOR_LAT_MIN', -25.0),
+        'lat_max' => (float) env('DISTRIBUIDOR_LAT_MAX', -21.5),
+        'lng_min' => (float) env('DISTRIBUIDOR_LNG_MIN', -67.5),
+        'lng_max' => (float) env('DISTRIBUIDOR_LNG_MAX', -62.0),
+
+        /*
+        | Lo que se le agrega a una dirección escrita antes de buscarla en el
+        | mapa. Sin esto, "calle 6 nro 234" matchea en cualquier ciudad del país
+        | y el mapa abre en el lugar equivocado.
+        */
+        'sufijo_busqueda' => env('DISTRIBUIDOR_SUFIJO_BUSQUEDA', 'Jujuy, Argentina'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Formas de cobro
     |--------------------------------------------------------------------------
     | Cerradas a propósito: un campo libre acá vuelve imposible cuadrar la caja.

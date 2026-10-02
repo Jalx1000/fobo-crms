@@ -651,12 +651,29 @@ it('recupera las coordenadas que n8n guardó sin punto decimal ni signo', functi
 
     /*
      * El formato real encontrado en producción: n8n escribe el atributo
-     * `ubicacion_lead` y guardó "latitude17754821longitude631973421". El punto
-     * decimal y el menos se perdieron, y las etiquetas quedaron pegadas al número,
-     * así que el valor no se abría en ningún mapa.
+     * `ubicacion_lead` y guardó "latitude24193000longitude65297000". El punto
+     * decimal y el menos se pierden, y las etiquetas quedan pegadas al número, así
+     * que el valor no se abre en ningún mapa.
      */
-    expect($u->coordenadasEn('Calle bernardo cadario 22 | latitude17754821longitude631973421'))
-        ->toBe([-17.754821, -63.1973421]);
+    expect($u->coordenadasEn('Av. Bolivia 2335 | latitude24193000longitude65297000'))
+        ->toBe([-24.193, -65.297]);
+});
+
+it('descarta coordenadas fuera de la zona de reparto', function () {
+    $u = app(\Webkul\Distribuidor\Services\Ubicacion::class);
+
+    /*
+     * Se reparte sólo en Jujuy. El pedido 91 de producción tenía coordenadas de
+     * Santa Cruz de la Sierra (-17.75, -63.19), probablemente datos de prueba de
+     * kohlberg: un pin ahí no es una dirección entregable, así que se descarta y el
+     * distribuidor se guía por la dirección escrita.
+     *
+     * Acotar a la provincia —y no al país— es además lo que hace confiable la
+     * reconstrucción: con un recuadro chico, un parseo que salió mal cae afuera.
+     */
+    expect($u->coordenadasEn('latitude17754821longitude631973421'))->toBeNull()
+        // Buenos Aires: Argentina, pero no es zona de reparto.
+        ->and($u->coordenadasEn('-34.603722,-58.381592'))->toBeNull();
 });
 
 it('lee también el formato sano de coordenadas', function () {
@@ -678,7 +695,7 @@ it('devuelve null antes que un pin equivocado', function () {
     expect($u->coordenadasEn('latitude99999999longitude99999999'))->toBeNull()
         ->and($u->coordenadasEn('Portón verde y un árbol afuera'))->toBeNull()
         ->and($u->coordenadasEn(null))->toBeNull()
-        // Coordenadas de Madrid: sintaxis válida, región equivocada.
+        // Madrid: sintaxis válida, región equivocada.
         ->and($u->coordenadasEn('40.416775,-3.703790'))->toBeNull();
 });
 
@@ -719,7 +736,62 @@ it('separa la referencia escrita de las coordenadas', function () {
     // La referencia que lee un humano va sin el ruido de los números.
     expect($ubicacion['referencia'])->toBe('Portón verde, timbre roto')
         ->and($ubicacion['lat'])->toBe(-24.193)
+        ->and($ubicacion['modo'])->toBe('pin')
         ->and($ubicacion['url'])->toContain('google.com/maps');
+
+    DB::table('attribute_values')->where('entity_id', $pedido['id'])->where('attribute_id', $attributeId)->delete();
+    DB::table('lead_products')->where('lead_id', $pedido['id'])->delete();
+    DB::table('leads')->where('id', $pedido['id'])->delete();
+    DB::table('persons')->where('id', $contacto['id'])->delete();
+});
+
+it('con sólo dirección escrita arma una búsqueda con la ciudad y el país', function () {
+    $sucursal = primeraSucursal();
+
+    if (! $sucursal['ciudad_id']) {
+        test()->markTestSkipped('La sucursal no tiene una ciudad equivalente.');
+    }
+
+    $user = distribuidor();
+    $producto = app(Catalogo::class)->productosDe($sucursal['id'])[0];
+
+    $contacto = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => '549388'.random_int(1000000, 9999999),
+            'nombre'   => 'Cliente dirección '.uniqid(),
+        ])->json('persona');
+
+    $pedido = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.pedido.store'), [
+            'person_id' => $contacto['id'],
+            'ciudad_id' => $sucursal['ciudad_id'],
+            'productos' => [['product_id' => $producto['id'], 'quantity' => 1, 'price' => 100]],
+        ])->assertCreated()->json('pedido');
+
+    $attributeId = DB::table('attributes')->where('code', 'ubicacion_lead')->value('id');
+
+    DB::table('attribute_values')->insert([
+        'entity_id'    => $pedido['id'],
+        'entity_type'  => 'leads',
+        'attribute_id' => $attributeId,
+        'text_value'   => 'Calle 6 nro 234',
+    ]);
+
+    $u = app(\Webkul\Distribuidor\Services\Ubicacion::class)->dePedido($pedido['id']);
+
+    /*
+     * Sin coordenadas no se geocodifica del lado del servidor: se delega la
+     * búsqueda al mapa del dispositivo, que tiene un geocodificador mejor que
+     * cualquiera que escribamos y le muestra la ambigüedad al distribuidor en vez
+     * de que elijamos mal por él.
+     *
+     * El sufijo no es opcional: "calle 6 nro 234" matchea en cualquier ciudad del
+     * país y el mapa abriría en el lugar equivocado.
+     */
+    expect($u['modo'])->toBe('busqueda')
+        ->and($u['lat'])->toBeNull()
+        ->and($u['url'])->toContain('maps/search/')
+        ->and(urldecode($u['url']))->toContain('Calle 6 nro 234, Jujuy, Argentina');
 
     DB::table('attribute_values')->where('entity_id', $pedido['id'])->where('attribute_id', $attributeId)->delete();
     DB::table('lead_products')->where('lead_id', $pedido['id'])->delete();

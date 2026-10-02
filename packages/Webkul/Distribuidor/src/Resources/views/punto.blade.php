@@ -356,11 +356,19 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/>
                                 </svg>
-                                Ver en el mapa
+                                @{{ pe.ubicacion.modo === 'pin' ? 'Ver en el mapa' : 'Buscar en el mapa' }}
                             </a>
 
-                            <p v-else class="text-sm text-gray-600 dark:text-gray-400">
-                                Sin coordenadas: guiate por la referencia.
+                            {{--
+                                Decir cuál de los dos es: un pin exacto y una búsqueda por
+                                dirección no dan la misma confianza, y el distribuidor tiene
+                                que saber si llega al punto o a la cuadra.
+                            --}}
+                            <p v-if="pe.ubicacion.modo === 'busqueda'" class="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                Sin coordenadas: el mapa busca la dirección, puede no ser exacta.
+                            </p>
+                            <p v-else-if="pe.ubicacion.fuente === 'whatsapp'" class="mt-1 text-xs text-emerald-700 dark:text-emerald-400">
+                                Ubicación que mandó el cliente por WhatsApp.
                             </p>
                         </div>
 

@@ -143,14 +143,23 @@ class Ubicacion
     }
 
     /**
-     * Sólo coordenadas que caen en el cono sur. Fuera de ahí es un parseo fallido,
-     * y devolver null es más útil que mandar a alguien a otro continente.
+     * Sólo coordenadas dentro de la zona de reparto (Jujuy).
+     *
+     * Acotar a la provincia y no al país entero es lo que hace confiable la
+     * reconstrucción de coordenadas mal formadas: con un recuadro chico, un parseo
+     * que salió mal cae afuera y se descarta. Con el país entero, pasaría.
+     *
+     * Devolver null es lo correcto cuando no se puede confiar: el distribuidor se
+     * guía por la referencia escrita, que es lo que usa igual para tocar el timbre.
      */
     protected function validar(float $lat, float $lng): ?array
     {
-        $plausible = $lat <= -9.0 && $lat >= -56.0 && $lng <= -53.0 && $lng >= -76.0;
+        $zona = (array) config('distribuidor.zona');
 
-        return $plausible ? ['lat' => $lat, 'lng' => $lng] : null;
+        $dentro = $lat >= $zona['lat_min'] && $lat <= $zona['lat_max']
+            && $lng >= $zona['lng_min'] && $lng <= $zona['lng_max'];
+
+        return $dentro ? ['lat' => $lat, 'lng' => $lng] : null;
     }
 
     protected function textoDe(int $leadId): ?string
@@ -195,14 +204,48 @@ class Ubicacion
 
     protected function resultado(?string $texto, ?float $lat, ?float $lng, ?string $fuente): array
     {
+        $referencia = $this->referenciaLimpia($texto);
+
         return [
-            'referencia' => $this->referenciaLimpia($texto),
+            'referencia' => $referencia,
             'lat'        => $lat,
             'lng'        => $lng,
-            'url'        => ($lat !== null && $lng !== null)
-                ? sprintf('https://www.google.com/maps?q=%s,%s', $lat, $lng)
-                : null,
+            'url'        => $this->url($referencia, $lat, $lng),
+            // 'pin' = punto exacto · 'busqueda' = lo resuelve el mapa del dispositivo
+            'modo'       => ($lat !== null && $lng !== null) ? 'pin' : ($referencia ? 'busqueda' : null),
             'fuente'     => $fuente,
         ];
+    }
+
+    /**
+     * El enlace al mapa. Dos modos, según lo que haya.
+     *
+     * Con coordenadas, un pin exacto. Con sólo una dirección escrita, una BÚSQUEDA
+     * con la ciudad y el país agregados, y la resuelve el mapa del dispositivo.
+     *
+     * No geocodificamos nosotros a propósito: una API de geocodificación trae
+     * clave, costo, límites de uso y, lo peor, el riesgo de guardar un pin
+     * equivocado en silencio. Delegando la búsqueda, el geocodificador de Google
+     * hace el trabajo —es mejor que cualquiera que escribamos— y si la dirección
+     * es ambigua el distribuidor VE la ambigüedad y la corrige con el dedo, en vez
+     * de que nosotros elijamos mal por él.
+     *
+     * El sufijo no es opcional: "calle 6 nro 234" matchea en cualquier ciudad del
+     * país y abriría el mapa en el lugar equivocado.
+     */
+    protected function url(?string $referencia, ?float $lat, ?float $lng): ?string
+    {
+        if ($lat !== null && $lng !== null) {
+            return sprintf('https://www.google.com/maps/search/?api=1&query=%s,%s', $lat, $lng);
+        }
+
+        if (! $referencia) {
+            return null;
+        }
+
+        $sufijo = (string) config('distribuidor.zona.sufijo_busqueda');
+
+        return 'https://www.google.com/maps/search/?api=1&query='
+            .rawurlencode(trim($referencia.', '.$sufijo, ' ,'));
     }
 }
