@@ -1,8 +1,19 @@
 <?php
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Webkul\Attribute\Models\Attribute;
 use Webkul\DataGrid\Exports\DataGridExport;
+
+/*
+ * Dentro de una transacción.
+ *
+ * Sin esto el test insertaba un `lead_pipeline` con nombre aleatorio
+ * ("Bogotá Export 6799") y una persona en la base REAL, y no los borraba: cada
+ * corrida de la suite dejaba una ciudad fantasma más. Llegaron a aparecer tres
+ * en el selector de ciudades del Punto de Distribuidor y en el ruteo de
+ * derivaciones de WhatsApp, donde quedaban sin asesor.
+ */
 
 /**
  * These tests exercise the prospect (persons) export and require a database
@@ -12,6 +23,8 @@ use Webkul\DataGrid\Exports\DataGridExport;
  *
  * The city attribute + person helpers are shared with PersonListFilterTest.
  */
+uses(DatabaseTransactions::class);
+
 function cityAttribute(): Attribute
 {
     ensureCityAttribute();

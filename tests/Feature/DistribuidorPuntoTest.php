@@ -409,3 +409,65 @@ it('con ciudades asignadas sólo ve esas, y le corta el acceso a las demás', fu
         ->getJson(route('admin.distribuidor.pedidos', ['ciudad' => $suya['id']]))
         ->assertOk();
 });
+
+// ---------------------------------------------------------------------------
+// La plantilla del componente
+// ---------------------------------------------------------------------------
+
+it('la plantilla de Vue está completa y sin condicionales huérfanos', function () {
+    /*
+     * Un `v-else-if` sin su `v-if` delante es error de compilación de plantilla
+     * en Vue 3, y no rompe sólo esa burbuja: tumba el componente entero y la
+     * pantalla queda en blanco. El servidor devuelve 200 igual —el error ocurre
+     * en el navegador— así que un assertOk() no lo detecta.
+     *
+     * Pasó: al sacar la fila de chips de ciudad se consumió de más el
+     * `<div v-if="cargando">` que venía justo después.
+     */
+    $html = test()->actingAs(distribuidor(), 'user')
+        ->get(route('admin.distribuidor.index'))
+        ->assertOk()
+        ->getContent();
+
+    $i = strpos($html, 'id="v-punto-template"');
+    $tpl = substr($html, $i, strpos($html, '</script>', $i) - $i);
+
+    // Cada v-else/v-else-if tiene que venir después de un v-if.
+    $sinIf = [];
+    $previa = false;
+
+    foreach (explode("\n", $tpl) as $n => $linea) {
+        if (str_contains($linea, 'v-if=')) {
+            $previa = true;
+
+            continue;
+        }
+
+        if (preg_match('/\bv-else(-if)?[=>\s]/', $linea)) {
+            if (! $previa) {
+                $sinIf[] = ($n + 1).': '.trim($linea);
+            }
+
+            continue;
+        }
+
+        if (preg_match('/<(div|template|span|button|a)\b/', $linea)) {
+            $previa = false;
+        }
+    }
+
+    expect($sinIf)->toBe([], "v-else sin v-if:\n".implode("\n", $sinIf));
+
+    // Y las etiquetas cierran: un corte de más desbalancea el árbol.
+    foreach (['div', 'button', 'section', 'label'] as $tag) {
+        $abre = preg_match_all('/<'.$tag.'[\s>]/', $tpl);
+        $cierra = preg_match_all('#</'.$tag.'>#', $tpl);
+
+        expect($abre)->toBe($cierra, "<$tag> desbalanceado: $abre abre, $cierra cierra");
+    }
+
+    // Los estados que el usuario tiene que poder ver.
+    foreach (['Cargando…', 'Dónde estás trabajando', 'Abrir pedido', 'Confirmar entrega'] as $marca) {
+        expect($tpl)->toContain($marca);
+    }
+});

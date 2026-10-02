@@ -34,10 +34,17 @@ class PuntoController extends Controller
     public function index()
     {
         return view('distribuidor::punto', [
-            // Las dos vienen del alcance, no del catálogo crudo: un distribuidor
-            // restringido no ve ni las ciudades ni las sucursales ajenas.
+            /*
+             * Sólo las sucursales: son EL selector de lugar de la pantalla, y cada
+             * una ya trae resuelta su ciudad. Antes también se pasaba la lista de
+             * ciudades para una segunda fila de filtros, que era la misma lista de
+             * lugares repetida —y que además mostraba pipelines que no son
+             * sucursales reales—.
+             *
+             * Vienen del alcance y no del catálogo crudo: un distribuidor
+             * restringido no ve las sucursales ajenas.
+             */
             'sucursales' => $this->alcance->sucursales(),
-            'ciudades'   => $this->alcance->ciudades(),
             'formasPago' => config('distribuidor.formas_de_pago'),
         ]);
     }

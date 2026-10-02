@@ -21,7 +21,6 @@
     --}}
     <v-punto
         :sucursales='@json($sucursales)'
-        :ciudades='@json($ciudades)'
         :formas-pago='@json($formasPago)'
         productos-url="{{ route('admin.distribuidor.productos') }}"
         pedidos-url="{{ route('admin.distribuidor.pedidos') }}"
@@ -34,10 +33,21 @@
         <script type="text/x-template" id="v-punto-template">
             <div class="mx-auto w-full max-w-5xl pb-28">
 
-                {{-- ── Encabezado: sucursal y ciudad, siempre a la vista ── --}}
+                {{--
+                    ── Encabezado: UN solo selector de lugar ──
+
+                    Antes había dos listas del mismo lugar en la misma pantalla: ésta
+                    (sucursales, de `warehouses`) y una fila de chips de ciudad en la vista
+                    de Pedidos (de `lead_pipelines`). Como sucursal y ciudad son el MISMO
+                    lugar, era la misma lista repetida con dos nombres — y la segunda
+                    mostraba además pipelines que no son sucursales reales.
+
+                    Este selector manda sobre todo: qué precios se cargan y qué pedidos
+                    pendientes se ven.
+                --}}
                 <div class="sticky top-0 z-20 -mx-4 mb-4 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
-                    <span class="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-600 dark:text-gray-400">
-                        Sucursal · define el precio
+                    <span class="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                        Dónde estás trabajando
                     </span>
 
                     <div class="flex flex-wrap gap-2">
@@ -125,7 +135,7 @@
                             <div v-if="cliente" class="flex items-center justify-between gap-3 rounded-xl bg-emerald-50 p-4 dark:bg-emerald-900/20">
                                 <div class="min-w-0">
                                     <div class="truncate text-xl font-bold text-gray-800 dark:text-gray-100">@{{ cliente.name }}</div>
-                                    <div class="text-base text-gray-600 dark:text-gray-600 dark:text-gray-400">@{{ cliente.telefono }}</div>
+                                    <div class="text-base text-gray-600 dark:text-gray-400">@{{ cliente.telefono }}</div>
                                 </div>
                                 <button type="button" @click="limpiarCliente"
                                         class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] shrink-0 rounded-xl border-2 border-gray-300 px-5 text-base font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-300">
@@ -137,7 +147,7 @@
                         {{-- Paso 2: los productos de ESA sucursal --}}
                         <section class="mb-4 rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
                             <h2 class="mb-1 text-lg font-bold text-gray-800 dark:text-gray-200">2 · Productos</h2>
-                            <p class="mb-3 text-sm text-gray-500 dark:text-gray-600 dark:text-gray-400">Precios de @{{ sucursal.name }}</p>
+                            <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Precios de @{{ sucursal.name }}</p>
 
                             <div v-if="!productos.length" class="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-base text-gray-500 dark:border-gray-700">
                                 Esta sucursal no tiene productos cargados.
@@ -221,27 +231,33 @@
                         </button>
                     </div>
 
-                    {{-- Filtro por ciudad: el pendiente se organiza por ciudad, no por persona. --}}
-                    <div class="mb-4 flex flex-wrap gap-2">
-                        <button type="button" @click="filtrarCiudad(null)"
-                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] flex-1 basis-[45%] rounded-xl border-2 px-3 text-base font-semibold transition-colors duration-200 sm:basis-auto"
-                                :class="ciudadFiltro === null
+                    {{--
+                        Alcance: dos botones, no una segunda lista de lugares.
+
+                        El lugar ya se eligió arriba. Acá sólo se decide si se mira lo de
+                        ese lugar o todo, que es la única pregunta que el selector de
+                        arriba no contesta.
+                    --}}
+                    <div class="mb-4 grid grid-cols-2 gap-2">
+                        <button type="button" @click="verSoloMiLugar(true)"
+                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 px-3 text-base font-semibold transition-colors duration-200"
+                                :class="soloMiLugar
+                                    ? 'border-brandColor bg-brandColor text-white'
+                                    : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'">
+                            @{{ sucursal ? sucursal.name : 'Mi lugar' }}
+                        </button>
+                        <button type="button" @click="verSoloMiLugar(false)"
+                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 px-3 text-base font-semibold transition-colors duration-200"
+                                :class="!soloMiLugar
                                     ? 'border-gray-800 bg-gray-800 text-white dark:border-gray-200 dark:bg-gray-200 dark:text-gray-900'
                                     : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'">
                             Todas
                         </button>
-                        <button v-for="c in ciudades" :key="c.id" type="button" @click="filtrarCiudad(c.id)"
-                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] flex-1 basis-[45%] rounded-xl border-2 px-3 text-base font-semibold transition-colors duration-200 sm:basis-auto"
-                                :class="ciudadFiltro === c.id
-                                    ? 'border-brandColor bg-brandColor text-white'
-                                    : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'">
-                            @{{ c.name }}
-                        </button>
                     </div>
 
-                    <div v-if="cargando" class="py-10 text-center text-base text-gray-500">Cargando…</div>
+                    <div v-if="cargando" class="py-10 text-center text-base text-gray-600 dark:text-gray-400">Cargando…</div>
 
-                    <div v-else-if="!pedidos.length" class="rounded-xl border-2 border-dashed border-gray-300 px-4 py-10 text-center text-base text-gray-500 dark:border-gray-700">
+                    <div v-else-if="!pedidos.length" class="rounded-xl border-2 border-dashed border-gray-300 px-4 py-10 text-center text-base text-gray-600 dark:text-gray-400 dark:border-gray-700">
                         @{{ filtro === 'pendientes' ? 'No hay pedidos pendientes acá.' : 'Todavía no tomaste pedidos hoy.' }}
                     </div>
 
@@ -249,7 +265,7 @@
                         <div class="mb-3 flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <div class="truncate text-xl font-bold text-gray-800 dark:text-gray-100">@{{ pe.cliente || pe.title }}</div>
-                                <div class="text-base text-gray-500 dark:text-gray-600 dark:text-gray-400">#@{{ pe.id }} · @{{ pe.telefono }}</div>
+                                <div class="text-base text-gray-600 dark:text-gray-400">#@{{ pe.id }} · @{{ pe.telefono }}</div>
                             </div>
                             <span class="shrink-0 rounded-full px-3 py-1 text-sm font-bold" :class="colorEtapa(pe.etapa_code)">
                                 @{{ pe.etapa }}
@@ -353,7 +369,7 @@
                     <div v-if="entrega.pedido" class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" @click.self="cancelarEntrega">
                         <div class="w-full max-w-md rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
                             <h3 class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Confirmar entrega</h3>
-                            <p class="mb-3 text-base text-gray-500 dark:text-gray-600 dark:text-gray-400">
+                            <p class="mb-3 text-base text-gray-600 dark:text-gray-400">
                                 Pedido #@{{ entrega.pedido.id }} · @{{ entrega.pedido.cliente }}
                             </p>
 
@@ -384,7 +400,7 @@
                     <div v-if="cobro.pedido" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" @click.self="cobro.pedido = null">
                         <div class="w-full max-w-md rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
                             <h3 class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Registrar cobro</h3>
-                            <p class="mb-4 text-base text-gray-500 dark:text-gray-600 dark:text-gray-400">
+                            <p class="mb-4 text-base text-gray-600 dark:text-gray-400">
                                 Saldo: <strong>@{{ money(cobro.pedido.saldo) }}</strong>
                             </p>
 
@@ -440,7 +456,6 @@
 
                 props: {
                     sucursales: { type: Array, default: () => [] },
-                    ciudades: { type: Array, default: () => [] },
                     formasPago: { type: Object, default: () => ({}) },
                     productosUrl: { type: String, default: '' },
                     pedidosUrl: { type: String, default: '' },
@@ -459,7 +474,8 @@
                         // product_id => precio editado (sólo los que se tocaron)
                         precios: {},
                         filtro: 'pendientes',
-                        ciudadFiltro: null,
+                        // El lugar sale del selector del encabezado; esto sólo lo acota.
+                        soloMiLugar: true,
                         telefono: '',
                         nombre: '',
                         cliente: null,
@@ -532,6 +548,9 @@
                         // Los precios editados eran de la sucursal anterior.
                         this.precios = {};
                         this.cargarProductos();
+
+                        // Si estoy mirando pedidos, la lista sigue al lugar elegido.
+                        if (this.vista === 'pedidos') this.cargarPedidos();
                     },
 
                     cargarProductos() {
@@ -641,8 +660,8 @@
                         this.cargarPedidos();
                     },
 
-                    filtrarCiudad(id) {
-                        this.ciudadFiltro = id;
+                    verSoloMiLugar(valor) {
+                        this.soloMiLugar = valor;
                         this.cargarPedidos();
                     },
 
@@ -650,7 +669,11 @@
                         this.cargando = true;
 
                         this.$axios.get(this.pedidosUrl, {
-                            params: { filtro: this.filtro, ciudad: this.ciudadFiltro || undefined },
+                            params: {
+                                filtro: this.filtro,
+                                // La ciudad la define el selector del encabezado.
+                                ciudad: (this.soloMiLugar && this.sucursal) ? this.sucursal.ciudad_id : undefined,
+                            },
                         })
                             .then(r => { this.pedidos = r.data.pedidos; })
                             .catch(() => { this.aviso = 'No se pudieron cargar los pedidos.'; })
