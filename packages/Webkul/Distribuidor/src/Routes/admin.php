@@ -23,3 +23,10 @@ Route::controller(PuntoController::class)->prefix('distribuidor')->group(functio
  */
 Route::get('distribuidor/whatsapp/{id}', [\Webkul\Distribuidor\Http\Controllers\PuntoController::class, 'whatsapp'])
     ->name('admin.distribuidor.whatsapp');
+
+Route::controller(\Webkul\Distribuidor\Http\Controllers\PuntoController::class)
+    ->prefix('distribuidor')->group(function () {
+        Route::get('recientes', 'recientes')->name('admin.distribuidor.recientes');
+        Route::get('caja', 'caja')->name('admin.distribuidor.caja');
+        Route::get('repetir/{personId}', 'repetir')->name('admin.distribuidor.repetir');
+    });

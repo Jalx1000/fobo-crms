@@ -471,3 +471,173 @@ it('la plantilla de Vue está completa y sin condicionales huérfanos', function
         expect($tpl)->toContain($marca);
     }
 });
+
+// ---------------------------------------------------------------------------
+// Atajos: recientes, repetir, caja
+// ---------------------------------------------------------------------------
+
+it('los recientes no incluyen contactos sin teléfono', function () {
+    $recientes = test()->actingAs(distribuidor(), 'user')
+        ->getJson(route('admin.distribuidor.recientes'))
+        ->assertOk()
+        ->json('recientes');
+
+    /*
+     * Todo el Punto identifica al cliente por su número: una tarjeta sin teléfono
+     * no se puede usar y sólo ocupa un lugar en una fila de ocho.
+     */
+    foreach ($recientes as $r) {
+        expect($r['telefono'])->not->toBeNull()
+            ->and(trim($r['telefono']))->not->toBe('');
+    }
+});
+
+it('un cliente aparece una sola vez en recientes, aunque haya comprado varias', function () {
+    $sucursal = primeraSucursal();
+
+    if (! $sucursal['ciudad_id']) {
+        test()->markTestSkipped('La sucursal no tiene una ciudad equivalente.');
+    }
+
+    $user = distribuidor();
+    $producto = app(Catalogo::class)->productosDe($sucursal['id'])[0];
+
+    $contacto = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => '549388'.random_int(1000000, 9999999),
+            'nombre'   => 'Cliente repetidor '.uniqid(),
+        ])->json('persona');
+
+    $ids = [];
+
+    foreach (range(1, 3) as $i) {
+        $ids[] = test()->actingAs($user, 'user')
+            ->postJson(route('admin.distribuidor.pedido.store'), [
+                'person_id' => $contacto['id'],
+                'ciudad_id' => $sucursal['ciudad_id'],
+                'productos' => [['product_id' => $producto['id'], 'quantity' => $i, 'price' => 100]],
+            ])->assertCreated()->json('pedido.id');
+    }
+
+    $recientes = test()->actingAs($user, 'user')
+        ->getJson(route('admin.distribuidor.recientes'))
+        ->json('recientes');
+
+    // Sin el groupBy, quien compró tres veces llenaría la fila y taparía al resto.
+    $apariciones = collect($recientes)->where('id', $contacto['id'])->count();
+
+    expect($apariciones)->toBe(1)
+        // Y apunta al último, no al primero.
+        ->and(collect($recientes)->firstWhere('id', $contacto['id'])['ultimo_pedido_id'])->toBe(max($ids));
+
+    DB::table('lead_products')->whereIn('lead_id', $ids)->delete();
+    DB::table('leads')->whereIn('id', $ids)->delete();
+    DB::table('persons')->where('id', $contacto['id'])->delete();
+});
+
+it('repetir trae las cantidades del pedido anterior pero los precios de hoy', function () {
+    $sucursal = primeraSucursal();
+
+    if (! $sucursal['ciudad_id']) {
+        test()->markTestSkipped('La sucursal no tiene una ciudad equivalente.');
+    }
+
+    $user = distribuidor();
+    $producto = app(Catalogo::class)->productosDe($sucursal['id'])[0];
+
+    $contacto = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => '549388'.random_int(1000000, 9999999),
+            'nombre'   => 'Cliente a repetir '.uniqid(),
+        ])->json('persona');
+
+    // Se vendió con un precio negociado, distinto al de lista.
+    $pedido = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.pedido.store'), [
+            'person_id' => $contacto['id'],
+            'ciudad_id' => $sucursal['ciudad_id'],
+            'productos' => [['product_id' => $producto['id'], 'quantity' => 4, 'price' => 1]],
+        ])->assertCreated()->json('pedido');
+
+    $lineas = test()->actingAs($user, 'user')
+        ->getJson(route('admin.distribuidor.repetir', $contacto['id']).'?sucursal='.$sucursal['id'])
+        ->assertOk()
+        ->json('lineas');
+
+    expect($lineas)->toHaveCount(1)
+        ->and($lineas[0]['product_id'])->toBe($producto['id'])
+        // La cantidad se repite...
+        ->and($lineas[0]['quantity'])->toBe(4)
+        /*
+         * ...pero el precio sale del catálogo de HOY, no del que se cobró. Si la
+         * lista subió, repetir al precio viejo vendería a pérdida sin que nadie lo
+         * note. Lo que se repite es QUÉ pidió, no a cuánto.
+         */
+        ->and((float) $lineas[0]['price'])->toBe($producto['price']);
+
+    DB::table('lead_products')->where('lead_id', $pedido['id'])->delete();
+    DB::table('leads')->where('id', $pedido['id'])->delete();
+    DB::table('persons')->where('id', $contacto['id'])->delete();
+});
+
+it('la caja suma sólo los cobros de hoy del propio distribuidor', function () {
+    $sucursal = primeraSucursal();
+
+    if (! $sucursal['ciudad_id']) {
+        test()->markTestSkipped('La sucursal no tiene una ciudad equivalente.');
+    }
+
+    $mio = distribuidor();
+    $otro = distribuidor();
+    $producto = app(Catalogo::class)->productosDe($sucursal['id'])[0];
+
+    $abrir = function ($user) use ($sucursal, $producto) {
+        $contacto = test()->actingAs($user, 'user')
+            ->postJson(route('admin.distribuidor.contacto.store'), [
+                'telefono' => '549388'.random_int(1000000, 9999999),
+                'nombre'   => 'Cliente caja '.uniqid(),
+            ])->json('persona');
+
+        $pedido = test()->actingAs($user, 'user')
+            ->postJson(route('admin.distribuidor.pedido.store'), [
+                'person_id' => $contacto['id'],
+                'ciudad_id' => $sucursal['ciudad_id'],
+                'productos' => [['product_id' => $producto['id'], 'quantity' => 1, 'price' => 1000]],
+            ])->assertCreated()->json('pedido');
+
+        return [$contacto['id'], $pedido['id']];
+    };
+
+    [$pMio, $lMio] = $abrir($mio);
+    [$pOtro, $lOtro] = $abrir($otro);
+
+    test()->actingAs($mio, 'user')->postJson(route('admin.distribuidor.pedido.cobro', $lMio), [
+        'amount' => 600, 'method' => 'efectivo',
+    ])->assertOk();
+
+    test()->actingAs($mio, 'user')->postJson(route('admin.distribuidor.pedido.cobro', $lMio), [
+        'amount' => 400, 'method' => 'qr',
+    ])->assertOk();
+
+    // El cobro de OTRO distribuidor no puede entrar en mi caja.
+    test()->actingAs($otro, 'user')->postJson(route('admin.distribuidor.pedido.cobro', $lOtro), [
+        'amount' => 999, 'method' => 'efectivo',
+    ])->assertOk();
+
+    $caja = test()->actingAs($mio, 'user')->getJson(route('admin.distribuidor.caja'))->assertOk();
+
+    expect((float) $caja->json('total'))->toBe(1000.0)
+        ->and($caja->json('cobros'))->toBe(2);
+
+    $efectivo = collect($caja->json('por_forma'))->firstWhere('key', 'efectivo');
+    $qr = collect($caja->json('por_forma'))->firstWhere('key', 'qr');
+
+    // Lo que se rinde en mano es sólo la parte en efectivo.
+    expect((float) $efectivo['total'])->toBe(600.0)
+        ->and((float) $qr['total'])->toBe(400.0);
+
+    DB::table('distribuidor_pagos')->whereIn('lead_id', [$lMio, $lOtro])->delete();
+    DB::table('lead_products')->whereIn('lead_id', [$lMio, $lOtro])->delete();
+    DB::table('leads')->whereIn('id', [$lMio, $lOtro])->delete();
+    DB::table('persons')->whereIn('id', [$pMio, $pOtro])->delete();
+});

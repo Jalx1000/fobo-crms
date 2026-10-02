@@ -27,6 +27,8 @@
         buscar-contacto-url="{{ route('admin.distribuidor.contacto.buscar') }}"
         guardar-contacto-url="{{ route('admin.distribuidor.contacto.store') }}"
         guardar-pedido-url="{{ route('admin.distribuidor.pedido.store') }}"
+        recientes-url="{{ route('admin.distribuidor.recientes') }}"
+        caja-url="{{ route('admin.distribuidor.caja') }}"
     />
 
     @pushOnce('scripts')
@@ -62,8 +64,8 @@
                     </div>
                 </div>
 
-                {{-- ── Dos pestañas grandes ── --}}
-                <div class="mb-4 grid grid-cols-2 gap-2">
+                {{-- ── Tres pestañas grandes ── --}}
+                <div class="mb-4 grid grid-cols-3 gap-2">
                     <button type="button" @click="vista = 'nuevo'"
                             class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-lg font-bold transition-colors duration-200"
                             :class="vista === 'nuevo'
@@ -81,6 +83,14 @@
                             @{{ pedidos.length }}
                         </span>
                     </button>
+
+                    <button type="button" @click="irACaja"
+                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-lg font-bold transition-colors duration-200"
+                            :class="vista === 'caja'
+                                ? 'border-brandColor bg-brandColor/10 text-brandColor'
+                                : 'border-gray-200 text-gray-600 dark:border-gray-800 dark:text-gray-400'">
+                        Caja
+                    </button>
                 </div>
 
                 <div v-if="aviso" class="mb-4 rounded-xl bg-red-50 px-4 py-3 text-base text-red-700 dark:bg-red-900/25 dark:text-red-300">
@@ -97,6 +107,29 @@
                         {{-- Paso 1: el cliente, por teléfono --}}
                         <section class="mb-4 rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
                             <h2 class="mb-3 text-lg font-bold text-gray-800 dark:text-gray-200">1 · Cliente</h2>
+
+                            {{--
+                                Clientes recientes: el atajo que saltea el teclado.
+
+                                Escribir 10 dígitos con una mano, parado en la calle, es el
+                                primer paso de TODOS los pedidos. Ordenados por último
+                                pedido y no alfabéticamente: a quien le vendiste ayer es
+                                mucho más probable que sea el de hoy.
+                            --}}
+                            <div v-if="!cliente && recientes.length" class="mb-3">
+                                <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Últimos atendidos
+                                </span>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button v-for="r in recientes" :key="r.id" type="button"
+                                            @click="elegirReciente(r)"
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-200 px-3 py-2 text-left transition-colors duration-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800">
+                                        <span class="block truncate text-base font-semibold text-gray-800 dark:text-gray-200">@{{ r.name }}</span>
+                                        <span class="block truncate text-sm text-gray-600 dark:text-gray-400">@{{ r.telefono }}</span>
+                                    </button>
+                                </div>
+                            </div>
 
                             <div v-if="!cliente" class="flex flex-col gap-2 sm:flex-row">
                                 {{-- inputmode="tel": teclado numérico nativo, sin buscar números en el alfabético --}}
@@ -137,10 +170,20 @@
                                     <div class="truncate text-xl font-bold text-gray-800 dark:text-gray-100">@{{ cliente.name }}</div>
                                     <div class="text-base text-gray-600 dark:text-gray-400">@{{ cliente.telefono }}</div>
                                 </div>
-                                <button type="button" @click="limpiarCliente"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] shrink-0 rounded-xl border-2 border-gray-300 px-5 text-base font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-300">
-                                    Cambiar
-                                </button>
+                                <div class="flex shrink-0 gap-2">
+                                    {{--
+                                        Repetir: en este rubro el mismo cliente pide lo mismo
+                                        cada semana. Convierte un pedido de seis toques en dos.
+                                    --}}
+                                    <button type="button" @click="repetirPedido" :disabled="cargando"
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor px-5 text-base font-bold text-brandColor transition-colors duration-200 disabled:opacity-40">
+                                        Repetir
+                                    </button>
+                                    <button type="button" @click="limpiarCliente"
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] shrink-0 rounded-xl border-2 border-gray-300 px-5 text-base font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                                        Cambiar
+                                    </button>
+                                </div>
                             </div>
                         </section>
 
@@ -341,6 +384,33 @@
                     </div>
                 </template>
 
+                {{-- ══════════════ CAJA DEL DÍA ══════════════ --}}
+                <template v-if="vista === 'caja'">
+                    {{--
+                        El número que necesita quien cierra la jornada entregando
+                        efectivo. Cortado por forma de pago porque lo que se rinde en
+                        mano es sólo la parte en efectivo.
+                    --}}
+                    <div class="mb-4 rounded-2xl border-2 border-brandColor p-5 text-center">
+                        <span class="block text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                            Cobrado hoy
+                        </span>
+                        <span class="block text-4xl font-extrabold text-gray-900 dark:text-white">@{{ money(caja.total) }}</span>
+                        <span class="block text-base text-gray-600 dark:text-gray-400">
+                            @{{ caja.cobros }} cobro(s) · @{{ caja.pedidos_del_dia }} pedido(s)
+                        </span>
+                    </div>
+
+                    <div v-for="f in caja.por_forma" :key="f.key"
+                         class="mb-2 flex items-center justify-between rounded-xl border-2 border-gray-200 px-4 py-3 dark:border-gray-800">
+                        <span class="text-lg font-semibold text-gray-800 dark:text-gray-200">@{{ f.label }}</span>
+                        <span class="text-right">
+                            <span class="block text-xl font-bold text-gray-900 dark:text-white">@{{ money(f.total) }}</span>
+                            <span class="block text-sm text-gray-600 dark:text-gray-400">@{{ f.cobros }} cobro(s)</span>
+                        </span>
+                    </div>
+                </template>
+
                 {{-- ── Barra fija: el total y la acción, al alcance del pulgar ── --}}
                 <div v-if="vista === 'nuevo' && sucursal"
                      class="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
@@ -462,6 +532,8 @@
                     buscarContactoUrl: { type: String, default: '' },
                     guardarContactoUrl: { type: String, default: '' },
                     guardarPedidoUrl: { type: String, default: '' },
+                    recientesUrl: { type: String, default: '' },
+                    cajaUrl: { type: String, default: '' },
                 },
 
                 data() {
@@ -483,6 +555,8 @@
                         encontrado: false,
                         nota: '',
                         pedidos: [],
+                        recientes: [],
+                        caja: { total: 0, cobros: 0, pedidos_del_dia: 0, por_forma: [] },
                         cobro: { pedido: null, amount: null, method: 'efectivo' },
                         entrega: { pedido: null, archivo: null, preview: null },
                         cargando: false,
@@ -549,6 +623,8 @@
                         this.precios = {};
                         this.cargarProductos();
 
+                        this.cargarRecientes();
+
                         // Si estoy mirando pedidos, la lista sigue al lugar elegido.
                         if (this.vista === 'pedidos') this.cargarPedidos();
                     },
@@ -587,6 +663,66 @@
                     fijar(p, valor) {
                         const n = Math.max(0, parseInt(valor, 10) || 0);
                         this.carrito = { ...this.carrito, [p.id]: n };
+                    },
+
+                    cargarRecientes() {
+                        if (! this.sucursal) return;
+
+                        this.$axios.get(this.recientesUrl, { params: { ciudad: this.sucursal.ciudad_id } })
+                            .then(r => { this.recientes = r.data.recientes; })
+                            // Silencioso a propósito: es un atajo, no el camino. Si falla,
+                            // el campo de teléfono sigue estando.
+                            .catch(() => { this.recientes = []; });
+                    },
+
+                    elegirReciente(r) {
+                        this.cliente = r;
+                        this.telefono = r.telefono || '';
+                        this.buscado = true;
+                        this.encontrado = true;
+                    },
+
+                    /** Trae las líneas del último pedido del cliente al carrito. */
+                    repetirPedido() {
+                        if (! this.cliente || ! this.sucursal) return;
+
+                        this.cargando = true;
+                        this.aviso = null;
+
+                        this.$axios.get('{{ url(config('app.admin_path').'/distribuidor/repetir') }}/' + this.cliente.id, {
+                            params: { sucursal: this.sucursal.id },
+                        })
+                            .then(r => {
+                                if (! r.data.lineas.length) {
+                                    this.aviso = r.data.motivo || 'No hay un pedido anterior para repetir.';
+
+                                    return;
+                                }
+
+                                const carrito = {};
+                                const precios = {};
+
+                                r.data.lineas.forEach(l => {
+                                    carrito[l.product_id] = l.quantity;
+                                    precios[l.product_id] = l.price;
+                                });
+
+                                this.carrito = carrito;
+                                this.precios = precios;
+                            })
+                            .catch(e => { this.aviso = this.mensaje(e, 'No se pudo traer el pedido anterior.'); })
+                            .finally(() => { this.cargando = false; });
+                    },
+
+                    irACaja() {
+                        this.vista = 'caja';
+                        this.cargarCaja();
+                    },
+
+                    cargarCaja() {
+                        this.$axios.get(this.cajaUrl)
+                            .then(r => { this.caja = r.data; })
+                            .catch(() => { this.aviso = 'No se pudo cargar la caja.'; });
                     },
 
                     buscarCliente() {
@@ -644,6 +780,7 @@
                                 this.nota = '';
                                 this.telefono = '';
                                 this.limpiarCliente();
+                                this.cargarRecientes();
                                 this.irAPedidos();
                             })
                             .catch(e => { this.aviso = this.mensaje(e, 'No se pudo abrir el pedido.'); })
@@ -813,6 +950,7 @@
                             .then(r => {
                                 this.reemplazar(r.data.pedido);
                                 this.cobro.pedido = null;
+                                if (this.vista === 'caja') this.cargarCaja();
                             })
                             .catch(e => { this.aviso = this.mensaje(e, 'No se pudo registrar el cobro.'); })
                             .finally(() => { this.cargando = false; });

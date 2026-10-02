@@ -6,6 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Webkul\Contact\Models\PersonProxy;
 use Webkul\Distribuidor\Models\EntregaProxy;
 use Webkul\Distribuidor\Models\PagoProxy;
 use Webkul\Distribuidor\Repositories\PagoRepository;
@@ -290,6 +291,161 @@ class PuntoController extends Controller
         return view('distribuidor::whatsapp', [
             'lead'   => $lead,
             'person' => $lead->person,
+        ]);
+    }
+
+    /**
+     * Los últimos clientes atendidos en este lugar.
+     *
+     * Hoy la única puerta de entrada al pedido es escribir el teléfono completo,
+     * y es el primer paso de TODOS los pedidos. Con los contactos que ya hay
+     * cargados, una fila de tarjetas grandes saltea el teclado en la mayoría de
+     * los casos — que es la diferencia entre tipear 10 dígitos con una mano
+     * parado en la calle y tocar una vez.
+     *
+     * Se listan por último pedido y no alfabéticamente: a quien le vendiste ayer
+     * es mucho más probable que sea el de hoy.
+     */
+    public function recientes(Request $request): JsonResponse
+    {
+        $data = $request->validate(['ciudad' => 'nullable|integer']);
+
+        $query = LeadProxy::modelClass()::query()
+            ->whereNotNull('person_id')
+            ->when(
+                ! empty($data['ciudad']),
+                fn ($q) => $q->where('lead_pipeline_id', $data['ciudad']),
+                fn ($q) => ($p = $this->alcance->ciudadesPermitidas()) !== null
+                    ? $q->whereIn('lead_pipeline_id', $p)
+                    : $q,
+            );
+
+        if (! empty($data['ciudad'])) {
+            abort_if(
+                ! $this->alcance->puedeVerCiudad((int) $data['ciudad']),
+                403,
+                'Esa ciudad no está en tu alcance.',
+            );
+        }
+
+        /*
+         * Un cliente aparece UNA vez, con su pedido más reciente. Sin el
+         * groupBy, alguien que compró cinco veces llenaría la fila entero y
+         * taparía a los demás.
+         */
+        $ultimos = $query->selectRaw('person_id, max(id) as ultimo_lead')
+            ->groupBy('person_id')
+            ->orderByDesc('ultimo_lead')
+            ->limit(8)
+            ->get();
+
+        return response()->json([
+            'recientes' => $ultimos->map(function ($fila) {
+                $persona = PersonProxy::modelClass()::find($fila->person_id);
+
+                if (! $persona) {
+                    return null;
+                }
+
+                // Sin teléfono la tarjeta no sirve: todo el Punto identifica al
+                // cliente por su número, y una tarjeta que no se puede usar sólo
+                // ocupa un lugar en una fila de ocho.
+                if (! $this->telefonoDe($persona)) {
+                    return null;
+                }
+
+                return array_merge($this->persona($persona), [
+                    'ultimo_pedido_id' => (int) $fila->ultimo_lead,
+                ]);
+            })->filter()->values()->all(),
+        ]);
+    }
+
+    /**
+     * Las líneas del último pedido de un cliente, para repetirlo.
+     *
+     * En este rubro el mismo cliente pide lo mismo cada semana: repetir convierte
+     * un pedido de seis toques en dos.
+     *
+     * Los precios se devuelven los del CATÁLOGO ACTUAL de la sucursal, no los que
+     * se cobraron la vez pasada: si la lista subió, repetir al precio viejo
+     * vendería a pérdida sin que nadie lo note. Lo que se repite es QUÉ pidió, no
+     * a cuánto.
+     */
+    public function repetir(Request $request, string $personId): JsonResponse
+    {
+        $data = $request->validate(['sucursal' => 'required|integer']);
+
+        $permitidas = array_column($this->alcance->sucursales(), 'id');
+
+        abort_if(! in_array((int) $data['sucursal'], $permitidas, true), 403, 'Esa sucursal no está en tu alcance.');
+
+        $ultimo = LeadProxy::modelClass()::with('products')
+            ->where('person_id', $personId)
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $ultimo || $ultimo->products->isEmpty()) {
+            return response()->json([
+                'lineas' => [],
+                'motivo' => 'Ese cliente no tiene un pedido anterior con productos.',
+            ]);
+        }
+
+        // Sólo lo que la sucursal vende hoy: un producto discontinuado o de otra
+        // ciudad no puede volver a entrar por la puerta de atrás.
+        $catalogo = collect($this->catalogo->productosDe((int) $data['sucursal']))->keyBy('id');
+
+        $lineas = $ultimo->products
+            ->filter(fn ($p) => $catalogo->has($p->product_id))
+            ->map(fn ($p) => [
+                'product_id' => (int) $p->product_id,
+                'name'       => $catalogo[$p->product_id]['name'],
+                'quantity'   => max(1, (int) $p->quantity),
+                'price'      => $catalogo[$p->product_id]['price'],
+            ])
+            ->values()
+            ->all();
+
+        return response()->json([
+            'lineas' => $lineas,
+            'motivo' => $lineas ? null : 'Lo que pidió la vez pasada no está disponible en esta sucursal.',
+        ]);
+    }
+
+    /**
+     * La caja del día: lo que este distribuidor cobró hoy.
+     *
+     * Registraban cobros sin poder ver el total propio, y es EL número que
+     * necesita quien cierra la jornada entregando efectivo. Cortado por forma de
+     * pago porque lo que se rinde en mano es sólo la parte en efectivo.
+     */
+    public function caja(): JsonResponse
+    {
+        $userId = auth()->guard('user')->id();
+
+        $pagos = PagoProxy::modelClass()::query()
+            ->where('user_id', $userId)
+            ->whereDate('created_at', now()->toDateString())
+            ->get();
+
+        $porForma = collect(config('distribuidor.formas_de_pago'))
+            ->map(fn ($label, $key) => [
+                'key'    => $key,
+                'label'  => $label,
+                'total'  => round((float) $pagos->where('method', $key)->sum('amount'), 2),
+                'cobros' => $pagos->where('method', $key)->count(),
+            ])
+            ->values()
+            ->all();
+
+        return response()->json([
+            'total'           => round((float) $pagos->sum('amount'), 2),
+            'cobros'          => $pagos->count(),
+            'por_forma'       => $porForma,
+            'pedidos_del_dia' => LeadProxy::modelClass()::where('user_id', $userId)
+                ->whereDate('created_at', now()->toDateString())
+                ->count(),
         ]);
     }
 
