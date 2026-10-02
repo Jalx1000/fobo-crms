@@ -483,6 +483,7 @@ class PuntoController extends Controller
             // El saldo se calcula, nunca se guarda: así no puede quedar
             // desincronizado con los cobros.
             'saldo'         => round($total - $cobrado, 2),
+            'ubicacion'     => $this->ubicacion->dePedido($id),
             'entregado_at'  => optional($this->entregaDe($id))->entregado_at?->format('d/m/Y H:i'),
             'entregado_por' => optional(optional($this->entregaDe($id))->user)->name,
             'entrega_foto'  => ($f = optional($this->entregaDe($id))->foto_path)

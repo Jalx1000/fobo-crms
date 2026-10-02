@@ -246,8 +246,8 @@
 
                         {{-- Paso 3: nota opcional --}}
                         <section class="mb-4 rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
-                            <h2 class="mb-3 text-lg font-bold text-gray-800 dark:text-gray-200">3 · Nota <span class="text-sm font-normal text-gray-500">(opcional)</span></h2>
-                            <label for="punto-nota" class="sr-only">Nota del pedido</label>
+                            <h2 class="mb-3 text-lg font-bold text-gray-800 dark:text-gray-200">3 · Dirección y referencia <span class="text-sm font-normal text-gray-600 dark:text-gray-400">(opcional)</span></h2>
+                            <label for="punto-nota" class="sr-only">Dirección y referencia de entrega</label>
                             <textarea id="punto-nota" v-model="nota" rows="2" placeholder="Dirección, referencia, horario…"
                                       class="w-full rounded-xl border-2 border-gray-300 p-3 text-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"></textarea>
                         </section>
@@ -316,6 +316,24 @@
                                 @{{ pe.etapa }}
                             </span>
                         </div>
+
+                        {{--
+                            QUÉ hay que entregar.
+
+                            Faltaba: la tarjeta mostraba cliente, etapa y plata, pero no el
+                            contenido del pedido. El distribuidor salía con la lista y
+                            ninguna tarjeta decía si eran dos botellones o una bomba — que
+                            es el dato central del reparto. Encontrado recorriendo el flujo.
+                        --}}
+                        <ul v-if="pe.productos && pe.productos.length" class="mb-3 space-y-1">
+                            <li v-for="(pr, k) in pe.productos" :key="k"
+                                class="flex items-baseline justify-between gap-2 border-b border-dashed border-gray-200 pb-1 last:border-0 dark:border-gray-800">
+                                <span class="text-base text-gray-800 dark:text-gray-200">
+                                    <span class="font-bold">@{{ pr.quantity }}×</span> @{{ pr.name }}
+                                </span>
+                                <span class="shrink-0 text-base text-gray-600 dark:text-gray-400">@{{ money(pr.price * pr.quantity) }}</span>
+                            </li>
+                        </ul>
 
                         {{-- El saldo es el número que importa: va grande --}}
                         <div class="mb-3 grid grid-cols-3 gap-2 rounded-xl bg-gray-50 p-3 dark:bg-gray-800/50">

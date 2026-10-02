@@ -339,8 +339,28 @@ class LeadRepository extends Repository
             }
         }
 
-        foreach ($previousProductIds as $productId) {
-            $this->productRepository->delete($productId);
+        /*
+         * Los productos sobrantes se borran SÓLO si el payload trajo una lista.
+         *
+         * Este bucle estaba fuera del `isset` de arriba, así que cualquier update
+         * que no mandara `products` borraba todos los del lead. Lo hacían el
+         * Kanban (updateStage manda sólo la etapa), el mass update y la API del
+         * agente: arrastrar un pedido de columna vaciaba su contenido, sin error
+         * y sin rastro.
+         *
+         * Medido: `lead_products` tenía 0 filas para 15 pedidos, y 13 de esos 15
+         * estaban en una etapa distinta de la inicial. Los productos no faltaban
+         * por falta de carga — los borraba el propio cambio de etapa.
+         *
+         * La semántica "el payload reemplaza la lista" se mantiene intacta: con
+         * `products` presente se sincroniza, y un array vacío explícito sigue
+         * vaciando la lista. Lo que cambia es que la AUSENCIA de la clave ya no
+         * significa "borrá todo".
+         */
+        if (isset($data['products'])) {
+            foreach ($previousProductIds as $productId) {
+                $this->productRepository->delete($productId);
+            }
         }
 
         $this->applyLeadValueRule($lead, $data);

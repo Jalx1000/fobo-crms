@@ -162,23 +162,34 @@ class Ubicacion
         return $dentro ? ['lat' => $lat, 'lng' => $lng] : null;
     }
 
+    /**
+     * El texto de ubicación del pedido.
+     *
+     * Dos fuentes, y la segunda no es un lujo: el atributo `ubicacion_lead` lo
+     * escribe n8n, pero la nota que escribe el distribuidor en el Punto va a
+     * `description`. Sin este fallback, alguien tipeaba "Av. Bolivia 2335, portón
+     * azul" al tomar el pedido y el bloque "Dónde entregar" quedaba vacío —
+     * encontrado recorriendo el flujo a mano.
+     */
     protected function textoDe(int $leadId): ?string
     {
         $attributeId = DB::table('attributes')->where('code', self::ATRIBUTO)->value('id');
 
-        if (! $attributeId) {
-            return null;
+        if ($attributeId) {
+            $valor = trim((string) DB::table('attribute_values')
+                ->where('attribute_id', $attributeId)
+                ->where('entity_type', 'leads')
+                ->where('entity_id', $leadId)
+                ->value('text_value'));
+
+            if ($valor !== '') {
+                return $valor;
+            }
         }
 
-        $valor = DB::table('attribute_values')
-            ->where('attribute_id', $attributeId)
-            ->where('entity_type', 'leads')
-            ->where('entity_id', $leadId)
-            ->value('text_value');
+        $descripcion = trim((string) DB::table('leads')->where('id', $leadId)->value('description'));
 
-        $valor = trim((string) $valor);
-
-        return $valor !== '' ? $valor : null;
+        return $descripcion !== '' ? $descripcion : null;
     }
 
     /**

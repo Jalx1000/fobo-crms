@@ -890,3 +890,110 @@ it('la tarjeta ofrece cobrar antes de entregar, no al revés', function () {
     // Y entregar exige un cobro previo: nunca aparece sin esa condición.
     expect($tpl)->not->toContain("v-else-if=\"pe.etapa_code === 'pedidos-confirmado'\" type=\"button\" @click=\"pedirFoto");
 });
+
+it('el pedido expone su ubicación y sus productos por el endpoint', function () {
+    $sucursal = primeraSucursal();
+
+    if (! $sucursal['ciudad_id']) {
+        test()->markTestSkipped('La sucursal no tiene una ciudad equivalente.');
+    }
+
+    $user = distribuidor();
+    $producto = app(Catalogo::class)->productosDe($sucursal['id'])[0];
+
+    $contacto = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => '549388'.random_int(1000000, 9999999),
+            'nombre'   => 'Cliente payload '.uniqid(),
+        ])->json('persona');
+
+    $pedido = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.pedido.store'), [
+            'person_id' => $contacto['id'],
+            'ciudad_id' => $sucursal['ciudad_id'],
+            'nota'      => 'Av. Bolivia 2335, portón azul',
+            'productos' => [['product_id' => $producto['id'], 'quantity' => 2, 'price' => 500]],
+        ])->assertCreated()->json('pedido');
+
+    /*
+     * Los dos los encontró un recorrido manual del flujo, no la suite: la clave
+     * `ubicacion` no se había llegado a exponer, y la dirección que escribe el
+     * distribuidor iba a `description` mientras el bloque "Dónde entregar" leía
+     * sólo el atributo `ubicacion_lead`, así que quedaba vacío.
+     */
+    expect($pedido)->toHaveKey('ubicacion')
+        ->and($pedido['ubicacion']['referencia'])->toBe('Av. Bolivia 2335, portón azul')
+        ->and($pedido['ubicacion']['modo'])->toBe('busqueda');
+
+    // Y qué hay que entregar: sin esto el reparto sale sin saber qué lleva.
+    expect($pedido['productos'])->toHaveCount(1)
+        // (float): el JSON devuelve 2 y no 2.0 cuando no hay decimales.
+        ->and((float) $pedido['productos'][0]['quantity'])->toBe(2.0)
+        ->and($pedido['productos'][0]['name'])->toBe($producto['name']);
+
+    DB::table('lead_products')->where('lead_id', $pedido['id'])->delete();
+    DB::table('leads')->where('id', $pedido['id'])->delete();
+    DB::table('persons')->where('id', $contacto['id'])->delete();
+});
+
+it('la tarjeta renderiza los productos del pedido', function () {
+    $html = test()->actingAs(distribuidor(), 'user')
+        ->get(route('admin.distribuidor.index'))
+        ->assertOk()
+        ->getContent();
+
+    $i = strpos($html, 'id="v-punto-template"');
+    $tpl = substr($html, $i, strpos($html, '</script>', $i) - $i);
+
+    // El payload traía los productos pero la plantilla no los dibujaba.
+    expect($tpl)->toContain('pe.productos')
+        ->and($tpl)->toContain('pr.quantity');
+});
+
+it('avanzar de etapa no borra los productos del pedido', function () {
+    $sucursal = primeraSucursal();
+
+    if (! $sucursal['ciudad_id']) {
+        test()->markTestSkipped('La sucursal no tiene una ciudad equivalente.');
+    }
+
+    $user = distribuidor();
+    $producto = app(Catalogo::class)->productosDe($sucursal['id'])[0];
+
+    $contacto = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => '549388'.random_int(1000000, 9999999),
+            'nombre'   => 'Cliente etapas '.uniqid(),
+        ])->json('persona');
+
+    $pedido = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.pedido.store'), [
+            'person_id' => $contacto['id'],
+            'ciudad_id' => $sucursal['ciudad_id'],
+            'productos' => [['product_id' => $producto['id'], 'quantity' => 2, 'price' => 500]],
+        ])->assertCreated()->json('pedido');
+
+    expect(DB::table('lead_products')->where('lead_id', $pedido['id'])->count())->toBe(1);
+
+    /*
+     * El bucle que borra los productos sobrantes de LeadRepository::update()
+     * estaba fuera del `isset($data['products'])`, así que cualquier update sin
+     * esa clave los borraba todos. Afectaba al Kanban (updateStage manda sólo la
+     * etapa), al mass update y a la API del agente: arrastrar un pedido de
+     * columna vaciaba su contenido sin error y sin rastro.
+     *
+     * Por eso `lead_products` tenía 0 filas para 15 pedidos.
+     */
+    $pedido = test()->actingAs($user, 'user')
+        ->patchJson(route('admin.distribuidor.pedido.etapa', $pedido['id']), ['etapa' => 'confirmado'])
+        ->assertOk()->json('pedido');
+
+    expect(DB::table('lead_products')->where('lead_id', $pedido['id'])->count())->toBe(1)
+        ->and($pedido['productos'])->toHaveCount(1)
+        // Y el total sigue siendo el que se cobró.
+        ->and((float) $pedido['total'])->toBe(1000.0);
+
+    DB::table('lead_products')->where('lead_id', $pedido['id'])->delete();
+    DB::table('leads')->where('id', $pedido['id'])->delete();
+    DB::table('persons')->where('id', $contacto['id'])->delete();
+});
