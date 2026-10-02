@@ -1107,3 +1107,57 @@ it('una sucursal no ve los pedidos de otra', function () {
     DB::table('leads')->where('id', $pedido['id'])->delete();
     DB::table('persons')->where('id', $contacto['id'])->delete();
 });
+
+it('los modales son accesibles por teclado y lector de pantalla', function () {
+    $html = test()->actingAs(distribuidor(), 'user')
+        ->get(route('admin.distribuidor.index'))
+        ->assertOk()
+        ->getContent();
+
+    $i = strpos($html, 'id="v-punto-template"');
+    $tpl = substr($html, $i, strpos($html, '</script>', $i) - $i);
+
+    /*
+     * Sin role/aria-modal un lector de pantalla no anuncia que se abrió un diálogo
+     * ni lo nombra, y lee el fondo como si siguiera disponible. Y sin cierre por
+     * Escape, con teclado un modal es un modal del que no se sale.
+     */
+    // El marcado del diálogo vive en la plantilla...
+    expect(substr_count($tpl, 'role="dialog"'))->toBe(2)
+        ->and(substr_count($tpl, 'aria-modal="true"'))->toBe(2)
+        ->and($tpl)->toContain('aria-labelledby="titulo-cobro"')
+        ->and($tpl)->toContain('aria-labelledby="titulo-entrega"');
+
+    /*
+     * ...y el listener en el <script type="module">, que es otro bloque. Va en
+     * window y no atado al diálogo: el foco puede estar en el overlay o en ningún
+     * lado, y un handler del elemento sólo dispara si el foco está adentro.
+     */
+    expect($html)->toContain("e.key !== 'Escape'")
+        ->and($html)->toContain("window.addEventListener('keydown'")
+        // Y se desengancha, para que no se acumule entre montajes.
+        ->and($html)->toContain("window.removeEventListener('keydown'");
+});
+
+it('ningún gris de texto queda sin su par para modo oscuro', function () {
+    $html = test()->actingAs(distribuidor(), 'user')
+        ->get(route('admin.distribuidor.index'))
+        ->assertOk()
+        ->getContent();
+
+    $i = strpos($html, 'id="v-punto-template"');
+    $tpl = substr($html, $i, strpos($html, '</script>', $i) - $i);
+
+    /*
+     * gray-400 sobre blanco da ~2.8:1 y gray-500 ~4.6:1, al límite del mínimo de
+     * 4.5:1. El par `text-gray-600 dark:text-gray-400` pasa en los dos modos.
+     */
+    preg_match_all('/class="[^"]*"/', $tpl, $clases);
+
+    $flojas = array_values(array_filter(
+        $clases[0],
+        fn ($c) => preg_match('/\btext-gray-(400|500)\b/', $c) && ! str_contains($c, 'dark:text-gray'),
+    ));
+
+    expect($flojas)->toBe([], "grises sin par dark:\n".implode("\n", array_slice($flojas, 0, 5)));
+});

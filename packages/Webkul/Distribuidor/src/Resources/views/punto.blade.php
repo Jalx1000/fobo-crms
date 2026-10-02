@@ -99,7 +99,7 @@
 
                 {{-- ══════════════ NUEVO PEDIDO ══════════════ --}}
                 <template v-if="vista === 'nuevo'">
-                    <div v-if="!sucursal" class="rounded-xl border-2 border-dashed border-gray-300 px-4 py-10 text-center text-base text-gray-500 dark:border-gray-700">
+                    <div v-if="!sucursal" class="rounded-xl border-2 border-dashed border-gray-300 px-4 py-10 text-center text-base text-gray-600 dark:text-gray-400 dark:border-gray-700">
                         Elegí una sucursal para empezar.
                     </div>
 
@@ -192,7 +192,7 @@
                             <h2 class="mb-1 text-lg font-bold text-gray-800 dark:text-gray-200">2 · Productos</h2>
                             <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Precios de @{{ sucursal.name }}</p>
 
-                            <div v-if="!productos.length" class="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-base text-gray-500 dark:border-gray-700">
+                            <div v-if="!productos.length" class="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-base text-gray-600 dark:text-gray-400 dark:border-gray-700">
                                 Esta sucursal no tiene productos cargados.
                             </div>
 
@@ -321,15 +321,15 @@
                         {{-- El saldo es el número que importa: va grande --}}
                         <div class="mb-3 grid grid-cols-3 gap-2 rounded-xl bg-gray-50 p-3 dark:bg-gray-800/50">
                             <div>
-                                <div class="text-xs uppercase text-gray-500">Total</div>
+                                <div class="text-xs uppercase text-gray-600 dark:text-gray-400">Total</div>
                                 <div class="text-lg font-bold text-gray-800 dark:text-gray-200">@{{ money(pe.total) }}</div>
                             </div>
                             <div>
-                                <div class="text-xs uppercase text-gray-500">Cobrado</div>
+                                <div class="text-xs uppercase text-gray-600 dark:text-gray-400">Cobrado</div>
                                 <div class="text-lg font-bold text-emerald-600">@{{ money(pe.cobrado) }}</div>
                             </div>
                             <div>
-                                <div class="text-xs uppercase text-gray-500">Saldo</div>
+                                <div class="text-xs uppercase text-gray-600 dark:text-gray-400">Saldo</div>
                                 <div class="text-2xl font-extrabold" :class="pe.saldo > 0 ? 'text-red-600' : 'text-emerald-600'">
                                     @{{ money(pe.saldo) }}
                                 </div>
@@ -494,7 +494,7 @@
                      class="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
                     <div class="mx-auto flex max-w-5xl items-center gap-3">
                         <div class="shrink-0">
-                            <div class="text-xs uppercase text-gray-500">Total</div>
+                            <div class="text-xs uppercase text-gray-600 dark:text-gray-400">Total</div>
                             <div class="text-2xl font-extrabold text-gray-900 dark:text-white">@{{ money(total) }}</div>
                         </div>
                         <button type="button" @click="guardarPedido" :disabled="!puedeGuardar || cargando"
@@ -515,8 +515,9 @@
                 {{-- ── Confirmar la entrega con la foto a la vista ── --}}
                 <Teleport to="body">
                     <div v-if="entrega.pedido" class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" @click.self="cancelarEntrega">
-                        <div class="w-full max-w-md rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
-                            <h3 class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Confirmar entrega</h3>
+                        <div role="dialog" aria-modal="true" aria-labelledby="titulo-entrega"
+                             class="w-full max-w-md rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
+                            <h3 id="titulo-entrega" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Confirmar entrega</h3>
                             <p class="mb-3 text-base text-gray-600 dark:text-gray-400">
                                 Pedido #@{{ entrega.pedido.id }} · @{{ entrega.pedido.cliente }}
                             </p>
@@ -546,8 +547,15 @@
                 {{-- ── Cobro: dentro del pedido, no en otra sección ── --}}
                 <Teleport to="body">
                     <div v-if="cobro.pedido" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" @click.self="cobro.pedido = null">
-                        <div class="w-full max-w-md rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
-                            <h3 class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Registrar cobro</h3>
+                        {{--
+                            role/aria-modal/aria-labelledby: sin eso un lector de pantalla no
+                            anuncia que se abrió un diálogo ni lo nombra, y lee el fondo como
+                            si siguiera disponible. El cierre con Escape lo maneja un listener
+                            global (ver mounted), que funciona sin depender de dónde esté el foco.
+                        --}}
+                        <div role="dialog" aria-modal="true" aria-labelledby="titulo-cobro"
+                             class="w-full max-w-md rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
+                            <h3 id="titulo-cobro" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Registrar cobro</h3>
                             <p class="mb-4 text-base text-gray-600 dark:text-gray-400">
                                 Saldo: <strong>@{{ money(cobro.pedido.saldo) }}</strong>
                             </p>
@@ -677,10 +685,32 @@
                 },
 
                 mounted() {
+                    /*
+                     * Escape cierra el modal abierto.
+                     *
+                     * Listener en window y no @keydown en el diálogo: el foco puede estar en
+                     * el overlay, en un input o en ningún lado, y un handler atado al
+                     * elemento sólo dispara si el foco está adentro. Con teclado, un modal
+                     * que no se cierra con Escape es un modal del que no se sale.
+                     */
+                    this.alEscape = e => {
+                        if (e.key !== 'Escape') return;
+
+                        if (this.entrega.pedido) this.cancelarEntrega();
+                        else if (this.cobro.pedido) this.cobro.pedido = null;
+                    };
+
+                    window.addEventListener('keydown', this.alEscape);
+
                     // Una sola sucursal: no se pregunta lo obvio.
                     if (this.sucursales.length === 1) {
                         this.elegirSucursal(this.sucursales[0]);
                     }
+                },
+
+                beforeUnmount() {
+                    // Sin esto el listener sobrevive al componente y se acumula.
+                    if (this.alEscape) window.removeEventListener('keydown', this.alEscape);
                 },
 
                 methods: {
