@@ -199,17 +199,31 @@ class PuntoController extends Controller
     public function cobrar(Request $request, string $id): JsonResponse
     {
         $data = $request->validate([
-            'amount' => 'required|numeric|min:0.01',
+            /*
+             * El importe NO viene del cliente: en el Punto siempre se cobra al
+             * contado, el total del pedido. Calcularlo en el servidor elimina la
+             * posibilidad de que el navegador mande otra cifra —por un bug, por
+             * una pantalla vieja en caché o a mano— y deja la regla en un solo
+             * lugar en vez de repetida en los dos lados.
+             *
+             * El precio ya es ajustable al armar el pedido, así que un descuento
+             * se hace ahí y el total queda correcto antes de llegar a cobrar.
+             */
             'method' => 'required|string|in:'.implode(',', array_keys(config('distribuidor.formas_de_pago'))),
             'note'   => 'nullable|string|max:255',
         ]);
 
         $lead = LeadProxy::modelClass()::findOrFail($id);
 
+        // Lo que falta cobrar del pedido: al contado es el total.
+        $aCobrar = round((float) $lead->lead_value - $this->pagos->cobrado((int) $id), 2);
+
+        abort_if($aCobrar <= 0, 422, 'Ese pedido ya está cobrado.');
+
         PagoProxy::modelClass()::create([
             'lead_id' => $lead->id,
             'user_id' => auth()->guard('user')->id(),
-            'amount'  => $data['amount'],
+            'amount'  => $aCobrar,
             'method'  => $data['method'],
             'note'    => $data['note'] ?? null,
         ]);

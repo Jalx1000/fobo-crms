@@ -612,30 +612,36 @@ it('la caja suma sólo los cobros de hoy del propio distribuidor', function () {
     [$pMio, $lMio] = $abrir($mio);
     [$pOtro, $lOtro] = $abrir($otro);
 
+    /*
+     * Al contado: un solo cobro por el total del pedido. El importe lo calcula el
+     * servidor, así que el cliente sólo elige la forma de pago.
+     */
     test()->actingAs($mio, 'user')->postJson(route('admin.distribuidor.pedido.cobro', $lMio), [
-        'amount' => 600, 'method' => 'efectivo',
+        'method' => 'efectivo',
     ])->assertOk();
 
+    // Ya cobrado: un segundo intento no suma nada.
     test()->actingAs($mio, 'user')->postJson(route('admin.distribuidor.pedido.cobro', $lMio), [
-        'amount' => 400, 'method' => 'qr',
-    ])->assertOk();
+        'method' => 'qr',
+    ])->assertStatus(422);
 
     // El cobro de OTRO distribuidor no puede entrar en mi caja.
     test()->actingAs($otro, 'user')->postJson(route('admin.distribuidor.pedido.cobro', $lOtro), [
-        'amount' => 999, 'method' => 'efectivo',
+        'method' => 'efectivo',
     ])->assertOk();
 
     $caja = test()->actingAs($mio, 'user')->getJson(route('admin.distribuidor.caja'))->assertOk();
 
+    // Un pedido de 1000 cobrado al contado: un cobro, el total.
     expect((float) $caja->json('total'))->toBe(1000.0)
-        ->and($caja->json('cobros'))->toBe(2);
+        ->and($caja->json('cobros'))->toBe(1);
 
     $efectivo = collect($caja->json('por_forma'))->firstWhere('key', 'efectivo');
     $qr = collect($caja->json('por_forma'))->firstWhere('key', 'qr');
 
     // Lo que se rinde en mano es sólo la parte en efectivo.
-    expect((float) $efectivo['total'])->toBe(600.0)
-        ->and((float) $qr['total'])->toBe(400.0);
+    expect((float) $efectivo['total'])->toBe(1000.0)
+        ->and((float) $qr['total'])->toBe(0.0);
 
     DB::table('distribuidor_pagos')->whereIn('lead_id', [$lMio, $lOtro])->delete();
     DB::table('lead_products')->whereIn('lead_id', [$lMio, $lOtro])->delete();
@@ -1160,4 +1166,53 @@ it('ningún gris de texto queda sin su par para modo oscuro', function () {
     ));
 
     expect($flojas)->toBe([], "grises sin par dark:\n".implode("\n", array_slice($flojas, 0, 5)));
+});
+
+it('el cobro es siempre por el total: el importe lo decide el servidor', function () {
+    $sucursal = primeraSucursal();
+
+    if (! $sucursal['ciudad_id']) {
+        test()->markTestSkipped('La sucursal no tiene una ciudad equivalente.');
+    }
+
+    $user = distribuidor();
+    $producto = app(Catalogo::class)->productosDe($sucursal['id'])[0];
+
+    $contacto = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => '549388'.random_int(1000000, 9999999),
+            'nombre'   => 'Cliente contado '.uniqid(),
+        ])->json('persona');
+
+    $pedido = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.pedido.store'), [
+            'person_id' => $contacto['id'],
+            'ciudad_id' => $sucursal['ciudad_id'],
+            'productos' => [['product_id' => $producto['id'], 'quantity' => 3, 'price' => 2500]],
+        ])->assertCreated()->json('pedido');
+
+    /*
+     * Se manda un importe distinto a propósito: el servidor lo IGNORA y cobra el
+     * total. En el Punto siempre es al contado, y dejar que el navegador decida
+     * la cifra era una forma de equivocarse —o de abusar— sin ninguna ventaja: el
+     * precio ya es ajustable al armar el pedido.
+     */
+    $cobrado = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.pedido.cobro', $pedido['id']), [
+            'amount' => 1,
+            'method' => 'efectivo',
+        ])->assertOk()->json('pedido');
+
+    expect((float) $cobrado['cobrado'])->toBe(7500.0)
+        ->and((float) $cobrado['saldo'])->toBe(0.0);
+
+    // Y no se puede cobrar dos veces el mismo pedido.
+    test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.pedido.cobro', $pedido['id']), ['method' => 'efectivo'])
+        ->assertStatus(422);
+
+    DB::table('distribuidor_pagos')->where('lead_id', $pedido['id'])->delete();
+    DB::table('lead_products')->where('lead_id', $pedido['id'])->delete();
+    DB::table('leads')->where('id', $pedido['id'])->delete();
+    DB::table('persons')->where('id', $contacto['id'])->delete();
 });

@@ -400,8 +400,11 @@
                               Prospecto              → Confirmar
                               Confirmado, sin cobrar → Cobrar
                               Confirmado y cobrado   → Entregar (abre la cámara)
-                              Entregado con saldo    → Cobrar el resto
-                              Entregado y cobrado    → nada, está cerrado
+                              Entregado              → nada, está cerrado
+
+                            No hay paso de cobro parcial: en el Punto siempre se cobra al
+                            contado, el total. Un descuento se hace ajustando el precio al
+                            armar el pedido, no cobrando de menos.
 
                             Se cobra ANTES de entregar: la plata se recibe y después se
                             baja la mercadería. Entregar primero y cobrar después deja al
@@ -436,12 +439,7 @@
                             <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.9 47.9 0 0 0-1.134-.175a2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0a2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>Entregar
                         </button>
 
-                        {{-- Un cobro parcial se completa acá: no es un paso fuera de orden. --}}
-                        <button v-else-if="pe.etapa_code === 'pedido-entregado' && pe.saldo > 0" type="button" @click="abrirCobro(pe)"
-                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-2 min-h-[64px] w-full rounded-xl bg-emerald-600 text-xl font-bold text-white transition-colors duration-200">
-                            Cobrar el resto @{{ money(pe.saldo) }}
-                        </button>
-
+                        
                         <p v-else-if="pe.etapa_code === 'pedido-entregado'" class="mb-2 rounded-xl bg-emerald-50 py-3 text-center text-base font-bold text-emerald-800 dark:bg-emerald-900/25 dark:text-emerald-300">
                             Entregado y cobrado
                         </p>
@@ -555,34 +553,38 @@
                         --}}
                         <div role="dialog" aria-modal="true" aria-labelledby="titulo-cobro"
                              class="w-full max-w-md rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
-                            <h3 id="titulo-cobro" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Registrar cobro</h3>
-                            <p class="mb-4 text-base text-gray-600 dark:text-gray-400">
-                                Saldo: <strong>@{{ money(cobro.pedido.saldo) }}</strong>
-                            </p>
+                            <h3 id="titulo-cobro" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">¿Cómo pagó?</h3>
 
-                            {{-- Atajos: lo que se cobra el 90% de las veces, sin tipear --}}
-                            <div class="mb-3 grid grid-cols-2 gap-2">
-                                <button type="button" @click="cobro.amount = cobro.pedido.saldo"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-emerald-600 text-base font-bold text-emerald-700 dark:text-emerald-400">
-                                    Todo el saldo
-                                </button>
-                                <button type="button" @click="cobro.amount = Math.round(cobro.pedido.saldo / 2)"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-gray-300 text-base font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
-                                    La mitad
-                                </button>
+                            {{--
+                                Sin campo de importe y sin atajos.
+
+                                En el Punto siempre se cobra al contado: el importe es el
+                                total del pedido y lo calcula el SERVIDOR. Un input editable
+                                acá era una forma de equivocarse sin ninguna ventaja —el
+                                precio ya es ajustable al armar el pedido—, y los atajos
+                                "Todo el saldo / La mitad" ofrecían un cobro parcial que no
+                                existe en este negocio.
+
+                                Queda en dos toques: forma de pago y confirmar.
+                            --}}
+                            <div class="mb-4 rounded-xl bg-gray-50 px-4 py-3 text-center dark:bg-gray-800/50">
+                                <span class="block text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                                    A cobrar
+                                </span>
+                                <span class="block text-3xl font-extrabold text-gray-900 dark:text-white">
+                                    @{{ money(cobro.pedido.saldo) }}
+                                </span>
+                                <span class="block truncate text-base text-gray-600 dark:text-gray-400">
+                                    @{{ cobro.pedido.cliente || cobro.pedido.title }}
+                                </span>
                             </div>
 
-                            <label for="punto-cobro" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Importe que estás cobrando
-                            </label>
-                            <input id="punto-cobro" v-model.number="cobro.amount" type="number" inputmode="decimal" min="0"
-                                   placeholder="Importe"
-                                   class="mb-3 min-h-[64px] w-full rounded-xl border-2 border-gray-300 px-4 text-center text-2xl font-bold dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                            <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Forma de pago</span>
 
                             <div class="mb-4 grid grid-cols-3 gap-2">
                                 <button v-for="(label, key) in formasPago" :key="key" type="button"
                                         @click="cobro.method = key"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 text-base font-semibold transition-colors duration-200"
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-base font-semibold transition-colors duration-200"
                                         :class="cobro.method === key
                                             ? 'border-brandColor bg-brandColor text-white'
                                             : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'">
@@ -592,12 +594,12 @@
 
                             <div class="grid grid-cols-2 gap-2">
                                 <button type="button" @click="cobro.pedido = null"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 transition-colors duration-200 dark:border-gray-700 dark:text-gray-300">
                                     Cancelar
                                 </button>
-                                <button type="button" @click="registrarCobro" :disabled="!cobro.amount || cargando"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-600 text-lg font-bold text-white disabled:opacity-40">
-                                    Registrar
+                                <button type="button" @click="registrarCobro" :disabled="!cobro.method || cargando"
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-600 text-lg font-bold text-white transition-colors duration-200 disabled:opacity-40">
+                                    @{{ cargando ? 'Registrando…' : 'Cobrado' }}
                                 </button>
                             </div>
                         </div>
@@ -641,7 +643,8 @@
                         pedidos: [],
                         recientes: [],
                         caja: { total: 0, cobros: 0, pedidos_del_dia: 0, por_forma: [] },
-                        cobro: { pedido: null, amount: null, method: 'efectivo' },
+                        // Sin `amount`: el importe lo calcula el servidor (siempre el total).
+                        cobro: { pedido: null, method: 'efectivo' },
                         entrega: { pedido: null, archivo: null, preview: null },
                         cargando: false,
                         aviso: null,
@@ -1039,7 +1042,7 @@
                     },
 
                     abrirCobro(pedido) {
-                        this.cobro = { pedido, amount: pedido.saldo, method: 'efectivo' };
+                        this.cobro = { pedido, method: 'efectivo' };
                     },
 
                     registrarCobro() {
@@ -1048,7 +1051,6 @@
                         this.cargando = true;
 
                         this.$axios.post('{{ url(config('app.admin_path').'/distribuidor/pedido') }}/' + pedido.id + '/cobro', {
-                            amount: this.cobro.amount,
                             method: this.cobro.method,
                         })
                             .then(r => {
