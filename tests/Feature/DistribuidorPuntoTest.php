@@ -641,3 +641,88 @@ it('la caja suma sólo los cobros de hoy del propio distribuidor', function () {
     DB::table('leads')->whereIn('id', [$lMio, $lOtro])->delete();
     DB::table('persons')->whereIn('id', [$pMio, $pOtro])->delete();
 });
+
+// ---------------------------------------------------------------------------
+// Ubicación del pedido
+// ---------------------------------------------------------------------------
+
+it('recupera las coordenadas que n8n guardó sin punto decimal ni signo', function () {
+    $u = app(\Webkul\Distribuidor\Services\Ubicacion::class);
+
+    /*
+     * El formato real encontrado en producción: n8n escribe el atributo
+     * `ubicacion_lead` y guardó "latitude17754821longitude631973421". El punto
+     * decimal y el menos se perdieron, y las etiquetas quedaron pegadas al número,
+     * así que el valor no se abría en ningún mapa.
+     */
+    expect($u->coordenadasEn('Calle bernardo cadario 22 | latitude17754821longitude631973421'))
+        ->toBe([-17.754821, -63.1973421]);
+});
+
+it('lee también el formato sano de coordenadas', function () {
+    $u = app(\Webkul\Distribuidor\Services\Ubicacion::class);
+
+    expect($u->coordenadasEn('Portón verde | -24.193000,-65.297000'))
+        ->toBe([-24.193, -65.297]);
+});
+
+it('devuelve null antes que un pin equivocado', function () {
+    $u = app(\Webkul\Distribuidor\Services\Ubicacion::class);
+
+    /*
+     * La reconstrucción asume dos dígitos de parte entera y signo negativo, que
+     * vale para Argentina y Bolivia pero no es una verdad universal. Si el
+     * resultado cae fuera del cono sur es un parseo fallido: mandar al
+     * distribuidor a otro continente es peor que no darle pin.
+     */
+    expect($u->coordenadasEn('latitude99999999longitude99999999'))->toBeNull()
+        ->and($u->coordenadasEn('Portón verde y un árbol afuera'))->toBeNull()
+        ->and($u->coordenadasEn(null))->toBeNull()
+        // Coordenadas de Madrid: sintaxis válida, región equivocada.
+        ->and($u->coordenadasEn('40.416775,-3.703790'))->toBeNull();
+});
+
+it('separa la referencia escrita de las coordenadas', function () {
+    $sucursal = primeraSucursal();
+
+    if (! $sucursal['ciudad_id']) {
+        test()->markTestSkipped('La sucursal no tiene una ciudad equivalente.');
+    }
+
+    $user = distribuidor();
+    $producto = app(Catalogo::class)->productosDe($sucursal['id'])[0];
+
+    $contacto = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => '549388'.random_int(1000000, 9999999),
+            'nombre'   => 'Cliente ubicación '.uniqid(),
+        ])->json('persona');
+
+    $pedido = test()->actingAs($user, 'user')
+        ->postJson(route('admin.distribuidor.pedido.store'), [
+            'person_id' => $contacto['id'],
+            'ciudad_id' => $sucursal['ciudad_id'],
+            'productos' => [['product_id' => $producto['id'], 'quantity' => 1, 'price' => 100]],
+        ])->assertCreated()->json('pedido');
+
+    $attributeId = DB::table('attributes')->where('code', 'ubicacion_lead')->value('id');
+
+    DB::table('attribute_values')->insert([
+        'entity_id'    => $pedido['id'],
+        'entity_type'  => 'leads',
+        'attribute_id' => $attributeId,
+        'text_value'   => 'Portón verde, timbre roto | latitude24193000longitude65297000',
+    ]);
+
+    $ubicacion = app(\Webkul\Distribuidor\Services\Ubicacion::class)->dePedido($pedido['id']);
+
+    // La referencia que lee un humano va sin el ruido de los números.
+    expect($ubicacion['referencia'])->toBe('Portón verde, timbre roto')
+        ->and($ubicacion['lat'])->toBe(-24.193)
+        ->and($ubicacion['url'])->toContain('google.com/maps');
+
+    DB::table('attribute_values')->where('entity_id', $pedido['id'])->where('attribute_id', $attributeId)->delete();
+    DB::table('lead_products')->where('lead_id', $pedido['id'])->delete();
+    DB::table('leads')->where('id', $pedido['id'])->delete();
+    DB::table('persons')->where('id', $contacto['id'])->delete();
+});

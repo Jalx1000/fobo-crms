@@ -333,6 +333,37 @@
                             </div>
                         </div>
 
+                        {{--
+                            Dónde entregar.
+
+                            La referencia escrita va PRIMERO y el mapa después, no al revés:
+                            "portón verde y hay un árbol afuera" es lo que de verdad usa
+                            quien toca el timbre, y un pin puede estar a 20 metros.
+                        --}}
+                        <div v-if="pe.ubicacion && (pe.ubicacion.referencia || pe.ubicacion.url)"
+                             class="mb-3 rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-800/50">
+                            <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                                Dónde entregar
+                            </span>
+
+                            <p v-if="pe.ubicacion.referencia" class="mb-2 break-words text-base text-gray-800 dark:text-gray-200">
+                                @{{ pe.ubicacion.referencia }}
+                            </p>
+
+                            <a v-if="pe.ubicacion.url" :href="pe.ubicacion.url" target="_blank" rel="noopener"
+                               class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 flex min-h-[56px] items-center justify-center gap-2 rounded-xl border-2 border-gray-300 text-base font-bold text-gray-700 transition-colors duration-200 hover:bg-white dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                                <svg class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/>
+                                </svg>
+                                Ver en el mapa
+                            </a>
+
+                            <p v-else class="text-sm text-gray-600 dark:text-gray-400">
+                                Sin coordenadas: guiate por la referencia.
+                            </p>
+                        </div>
+
                         {{-- Cuándo se entregó y quién: es lo que se pregunta cuando el cliente dice que no le llegó. --}}
                         <div v-if="pe.entregado_at" class="mb-3 rounded-xl bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
                             <div class="text-base text-emerald-800 dark:text-emerald-300">

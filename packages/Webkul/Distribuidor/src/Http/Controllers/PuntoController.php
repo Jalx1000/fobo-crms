@@ -13,6 +13,7 @@ use Webkul\Distribuidor\Repositories\PagoRepository;
 use Webkul\Distribuidor\Services\Alcance;
 use Webkul\Distribuidor\Services\Catalogo;
 use Webkul\Distribuidor\Services\PuntoPedido;
+use Webkul\Distribuidor\Services\Ubicacion;
 use Webkul\Lead\Models\LeadProxy;
 
 /**
@@ -30,6 +31,7 @@ class PuntoController extends Controller
         protected PuntoPedido $pedidos,
         protected PagoRepository $pagos,
         protected Alcance $alcance,
+        protected Ubicacion $ubicacion,
     ) {}
 
     public function index()
