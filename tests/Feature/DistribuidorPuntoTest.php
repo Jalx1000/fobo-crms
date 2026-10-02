@@ -861,3 +861,32 @@ it('"Para entregar" muestra sólo los confirmados, no los prospectos', function 
     DB::table('leads')->whereIn('id', [$lProspecto, $lConfirmado])->delete();
     DB::table('persons')->whereIn('id', [$pProspecto, $pConfirmado])->delete();
 });
+
+it('la tarjeta ofrece cobrar antes de entregar, no al revés', function () {
+    /*
+     * El orden del negocio es cobrar y después bajar la mercadería: entregar
+     * primero deja al distribuidor sin respaldo si el cliente no paga.
+     *
+     * Se verifica sobre la plantilla porque la secuencia vive en la cadena de
+     * v-else-if de la tarjeta, y un reordenamiento accidental de esos bloques
+     * invertiría el flujo sin que falle nada más.
+     */
+    $html = test()->actingAs(distribuidor(), 'user')
+        ->get(route('admin.distribuidor.index'))
+        ->assertOk()
+        ->getContent();
+
+    $i = strpos($html, 'id="v-punto-template"');
+    $tpl = substr($html, $i, strpos($html, '</script>', $i) - $i);
+
+    $cobrar = strpos($tpl, "pe.etapa_code === 'pedidos-confirmado' && pe.cobrado <= 0");
+    $entregar = strpos($tpl, "pe.etapa_code === 'pedidos-confirmado' && pe.cobrado > 0");
+
+    expect($cobrar)->not->toBeFalse('falta el paso Cobrar sobre un confirmado sin cobros')
+        ->and($entregar)->not->toBeFalse('falta el paso Entregar sobre un confirmado ya cobrado')
+        // Cobrar va primero en la cadena.
+        ->and($cobrar)->toBeLessThan($entregar);
+
+    // Y entregar exige un cobro previo: nunca aparece sin esa condición.
+    expect($tpl)->not->toContain("v-else-if=\"pe.etapa_code === 'pedidos-confirmado'\" type=\"button\" @click=\"pedirFoto");
+});
