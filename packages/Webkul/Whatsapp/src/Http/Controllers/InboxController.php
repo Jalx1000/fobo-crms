@@ -822,8 +822,38 @@ class InboxController extends Controller
 
         $node = $message->payload['interactive'] ?? null;
 
-        if (! is_array($node) || empty($node['options'])) {
+        if (! is_array($node)) {
             return null;
+        }
+
+        /*
+         * Un interactivo tiene DOS formas según quién lo mandó, y antes sólo se
+         * entendía una.
+         *
+         * Saliente (el menú que mandamos): nuestro DTO, con `options`.
+         * Entrante (el toque del cliente): la forma cruda de Meta, anidada un
+         * nivel bajo el tipo de respuesta —`button_reply` o `list_reply`—, SIN
+         * `options`.
+         *
+         * El `empty($node['options'])` de antes descartaba la entrante, así que la
+         * burbuja del cliente caía en el v-else del hilo y mostraba "Menú
+         * enviado": el asesor leía que se había mandado un menú justo donde el
+         * cliente había contestado.
+         */
+        if (empty($node['options'])) {
+            $seleccion = $node['button_reply'] ?? $node['list_reply'] ?? null;
+
+            if (! is_array($seleccion)) {
+                return null;
+            }
+
+            return [
+                'kind'      => 'seleccion',
+                'seleccion' => [
+                    'id'    => $seleccion['id'] ?? null,
+                    'title' => (string) ($seleccion['title'] ?? ''),
+                ],
+            ];
         }
 
         return [

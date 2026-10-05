@@ -305,11 +305,34 @@
                                 que necesita.
                             -->
                             <div v-else-if="msg.type === 'interactive'" class="min-w-[220px]">
-                                <div v-if="msg.interactive" class="whitespace-pre-wrap break-words"
+                                <!--
+                                    La RESPUESTA del cliente: tocó un botón o una fila.
+
+                                    Antes caía en el v-else de abajo y mostraba "Menú enviado"
+                                    —el asesor leía que se había mandado un menú justo donde el
+                                    cliente había contestado—. Se marca como toque y no como
+                                    texto escrito, porque no es lo mismo: el id de la opción es
+                                    lo que el agente rutea, y los títulos se repiten entre menús.
+
+                                    Comentario HTML y no Blade: dentro del x-template dos llaves
+                                    seguidas son sintaxis de Blade Y de Vue, y romperlo deja el
+                                    componente en blanco sin ningún error. Hay un test que lo vigila.
+                                -->
+                                <div v-if="msg.interactive && msg.interactive.kind === 'seleccion'">
+                                    <div class="flex items-center gap-1.5">
+                                        <svg class="h-4 w-4 shrink-0 opacity-60" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/>
+                                        </svg>
+                                        <span class="text-xs uppercase tracking-wide opacity-60">Eligió</span>
+                                    </div>
+                                    <div class="break-words text-base font-semibold">@{{ msg.interactive.seleccion.title }}</div>
+                                </div>
+
+                                <div v-else-if="msg.interactive" class="whitespace-pre-wrap break-words"
                                      v-html="formatText(msg.interactive.body)"></div>
                                 <div v-else class="italic text-gray-500">Menú enviado</div>
 
-                                <div v-if="msg.interactive" class="mt-1.5 border-t border-gray-200 pt-1.5 dark:border-gray-600">
+                                <div v-if="msg.interactive && msg.interactive.kind !== 'seleccion'" class="mt-1.5 border-t border-gray-200 pt-1.5 dark:border-gray-600">
                                     <!-- Botones: se ven de una, como los ve el cliente. -->
                                     <div v-if="msg.interactive.kind === 'buttons'" class="flex flex-col gap-1">
                                         <span v-for="opt in msg.interactive.options" :key="opt.id"
@@ -366,15 +389,6 @@
                                 <div class="whitespace-pre-wrap break-words" v-html="formatText(msg.text)"></div>
                             </div>
 
-                            <!-- Documento: el PDF de una cotización, un comprobante. -->
-                            <div v-else-if="msg.type === 'document'" class="min-w-[200px]">
-                                <a v-if="msg.media" :href="msg.media.url" target="_blank" rel="noopener"
-                                   class="flex items-center gap-2 rounded-md bg-black/5 px-2 py-1.5 transition hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20">
-                                    <span class="icon-file shrink-0 text-xl"></span>
-                                    <span class="truncate text-sm">@{{ (msg.media && msg.media.filename) || 'Documento' }}</span>
-                                </a>
-                                <div v-else class="italic text-gray-500">Documento no disponible</div>
-                                <div v-if="msg.text" class="mt-1 whitespace-pre-wrap break-words">@{{ msg.text }}</div>
                             </div>
 
                             <div v-else class="italic text-gray-500">Tipo no soportado</div>

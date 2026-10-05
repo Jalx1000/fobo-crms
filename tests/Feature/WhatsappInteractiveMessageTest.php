@@ -144,3 +144,68 @@ it('reads a quick-reply template button too', function () {
 
     expect($batch->messages[0]->body)->toBe('Confirmar pedido');
 });
+
+it('el hilo muestra la opción que tocó el cliente, no "Menú enviado"', function () {
+    $conv = \Webkul\Whatsapp\Models\ConversationProxy::modelClass()::create([
+        'gateway'    => 'cloud_api',
+        'wa_phone'   => '5917'.random_int(1000000, 9999999),
+        'wa_name'    => 'Cliente interactivo',
+        'status'     => 'open',
+        'ai_enabled' => true,
+    ]);
+
+    /*
+     * Un interactivo tiene DOS formas y antes el inbox sólo entendía una.
+     *
+     * Saliente: nuestro DTO, con `options`.
+     * Entrante: la forma cruda de Meta, anidada bajo `button_reply`/`list_reply`
+     * y SIN `options` — el `empty($node['options'])` la descartaba, así que la
+     * respuesta del cliente caía en el v-else y el asesor leía "Menú enviado"
+     * justo donde el cliente había contestado.
+     */
+    $entrante = MessageProxy::modelClass()::create([
+        'conversation_id' => $conv->id,
+        'direction'       => 'inbound',
+        'type'            => 'interactive',
+        'body'            => 'Sí',
+        'status'          => 'delivered',
+        'sender'          => 'contact',
+        'payload'         => [
+            'type'        => 'interactive',
+            'interactive' => ['type' => 'button_reply', 'button_reply' => ['id' => 'opt:1', 'title' => 'Sí']],
+        ],
+    ]);
+
+    $saliente = MessageProxy::modelClass()::create([
+        'conversation_id' => $conv->id,
+        'direction'       => 'outbound',
+        'type'            => 'interactive',
+        'body'            => '¿Seguimos?',
+        'status'          => 'sent',
+        'sender'          => 'ia',
+        'payload'         => [
+            'interactive' => [
+                'body'    => '¿Seguimos?',
+                'kind'    => 'buttons',
+                'options' => [['id' => 'opt:1', 'title' => 'Sí'], ['id' => 'opt:2', 'title' => 'No']],
+            ],
+        ],
+    ]);
+
+    $controlador = app(\Webkul\Whatsapp\Http\Controllers\InboxController::class);
+    $metodo = new ReflectionMethod($controlador, 'interactiveOf');
+    $metodo->setAccessible(true);
+
+    // La respuesta del cliente: se expone la opción elegida, con su id.
+    expect($metodo->invoke($controlador, $entrante))->toBe([
+        'kind'      => 'seleccion',
+        'seleccion' => ['id' => 'opt:1', 'title' => 'Sí'],
+    ]);
+
+    // El menú que mandamos: sigue exponiendo body y opciones como antes.
+    $menu = $metodo->invoke($controlador, $saliente);
+
+    expect($menu['kind'])->toBe('buttons')
+        ->and($menu['body'])->toBe('¿Seguimos?')
+        ->and($menu['options'])->toHaveCount(2);
+});
