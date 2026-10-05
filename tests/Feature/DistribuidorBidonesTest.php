@@ -377,3 +377,38 @@ it('el pedido expone lo que el dialogo de entrega necesita', function () {
         ->and($fila['person_id'])->toBe($c['person_id'])
         ->and($fila['bidones'])->toBe(2);
 });
+
+it('ningun handler del punto pasa el evento donde va un id', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    /*
+     * `@click="metodo"` sin paréntesis le pasa el MouseEvent como primer argumento.
+     * Mientras el método no recibía parámetros era inofensivo; el día que se le
+     * agregó uno, el evento pasó a ocupar el lugar del id —y no es null, así que
+     * sobrevive a un `??`—. La URL quedaba /cliente/[object MouseEvent]/ubicacion y
+     * el síntoma era "no me permite registrar ubicación", sin ninguna pista de que
+     * el problema fuera el llamado y no el GPS.
+     *
+     * Se verifican los métodos que reciben algo. Agregar un parámetro a uno de
+     * estos y olvidar los paréntesis en la vista vuelve a romperlo en silencio.
+     */
+    $conParametros = ['marcarUbicacion', 'avanzar', 'abrirEntrega', 'abrirCobro', 'repetir'];
+
+    /*
+     * assertStringNotContainsString y no expect()->not->toContain(): toContain()
+     * recibe VARIOS needles por varargs, así que un segundo argumento pensado como
+     * mensaje se interpreta como otra cosa a buscar y la aserción deja de verificar
+     * lo que parece. Esta versión del test pasó con el bug puesto por exactamente
+     * eso.
+     */
+    foreach ($conParametros as $metodo) {
+        $this->assertStringNotContainsString(
+            '@click="'.$metodo.'"',
+            $vista,
+            "El handler {$metodo} se llama sin paréntesis en punto.blade.php, así que "
+            .'recibe el MouseEvent como primer argumento en vez del id.'
+        );
+    }
+});

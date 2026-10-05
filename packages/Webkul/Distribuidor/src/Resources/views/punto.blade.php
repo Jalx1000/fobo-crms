@@ -204,7 +204,7 @@
                                         pedido: se marca una vez y sirve para todos los repartos
                                         siguientes.
                                     --}}
-                                    <button type="button" @click="marcarUbicacion" :disabled="ubicando"
+                                    <button type="button" @click="marcarUbicacion()" :disabled="ubicando"
                                             :aria-label="cliente.ubicacion ? 'Corregir el domicilio con el GPS' : 'Marcar el domicilio con el GPS'"
                                             class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor px-4 text-base font-bold text-brandColor transition-colors duration-200 disabled:opacity-40">
                                         <svg class="inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
@@ -1212,10 +1212,22 @@
                      * quiere evitar.
                      */
                     marcarUbicacion(personId = null) {
-                        // El id puede venir del diálogo de entrega o de la ficha del
-                        // cliente. Se pasa explícito para no depender de cuál de las dos
-                        // pantallas esté abierta.
-                        const id = personId ?? this.cliente?.id;
+                        /*
+                         * El id puede venir del diálogo de entrega o de la ficha del
+                         * cliente, y se pasa explícito para no depender de cuál de las dos
+                         * pantallas esté abierta.
+                         *
+                         * Se valida que sea un número en vez de confiar en el argumento:
+                         * un handler declarado en @click SIN paréntesis recibe el
+                         * MouseEvent, que no es null y por lo tanto sobrevive al `??`. La
+                         * URL terminaba siendo /cliente/[object MouseEvent]/ubicacion y el
+                         * síntoma era "no me permite registrar ubicación", sin ninguna
+                         * pista de que el problema fuera el llamado y no el GPS.
+                         */
+                        const candidato = Number(personId);
+                        const id = Number.isInteger(candidato) && candidato > 0
+                            ? candidato
+                            : Number(this.cliente?.id) || null;
 
                         if (! id) return;
 
