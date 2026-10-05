@@ -220,12 +220,30 @@
                                         </span>
                                     </div>
 
-                                    {{-- Si ya tiene domicilio marcado, se ve y se puede abrir. --}}
-                                    <a v-if="cliente.ubicacion" :href="cliente.ubicacion.url" target="_blank" rel="noopener"
-                                       class="mt-1 inline-flex items-center gap-1 text-base font-semibold text-brandColor hover:underline">
-                                        <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
-                                        Domicilio marcado
-                                    </a>
+                                    {{--
+                                        El domicilio marcado SE VE, no se anuncia.
+                                        Antes acá había un texto que decía "Domicilio marcado":
+                                        confirmaba que había un dato pero no dejaba comprobar si
+                                        estaba bien, y un pin a dos cuadras se ve igual que uno
+                                        correcto cuando sólo hay una etiqueta.
+                                        El mapa es chico y no interactivo —tocarlo abre el editor—
+                                        porque acá el trabajo es RECONOCER la cuadra de un
+                                        vistazo, no navegar.
+                                    --}}
+                                    <div v-if="cliente.ubicacion" class="mt-2">
+                                        <button type="button" @click="abrirMapaCliente()"
+                                                aria-label="Ver y editar el domicilio en el mapa"
+                                                class="block w-full cursor-pointer overflow-hidden rounded-xl border-2 border-emerald-300 focus:outline-none focus:ring-2 focus:ring-brandColor dark:border-emerald-800">
+                                            <div ref="mapaVista" class="h-32 w-full bg-gray-100 dark:bg-gray-800"
+                                                 role="img" aria-label="Mapa con el domicilio del cliente"></div>
+                                        </button>
+
+                                        <a :href="cliente.ubicacion.url" target="_blank" rel="noopener"
+                                           class="mt-1 inline-flex items-center gap-1 text-base font-semibold text-brandColor hover:underline">
+                                            <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z"/></svg>
+                                            Abrir en el mapa
+                                        </a>
+                                    </div>
                                 </div>
                                 <div class="flex shrink-0 gap-2">
                                     {{--
@@ -705,6 +723,12 @@
                                 @{{ entrega.ubicacionMarcada ? 'Domicilio marcado' : (ubicando ? 'Tomando ubicación…' : 'Marcar este domicilio') }}
                             </button>
 
+                            {{-- Marcado: se puede abrir para comprobar dónde cayó. --}}
+                            <a v-if="entrega.ubicacion" :href="entrega.ubicacion.url" target="_blank" rel="noopener"
+                               class="mb-3 -mt-2 block text-base font-semibold text-brandColor hover:underline">
+                                Ver dónde quedó marcado
+                            </a>
+
                             <div class="grid grid-cols-2 gap-2">
                                 <button type="button" @click="cancelarEntrega"
                                         class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
@@ -877,13 +901,21 @@
                         cobro: { pedido: null, method: 'efectivo' },
                         // dejo/retiro arrancan vacíos y no en 0: un 0 precargado se
                         // confirma sin leerlo, y entonces el control no sirve de nada.
-                        entrega: { pedido: null, archivo: null, preview: null, dejo: '', retiro: '', ubicacionMarcada: false },
+                        entrega: { pedido: null, archivo: null, preview: null, dejo: '', retiro: '', ubicacionMarcada: false, ubicacion: null },
                         ubicando: false,
                         // El contacto que se está creando: domicilio y envases iniciales.
                         nuevo: { bidones: '', lat: null, lng: null },
                         mapaError: null,
                         // El cliente cuyo domicilio se está editando en el mapa.
                         mapaCliente: null,
+                        /*
+                         * La vista del domicilio en la ficha. Estado PROPIO y no el de
+                         * `mapa`: la vista y el editor pueden estar en pantalla a la vez
+                         * —se abre el editor desde la vista— y un solo objeto de Leaflet no
+                         * puede dibujarse en dos contenedores.
+                         */
+                        vistaMapa: null,
+                        vistaPin: null,
                         mapa: null,
                         pin: null,
                         leafletPromise: null,
@@ -993,6 +1025,19 @@
                      */
                     mostrarFormularioNuevo(visible) {
                         if (visible) this.$nextTick(() => this.montarMapa('mapaNuevo'));
+                    },
+
+                    /*
+                     * Deep porque el domicilio se escribe DENTRO del cliente
+                     * (cliente.ubicacion) al guardarlo: un watcher plano no se enteraría y
+                     * la vista seguiría mostrando el pin viejo justo después de corregirlo,
+                     * que es el único momento en que alguien la está mirando.
+                     */
+                    cliente: {
+                        deep: true,
+                        handler() {
+                            this.$nextTick(() => this.montarVistaDomicilio());
+                        },
                     },
                 },
 
@@ -1160,6 +1205,7 @@
                         // se los adjudicaría al siguiente.
                         this.nuevo = { bidones: '', lat: null, lng: null };
                         this.limpiarMapa();
+                        this.limpiarVistaDomicilio();
                     },
 
                     guardarPedido() {
@@ -1249,6 +1295,7 @@
                             dejo: '',
                             retiro: '',
                             ubicacionMarcada: false,
+                            ubicacion: null,
                         };
                     },
 
@@ -1423,6 +1470,75 @@
                         }
 
                         if (centrar) this.mapa.setView([lat, lng], Math.max(this.mapa.getZoom(), 16));
+                    },
+
+                    /**
+                     * La vista chica del domicilio en la ficha del cliente.
+                     *
+                     * No interactiva a propósito: acá el trabajo es reconocer la cuadra de un
+                     * vistazo, y un mapa que se mueve con el dedo dentro de una pantalla que
+                     * también se desplaza con el dedo pelea con el scroll. Tocarlo abre el
+                     * editor, que sí es interactivo.
+                     */
+                    montarVistaDomicilio() {
+                        const u = this.cliente?.ubicacion;
+
+                        if (! u) {
+                            this.limpiarVistaDomicilio();
+
+                            return;
+                        }
+
+                        this.cargarLeaflet()
+                            .then(() => {
+                                const caja = this.$refs.mapaVista;
+
+                                if (! caja) return;
+
+                                const punto = [Number(u.lat), Number(u.lng)];
+
+                                if (this.vistaMapa) {
+                                    // Mismo contenedor, otro domicilio: se mueve en vez de
+                                    // recrearse, así no vuelve a pedir los tiles.
+                                    this.vistaMapa.setView(punto, 16);
+                                    this.vistaPin.setLatLng(punto);
+                                    this.$nextTick(() => this.vistaMapa.invalidateSize());
+
+                                    return;
+                                }
+
+                                this.vistaMapa = window.L.map(caja, {
+                                    zoomControl: false,
+                                    dragging: false,
+                                    scrollWheelZoom: false,
+                                    doubleClickZoom: false,
+                                    touchZoom: false,
+                                    boxZoom: false,
+                                    keyboard: false,
+                                }).setView(punto, 16);
+
+                                window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                    attribution: '© OpenStreetMap',
+                                    maxZoom: 19,
+                                }).addTo(this.vistaMapa);
+
+                                this.vistaPin = window.L.marker(punto).addTo(this.vistaMapa);
+
+                                this.$nextTick(() => this.vistaMapa.invalidateSize());
+                            })
+                            .catch(() => { /* la vista es un extra: si no carga, el link sigue estando */ });
+                    },
+
+                    limpiarVistaDomicilio() {
+                        if (this.vistaPin) {
+                            this.vistaPin.remove();
+                            this.vistaPin = null;
+                        }
+
+                        if (this.vistaMapa) {
+                            this.vistaMapa.remove();
+                            this.vistaMapa = null;
+                        }
                     },
 
                     /** Abre el mapa para marcar o corregir el domicilio del cliente. */
@@ -1638,6 +1754,10 @@
 
                                         if (this.entrega.pedido && this.entrega.pedido.person_id === id) {
                                             this.entrega.ubicacionMarcada = true;
+                                            // Se guarda lo devuelto y no sólo un booleano: marcar
+                                            // sin poder ver dónde quedó no permite detectar un GPS
+                                            // que cayó a dos cuadras.
+                                            this.entrega.ubicacion = r.data.ubicacion;
                                         }
 
                                         this.aviso = 'Domicilio marcado.';
@@ -1659,7 +1779,7 @@
 
                     cancelarEntrega() {
                         if (this.entrega.preview) URL.revokeObjectURL(this.entrega.preview);
-                        this.entrega = { pedido: null, archivo: null, preview: null, dejo: '', retiro: '', ubicacionMarcada: false };
+                        this.entrega = { pedido: null, archivo: null, preview: null, dejo: '', retiro: '', ubicacionMarcada: false, ubicacion: null };
                     },
 
                     confirmarEntrega() {

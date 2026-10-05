@@ -1139,11 +1139,41 @@ it('los modales son accesibles por teclado y lector de pantalla', function () {
      * ni lo nombra, y lee el fondo como si siguiera disponible. Y sin cierre por
      * Escape, con teclado un modal es un modal del que no se sale.
      */
-    // El marcado del diálogo vive en la plantilla...
-    expect(substr_count($tpl, 'role="dialog"'))->toBe(2)
-        ->and(substr_count($tpl, 'aria-modal="true"'))->toBe(2)
-        ->and($tpl)->toContain('aria-labelledby="titulo-cobro"')
-        ->and($tpl)->toContain('aria-labelledby="titulo-entrega"');
+    /*
+     * Se verifica que CADA diálogo tenga los tres atributos, no que haya una cantidad
+     * fija de diálogos.
+     *
+     * Antes esto era substr_count(...)->toBe(2), que codificaba "hay exactamente dos
+     * modales": agregar un tercero correcto lo hacía fallar, y el mensaje —esperaba 2,
+     * recibió 3— no decía nada sobre accesibilidad. Un test que se rompe al agregar
+     * algo bien hecho se termina ajustando sin leerlo, y ahí deja de proteger.
+     */
+    preg_match_all('/<div[^>]*role="dialog"[^>]*>/', $tpl, $dialogos);
+
+    /*
+     * assertStringContainsString y no expect()->toContain(): toContain() recibe VARIOS
+     * needles por varargs, así que un segundo argumento pensado como mensaje se
+     * interpreta como otra cosa a buscar y la aserción falla —o pasa— por el motivo
+     * equivocado. Pasó en este mismo archivo.
+     */
+    $this->assertNotEmpty($dialogos[0], 'No se encontró ningún diálogo en la plantilla.');
+
+    foreach ($dialogos[0] as $dialogo) {
+        $this->assertStringContainsString('aria-modal="true"', $dialogo, 'Un diálogo sin aria-modal: ');
+        $this->assertStringContainsString('aria-labelledby="titulo-', $dialogo, 'Un diálogo sin nombre accesible: ');
+    }
+
+    // Y que cada título referenciado exista de verdad: un aria-labelledby que apunta
+    // a un id que no está deja al diálogo sin nombre, igual que si faltara.
+    preg_match_all('/aria-labelledby="(titulo-[a-z-]+)"/', $tpl, $titulos);
+
+    foreach (array_unique($titulos[1]) as $id) {
+        $this->assertStringContainsString(
+            'id="'.$id.'"',
+            $tpl,
+            "Un diálogo apunta a un título que no existe ({$id}), así que queda sin nombre."
+        );
+    }
 
     /*
      * ...y el listener en el <script type="module">, que es otro bloque. Va en

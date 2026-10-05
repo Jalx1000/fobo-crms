@@ -685,3 +685,31 @@ it('editar el domicilio pisa el que ya estaba', function () {
     expect(DB::table('distribuidor_ubicaciones')->where('person_id', $c['person_id'])->count())->toBe(1)
         ->and(round($ubicacion->deCliente($c['person_id'])['lat'], 4))->toBe(round($corregido['lat'], 4));
 });
+
+it('el domicilio marcado se muestra, no solo se anuncia', function () {
+    $html = $this->actingAs(distribuidorDeBidones(), 'user')
+        ->get(route('admin.distribuidor.index'))
+        ->assertOk()
+        ->getContent();
+
+    $i = strpos($html, 'id="v-punto-template"');
+    $tpl = substr($html, $i, strpos($html, '</script>', $i) - $i);
+
+    /*
+     * Antes la ficha decía "Domicilio marcado" y nada más: confirmaba que había un
+     * dato pero no dejaba comprobar si estaba bien, y un pin a dos cuadras se ve
+     * igual que uno correcto cuando sólo hay una etiqueta. Ahora se dibuja el punto.
+     */
+    $this->assertStringContainsString('ref="mapaVista"', $tpl, 'Falta la vista del domicilio en la ficha del cliente: ');
+    $this->assertStringContainsString('v-if="cliente.ubicacion"', $tpl, 'La vista del domicilio no está condicionada a que exista: ');
+
+    // Y en el diálogo de entrega, marcar deja un enlace para comprobar dónde cayó.
+    $this->assertStringContainsString('entrega.ubicacion', $tpl, 'El diálogo de entrega no muestra el domicilio marcado: ');
+
+    /*
+     * La vista usa estado propio y no el del editor: los dos pueden estar en pantalla
+     * a la vez —el editor se abre DESDE la vista— y un solo objeto de Leaflet no
+     * puede dibujarse en dos contenedores.
+     */
+    $this->assertStringContainsString('vistaMapa', $html, 'La vista comparte el objeto del editor: ');
+});
