@@ -2,20 +2,32 @@
 
 namespace Webkul\Admin\Services;
 
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
 use Webkul\Doctor\Repositories\SpecialtyRepository;
 
 class ShareMeDataService
 {
-    protected $apiKey = '$2a$08$ZnoEdG50NB2n4VfimSpVjOkqgv1VqHVqRRL9Z6pohthsOvTliEWi2';
-    protected $baseUrl = 'https://gamma.sharemedata.com/api/calendar';
+    /*
+     * Desde config y no hardcodeado: la key estaba en el código —y por lo tanto en
+     * cada commit y en cada clon— y además en dos scripts servidos desde public/.
+     *
+     * config() y no env(): bajo `config:cache`, env() devuelve null fuera de los
+     * archivos de config, y la integración fallaría sin decir por qué.
+     */
+    protected $apiKey;
+
+    protected $baseUrl;
+
     protected $lastResponse = null;
 
     public function __construct(
         protected SpecialtyRepository $specialtyRepository
-    ) {}
+    ) {
+        $this->apiKey = (string) config('sharemedata.api_key');
+        $this->baseUrl = (string) config('sharemedata.base_url');
+    }
 
     /**
      * Obtener especialidades del sistema externo
@@ -28,12 +40,12 @@ class ShareMeDataService
                 'Accept' => 'application/json',
                 'apikey' => $this->apiKey,
             ])
-            ->withoutVerifying()
-            ->get("{$this->baseUrl}/specialties");
+                ->withoutVerifying()
+                ->get("{$this->baseUrl}/specialties");
 
             $this->lastResponse = [
                 'status' => $response->status(),
-                'body'   => $response->json() ?: $response->body()
+                'body'   => $response->json() ?: $response->body(),
             ];
 
             if ($response->successful()) {
@@ -42,7 +54,8 @@ class ShareMeDataService
 
             return [];
         } catch (\Exception $e) {
-            Log::error("ShareMeData: Excepción obteniendo especialidades: " . $e->getMessage());
+            Log::error('ShareMeData: Excepción obteniendo especialidades: '.$e->getMessage());
+
             return [];
         }
     }
@@ -71,7 +84,7 @@ class ShareMeDataService
         return [
             'synced'  => $syncedCount,
             'existed' => $alreadyExistCount,
-            'total'   => count($specialties)
+            'total'   => count($specialties),
         ];
     }
 
@@ -90,19 +103,19 @@ class ShareMeDataService
                 'from'       => $fromFormatted,
                 'to'         => $toFormatted,
                 'groupByDay' => 'true',
-                'timeZone'   => 'America/La_Paz'
+                'timeZone'   => 'America/La_Paz',
             ];
 
             $response = Http::withHeaders([
                 'Accept' => 'application/json',
                 'apikey' => $this->apiKey,
             ])
-            ->withoutVerifying()
-            ->get("{$this->baseUrl}/schedule/availability", $queryParams);
+                ->withoutVerifying()
+                ->get("{$this->baseUrl}/schedule/availability", $queryParams);
 
             $this->lastResponse = [
                 'status' => $response->status(),
-                'body'   => $response->json() ?: $response->body()
+                'body'   => $response->json() ?: $response->body(),
             ];
 
             if ($response->successful()) {
@@ -116,7 +129,8 @@ class ShareMeDataService
 
             return [];
         } catch (\Exception $e) {
-            Log::error("ShareMeData: Error verificando disponibilidad: " . $e->getMessage());
+            Log::error('ShareMeData: Error verificando disponibilidad: '.$e->getMessage());
+
             return [];
         }
     }
@@ -135,20 +149,20 @@ class ShareMeDataService
     public function isRangeAvailable($doctorExternalId, $specialty, $subsidiary, $start, $end)
     {
         $slots = $this->checkAvailability($doctorExternalId, $specialty, $subsidiary, $start, $end);
-        
+
         if (empty($slots)) {
             return false;
         }
 
         $requestedStart = Carbon::parse($start);
         $requestedEnd = Carbon::parse($end);
-        
+
         $requiredIntervals = [];
         $current = $requestedStart->copy();
         while ($current->lessThan($requestedEnd)) {
             $requiredIntervals[] = [
                 'start' => $current->copy(),
-                'end'   => $current->addMinutes(15)->copy()
+                'end'   => $current->addMinutes(15)->copy(),
             ];
         }
 
@@ -162,7 +176,8 @@ class ShareMeDataService
 
                         if ($apiStart->equalTo($required['start']) && $apiEnd->equalTo($required['end'])) {
                             $foundCount++;
-                            continue 3; 
+
+                            continue 3;
                         }
                     }
                 }
@@ -184,32 +199,33 @@ class ShareMeDataService
                 'Accept'       => 'application/json',
                 'apiKey'       => $this->apiKey,
             ])
-            ->withoutVerifying()
-            ->timeout(30)
-            ->post("{$this->baseUrl}/schedule/createEvent", $data);
+                ->withoutVerifying()
+                ->timeout(30)
+                ->post("{$this->baseUrl}/schedule/createEvent", $data);
 
             $this->lastResponse = [
                 'status' => $response->status(),
-                'body'   => $response->json() ?: $response->body()
+                'body'   => $response->json() ?: $response->body(),
             ];
 
             if ($response->successful()) {
                 return [
                     'success' => true,
-                    'data'    => $response->json()
+                    'data'    => $response->json(),
                 ];
             }
 
             return [
                 'success' => false,
                 'message' => $response->json('message') ?: $response->body(),
-                'status'  => $response->status()
+                'status'  => $response->status(),
             ];
         } catch (\Exception $e) {
-            Log::error("ShareMeData: Excepción creando evento: " . $e->getMessage());
+            Log::error('ShareMeData: Excepción creando evento: '.$e->getMessage());
+
             return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ];
         }
     }

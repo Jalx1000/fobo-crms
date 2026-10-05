@@ -451,11 +451,12 @@
                         </button>
 
                         {{--
-                            Entregar abre la cámara: la foto es la mejor prueba de que el
-                            pedido llegó, pero NO es obligatoria — exigirla trababa la entrega
-                            cuando no se podía sacar. `capture="environment"` abre la cámara
-                            trasera nativa — más confiable que getUserMedia en iOS, y no pide
-                            permisos hasta que el usuario toca el botón.
+                            Entregar abre el diálogo de confirmación, no la cámara: la foto
+                            es la mejor prueba de que el pedido llegó pero NO es obligatoria,
+                            y abrirla sola tapaba los campos de bidones antes de que se
+                            pudieran ver. Dentro del diálogo, `capture="environment"` abre la
+                            cámara trasera nativa — más confiable que getUserMedia en iOS, y
+                            no pide permisos hasta que el usuario toca el botón.
                         --}}
                         <button v-else-if="pe.etapa_code === 'pedidos-confirmado' && pe.cobrado <= 0" type="button" @click="abrirCobro(pe)"
                                 class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-2 min-h-[64px] w-full rounded-xl bg-brandColor text-xl font-bold text-white transition-colors duration-200">
@@ -467,7 +468,7 @@
                             v-else-if ya lo garantice: quien reordene los bloques más
                             adelante rompería el orden cobrar→entregar sin notarlo.
                         --}}
-                        <button v-else-if="pe.etapa_code === 'pedidos-confirmado' && pe.cobrado > 0" type="button" @click="pedirFoto(pe)"
+                        <button v-else-if="pe.etapa_code === 'pedidos-confirmado' && pe.cobrado > 0" type="button" @click="abrirEntrega(pe)"
                                 class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-2 min-h-[64px] w-full rounded-xl bg-emerald-600 text-xl font-bold text-white transition-colors duration-200">
                             <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.9 47.9 0 0 0-1.134-.175a2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0a2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>Entregar
                         </button>
@@ -1097,10 +1098,27 @@
                             .finally(() => { this.cargando = false; });
                     },
 
-                    // ── Entrega con foto ──
-                    pedirFoto(pedido) {
-                        this.entrega = { pedido, archivo: null, preview: null };
-                        this.abrirCamara();
+                    // ── Entrega ──
+                    /*
+                     * Abre el diálogo y NADA MÁS.
+                     *
+                     * Antes disparaba la cámara en el mismo paso, de cuando la foto era
+                     * obligatoria. Con la foto opcional eso es un salto de contexto que
+                     * nadie pidió: en el celular se abría la cámara encima del diálogo y
+                     * en el escritorio el explorador de archivos, tapando los campos de
+                     * bidones y el botón de domicilio antes de que se pudieran ver.
+                     *
+                     * Sacar la foto es ahora una acción más del diálogo, como las otras.
+                     */
+                    abrirEntrega(pedido) {
+                        this.entrega = {
+                            pedido,
+                            archivo: null,
+                            preview: null,
+                            dejo: '',
+                            retiro: '',
+                            ubicacionMarcada: false,
+                        };
                     },
 
                     abrirCamara() {
