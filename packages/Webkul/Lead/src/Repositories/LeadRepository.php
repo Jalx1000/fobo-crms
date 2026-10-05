@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Container\Container;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Webkul\Admin\Support\VisibilidadLeads;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
 use Webkul\Contact\Repositories\PersonRepository;
@@ -99,9 +100,7 @@ class LeadRepository extends Repository
                     return $query->whereBetween('leads.created_at', $createdAtRange);
                 })
                 ->where(function ($query) {
-                    if ($userIds = bouncer()->getAuthorizedUserIds()) {
-                        $query->whereIn('leads.user_id', $userIds);
-                    }
+                    VisibilidadLeads::aplicar($query);
                 });
         });
     }

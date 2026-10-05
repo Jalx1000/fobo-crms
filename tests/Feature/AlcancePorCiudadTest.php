@@ -2,6 +2,7 @@
 
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Webkul\Admin\Support\VisibilidadLeads;
 use Webkul\Core\Services\AlcanceCiudades;
 use Webkul\Distribuidor\Services\Alcance;
 use Webkul\User\Models\User;
@@ -475,4 +476,143 @@ it('el distribuidor del grupo de una ciudad no ve los pedidos de las otras', fun
     expect(app(Alcance::class)->puedeVerCiudad($ciudades[0]['id']))->toBeTrue()
         ->and(app(Alcance::class)->puedeVerCiudad($ciudades[1]['id']))->toBeFalse()
         ->and(array_column(app(Alcance::class)->ciudades(), 'id'))->toBe([$ciudades[0]['id']]);
+});
+
+// ───────────── los leads: por ciudad y no por dueño del lead ─────────────
+
+/** Un lead de esa ciudad, cargado por otro usuario. */
+function leadAjenoEn(int $pipelineId, int $duenoId): int
+{
+    // lead_pipeline_stages tiene lead_pipeline_id directo: no hay tabla pivote.
+    $stageId = (int) DB::table('lead_pipeline_stages')
+        ->where('lead_pipeline_id', $pipelineId)
+        ->orderBy('sort_order')
+        ->value('id');
+
+    return (int) DB::table('leads')->insertGetId([
+        'title'                  => 'Lead alcance '.uniqid(),
+        'lead_pipeline_id'       => $pipelineId,
+        'lead_pipeline_stage_id' => $stageId,
+        'user_id'                => $duenoId,
+        'created_at'             => now(),
+        'updated_at'             => now(),
+    ]);
+}
+
+/** Un usuario con grupo-ciudad y view_permission = group. */
+function usuarioDeCiudad(string $nombreCiudad, array $permisos = ['leads', 'leads.view', 'distribuidor', 'whatsapp']): User
+{
+    $user = usuarioDeAlcance($permisos);
+    DB::table('users')->where('id', $user->id)->update(['view_permission' => 'group']);
+    ponerEnGrupo($user, $nombreCiudad);
+
+    return $user->refresh();
+}
+
+it('ve los leads de su ciudad aunque los haya cargado otro', function () {
+    $ciudades = ciudadesDeAlcance();
+
+    if (count($ciudades) < 2) {
+        $this->markTestSkipped('Hacen falta dos ciudades reales.');
+    }
+
+    $user = usuarioDeCiudad($ciudades[0]['name']);
+    $this->actingAs($user, 'user');
+
+    // El caso real: los pedidos los carga el encargado o el agente, no el
+    // distribuidor que después los reparte. Por dueño veía 0.
+    $propio = leadAjenoEn($ciudades[0]['id'], 1);
+    $ajeno = leadAjenoEn($ciudades[1]['id'], 1);
+
+    $query = DB::table('leads');
+    VisibilidadLeads::aplicar($query);
+    $ids = $query->pluck('id')->all();
+
+    expect($ids)->toContain($propio)
+        ->and($ids)->not->toContain($ajeno);
+});
+
+it('la ciudad manda sobre el dueño sólo con view_permission de grupo', function () {
+    $ciudades = ciudadesDeAlcance();
+
+    if (! $ciudades) {
+        $this->markTestSkipped('Hace falta una ciudad real.');
+    }
+
+    $user = usuarioDeCiudad($ciudades[0]['name']);
+
+    expect(app(AlcanceCiudades::class)->ciudadMandaSobreDueno($user->id))->toBeTrue();
+});
+
+it('quien ve sólo lo suyo no gana acceso a la ciudad entera', function () {
+    $ciudades = ciudadesDeAlcance();
+
+    if (count($ciudades) < 2) {
+        $this->markTestSkipped('Hacen falta dos ciudades reales.');
+    }
+
+    // view_permission = individual significa "sólo lo tuyo". Darle la ciudad
+    // entera le AMPLIARÍA el acceso, que es lo contrario de lo que pide el valor.
+    $user = usuarioDeCiudad($ciudades[0]['name']);
+    DB::table('users')->where('id', $user->id)->update(['view_permission' => 'individual']);
+    $this->actingAs($user->refresh(), 'user');
+
+    $deOtro = leadAjenoEn($ciudades[0]['id'], 1);
+
+    expect(app(AlcanceCiudades::class)->ciudadMandaSobreDueno($user->id))->toBeFalse();
+
+    $query = DB::table('leads');
+    VisibilidadLeads::aplicar($query);
+
+    expect($query->pluck('id')->all())->not->toContain($deOtro);
+});
+
+it('quien ve todo el CRM no queda acotado por ciudad en los leads', function () {
+    $ciudades = ciudadesDeAlcance();
+
+    if (count($ciudades) < 2) {
+        $this->markTestSkipped('Hacen falta dos ciudades reales.');
+    }
+
+    $this->actingAs(getDefaultAdmin(), 'user');
+
+    $a = leadAjenoEn($ciudades[0]['id'], 1);
+    $b = leadAjenoEn($ciudades[1]['id'], 1);
+
+    $query = DB::table('leads');
+    VisibilidadLeads::aplicar($query);
+    $ids = $query->pluck('id')->all();
+
+    expect($ids)->toContain($a)->and($ids)->toContain($b);
+});
+
+it('no se abre por URL el lead de otra ciudad', function () {
+    $ciudades = ciudadesDeAlcance();
+
+    if (count($ciudades) < 2) {
+        $this->markTestSkipped('Hacen falta dos ciudades reales.');
+    }
+
+    $user = usuarioDeCiudad($ciudades[0]['name']);
+    $ajeno = leadAjenoEn($ciudades[1]['id'], 1);
+
+    // Acotar la grilla no alcanza si el id en la URL sigue funcionando.
+    $this->actingAs($user, 'user')
+        ->get(route('admin.leads.view', $ajeno))
+        ->assertRedirect(route('admin.leads.index'));
+});
+
+it('sí se abre el lead de su propia ciudad cargado por otro', function () {
+    $ciudades = ciudadesDeAlcance();
+
+    if (! $ciudades) {
+        $this->markTestSkipped('Hace falta una ciudad real.');
+    }
+
+    $user = usuarioDeCiudad($ciudades[0]['name']);
+    $propio = leadAjenoEn($ciudades[0]['id'], 1);
+
+    $this->actingAs($user, 'user')
+        ->get(route('admin.leads.view', $propio))
+        ->assertOk();
 });

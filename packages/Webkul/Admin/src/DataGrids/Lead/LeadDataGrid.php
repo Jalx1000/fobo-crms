@@ -6,6 +6,7 @@ use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Webkul\Admin\DataGrids\Concerns\NormalizesContactSearch;
 use Webkul\Admin\Helpers\CustomAttributeValueResolver;
+use Webkul\Admin\Support\VisibilidadLeads;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\DataGrid\DataGrid;
 use Webkul\Lead\Repositories\LeadRepository;
@@ -120,9 +121,8 @@ class LeadDataGrid extends DataGrid
             $queryBuilder->where('leads.lead_pipeline_id', $this->pipeline->id);
         }
 
-        if ($userIds = bouncer()->getAuthorizedUserIds()) {
-            $queryBuilder->whereIn('leads.user_id', $userIds);
-        }
+        // Por ciudad si su grupo designa una, por dueño si no.
+        VisibilidadLeads::aplicar($queryBuilder);
 
         if ($dateFilter = request()->query('date_filter')) {
             if ($dateFilter === 'today') {

@@ -168,6 +168,38 @@ class AlcanceCiudades
         return $this->ciudadesDe($userId) !== null;
     }
 
+    /**
+     * Si para este usuario la CIUDAD manda sobre el DUEÑO del lead.
+     *
+     * Krayin filtra los leads por dueño: con view_permission = group ves los de
+     * los usuarios de tu grupo. Eso no sirve cuando el grupo representa una
+     * ciudad, porque los pedidos los carga quien los atiende —el encargado, el
+     * agente, otro distribuidor— y el distribuidor terminaba viendo sólo el único
+     * que había cargado él. Medido: 1 lead de los 12 de su ciudad.
+     *
+     * Así que para quien tiene un grupo-ciudad, el filtro pasa a ser la ciudad y
+     * deja de ser el dueño. Es lo que pidió el negocio: "de acuerdo a su grupo".
+     *
+     * Sólo con view_permission = group. Con `individual` NO, y es importante: ese
+     * valor significa "sólo lo tuyo", y darle la ciudad entera le ampliaría el
+     * acceso en vez de restringirlo. La ciudad igual le acota la bandeja de
+     * WhatsApp, porque ahí sólo puede achicar.
+     */
+    public function ciudadMandaSobreDueno(?int $userId = null): bool
+    {
+        $userId ??= auth()->guard('user')->id();
+
+        if (! $userId) {
+            return false;
+        }
+
+        if (DB::table('users')->where('id', $userId)->value('view_permission') !== 'group') {
+            return false;
+        }
+
+        return $this->ciudadesDe($userId) !== null;
+    }
+
     public function puedeVer(int $pipelineId, ?int $userId = null): bool
     {
         $permitidas = $this->ciudadesDe($userId);

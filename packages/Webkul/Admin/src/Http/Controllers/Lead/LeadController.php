@@ -19,6 +19,7 @@ use Webkul\Admin\Http\Requests\MassDestroyRequest;
 use Webkul\Admin\Http\Requests\MassUpdateRequest;
 use Webkul\Admin\Http\Resources\LeadResource;
 use Webkul\Admin\Http\Resources\StageResource;
+use Webkul\Admin\Support\VisibilidadLeads;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Lead\Helpers\MagicAI;
@@ -406,9 +407,7 @@ class LeadController extends Controller
                 ]);
             }
 
-            if ($userIds = bouncer()->getAuthorizedUserIds()) {
-                $query->whereIn('leads.user_id', $userIds);
-            }
+            VisibilidadLeads::aplicar($query);
 
             if ($dateRange) {
                 /**
@@ -574,12 +573,9 @@ class LeadController extends Controller
             return redirect()->route('admin.leads.index');
         }
 
-        $userIds = bouncer()->getAuthorizedUserIds();
-
-        if (
-            $userIds
-            && ! in_array($lead->user_id, $userIds)
-        ) {
+        // Acotar la grilla no alcanza: al lead de otra ciudad se llegaba igual
+        // escribiendo su id en la URL.
+        if (! VisibilidadLeads::puedeVer($lead)) {
             return redirect()->route('admin.leads.index');
         }
 
@@ -715,7 +711,13 @@ class LeadController extends Controller
      */
     public function search(): AnonymousResourceCollection
     {
-        if ($userIds = bouncer()->getAuthorizedUserIds()) {
+        if (($ciudades = VisibilidadLeads::ciudades()) !== null) {
+            // Su grupo designa una ciudad: el buscador tiene que encontrar los
+            // pedidos de esa ciudad, no sólo los que cargó él.
+            $results = $this->leadRepository
+                ->pushCriteria(app(RequestCriteria::class))
+                ->findWhereIn('lead_pipeline_id', $ciudades);
+        } elseif ($userIds = bouncer()->getAuthorizedUserIds()) {
             $results = $this->leadRepository
                 ->pushCriteria(app(RequestCriteria::class))
                 ->findWhereIn('user_id', $userIds);

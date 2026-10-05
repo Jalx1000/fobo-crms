@@ -322,7 +322,19 @@ class ChatController extends Controller
             'organization',
             'user',
             'tags',
-            'leads' => fn ($q) => $q->with('stage')->orderByDesc('id')->limit(10),
+            /*
+             * Los pedidos del cliente, acotados a las ciudades del asesor. Un
+             * mismo cliente puede haber comprado en más de una sucursal, y el
+             * panel los mostraba todos: la bandeja quedaba acotada por ciudad
+             * mientras la ficha del cliente seguía contando el resto.
+             */
+            'leads' => function ($q) {
+                if (($ciudades = $this->alcance->ciudadesDe()) !== null) {
+                    $q->whereIn('leads.lead_pipeline_id', $ciudades);
+                }
+
+                $q->with('stage')->orderByDesc('id')->limit(10);
+            },
         ])->findOrFail($id);
 
         // WhatsApp footprint of this contact (across all their conversations).
