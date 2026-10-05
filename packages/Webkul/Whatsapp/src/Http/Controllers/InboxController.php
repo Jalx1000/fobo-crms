@@ -23,8 +23,8 @@ use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\ConversationResolver;
 use Webkul\Whatsapp\Services\Handoff as HandoffService;
-use Webkul\Whatsapp\Services\PhoneNumber;
 use Webkul\Whatsapp\Services\TemplateCatalog;
+use Webkul\Whatsapp\Support\ConversationLocator;
 
 class InboxController extends Controller
 {
@@ -704,53 +704,16 @@ class InboxController extends Controller
     }
 
     /**
-     * Find an existing conversation, preferring the reliable person_id/lead_id
-     * link (set at inbound ingestion) over the phone which may be stored in a
-     * different format than Meta's "from".
+     * La conversación que el request identifica.
+     *
+     * La cascada vive en ConversationLocator porque el guard de alcance por ciudad
+     * tiene que responder la misma pregunta ANTES de dejar pasar el request. Dos
+     * copias serían peor que ninguna: en cuanto se separen, el guard valida una
+     * conversación y esto devuelve otra.
      */
     protected function existingConversation(Request $request)
     {
-        $model = ConversationProxy::modelClass();
-
-        // The standalone chat page addresses conversations directly.
-        if ($conversationId = $request->input('conversation_id')) {
-            return $model::find($conversationId);
-        }
-
-        if ($personId = $request->input('person_id')) {
-            $conversation = $this->preferActiveGateway($model::where('person_id', $personId))->first();
-
-            if ($conversation) {
-                return $conversation;
-            }
-        }
-
-        if ($leadId = $request->input('lead_id')) {
-            $conversation = $this->preferActiveGateway($model::where('lead_id', $leadId))->first();
-
-            if ($conversation) {
-                return $conversation;
-            }
-        }
-
-        if ($phone = $request->input('phone')) {
-            return $model::where('wa_phone', PhoneNumber::normalize($phone))->first();
-        }
-
-        return null;
-    }
-
-    /**
-     * A contact can end up with several conversations — one per provider after a
-     * migration, or one per phone format. Show the one on the active gateway:
-     * it is the only one the agent can actually reply through. Recency alone
-     * would surface a dead conversation from a decommissioned provider.
-     */
-    protected function preferActiveGateway($query)
-    {
-        return $query
-            ->orderByRaw('gateway = ? desc', [(string) config('whatsapp.gateway')])
-            ->orderByDesc('last_message_at');
+        return ConversationLocator::desde($request);
     }
 
     /**

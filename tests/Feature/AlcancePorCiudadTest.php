@@ -616,3 +616,87 @@ it('sí se abre el lead de su propia ciudad cargado por otro', function () {
         ->get(route('admin.leads.view', $propio))
         ->assertOk();
 });
+
+// ───────── el agujero: entrar por teléfono o por persona, sin id ─────────
+
+it('no se lee por telefono la conversacion de otra ciudad', function () {
+    $ciudades = ciudadesDeAlcance();
+
+    if (count($ciudades) < 2) {
+        $this->markTestSkipped('Hacen falta dos ciudades reales.');
+    }
+
+    $ajena = convDeAlcance($ciudades[1]['id']);
+
+    $user = usuarioDeAlcance();
+    asignarCiudades($user, [$ciudades[0]['id']]);
+
+    /*
+     * El agujero que esto cierra: el inbox embebido en la ficha del contacto, del
+     * lead y en el Punto NO manda conversation_id —manda phone, person_id o
+     * lead_id—, y el guard sólo miraba conversation_id. Alcanzaba con pedir el hilo
+     * con el teléfono para leer la conversación de cualquier cliente.
+     */
+    $this->actingAs($user, 'user')
+        ->getJson(route('admin.whatsapp.thread', ['phone' => $ajena->wa_phone]))
+        ->assertStatus(403);
+});
+
+it('no se lee por person_id la conversacion de otra ciudad', function () {
+    $ciudades = ciudadesDeAlcance();
+
+    if (count($ciudades) < 2) {
+        $this->markTestSkipped('Hacen falta dos ciudades reales.');
+    }
+
+    $personId = (int) DB::table('persons')->insertGetId([
+        'name'       => 'Cliente ajeno '.uniqid(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $ajena = convDeAlcance($ciudades[1]['id']);
+    $ajena->update(['person_id' => $personId]);
+
+    $user = usuarioDeAlcance();
+    asignarCiudades($user, [$ciudades[0]['id']]);
+
+    $this->actingAs($user, 'user')
+        ->getJson(route('admin.whatsapp.thread', ['person_id' => $personId]))
+        ->assertStatus(403);
+});
+
+it('por telefono sí se lee la conversacion de su propia ciudad', function () {
+    $ciudades = ciudadesDeAlcance();
+
+    if (! $ciudades) {
+        $this->markTestSkipped('Hace falta una ciudad real.');
+    }
+
+    $mia = convDeAlcance($ciudades[0]['id']);
+
+    $user = usuarioDeAlcance();
+    asignarCiudades($user, [$ciudades[0]['id']]);
+
+    // El guard no puede romper el camino legítimo: el inbox embebido entra así.
+    $this->actingAs($user, 'user')
+        ->getJson(route('admin.whatsapp.thread', ['phone' => $mia->wa_phone]))
+        ->assertOk();
+});
+
+it('un telefono sin conversacion todavia no se bloquea', function () {
+    $ciudades = ciudadesDeAlcance();
+
+    if (! $ciudades) {
+        $this->markTestSkipped('Hace falta una ciudad real.');
+    }
+
+    $user = usuarioDeAlcance();
+    asignarCiudades($user, [$ciudades[0]['id']]);
+
+    // Sin conversación no hay nada que filtrar, y es el caso normal de escribirle
+    // por primera vez a un cliente nuevo.
+    $this->actingAs($user, 'user')
+        ->getJson(route('admin.whatsapp.thread', ['phone' => '+5493889'.random_int(100000, 999999)]))
+        ->assertOk();
+});

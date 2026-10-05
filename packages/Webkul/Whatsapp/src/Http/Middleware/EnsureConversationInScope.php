@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Webkul\Core\Services\AlcanceCiudades;
 use Webkul\Whatsapp\Support\ConversationCity;
+use Webkul\Whatsapp\Support\ConversationLocator;
 
 /**
  * Exige que la conversación sea de una ciudad que el usuario puede ver.
@@ -31,21 +32,53 @@ class EnsureConversationInScope
 {
     public function __construct(protected AlcanceCiudades $alcance) {}
 
-    public function handle(Request $request, Closure $next)
+    /**
+     * La conversación que el request toca, por cualquiera de sus dos caminos.
+     *
+     * Antes esto miraba sólo `conversations/{id}` y `conversation_id`, y ahí estaba
+     * el agujero: el inbox embebido en la ficha del contacto, del lead y en el Punto
+     * NO manda conversation_id —manda person_id, lead_id o phone— así que el guard
+     * los dejaba pasar sin validar nada. Alcanzaba con pedir el hilo con el teléfono
+     * para leer la conversación de cualquier cliente de cualquier ciudad, escribirle
+     * y tomarle la derivación.
+     *
+     * La resolución por teléfono/persona la hace ConversationLocator, el MISMO
+     * resolutor que usa el controlador: si el guard resolviera distinto, validaría
+     * una conversación y el controlador devolvería otra.
+     */
+    protected function conversacionDel(Request $request): ?int
     {
-        $id = $request->route('id') ?? $request->input('conversation_id');
+        // conversations/{id}/… — en los grupos donde está este middleware, {id} es
+        // siempre una conversación.
+        $deLaRuta = $request->route('id');
 
-        if (! $id || ! is_numeric($id)) {
-            return $next($request);
+        if ($deLaRuta && is_numeric($deLaRuta)) {
+            return (int) $deLaRuta;
         }
 
+        return ConversationLocator::desde($request)?->id;
+    }
+
+    public function handle(Request $request, Closure $next)
+    {
         $permitidas = $this->alcance->ciudadesDe();
 
         if ($permitidas === null) {
             return $next($request);
         }
 
-        $ciudad = ConversationCity::de((int) $id);
+        $id = $this->conversacionDel($request);
+
+        /*
+         * Sin conversación no hay nada que validar, y es un caso normal: escribirle
+         * por primera vez a un teléfono nuevo no tiene conversación hasta que se
+         * manda el mensaje.
+         */
+        if (! $id) {
+            return $next($request);
+        }
+
+        $ciudad = ConversationCity::de($id);
 
         // Null = sin ciudad por ningún camino: pool, la ve cualquiera.
         $puede = $ciudad === null
