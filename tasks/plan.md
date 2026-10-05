@@ -142,6 +142,27 @@ sus 422, y aserciones sobre la plantilla renderizada para lo que sólo vive en l
 6. El mensaje de bienvenida se manda al crear un contacto, detrás de una bandeja de
    configuración y de una plantilla aprobada.
 
+## Decisiones tomadas (respondidas por el negocio)
+
+| # | Decisión |
+|---|---|
+| Bidones en el CRM | Se ven en el CRM **y** en un apartado propio del Punto, bien presentado |
+| Dirección escrita | Se obtiene del **pin del mapa** (geocodificación inversa), no se tipea desde cero |
+| Referencia | La escribe el **distribuidor**, a mano |
+| Saludo al crear contacto | Sí, sólo desde el Punto |
+| Foto de perfil de WhatsApp | **Ya cargada** y verificada contra la Graph API |
+
+### Consecuencia técnica de "la dirección sale del pin"
+
+El código hoy evita geocodificar a propósito, y el comentario de `Ubicacion::url()`
+explica por qué: clave, costo, límites de uso y —lo peor— el riesgo de guardar una
+dirección equivocada en silencio.
+
+Tomar la dirección del pin es la dirección CONTRARIA (coordenadas → texto), y el
+riesgo es el mismo. Se mitiga con una regla: la dirección se **precarga editable**,
+nunca se guarda a ciegas. El distribuidor ve lo que resolvió y lo corrige. Sin eso,
+un número de casa inventado por el geocodificador queda guardado y nadie lo cuestiona.
+
 ## Preguntas abiertas
 
 1. **Bidones en el CRM**: ¿alcanza con verlo en la ficha del contacto, o querés además

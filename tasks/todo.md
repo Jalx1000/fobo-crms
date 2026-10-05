@@ -30,6 +30,16 @@ misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
   - Verify: tests de servicio, incluido el caso sin la columna todavía creada
   - Files: `Services/Ubicacion.php`, `Models/UbicacionCliente.php`
 
+- [ ] **T1.2b** Geocodificación inversa: del pin al texto de la dirección
+  - Acceptance: al mover el pin, el campo de dirección se **precarga** con la calle y
+    altura que resuelve el servicio, y queda editable. Si el servicio no responde o no
+    encuentra nada, el campo queda vacío y el pin se guarda igual
+  - Verify: test del parseo de la respuesta + test de que un fallo del servicio no
+    impide guardar la ubicación
+  - Files: `Services/Geocodificador.php` (nuevo), `punto.blade.php`
+  - ⚠️ Decisión pendiente: qué servicio (ver abajo). Precargado y editable, nunca
+    guardado a ciegas: el riesgo real es una altura inventada que nadie cuestiona.
+
 - [ ] **T1.3** Los dos campos en el Punto, debajo del mapa
   - Acceptance: están en el alta de contacto y en el modal de editar domicilio; se
     guardan; la referencia se ve en la tarjeta del pedido, que es donde la lee quien
@@ -54,7 +64,15 @@ misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
   - Files: `packages/Webkul/Admin/src/Http/Controllers/Contact/Persons/PersonController.php`,
     su vista, `Services/Bidones.php`
 
-- [ ] **T2.2** *(depende de la pregunta 1)* Pantalla de envases a recuperar
+- [ ] **T2.2** Apartado de bidones en el Punto
+  - Acceptance: una sección propia con el saldo por cliente, ordenada por cantidad,
+    acotada al alcance de ciudad; se llega desde las pestañas, no enterrada en Caja
+  - Verify: test de que un distribuidor de una ciudad no ve clientes de otra
+  - Files: `punto.blade.php`, `PuntoController.php`, `Services/Bidones.php`
+  - Nota: `pendientesDeDevolucion()` ya existe y hoy se muestra dentro de Caja. Falta
+    el apartado propio y presentarlo bien.
+
+- [ ] **T2.3** Pantalla de envases a recuperar en el CRM
   - Acceptance: lista de clientes con saldo > 0 ordenada por cantidad, acotada por el
     alcance de ciudad del usuario
   - Verify: test de que un usuario de Jujuy no ve clientes de otra ciudad
@@ -87,7 +105,16 @@ misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
   - Verify: aserción sobre la plantilla renderizada
   - Files: `packages/Webkul/Whatsapp/src/Resources/views/chat.blade.php`
 
-- [ ] **T4.2** Foto de perfil del número de WhatsApp
+- [x] **T4.2** Foto de perfil del número de WhatsApp — **HECHO**, verificado contra
+      la Graph API (`profile_picture_url` presente)
+
+- [ ] **T4.3** Completar el resto del perfil de negocio
+  - Acceptance: `about`, `description`, `address`, `email`, `websites` y `vertical`
+    cargados. Hoy están todos vacíos y `vertical` es OTHER
+  - Verify: leer `whatsapp_business_profile` y ver los campos
+  - Nota: es lo que el cliente ve al tocar el nombre del negocio en su WhatsApp. La
+    foto sola deja esa ficha vacía.
+
   - Acceptance: el número muestra el logo de Sensia en el teléfono del cliente
   - Verify: mirarlo desde un teléfono que le escriba
   - ⚠️ **No es código**: se carga en Meta Business Manager. Preparo la imagen en el
