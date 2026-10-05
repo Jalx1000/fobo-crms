@@ -40,6 +40,21 @@ function distribuidorDeBidones(): User
     ]);
 }
 
+/** Un distribuidor restringido a una ciudad, via grupo de Krayin. */
+function usuarioDeCiudadParaBidones(int $pipelineId): User
+{
+    $user = distribuidorDeBidones();
+    DB::table('users')->where('id', $user->id)->update(['view_permission' => 'group']);
+
+    $nombre = (string) DB::table('lead_pipelines')->where('id', $pipelineId)->value('name');
+    $groupId = (int) (DB::table('groups')->where('name', $nombre)->value('id')
+        ?: DB::table('groups')->insertGetId(['name' => $nombre, 'description' => 'Temporal para tests']));
+
+    DB::table('user_groups')->insert(['user_id' => $user->id, 'group_id' => $groupId]);
+
+    return $user->refresh();
+}
+
 /** Un cliente nuevo, con su lead en la ciudad que se le pase. */
 function clienteConPedido(?int $pipelineId = null): array
 {
@@ -944,4 +959,89 @@ it('la tarjeta se engancha por evento y no editando el blade del core', function
         $core,
         'Desapareció el evento de render del que depende la tarjeta de bidones: '
     );
+});
+
+// ───────── T2.2: el apartado de bidones en el Punto ─────────
+
+it('el apartado lista los clientes con envases sin devolver', function () {
+    $c = clienteConPedido();
+    app(Bidones::class)->registrar($c['person_id'], $c['lead_id'], 6, 1);
+
+    $r = $this->actingAs(distribuidorDeBidones(), 'user')
+        ->getJson(route('admin.distribuidor.bidones'))
+        ->assertOk()
+        ->json();
+
+    $fila = collect($r['clientes'])->firstWhere('person_id', $c['person_id']);
+
+    expect($fila)->not->toBeNull()
+        ->and($fila['saldo'])->toBe(5);
+});
+
+it('el total de arriba sale de sumar la lista', function () {
+    $c = clienteConPedido();
+    app(Bidones::class)->registrar($c['person_id'], $c['lead_id'], 4, 0);
+
+    $r = $this->actingAs(distribuidorDeBidones(), 'user')
+        ->getJson(route('admin.distribuidor.bidones'))
+        ->assertOk()
+        ->json();
+
+    /*
+     * El número de arriba y las filas de abajo no pueden contradecirse. Calcularlo con
+     * otra consulta es el problema clásico de un resumen que no cuadra con su detalle,
+     * y nadie sabe a cuál creerle.
+     */
+    expect($r['en_la_calle'])->toBe(array_sum(array_column($r['clientes'], 'saldo')));
+});
+
+it('el apartado respeta el alcance por ciudad', function () {
+    $pipelines = DB::table('lead_pipelines')->orderBy('id')->pluck('id')->all();
+
+    if (count($pipelines) < 2) {
+        $this->markTestSkipped('Hacen falta dos ciudades.');
+    }
+
+    $c = clienteConPedido((int) $pipelines[1]);
+    app(Bidones::class)->registrar($c['person_id'], $c['lead_id'], 3, 0);
+
+    // Un distribuidor de otra ciudad no tiene que ver a este cliente.
+    $user = usuarioDeCiudadParaBidones((int) $pipelines[0]);
+
+    $r = $this->actingAs($user, 'user')
+        ->getJson(route('admin.distribuidor.bidones'))
+        ->assertOk()
+        ->json();
+
+    expect(collect($r['clientes'])->firstWhere('person_id', $c['person_id']))->toBeNull();
+});
+
+it('registrar una devolucion baja el saldo', function () {
+    $c = clienteConPedido();
+    app(Bidones::class)->registrar($c['person_id'], $c['lead_id'], 5, 0);
+
+    // "Pasar a juntar vacíos" es una visita real que no genera pedido.
+    $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.cliente.bidones', $c['person_id']), ['retirados' => 2])
+        ->assertOk()
+        ->assertJsonPath('bidones', 3);
+
+    expect(app(Bidones::class)->saldoDe($c['person_id']))->toBe(3);
+});
+
+it('el apartado es una pestaña propia y no un bloque de caja', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    /*
+     * Caja se mira una vez al cerrar el día; los envases a recuperar se miran al ARMAR
+     * el recorrido. Enterrado dentro de Caja nadie los veía a tiempo para ir a buscarlos.
+     */
+    $this->assertStringContainsString("vista === 'bidones'", $vista, 'Falta la sección propia de bidones: ');
+    $this->assertStringContainsString('irABidones', $vista, 'Falta la pestaña de bidones: ');
+
+    // Y la lista tiene que poder registrar la devolución ahí mismo: un listado que sólo
+    // informa obliga a anotar en papel, y lo que se anota en papel no se carga.
+    $this->assertStringContainsString('abrirDevolucion', $vista, 'La lista no es accionable: ');
 });

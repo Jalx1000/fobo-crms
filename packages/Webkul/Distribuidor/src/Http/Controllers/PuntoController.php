@@ -707,6 +707,30 @@ class PuntoController extends Controller
     }
 
     /**
+     * El apartado de bidones: quién debe envases y cuántos hay en la calle.
+     *
+     * Aparte de Caja y no dentro, que es donde estaba: Caja se mira una vez al cerrar
+     * el día, y los envases a recuperar se miran al ARMAR el recorrido. Enterrado ahí
+     * abajo, nadie los veía a tiempo para ir a buscarlos.
+     */
+    public function bidones(): JsonResponse
+    {
+        $ciudades = $this->alcance->ciudadesPermitidas();
+        $clientes = $this->bidones->pendientesDeDevolucion($ciudades, 100);
+
+        return response()->json([
+            'clientes' => $clientes,
+            /*
+             * El total sale de sumar la lista y no de otra consulta: así el número de
+             * arriba y las filas de abajo no pueden contradecirse, que es el problema
+             * clásico de un resumen calculado por separado.
+             */
+            'en_la_calle' => array_sum(array_column($clientes, 'saldo')),
+            'del_dia'     => $this->bidones->delDia(),
+        ]);
+    }
+
+    /**
      * Registra bidones sin pedido: pasar a juntar vacíos es una visita real.
      */
     public function registrarBidones(Request $request, string $id): JsonResponse

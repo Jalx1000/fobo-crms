@@ -67,7 +67,7 @@ misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
   - Files: `packages/Webkul/Admin/src/Http/Controllers/Contact/Persons/PersonController.php`,
     su vista, `Services/Bidones.php`
 
-- [ ] **T2.2** Apartado de bidones en el Punto
+- [x] **T2.2** Apartado de bidones en el Punto — **HECHO**
   - Acceptance: una sección propia con el saldo por cliente, ordenada por cantidad,
     acotada al alcance de ciudad; se llega desde las pestañas, no enterrada en Caja
   - Verify: test de que un distribuidor de una ciudad no ve clientes de otra

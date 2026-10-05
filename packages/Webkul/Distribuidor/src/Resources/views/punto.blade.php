@@ -66,7 +66,13 @@
                 </div>
 
                 {{-- ── Tres pestañas grandes ── --}}
-                <div class="mb-4 grid grid-cols-3 gap-2">
+                {{--
+                    Cuatro pestañas en dos filas en el celular y una sola desde sm.
+                
+                    Con cuatro en una fila a 375px cada una queda en 81px y las etiquetas se
+                    parten. Dos filas cuestan altura pero se leen; cuatro columnas apretadas no.
+                --}}
+                <div class="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <button type="button" @click="vista = 'nuevo'"
                             class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-lg font-bold transition-colors duration-200"
                             :class="vista === 'nuevo'
@@ -91,6 +97,13 @@
                                 ? 'border-brandColor bg-brandColor/10 text-brandColor'
                                 : 'border-gray-200 text-gray-600 dark:border-gray-800 dark:text-gray-400'">
                         Caja
+                    </button>
+                    <button type="button" @click="irABidones"
+                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-lg font-bold transition-colors duration-200"
+                            :class="vista === 'bidones'
+                                ? 'border-brandColor bg-brandColor/10 text-brandColor'
+                                : 'border-gray-200 text-gray-600 dark:border-gray-800 dark:text-gray-400'">
+                        Bidones
                     </button>
                 </div>
 
@@ -628,6 +641,70 @@
                     </div>
                 </template>
 
+                {{--
+                    ── Bidones: a quién hay que irle a buscar los envases ──
+
+                    Apartado propio y no un bloque dentro de Caja, que es donde estaba:
+                    Caja se mira una vez al cerrar el día, y esto se mira al ARMAR el
+                    recorrido. Enterrado ahí abajo nadie lo veía a tiempo.
+
+                    La lista es ACCIONABLE: cada fila registra la devolución ahí mismo.
+                    Un listado que sólo informa obliga a anotar en papel y cargarlo
+                    después, y lo que se carga después no se carga.
+                --}}
+                <template v-if="vista === 'bidones'">
+                    <div class="mb-4 rounded-2xl border-2 border-sky-300 p-5 text-center dark:border-sky-800">
+                        <span class="block text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                            Bidones en la calle
+                        </span>
+                        <span class="block text-4xl font-extrabold text-gray-900 dark:text-white">@{{ bidones.en_la_calle }}</span>
+                        <span class="block text-base text-gray-600 dark:text-gray-400">
+                            en @{{ bidones.clientes.length }} cliente@{{ bidones.clientes.length === 1 ? '' : 's' }}
+                        </span>
+                    </div>
+
+                    <div class="mb-4 grid grid-cols-2 gap-2 text-center">
+                        <div class="rounded-xl border-2 border-gray-200 px-3 py-3 dark:border-gray-800">
+                            <span class="block text-2xl font-extrabold text-gray-900 dark:text-white">@{{ bidones.del_dia.entregados }}</span>
+                            <span class="block text-sm text-gray-600 dark:text-gray-400">dejados hoy</span>
+                        </div>
+                        <div class="rounded-xl border-2 border-gray-200 px-3 py-3 dark:border-gray-800">
+                            <span class="block text-2xl font-extrabold text-gray-900 dark:text-white">@{{ bidones.del_dia.retirados }}</span>
+                            <span class="block text-sm text-gray-600 dark:text-gray-400">retirados hoy</span>
+                        </div>
+                    </div>
+
+                    <div v-if="cargando && !bidones.clientes.length" class="py-8 text-center text-base text-gray-600 dark:text-gray-400">
+                        Cargando…
+                    </div>
+
+                    <div v-else-if="!bidones.clientes.length" class="rounded-xl border-2 border-dashed border-gray-300 py-10 text-center dark:border-gray-700">
+                        <p class="text-lg font-semibold text-gray-700 dark:text-gray-300">No hay envases sin devolver</p>
+                        <p class="mt-1 text-base text-gray-600 dark:text-gray-400">Todos los clientes de tu zona están al día.</p>
+                    </div>
+
+                    <div v-for="c in bidones.clientes" :key="c.person_id"
+                         class="mb-3 flex items-center justify-between gap-3 rounded-2xl border-2 border-gray-200 p-4 dark:border-gray-800">
+                        <div class="min-w-0">
+                            <div class="truncate text-xl font-bold text-gray-800 dark:text-gray-100">@{{ c.nombre }}</div>
+                            <div class="text-base text-gray-600 dark:text-gray-400">
+                                Desde @{{ fechaCorta(c.ultimo) }}
+                            </div>
+                        </div>
+
+                        <div class="flex shrink-0 items-center gap-2">
+                            <span class="rounded-full bg-amber-100 px-3 py-1 text-xl font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                @{{ c.saldo }}
+                            </span>
+                            <button type="button" @click="abrirDevolucion(c)"
+                                    :aria-label="'Registrar devolución de ' + c.nombre"
+                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor px-4 text-base font-bold text-brandColor transition-colors duration-200">
+                                Recibí
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
                 {{-- ── Barra fija: el total y la acción, al alcance del pulgar ── --}}
                 <div v-if="vista === 'nuevo' && sucursal"
                      class="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
@@ -819,6 +896,41 @@
                     </div>
                 </Teleport>
 
+{{-- ── Registrar una devolución de envases ── --}}
+                <Teleport to="body">
+                    <div v-if="devolucion.cliente" class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" @click.self="devolucion.cliente = null">
+                        <div role="dialog" aria-modal="true" aria-labelledby="titulo-devolucion"
+                             class="w-full max-w-md rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
+                            <h3 id="titulo-devolucion" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Recibí envases</h3>
+                            <p class="mb-3 text-base text-gray-600 dark:text-gray-400">
+                                @{{ devolucion.cliente.nombre }} · tiene @{{ devolucion.cliente.saldo }}
+                            </p>
+
+                            <label for="punto-devueltos" class="mb-1 block text-base font-semibold text-gray-700 dark:text-gray-300">
+                                ¿Cuántos recibiste?
+                            </label>
+                            <input id="punto-devueltos" v-model="devolucion.cantidad" type="number" min="1" step="1" inputmode="numeric"
+                                   class="mb-2 min-h-[64px] w-full rounded-xl border-2 border-gray-300 px-4 text-center text-2xl font-bold text-gray-900 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+
+                            {{-- Se anticipa el resultado: así un número de más se ve antes de guardarlo. --}}
+                            <p class="mb-3 text-base text-gray-700 dark:text-gray-300">
+                                Le quedan <span class="font-bold">@{{ devolucion.cliente.saldo - enteroDe(devolucion.cantidad) }}</span>
+                            </p>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <button type="button" @click="devolucion.cliente = null"
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                                    Cancelar
+                                </button>
+                                <button type="button" @click="guardarDevolucion" :disabled="cargando || enteroDe(devolucion.cantidad) < 1"
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-600 text-lg font-bold text-white disabled:opacity-40">
+                                    @{{ cargando ? 'Guardando…' : 'Guardar' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </Teleport>
+
                 {{-- ── Cobro: dentro del pedido, no en otra sección ── --}}
                 <Teleport to="body">
                     <div v-if="cobro.pedido" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" @click.self="cobro.pedido = null">
@@ -940,6 +1052,8 @@
                         // El contacto que se está creando: domicilio y envases iniciales.
                         nuevo: { bidones: '', lat: null, lng: null },
                         mapaError: null,
+                        bidones: { clientes: [], en_la_calle: 0, del_dia: { entregados: 0, retirados: 0 } },
+                        devolucion: { cliente: null, cantidad: '' },
                         // El cliente cuyo domicilio se está editando en el mapa.
                         mapaCliente: null,
                         /*
@@ -1032,7 +1146,8 @@
 
                         // El mapa primero: es el que puede quedar abierto ENCIMA de otro,
                         // y Escape tiene que cerrar el de arriba.
-                        if (this.mapaCliente) this.cerrarMapaCliente();
+                        if (this.devolucion.cliente) this.devolucion.cliente = null;
+                        else if (this.mapaCliente) this.cerrarMapaCliente();
                         else if (this.entrega.pedido) this.cancelarEntrega();
                         else if (this.cobro.pedido) this.cobro.pedido = null;
                     };
@@ -1180,6 +1295,64 @@
                             })
                             .catch(e => { this.aviso = this.mensaje(e, 'No se pudo traer el pedido anterior.'); })
                             .finally(() => { this.cargando = false; });
+                    },
+
+                    irABidones() {
+                        this.vista = 'bidones';
+                        this.cargarBidones();
+                    },
+
+                    cargarBidones() {
+                        this.cargando = true;
+
+                        this.$axios.get('{{ route('admin.distribuidor.bidones') }}')
+                            .then(r => { this.bidones = r.data; })
+                            .catch(e => { this.aviso = this.mensaje(e, 'No se pudieron cargar los bidones.'); })
+                            .finally(() => { this.cargando = false; });
+                    },
+
+                    abrirDevolucion(cliente) {
+                        /*
+                         * La cantidad arranca vacía y no en el saldo del cliente: precargarla
+                         * invita a confirmar sin contar, y el saldo es justamente lo que hay
+                         * que verificar contra los envases que tenés en la mano.
+                         */
+                        this.devolucion = { cliente, cantidad: '' };
+                    },
+
+                    guardarDevolucion() {
+                        const cliente = this.devolucion.cliente;
+                        const cantidad = this.enteroDe(this.devolucion.cantidad);
+
+                        if (! cliente || cantidad < 1) return;
+
+                        this.cargando = true;
+
+                        this.$axios.post(
+                            '{{ url(config('app.admin_path').'/distribuidor/cliente') }}/' + cliente.person_id + '/bidones',
+                            { retirados: cantidad },
+                        )
+                            .then(() => {
+                                this.devolucion = { cliente: null, cantidad: '' };
+                                this.aviso = 'Devolución registrada.';
+                                // Se recarga la lista en vez de descontar en memoria: el saldo lo
+                                // calcula el servidor sumando movimientos, y restar acá abriría
+                                // una segunda verdad que puede no coincidir.
+                                this.cargarBidones();
+                            })
+                            .catch(e => { this.aviso = this.mensaje(e, 'No se pudo registrar la devolución.'); })
+                            .finally(() => { this.cargando = false; });
+                    },
+
+                    /** Una fecha corta a partir de lo que devuelve el servidor. */
+                    fechaCorta(valor) {
+                        if (! valor) return '—';
+
+                        const d = new Date(String(valor).replace(' ', 'T'));
+
+                        return Number.isNaN(d.getTime())
+                            ? '—'
+                            : d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' });
                     },
 
                     irACaja() {

@@ -36,5 +36,6 @@ Route::controller(\Webkul\Distribuidor\Http\Controllers\PuntoController::class)
     ->prefix('distribuidor')->group(function () {
         Route::get('recientes', 'recientes')->name('admin.distribuidor.recientes');
         Route::get('caja', 'caja')->name('admin.distribuidor.caja');
+        Route::get('bidones', 'bidones')->name('admin.distribuidor.bidones');
         Route::get('repetir/{personId}', 'repetir')->name('admin.distribuidor.repetir');
     });
