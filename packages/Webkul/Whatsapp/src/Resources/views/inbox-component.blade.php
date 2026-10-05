@@ -401,8 +401,6 @@
                                 <div class="whitespace-pre-wrap break-words" v-html="formatText(msg.text)"></div>
                             </div>
 
-                            </div>
-
                             <div v-else class="italic text-gray-500">Tipo no soportado</div>
 
                             <!-- why it failed: the agent is who needs this, not the log -->
