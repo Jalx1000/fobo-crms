@@ -242,11 +242,11 @@
                                         pedido: se marca una vez y sirve para todos los repartos
                                         siguientes.
                                     --}}
-                                    <button type="button" @click="marcarUbicacion()" :disabled="ubicando"
-                                            :aria-label="cliente.ubicacion ? 'Corregir el domicilio con el GPS' : 'Marcar el domicilio con el GPS'"
+                                    <button type="button" @click="abrirMapaCliente()"
+                                            :aria-label="cliente.ubicacion ? 'Editar el domicilio en el mapa' : 'Marcar el domicilio en el mapa'"
                                             class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor px-4 text-base font-bold text-brandColor transition-colors duration-200 disabled:opacity-40">
                                         <svg class="inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
-                                        <span class="sr-only">@{{ ubicando ? 'Tomando ubicación' : 'Marcar domicilio' }}</span>
+                                        <span class="sr-only">@{{ cliente.ubicacion ? 'Editar domicilio' : 'Marcar domicilio' }}</span>
                                     </button>
 
                                     <button type="button" @click="limpiarCliente"
@@ -719,6 +719,54 @@
                     </div>
                 </Teleport>
 
+                {{--
+                    ── Editar el domicilio sobre el mapa ──
+
+                    Modal y no un bloque fijo en la ficha: el mapa necesita alto para ser
+                    usable con el dedo, y robarle media pantalla al armado del pedido para
+                    algo que se toca una vez por cliente es un mal canje.
+
+                    Ofrece los dos caminos juntos, que es la razón de ser de esta pantalla:
+                    arrastrar el pin sirve desde el depósito con el cliente al teléfono, y
+                    "Estoy acá" sirve parado en la puerta.
+                --}}
+                <Teleport to="body">
+                    <div v-if="mapaCliente" class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" @click.self="cerrarMapaCliente">
+                        <div role="dialog" aria-modal="true" aria-labelledby="titulo-mapa"
+                             class="w-full max-w-lg rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
+                            <h3 id="titulo-mapa" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">
+                                @{{ mapaCliente.ubicacion ? 'Editar domicilio' : 'Marcar domicilio' }}
+                            </h3>
+                            <p class="mb-3 text-base text-gray-600 dark:text-gray-400">@{{ mapaCliente.name }}</p>
+
+                            <div ref="mapaEditar" class="mb-2 h-72 w-full overflow-hidden rounded-xl border-2 border-gray-300 bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
+                                 role="application" aria-label="Mapa para editar el domicilio del cliente"></div>
+
+                            <p v-if="mapaError" class="mb-2 text-base text-red-700 dark:text-red-400">@{{ mapaError }}</p>
+                            <p v-else class="mb-3 text-sm text-gray-600 dark:text-gray-400">
+                                Tocá el mapa o arrastrá el pin. Si estás en la puerta, usá el GPS.
+                            </p>
+
+                            <button type="button" @click="gpsAlMapa" :disabled="ubicando"
+                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-3 flex min-h-[56px] w-full items-center justify-center rounded-xl border-2 border-brandColor text-base font-bold text-brandColor transition-colors duration-200 disabled:opacity-40">
+                                <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+                                @{{ ubicando ? 'Tomando ubicación…' : 'Estoy acá (GPS)' }}
+                            </button>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <button type="button" @click="cerrarMapaCliente"
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                                    Cancelar
+                                </button>
+                                <button type="button" @click="guardarMapaCliente" :disabled="cargando || !nuevo.lat"
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-600 text-lg font-bold text-white disabled:opacity-40">
+                                    @{{ cargando ? 'Guardando…' : 'Guardar' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </Teleport>
+
                 {{-- ── Cobro: dentro del pedido, no en otra sección ── --}}
                 <Teleport to="body">
                     <div v-if="cobro.pedido" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" @click.self="cobro.pedido = null">
@@ -834,6 +882,8 @@
                         // El contacto que se está creando: domicilio y envases iniciales.
                         nuevo: { bidones: '', lat: null, lng: null },
                         mapaError: null,
+                        // El cliente cuyo domicilio se está editando en el mapa.
+                        mapaCliente: null,
                         mapa: null,
                         pin: null,
                         leafletPromise: null,
@@ -914,7 +964,10 @@
                     this.alEscape = e => {
                         if (e.key !== 'Escape') return;
 
-                        if (this.entrega.pedido) this.cancelarEntrega();
+                        // El mapa primero: es el que puede quedar abierto ENCIMA de otro,
+                        // y Escape tiene que cerrar el de arriba.
+                        if (this.mapaCliente) this.cerrarMapaCliente();
+                        else if (this.entrega.pedido) this.cancelarEntrega();
                         else if (this.cobro.pedido) this.cobro.pedido = null;
                     };
 
@@ -939,7 +992,7 @@
                      * así no se pide un solo tile mientras nadie esté cargando un contacto.
                      */
                     mostrarFormularioNuevo(visible) {
-                        if (visible) this.$nextTick(() => this.montarMapa());
+                        if (visible) this.$nextTick(() => this.montarMapa('mapaNuevo'));
                     },
                 },
 
@@ -1301,10 +1354,19 @@
                         return this.leafletPromise;
                     },
 
-                    montarMapa() {
+                    /*
+                     * Monta un mapa en el contenedor que se le pase.
+                     *
+                     * Recibe el ref y el punto inicial en vez de leerlos de la pantalla
+                     * porque hay DOS mapas: el del alta de contacto y el de editar el
+                     * domicilio de un cliente que ya existe. Son excluyentes —uno necesita
+                     * que no haya cliente elegido y el otro que sí— así que comparten el
+                     * estado; lo que cambia es dónde se dibujan y dónde arrancan.
+                     */
+                    montarMapa(ref = 'mapaNuevo', inicial = null) {
                         this.cargarLeaflet()
                             .then(() => {
-                                const caja = this.$refs.mapaNuevo;
+                                const caja = this.$refs[ref];
 
                                 if (! caja) return;
 
@@ -1316,8 +1378,15 @@
                                     return;
                                 }
 
+                                // Arranca en el domicilio que ya tiene, si lo tiene: abrir en
+                                // el centro de la provincia obligaría a buscar la casa de cero
+                                // cada vez que se corrige un pin de 20 metros.
+                                const centro = inicial
+                                    ? [inicial.lat, inicial.lng]
+                                    : [this.mapaCentro.lat, this.mapaCentro.lng];
+
                                 this.mapa = window.L.map(caja)
-                                    .setView([this.mapaCentro.lat, this.mapaCentro.lng], this.mapaCentro.zoom);
+                                    .setView(centro, inicial ? 17 : this.mapaCentro.zoom);
 
                                 window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                                     attribution: '© OpenStreetMap',
@@ -1325,6 +1394,8 @@
                                 }).addTo(this.mapa);
 
                                 this.mapa.on('click', e => this.ponerPin(e.latlng.lat, e.latlng.lng, false));
+
+                                if (inicial) this.ponerPin(inicial.lat, inicial.lng, false);
 
                                 this.$nextTick(() => this.mapa.invalidateSize());
                             })
@@ -1352,6 +1423,98 @@
                         }
 
                         if (centrar) this.mapa.setView([lat, lng], Math.max(this.mapa.getZoom(), 16));
+                    },
+
+                    /** Abre el mapa para marcar o corregir el domicilio del cliente. */
+                    abrirMapaCliente(persona = null) {
+                        const cliente = persona ?? this.cliente;
+
+                        if (! cliente) return;
+
+                        this.mapaCliente = cliente;
+                        this.mapaError = null;
+
+                        // El pin arranca donde ya está guardado, si está: corregir 20 metros
+                        // no debería obligar a buscar la casa desde el centro de la provincia.
+                        const actual = cliente.ubicacion;
+                        this.nuevo.lat = actual ? Number(actual.lat) : null;
+                        this.nuevo.lng = actual ? Number(actual.lng) : null;
+
+                        this.$nextTick(() => this.montarMapa('mapaEditar', actual
+                            ? { lat: Number(actual.lat), lng: Number(actual.lng) }
+                            : null));
+                    },
+
+                    cerrarMapaCliente() {
+                        this.mapaCliente = null;
+                        this.nuevo.lat = null;
+                        this.nuevo.lng = null;
+                        // Desmontar siempre: el mapa es el mismo objeto, y si queda vivo el
+                        // pin de este cliente reaparece sobre el domicilio del siguiente.
+                        this.limpiarMapa();
+                    },
+
+                    /** Lleva el GPS al pin del mapa, sin guardar todavía. */
+                    gpsAlMapa() {
+                        if (! navigator.geolocation) {
+                            this.mapaError = 'Este teléfono no permite tomar la ubicación.';
+
+                            return;
+                        }
+
+                        this.ubicando = true;
+                        this.mapaError = null;
+
+                        navigator.geolocation.getCurrentPosition(
+                            pos => {
+                                this.ubicando = false;
+                                /*
+                                 * Va al pin y no directo al servidor, aunque sea un GPS: así se
+                                 * VE dónde cayó antes de guardarlo, y si el GPS erró se corrige
+                                 * con el dedo en vez de quedar un domicilio malo guardado.
+                                 */
+                                this.ponerPin(pos.coords.latitude, pos.coords.longitude);
+                            },
+                            err => {
+                                this.ubicando = false;
+                                this.mapaError = err.code === err.PERMISSION_DENIED
+                                    ? 'Tenés que permitir el acceso a la ubicación en el navegador.'
+                                    : 'No se pudo tomar la ubicación. Probá a cielo abierto o tocá el mapa.';
+                            },
+                            { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+                        );
+                    },
+
+                    guardarMapaCliente() {
+                        if (! this.mapaCliente || ! this.nuevo.lat) return;
+
+                        const id = this.mapaCliente.id;
+                        this.cargando = true;
+
+                        this.$axios.post(
+                            '{{ url(config('app.admin_path').'/distribuidor/cliente') }}/' + id + '/ubicacion',
+                            {
+                                lat: this.nuevo.lat,
+                                lng: this.nuevo.lng,
+                                /*
+                                 * origen 'mapa' aunque el punto haya salido del GPS: lo que
+                                 * importa es que una persona lo VIO en el mapa y lo confirmó,
+                                 * así que no se le mide precisión. El chequeo de precisión
+                                 * existe para atajar un GPS que nadie miró.
+                                 */
+                                origen: 'mapa',
+                            },
+                        )
+                            .then(r => {
+                                if (this.cliente && this.cliente.id === id) {
+                                    this.cliente.ubicacion = r.data.ubicacion;
+                                }
+
+                                this.aviso = 'Domicilio guardado.';
+                                this.cerrarMapaCliente();
+                            })
+                            .catch(e => { this.mapaError = this.mensaje(e, 'No se pudo guardar el domicilio.'); })
+                            .finally(() => { this.cargando = false; });
                     },
 
                     /** El GPS del celular, para cuando se carga al cliente en su puerta. */

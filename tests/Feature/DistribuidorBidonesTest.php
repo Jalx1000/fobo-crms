@@ -601,3 +601,87 @@ it('el GPS sí corrige el domicilio puesto en el mapa', function () {
 
     expect($ubicacion->deCliente($personaId)['fuente'])->toBe(UbicacionCliente::FUENTE_GPS);
 });
+
+// ───────── editar el domicilio sobre el mapa ─────────
+
+it('guarda el domicilio editado en el mapa', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+
+    $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.cliente.ubicacion', $c['person_id']), [
+            'lat'    => $p['lat'],
+            'lng'    => $p['lng'],
+            'origen' => 'mapa',
+        ])
+        ->assertOk()
+        ->assertJsonPath('ubicacion.fuente', UbicacionCliente::FUENTE_MAPA);
+});
+
+it('al punto del mapa no se le mide la precision', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+
+    /*
+     * El chequeo de precisión existe para atajar un GPS que nadie miró. Un punto
+     * confirmado sobre el mapa lo vio una persona, así que no se le aplica: si no,
+     * arrastrar el pin después de un GPS impreciso quedaría bloqueado justamente
+     * cuando se está corrigiendo ese error.
+     */
+    $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.cliente.ubicacion', $c['person_id']), [
+            'lat'       => $p['lat'],
+            'lng'       => $p['lng'],
+            'precision' => 5000,
+            'origen'    => 'mapa',
+        ])
+        ->assertOk();
+
+    expect(app(Ubicacion::class)->deCliente($c['person_id']))->not->toBeNull();
+});
+
+it('sin origen sigue tratandose como GPS', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+
+    // El botón del diálogo de entrega no manda origen: ese camino no puede cambiar
+    // de semántica por haber agregado el parámetro.
+    $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.cliente.ubicacion', $c['person_id']), [
+            'lat'       => $p['lat'],
+            'lng'       => $p['lng'],
+            'precision' => config('distribuidor.zona.precision_maxima') + 1,
+        ])
+        ->assertStatus(422);
+});
+
+it('rechaza un origen inventado', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+
+    $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.cliente.ubicacion', $c['person_id']), [
+            'lat'    => $p['lat'],
+            'lng'    => $p['lng'],
+            'origen' => 'adivinado',
+        ])
+        ->assertStatus(422);
+});
+
+it('editar el domicilio pisa el que ya estaba', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+    $ubicacion = app(Ubicacion::class);
+
+    $ubicacion->guardarGps($c['person_id'], $p['lat'], $p['lng'], null, 10.0);
+
+    $corregido = ['lat' => $p['lat'] + 0.002, 'lng' => $p['lng'] + 0.002];
+
+    $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.cliente.ubicacion', $c['person_id']), $corregido + ['origen' => 'mapa'])
+        ->assertOk();
+
+    // Una fila por cliente: esto es el domicilio, no un historial.
+    expect(DB::table('distribuidor_ubicaciones')->where('person_id', $c['person_id'])->count())->toBe(1)
+        ->and(round($ubicacion->deCliente($c['person_id'])['lat'], 4))->toBe(round($corregido['lat'], 4));
+});

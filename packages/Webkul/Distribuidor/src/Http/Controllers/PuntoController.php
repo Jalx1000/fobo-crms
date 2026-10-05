@@ -654,19 +654,32 @@ class PuntoController extends Controller
              * lo mandan, y es mejor una ubicación sin medida de calidad que ninguna.
              */
             'precision' => 'nullable|numeric|min:0',
+
+            /*
+             * De dónde salió el punto. No es decorativo: al GPS se le mide la
+             * precisión —para distinguir la puerta del cliente de la antena— y a un
+             * punto puesto a mano sobre el mapa no, porque la calidad ya la juzgó la
+             * persona que lo eligió mirando el domicilio.
+             *
+             * Default 'gps' para no romper al botón que ya existía.
+             */
+            'origen' => 'nullable|string|in:gps,mapa',
         ]);
 
         $persona = PersonProxy::modelClass()::findOrFail($id);
 
         $precision = isset($data['precision']) ? (float) $data['precision'] : null;
+        $delMapa = ($data['origen'] ?? 'gps') === 'mapa';
 
-        $guardada = $this->ubicacion->guardarGps(
-            (int) $persona->id,
-            (float) $data['lat'],
-            (float) $data['lng'],
-            null,
-            $precision,
-        );
+        $guardada = $delMapa
+            ? $this->ubicacion->guardarDelMapa((int) $persona->id, (float) $data['lat'], (float) $data['lng'])
+            : $this->ubicacion->guardarGps(
+                (int) $persona->id,
+                (float) $data['lat'],
+                (float) $data['lng'],
+                null,
+                $precision,
+            );
 
         if (! $guardada) {
             /*
@@ -678,13 +691,15 @@ class PuntoController extends Controller
             $maxima = (int) config('distribuidor.zona.precision_maxima');
 
             return response()->json([
-                'message' => $precision !== null
+                'message' => $delMapa
+                    ? 'No se pudo guardar el domicilio.'
+                    : ($precision !== null
                     ? sprintf(
                         'La ubicación llegó con %d m de error y se aceptan hasta %d m. Es la antena y no el GPS: salí a cielo abierto y probá de nuevo.',
                         (int) round($precision),
                         $maxima,
                     )
-                    : 'No se pudo guardar la ubicación.',
+                    : 'No se pudo guardar la ubicación.'),
             ], 422);
         }
 
