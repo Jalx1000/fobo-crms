@@ -178,12 +178,12 @@
                                     Los dos caminos sirven: a veces se carga el cliente ahí
                                     mismo y a veces por teléfono desde el depósito.
                                 --}}
-                                <div class="mb-2 flex items-center justify-between gap-2">
+                                <div class="mb-2 flex flex-col justify-between gap-2">
                                     <span class="text-sm font-medium text-amber-900 dark:text-amber-200">
                                         Domicilio <span class="font-normal">(opcional)</span>
                                     </span>
                                     <button type="button" @click="ubicacionDelGps" :disabled="ubicando"
-                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[44px] shrink-0 rounded-xl border-2 border-brandColor px-3 text-sm font-bold text-brandColor disabled:opacity-40">
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[44px] shrink-0 rounded-xl border-2 border-brandColor py-3 text-sm font-bold text-brandColor disabled:opacity-40">
                                         @{{ ubicando ? 'Tomando…' : 'Estoy acá' }}
                                     </button>
                                 </div>
@@ -407,7 +407,15 @@
                         </ul>
 
                         {{-- El saldo es el número que importa: va grande --}}
-                        <div class="mb-3 grid grid-cols-3 gap-2 rounded-xl bg-gray-50 p-3 dark:bg-gray-800/50">
+                        {{--
+                            Dos columnas en el celular y tres desde sm.
+                        
+                            Con tres a 375px cada celda queda en unos 105px, y un importe de seis
+                            cifras en text-2xl necesita mas del doble: el saldo se partia en dos
+                            lineas en el medio del numero. El saldo pasa a ocupar la fila entera, que
+                            ademas es lo primero que hay que leer.
+                        --}}
+                        <div class="mb-3 grid grid-cols-2 gap-2 rounded-xl bg-gray-50 p-3 dark:bg-gray-800/50 sm:grid-cols-3">
                             <div>
                                 <div class="text-xs uppercase text-gray-600 dark:text-gray-400">Total</div>
                                 <div class="text-lg font-bold text-gray-800 dark:text-gray-200">@{{ money(pe.total) }}</div>
@@ -416,7 +424,7 @@
                                 <div class="text-xs uppercase text-gray-600 dark:text-gray-400">Cobrado</div>
                                 <div class="text-lg font-bold text-emerald-600">@{{ money(pe.cobrado) }}</div>
                             </div>
-                            <div>
+                            <div class="col-span-2 sm:col-span-1">
                                 <div class="text-xs uppercase text-gray-600 dark:text-gray-400">Saldo</div>
                                 <div class="text-2xl font-extrabold" :class="pe.saldo > 0 ? 'text-red-600' : 'text-emerald-600'">
                                     @{{ money(pe.saldo) }}
@@ -627,7 +635,12 @@
                     <div class="mx-auto flex max-w-5xl items-center gap-3">
                         <div class="shrink-0">
                             <div class="text-xs uppercase text-gray-600 dark:text-gray-400">Total</div>
-                            <div class="text-2xl font-extrabold text-gray-900 dark:text-white">@{{ money(total) }}</div>
+                            {{--
+                                text-xl en el celular: el total es shrink-0, asi que cada pixel que ocupa
+                                se lo saca al boton de al lado. Con seis cifras en text-2xl el boton
+                                quedaba por debajo del ancho usable.
+                            --}}
+                            <div class="text-xl font-extrabold text-gray-900 dark:text-white sm:text-2xl">@{{ money(total) }}</div>
                         </div>
                         <button type="button" @click="guardarPedido" :disabled="!puedeGuardar || cargando"
                                 class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] flex-1 rounded-xl bg-brandColor text-xl font-bold text-white disabled:opacity-40">
@@ -846,7 +859,13 @@
 
                             <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Forma de pago</span>
 
-                            <div class="mb-4 grid grid-cols-3 gap-2">
+                            {{--
+                                Apiladas en el celular. En tres columnas cada boton queda en 106px y
+                                "Transferencia" no entra: se partia en dos lineas o desbordaba segun la
+                                fuente del sistema. Tres botones de ancho completo ademas son lo mas
+                                facil de acertar con una mano.
+                            --}}
+                            <div class="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
                                 <button v-for="(label, key) in formasPago" :key="key" type="button"
                                         @click="cobro.method = key"
                                         class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-base font-semibold transition-colors duration-200"

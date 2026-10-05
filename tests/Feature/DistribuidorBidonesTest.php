@@ -763,3 +763,108 @@ it('el mapa se puede marcar sin mouse', function () {
      */
     $this->assertStringContainsString('pinAlCentro', $vista, 'Falta el camino de teclado para marcar el domicilio: ');
 });
+
+/**
+ * El contenido de un <div> desde `desde` hasta su </div> correspondiente.
+ *
+ * Contando apertura y cierre, no por cantidad de caracteres: así el recorte termina
+ * donde termina el bloque y no arrastra lo que viene después.
+ */
+function bloqueDiv(string $html, int $desde): string
+{
+    $profundidad = 1;
+    $i = $desde;
+    $largo = strlen($html);
+
+    while ($i < $largo && $profundidad > 0) {
+        $abre = strpos($html, '<div', $i);
+        $cierra = strpos($html, '</div>', $i);
+
+        if ($cierra === false) {
+            break;
+        }
+
+        if ($abre !== false && $abre < $cierra) {
+            $profundidad++;
+            $i = $abre + 4;
+
+            continue;
+        }
+
+        $profundidad--;
+        $i = $cierra + 6;
+    }
+
+    return substr($html, $desde, $i - $desde);
+}
+
+it('ningun importe queda en una celda angosta en el celular', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    /*
+     * A 375px —el ancho real del celular del distribuidor— una grilla de tres
+     * columnas deja unos 105px por celda, y un importe de seis cifras en text-2xl
+     * necesita más del doble: el número se parte en dos líneas por el medio.
+     *
+     * La regla: una grilla que contenga money() tiene que arrancar en una o dos
+     * columnas y recién ensanchar desde sm. Se valida sobre el CONTENIDO de la
+     * grilla y no sobre la clase sola, porque grid-cols-3 está bien para las
+     * pestañas y para los contadores de bidones, que son palabras cortas y enteros.
+     */
+    preg_match_all('/<div[^>]*class="[^"]*\bgrid-cols-3\b[^"]*"[^>]*>/', $vista, $grids, PREG_OFFSET_CAPTURE);
+
+    foreach ($grids[0] as [$tag, $pos]) {
+        // Es responsive si la clase declara un arranque menor y sube en sm/md/lg.
+        $responsive = (bool) preg_match('/\b(sm|md|lg):grid-cols-/', $tag);
+
+        if ($responsive) {
+            continue;
+        }
+
+        /*
+         * El contenido REAL de la grilla: se avanza contando <div> y </div> hasta
+         * cerrar el bloque. Un recorte por cantidad de caracteres se pasa del cierre y
+         * lee marcado de al lado: la primera versión de este test daba por rota la
+         * grilla de las pestañas porque más abajo, fuera de ella, había un money().
+         */
+        $contenido = bloqueDiv($vista, $pos + mb_strlen($tag));
+
+        $this->assertStringNotContainsString(
+            'money(',
+            $contenido,
+            'Una grilla de 3 columnas sin variante móvil muestra importes; a 375px el número se corta. '
+            .'Usá grid-cols-2 sm:grid-cols-3.'
+        );
+    }
+});
+
+it('las formas de pago no se aprietan en el celular', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    // "Transferencia" en 106px se parte o desborda según la fuente del sistema.
+    $i = strpos($vista, 'v-for="(label, key) in formasPago"');
+
+    expect($i)->not->toBeFalse();
+
+    /*
+     * Se busca la grilla que CONTIENE a los botones, hacia atrás desde el v-for, en vez
+     * de recortar una ventana de N caracteres: un comentario agregado arriba corre el
+     * marcado y la ventana deja de alcanzar, con lo que el test falla por su propio
+     * recorte y no por el código. Pasó en la primera versión.
+     */
+    $antes = substr($vista, 0, $i);
+    $grid = strrpos($antes, '<div class="mb-4 grid');
+
+    expect($grid)->not->toBeFalse('No se encontró la grilla de las formas de pago.');
+
+    $this->assertStringContainsString(
+        'sm:grid-cols-3',
+        substr($antes, $grid, $i - $grid),
+        'Las formas de pago tienen que apilarse en el celular y recién abrirse en sm. '
+        .'En tres columnas a 375px "Transferencia" no entra.'
+    );
+});
