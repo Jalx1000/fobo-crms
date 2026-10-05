@@ -239,7 +239,7 @@
                                         </button>
 
                                         <a :href="cliente.ubicacion.url" target="_blank" rel="noopener"
-                                           class="mt-1 inline-flex items-center gap-1 text-base font-semibold text-brandColor hover:underline">
+                                           class="cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mt-1 inline-flex items-center gap-1 text-base font-semibold text-brandColor hover:underline">
                                             <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z"/></svg>
                                             Abrir en el mapa
                                         </a>
@@ -725,7 +725,7 @@
 
                             {{-- Marcado: se puede abrir para comprobar dónde cayó. --}}
                             <a v-if="entrega.ubicacion" :href="entrega.ubicacion.url" target="_blank" rel="noopener"
-                               class="mb-3 -mt-2 block text-base font-semibold text-brandColor hover:underline">
+                               class="cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-3 -mt-2 block text-base font-semibold text-brandColor hover:underline">
                                 Ver dónde quedó marcado
                             </a>
 
@@ -770,6 +770,22 @@
                             <p v-else class="mb-3 text-sm text-gray-600 dark:text-gray-400">
                                 Tocá el mapa o arrastrá el pin. Si estás en la puerta, usá el GPS.
                             </p>
+
+                            {{--
+                                Poner el pin en el centro del mapa.
+
+                                No es un atajo: es el ÚNICO camino con teclado. Tocar el mapa y
+                                arrastrar el marcador son gestos de mouse o dedo, así que sin
+                                esto un usuario de teclado no podía marcar ningún domicilio
+                                —Leaflet mueve el mapa con las flechas, pero no el pin—.
+                                De paso sirve con el dedo: mover el mapa y tocar un botón grande
+                                es más preciso que acertarle a un punto exacto en la pantalla.
+                            --}}
+                            <button type="button" @click="pinAlCentro"
+                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-2 flex min-h-[56px] w-full items-center justify-center rounded-xl border-2 border-gray-300 text-base font-bold text-gray-700 transition-colors duration-200 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                                <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                                Poner el pin en el centro
+                            </button>
 
                             <button type="button" @click="gpsAlMapa" :disabled="ubicando"
                                     class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-3 flex min-h-[56px] w-full items-center justify-center rounded-xl border-2 border-brandColor text-base font-bold text-brandColor transition-colors duration-200 disabled:opacity-40">
@@ -1568,6 +1584,23 @@
                         // Desmontar siempre: el mapa es el mismo objeto, y si queda vivo el
                         // pin de este cliente reaparece sobre el domicilio del siguiente.
                         this.limpiarMapa();
+                    },
+
+                    /**
+                     * Pone el pin donde está centrado el mapa.
+                     *
+                     * Es el único camino con teclado: tocar el mapa y arrastrar el marcador
+                     * son gestos de puntero, y Leaflet con las flechas mueve el mapa pero no
+                     * el pin. Sin esto, marcar un domicilio era imposible sin mouse.
+                     */
+                    pinAlCentro() {
+                        if (! this.mapa) return;
+
+                        const c = this.mapa.getCenter();
+
+                        // Sin recentrar: el mapa ya está donde el usuario lo dejó, y moverlo
+                        // debajo del dedo justo al confirmar es desorientador.
+                        this.ponerPin(c.lat, c.lng, false);
                     },
 
                     /** Lleva el GPS al pin del mapa, sin guardar todavía. */

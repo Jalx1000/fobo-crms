@@ -713,3 +713,53 @@ it('el domicilio marcado se muestra, no solo se anuncia', function () {
      */
     $this->assertStringContainsString('vistaMapa', $html, 'La vista comparte el objeto del editor: ');
 });
+
+it('todo lo clickeable del punto tiene anillo de foco', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    /*
+     * Sin anillo de foco, con teclado no se ve dónde estás parado: el Punto se usa
+     * sobre todo con el dedo, pero la pantalla también se opera desde una notebook en
+     * el depósito, y ahí un botón sin foco visible es un botón que no se encuentra.
+     *
+     * Se revisa la etiqueta COMPLETA y no la línea: en este archivo la clase va en la
+     * línea siguiente a <button, así que un grep por línea da todo falso positivo.
+     */
+    preg_match_all('/<(button|a)\b((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>/s', $vista, $tags, PREG_SET_ORDER);
+
+    expect(count($tags))->toBeGreaterThan(20);
+
+    $sinFoco = [];
+    $sinMotionReduce = [];
+
+    foreach ($tags as $t) {
+        $attrs = $t[2];
+
+        if (! str_contains($attrs, 'focus:ring') && ! str_contains($attrs, 'focus-visible:ring')) {
+            $sinFoco[] = mb_substr(preg_replace('/\s+/', ' ', $t[0]), 0, 90);
+        }
+
+        // prefers-reduced-motion: una transición sin esto marea a quien lo pidió.
+        if (str_contains($attrs, 'transition') && ! str_contains($attrs, 'motion-reduce')) {
+            $sinMotionReduce[] = mb_substr(preg_replace('/\s+/', ' ', $t[0]), 0, 90);
+        }
+    }
+
+    $this->assertSame([], $sinFoco, 'Elementos interactivos sin anillo de foco.');
+    $this->assertSame([], $sinMotionReduce, 'Transiciones que ignoran prefers-reduced-motion.');
+});
+
+it('el mapa se puede marcar sin mouse', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    /*
+     * Tocar el mapa y arrastrar el marcador son gestos de puntero, y Leaflet con las
+     * flechas mueve el mapa pero NO el pin. Sin un botón que ponga el pin en el centro,
+     * marcar un domicilio era imposible con teclado.
+     */
+    $this->assertStringContainsString('pinAlCentro', $vista, 'Falta el camino de teclado para marcar el domicilio: ');
+});
