@@ -275,22 +275,91 @@ it('guarda el domicilio del cliente con el GPS', function () {
     expect(app(Ubicacion::class)->deCliente($c['person_id'])['lat'])->toBeGreaterThan(-90);
 });
 
-it('rechaza una ubicación fuera de la zona de reparto', function () {
+it('acepta el GPS tomado fuera de la zona de reparto', function () {
     $c = clienteConPedido();
 
     /*
-     * Un GPS sin señal fina devuelve la ubicación de la antena, que puede caer a
-     * cientos de kilómetros. Guardar un domicilio en otra provincia es peor que no
-     * guardar nada, porque después nadie lo cuestiona.
+     * Este test afirmaba lo contrario —que fuera de la zona devolvía 422— y esa regla
+     * estaba mal pensada: reusaba la caja que valida la RECONSTRUCCIÓN de los pines
+     * de WhatsApp, que llegan mutilados de n8n. El GPS del navegador no se
+     * reconstruye, viene bien formado, así que la caja no protegía de nada —cualquier
+     * lectura de un distribuidor parado en Jujuy cae dentro igual— y en cambio
+     * bloqueaba coordenadas válidas al probar la app desde otra provincia o país.
+     *
+     * Queda invertido en vez de borrado para que el cambio de criterio sea visible.
+     * Lo que ahora juzga la calidad del punto es la precisión, no la geografía.
      */
     $this->actingAs(distribuidorDeBidones(), 'user')
         ->postJson(route('admin.distribuidor.cliente.ubicacion', $c['person_id']), [
-            'lat' => 40.7128,   // Nueva York
-            'lng' => -74.0060,
+            'lat' => -17.7545,   // Santa Cruz de la Sierra, fuera de la zona
+            'lng' => -63.1968,
+        ])
+        ->assertOk();
+
+    expect(app(Ubicacion::class)->deCliente($c['person_id']))->not->toBeNull();
+});
+
+it('rechaza una ubicación con demasiado error', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+
+    /*
+     * Lo que de verdad distingue la puerta del cliente de la antena de telefonía: el
+     * GPS enganchado da 5-20 m, una ubicación por wifi o por antena da cientos.
+     */
+    $respuesta = $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.cliente.ubicacion', $c['person_id']), [
+            'lat'       => $p['lat'],
+            'lng'       => $p['lng'],
+            'precision' => config('distribuidor.zona.precision_maxima') + 1,
         ])
         ->assertStatus(422);
 
+    // El mensaje dice el número medido y el aceptado: "probá de nuevo" sin decir qué
+    // estuvo mal manda a repetir la misma acción esperando otro resultado.
+    expect($respuesta->json('message'))->toContain('m de error');
+
     expect(app(Ubicacion::class)->deCliente($c['person_id']))->toBeNull();
+});
+
+it('acepta una ubicación precisa', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+
+    $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.cliente.ubicacion', $c['person_id']), [
+            'lat'       => $p['lat'],
+            'lng'       => $p['lng'],
+            'precision' => 12,
+        ])
+        ->assertOk();
+
+    expect(app(Ubicacion::class)->deCliente($c['person_id']))->not->toBeNull();
+});
+
+it('guarda igual si el navegador no informa la precisión', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+
+    // Mejor una ubicación sin medida de calidad que ninguna.
+    $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.cliente.ubicacion', $c['person_id']), $p)
+        ->assertOk();
+
+    expect(app(Ubicacion::class)->deCliente($c['person_id']))->not->toBeNull();
+});
+
+it('el pin de WhatsApp sí se valida contra la zona', function () {
+    $c = clienteConPedido();
+
+    /*
+     * Acá la caja sí corresponde: el pin llega mutilado de n8n
+     * (latitude24193000longitude65297000) y hay que adivinar dónde va el signo y la
+     * coma. La zona es lo único que distingue una reconstrucción correcta de un punto
+     * cualquiera, así que ese camino conserva la validación que el GPS perdió.
+     */
+    expect(app(Ubicacion::class)->recordarPin($c['person_id'], -17.7545, -63.1968))->toBeFalse()
+        ->and(app(Ubicacion::class)->deCliente($c['person_id']))->toBeNull();
 });
 
 it('el pin de WhatsApp no pisa el GPS tomado en la puerta', function () {

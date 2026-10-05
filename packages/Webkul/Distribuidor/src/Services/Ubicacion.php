@@ -268,14 +268,32 @@ class Ubicacion
     /**
      * Guarda el GPS tomado en la puerta. Pisa cualquier cosa anterior.
      *
-     * Devuelve false si las coordenadas caen fuera de la zona de reparto: un GPS
-     * sin señal fina devuelve la ubicación de la antena, y guardar un domicilio en
-     * otra provincia es peor que no guardar nada, porque después nadie lo
-     * cuestiona.
+     * NO se valida contra la zona de reparto, y es deliberado: esa caja existe para
+     * validar la reconstrucción de los pines de WhatsApp —que llegan mutilados y hay
+     * que adivinar dónde va el signo y la coma—, no para juzgar un GPS. El GPS del
+     * navegador viene bien formado, así que la caja no protegía de nada (cualquier
+     * lectura de un distribuidor parado en Jujuy cae dentro igual) y en cambio
+     * rechazaba coordenadas válidas tomadas desde otra provincia o país.
+     *
+     * Lo que sí se valida es la PRECISIÓN que informa el navegador, que es lo que de
+     * verdad distingue la puerta del cliente de la antena de telefonía: el GPS
+     * enganchado da 5-20 m, una ubicación por wifi o por antena da cientos.
+     *
+     * La precisión es opcional: si el navegador no la informa, se guarda igual. Es
+     * mejor una ubicación sin medida de calidad que ninguna.
      */
-    public function guardarGps(int $personId, float $lat, float $lng, ?int $userId = null): bool
-    {
-        if (! $this->tablaLista() || ! $this->validar($lat, $lng)) {
+    public function guardarGps(
+        int $personId,
+        float $lat,
+        float $lng,
+        ?int $userId = null,
+        ?float $precision = null,
+    ): bool {
+        if (! $this->tablaLista()) {
+            return false;
+        }
+
+        if ($precision !== null && $precision > (float) config('distribuidor.zona.precision_maxima')) {
             return false;
         }
 

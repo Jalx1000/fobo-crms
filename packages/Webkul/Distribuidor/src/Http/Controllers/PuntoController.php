@@ -595,29 +595,47 @@ class PuntoController extends Controller
     public function guardarUbicacionCliente(Request $request, string $id): JsonResponse
     {
         $data = $request->validate([
-            // Los rangos son los del mundo, no los de la zona: el recorte a la zona
-            // de reparto lo hace el servicio, que es quien puede explicar el
-            // rechazo ("estás fuera de la zona") en vez de un error de validación.
+            // Los rangos son los del mundo: no se recorta por geografía. El detalle
+            // de por qué está en Ubicacion::guardarGps().
             'lat' => 'required|numeric|between:-90,90',
             'lng' => 'required|numeric|between:-180,180',
+
+            /*
+             * El error en metros que informa el navegador. Opcional porque no todos
+             * lo mandan, y es mejor una ubicación sin medida de calidad que ninguna.
+             */
+            'precision' => 'nullable|numeric|min:0',
         ]);
 
         $persona = PersonProxy::modelClass()::findOrFail($id);
+
+        $precision = isset($data['precision']) ? (float) $data['precision'] : null;
 
         $guardada = $this->ubicacion->guardarGps(
             (int) $persona->id,
             (float) $data['lat'],
             (float) $data['lng'],
+            null,
+            $precision,
         );
 
         if (! $guardada) {
             /*
-             * 422 y no 500: el pedido está bien formado, lo que está mal es el
-             * punto. Pasa de verdad cuando el GPS no engancha satélites y devuelve
-             * la posición de la antena, que puede caer a cientos de kilómetros.
+             * 422 y no 500: el pedido está bien formado, lo que está mal es la
+             * calidad del punto. El mensaje dice el número medido y el aceptado,
+             * porque "probá de nuevo" sin decir qué estuvo mal manda a repetir la
+             * misma acción esperando otro resultado.
              */
+            $maxima = (int) config('distribuidor.zona.precision_maxima');
+
             return response()->json([
-                'message' => 'Esa ubicación cae fuera de la zona de reparto. Probá de nuevo con el GPS activado y a cielo abierto.',
+                'message' => $precision !== null
+                    ? sprintf(
+                        'La ubicación llegó con %d m de error y se aceptan hasta %d m. Es la antena y no el GPS: salí a cielo abierto y probá de nuevo.',
+                        (int) round($precision),
+                        $maxima,
+                    )
+                    : 'No se pudo guardar la ubicación.',
             ], 422);
         }
 

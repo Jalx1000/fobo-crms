@@ -1243,7 +1243,14 @@
                             pos => {
                                 this.$axios.post(
                                     '{{ url(config('app.admin_path').'/distribuidor/cliente') }}/' + id + '/ubicacion',
-                                    { lat: pos.coords.latitude, lng: pos.coords.longitude },
+                                    {
+                                        lat: pos.coords.latitude,
+                                        lng: pos.coords.longitude,
+                                        // El error en metros que informa el navegador: es lo
+                                        // que distingue la puerta del cliente de la antena de
+                                        // telefonía, y el servidor lo usa para decidir.
+                                        precision: pos.coords.accuracy ?? null,
+                                    },
                                 )
                                     .then(r => {
                                         /*

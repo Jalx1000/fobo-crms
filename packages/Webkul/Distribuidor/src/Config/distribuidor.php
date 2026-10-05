@@ -74,6 +74,27 @@ return [
         | y el mapa abre en el lugar equivocado.
         */
         'sufijo_busqueda' => env('DISTRIBUIDOR_SUFIJO_BUSQUEDA', 'Jujuy, Argentina'),
+
+        /*
+        | Hasta cuántos metros de error se acepta una ubicación tomada con el GPS.
+        |
+        | La caja de arriba NO se le aplica al GPS, y es a propósito. Esa caja existe
+        | para validar la RECONSTRUCCIÓN de los pines de WhatsApp, que llegan
+        | mutilados y hay que adivinar dónde va el signo y la coma: ahí una zona
+        | chica es lo único que distingue una reconstrucción correcta de un punto
+        | cualquiera. El GPS del navegador no se reconstruye, viene bien formado.
+        |
+        | Aplicarle la caja al GPS no protegía de nada —cualquier lectura de un
+        | distribuidor parado en Jujuy cae dentro de la caja igual— y en cambio
+        | rechazaba coordenadas válidas tomadas desde otra provincia o país, que es
+        | lo que pasa al probar la aplicación fuera de la zona de reparto.
+        |
+        | Lo que de verdad distingue "esto es la puerta del cliente" de "esto es la
+        | antena de telefonía" es la PRECISIÓN que informa el navegador, no la
+        | geografía. Un GPS enganchado da 5-20 m; una ubicación por wifi o por antena
+        | da cientos o miles.
+        */
+        'precision_maxima' => (int) env('DISTRIBUIDOR_PRECISION_MAXIMA', 500),
     ],
 
     /*
