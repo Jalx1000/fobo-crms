@@ -16,6 +16,11 @@ Route::controller(PuntoController::class)->prefix('distribuidor')->group(functio
     Route::patch('pedido/{id}/etapa', 'avanzar')->name('admin.distribuidor.pedido.etapa');
     Route::post('pedido/{id}/cobro', 'cobrar')->name('admin.distribuidor.pedido.cobro');
 
+    // Editar los productos de un pedido. PATCH y no PUT: cambia parte del pedido, no
+    // lo reemplaza entero —el cliente, la ciudad y la etapa no se tocan—.
+    Route::patch('pedido/{id}/productos', 'editarProductos')
+        ->name('admin.distribuidor.pedido.productos');
+
     // El domicilio del cliente, tomado con el GPS en la puerta.
     Route::post('cliente/{id}/ubicacion', 'guardarUbicacionCliente')
         ->name('admin.distribuidor.cliente.ubicacion');

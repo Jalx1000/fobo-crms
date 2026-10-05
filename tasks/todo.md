@@ -80,7 +80,7 @@ la ficha del contacto.
 
 ## T3 — Editar un pedido antes de entregarlo
 
-- [ ] **T3.1** Endpoint de edición de productos y cantidades
+- [x] **T3.1** Endpoint de edición de productos y cantidades — **HECHO**
   - Acceptance: cambia líneas y recalcula el total; respeta el alcance por ciudad;
     rechaza editar un pedido ya entregado o cancelado
   - Verify: tests HTTP de los tres casos (edita, 403 de otra ciudad, 422 ya entregado)

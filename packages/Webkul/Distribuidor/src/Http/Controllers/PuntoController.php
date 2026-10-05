@@ -14,6 +14,7 @@ use Webkul\Distribuidor\Services\Alcance;
 use Webkul\Distribuidor\Services\Bidones;
 use Webkul\Distribuidor\Services\Catalogo;
 use Webkul\Distribuidor\Services\PuntoPedido;
+use Webkul\Distribuidor\Services\RegistroDeEdicion;
 use Webkul\Distribuidor\Services\Ubicacion;
 use Webkul\Lead\Models\LeadProxy;
 
@@ -704,6 +705,57 @@ class PuntoController extends Controller
         }
 
         return response()->json(['ubicacion' => $this->ubicacion->deCliente((int) $persona->id)]);
+    }
+
+    /**
+     * Cambia los productos de un pedido, dejando registro de la edición.
+     *
+     * Editable incluso cobrado o entregado, que es lo que pidió el negocio: el agente de
+     * WhatsApp arma pedidos solo, y la corrección real aparece cuando el distribuidor
+     * llega a la puerta y el cliente le dice que pidió otra cosa. Negarlo ahí obliga a
+     * cancelar y recargar, que pierde el historial y el cobro.
+     */
+    public function editarProductos(Request $request, string $id, RegistroDeEdicion $registro): JsonResponse
+    {
+        $data = $request->validate([
+            // La misma forma que al crear: un pedido editado no es un pedido distinto.
+            'productos'              => 'required|array|min:1',
+            'productos.*.product_id' => 'required|integer|exists:products,id',
+            'productos.*.quantity'   => 'required|integer|min:1',
+            'productos.*.price'      => 'required|numeric|min:0',
+        ]);
+
+        $lead = LeadProxy::modelClass()::findOrFail($id);
+
+        abort_if(
+            ! $this->alcance->puedeVerCiudad((int) $lead->lead_pipeline_id),
+            403,
+            'Ese pedido no está en tu alcance.',
+        );
+
+        /*
+         * Un pedido cancelado no se edita: no hay nada que entregar, y editarlo lo
+         * dejaría con líneas nuevas y sin destino. Si hay que vender de nuevo, es un
+         * pedido nuevo.
+         */
+        if (optional($lead->stage)->code === config('distribuidor.etapas.cancelado')) {
+            return response()->json([
+                'message' => 'Ese pedido está cancelado. Si hay que venderle de nuevo, cargá un pedido nuevo.',
+            ], 422);
+        }
+
+        $cobrado = $this->pagos->cobrado((int) $id);
+
+        $cambio = $this->pedidos->editar((int) $id, $data['productos']);
+
+        /*
+         * El registro se guarda SIEMPRE y es la condición que puso el negocio para
+         * permitir editar algo ya cobrado. Va después de aplicar el cambio porque
+         * necesita el estado final.
+         */
+        $registro->guardar((int) $id, $cambio['antes'], $cambio['despues'], $cobrado);
+
+        return response()->json(['pedido' => $this->pedido((int) $id)]);
     }
 
     /**

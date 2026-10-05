@@ -437,9 +437,15 @@
                                 <div class="text-lg font-bold text-emerald-600">@{{ money(pe.cobrado) }}</div>
                             </div>
                             <div class="col-span-2 sm:col-span-1">
-                                <div class="text-xs uppercase text-gray-600 dark:text-gray-400">Saldo</div>
-                                <div class="text-2xl font-extrabold" :class="pe.saldo > 0 ? 'text-red-600' : 'text-emerald-600'">
-                                    @{{ money(pe.saldo) }}
+                                <div class="text-xs uppercase text-gray-600 dark:text-gray-400">@{{ pe.saldo < 0 ? 'A devolver' : 'Saldo' }}</div>
+                                {{--
+                                    Tres estados y no dos. Un saldo NEGATIVO significa que se cobró más de lo que
+                                    el pedido vale ahora —pasa al editar a la baja un pedido ya cobrado— y hay que
+                                    devolverle plata al cliente. Antes el negativo caía en el verde del 'todo en
+                                    orden', que es exactamente lo contrario de lo que pasa.
+                                --}}
+                                <div class="text-2xl font-extrabold" :class="pe.saldo > 0 ? 'text-red-600' : (pe.saldo < 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600')">
+                                    @{{ money(Math.abs(pe.saldo)) }}
                                 </div>
                             </div>
                         </div>

@@ -97,6 +97,88 @@ class PuntoPedido
     }
 
     /**
+     * Cambia los productos de un pedido y devuelve el antes y el despues.
+     *
+     * Se puede editar incluso un pedido ya cobrado o entregado: el agente de WhatsApp
+     * arma pedidos solo, y la correccion real aparece cuando el distribuidor llega a la
+     * puerta y el cliente le dice que pidio otra cosa. Negarlo ahi obliga a cancelar y
+     * recargar, que pierde el historial y el cobro.
+     *
+     * Lo que NO se toca: el cliente, la ciudad y la etapa. Cambiar el cliente de un
+     * pedido no es editarlo, es otro pedido.
+     *
+     * @param  array<int, array{product_id:int, quantity:int, price:float}>  $productos
+     * @return array{antes:array, despues:array}
+     */
+    public function editar(int $leadId, array $productos): array
+    {
+        $lead = LeadProxy::modelClass()::with('products')->findOrFail($leadId);
+
+        $antes = $this->retrato($lead);
+
+        $total = collect($productos)->sum(fn ($p) => (float) $p['price'] * (float) $p['quantity']);
+
+        /*
+         * 🔴 Las CLAVES del array importan, y create() y update() no las interpretan
+         * igual.
+         *
+         * `LeadRepository::create()` recorre los productos ignorando las claves, asi que
+         * una lista plana funciona. `update()` NO: una clave con prefijo `product_` es
+         * una linea nueva que crea, y una clave numerica es el id de un `lead_product`
+         * existente que intenta actualizar. Pasandole la misma lista plana que a crear(),
+         * las claves 0 y 1 se leian como ids y reventaba con
+         * "No query results for model [Lead\Models\Product] 0".
+         *
+         * Se reemplazan TODAS las lineas en vez de actualizar en el lugar: el Punto manda
+         * el pedido completo, no un parche, y asi no hace falta que el navegador conozca
+         * los ids internos de `lead_products`. Las anteriores quedan en
+         * $previousProductIds y el repositorio las borra.
+         */
+        $lineas = [];
+
+        foreach (array_values($productos) as $i => $linea) {
+            $lineas['product_'.$i] = $linea;
+        }
+
+        /*
+         * `entity_type` va por la misma razon que en crear(): el repositorio le pasa este
+         * array a AttributeValueRepository::save(), que sin la clave explota DESPUES de
+         * haber modificado el lead.
+         */
+        $this->leads->update([
+            'entity_type' => 'leads',
+            'lead_value'  => $total,
+            'products'    => $lineas,
+        ], $leadId);
+
+        return [
+            'antes'   => $antes,
+            'despues' => $this->retrato($lead->fresh('products')),
+        ];
+    }
+
+    /**
+     * Las lineas y el total de un pedido, para poder comparar antes y despues.
+     *
+     * Se guarda el NOMBRE y no solo el id: el registro de la edicion tiene que seguir
+     * leyendose dentro de un año, cuando ese producto quizas ya no exista en el
+     * catalogo y un id suelto no le diga nada a nadie.
+     *
+     * @return array{total:float, lineas:array<int, array{nombre:string, cantidad:float, precio:float}>}
+     */
+    protected function retrato($lead): array
+    {
+        return [
+            'total'  => round((float) $lead->lead_value, 2),
+            'lineas' => $lead->products->map(fn ($p) => [
+                'nombre'   => (string) $p->name,
+                'cantidad' => (float) $p->quantity,
+                'precio'   => (float) $p->price,
+            ])->values()->all(),
+        ];
+    }
+
+    /**
      * Mueve el pedido a otra etapa, dentro de su propia ciudad.
      *
      * La etapa se resuelve por CÓDIGO y no por id: cada ciudad tiene su propio
