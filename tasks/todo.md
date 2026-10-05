@@ -37,8 +37,11 @@ misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
   - Verify: test del parseo de la respuesta + test de que un fallo del servicio no
     impide guardar la ubicación
   - Files: `Services/Geocodificador.php` (nuevo), `punto.blade.php`
-  - ⚠️ Decisión pendiente: qué servicio (ver abajo). Precargado y editable, nunca
-    guardado a ciegas: el riesgo real es una altura inventada que nadie cuestiona.
+  - **DECIDIDO**: Nominatim (OpenStreetMap). Sin clave ni costo, y el volumen del
+    Punto es una consulta por contacto nuevo. Si las alturas salen flojas en la
+    practica, cambiar a Google es cambiar una clase.
+  - Precargado y editable, nunca guardado a ciegas: el riesgo real es una altura
+    inventada por el geocodificador que nadie cuestiona.
 
 - [ ] **T1.3** Los dos campos en el Punto, debajo del mapa
   - Acceptance: están en el alta de contacto y en el modal de editar domicilio; se
@@ -57,7 +60,7 @@ misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
 
 ## T2 — Contador de bidones visible en el CRM
 
-- [ ] **T2.1** Exponer el saldo en la ficha del contacto del CRM
+- [x] **T2.1** Exponer el saldo en la ficha del contacto del CRM — **HECHO**
   - Acceptance: al abrir un contacto se ve cuántos bidones tiene sin devolver y desde
     cuándo; un contacto sin movimientos no muestra ruido
   - Verify: test HTTP sobre la vista del contacto
@@ -72,13 +75,8 @@ misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
   - Nota: `pendientesDeDevolucion()` ya existe y hoy se muestra dentro de Caja. Falta
     el apartado propio y presentarlo bien.
 
-- [ ] **T2.3** Pantalla de envases a recuperar en el CRM
-  - Acceptance: lista de clientes con saldo > 0 ordenada por cantidad, acotada por el
-    alcance de ciudad del usuario
-  - Verify: test de que un usuario de Jujuy no ve clientes de otra ciudad
-  - Files: un DataGrid nuevo + ruta + entrada de menú
-  - ⚠️ No arranca hasta que confirmes si hace falta: `pendientesDeDevolucion()` ya
-    existe y hoy se muestra en Caja.
+~~**T2.3** Pantalla de envases a recuperar en el CRM~~ — **DESCARTADA**: alcanza con
+la ficha del contacto.
 
 ## T3 — Editar un pedido antes de entregarlo
 
@@ -87,8 +85,13 @@ misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
     rechaza editar un pedido ya entregado o cancelado
   - Verify: tests HTTP de los tres casos (edita, 403 de otra ciudad, 422 ya entregado)
   - Files: `PuntoController.php`, `Services/PuntoPedido.php`, `Routes/admin.php`
-  - ⚠️ Depende de la pregunta 3: si se permite editar después de cobrar, hace falta
-    decidir qué pasa con la diferencia. **No lo implemento hasta que respondas.**
+  - **DECIDIDO**: se puede editar incluso despues de cobrado y entregado, pero
+    **siempre dejando registro**. El registro va como actividad del lead (la tabla
+    `activities` de Krayin, que ya usa el modulo de WhatsApp para las notas), asi que
+    NO hace falta migracion: queda en la misma linea de tiempo que ya mira el
+    encargado.
+  - Cada edicion guarda: quien, cuando, que lineas cambiaron, y el total antes y
+    despues. Sin el total viejo no se puede auditar un cobro que ya no coincide.
 
 - [ ] **T3.2** UI de edición en la tarjeta del pedido
   - Acceptance: se llega en un toque desde "Para entregar"; se ve el total antes y
@@ -97,28 +100,13 @@ misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
     existen
   - Files: `punto.blade.php`
 
-## T4 — Identidad visual en WhatsApp
+## T4 — Identidad visual en WhatsApp — **CERRADO**
 
-- [ ] **T4.1** Marca de Sensia en la bandeja del CRM
-  - Acceptance: la bandeja muestra el logo en su encabezado; las conversaciones sin
-    foto siguen cayendo en las iniciales de color que ya hay
-  - Verify: aserción sobre la plantilla renderizada
-  - Files: `packages/Webkul/Whatsapp/src/Resources/views/chat.blade.php`
-
-- [x] **T4.2** Foto de perfil del número de WhatsApp — **HECHO**, verificado contra
-      la Graph API (`profile_picture_url` presente)
-
-- [ ] **T4.3** Completar el resto del perfil de negocio
-  - Acceptance: `about`, `description`, `address`, `email`, `websites` y `vertical`
-    cargados. Hoy están todos vacíos y `vertical` es OTHER
-  - Verify: leer `whatsapp_business_profile` y ver los campos
-  - Nota: es lo que el cliente ve al tocar el nombre del negocio en su WhatsApp. La
-    foto sola deja esa ficha vacía.
-
-  - Acceptance: el número muestra el logo de Sensia en el teléfono del cliente
-  - Verify: mirarlo desde un teléfono que le escriba
-  - ⚠️ **No es código**: se carga en Meta Business Manager. Preparo la imagen en el
-    tamaño que pide Meta y te dejo los pasos.
+- [x] Foto de perfil del numero: **cargada**, verificada contra la Graph API
+- ~~Logo en la bandeja del CRM~~ — descartado por el negocio ("olvidalo")
+- ~~Completar about/description/address del perfil~~ — mismo descarte. Queda anotado
+  que esos campos estan vacios, por si mas adelante importa: es lo que el cliente ve
+  al tocar el nombre del negocio.
 
 ## T5 — Mensaje de bienvenida al crear un contacto
 
@@ -127,8 +115,15 @@ misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
 - [ ] **T5.1** Redactar la plantilla y someterla a Meta
   - Acceptance: existe una plantilla aprobada en español para abrir conversación
   - Verify: aparece en el catálogo con estado aprobado
-  - ⚠️ **Acción tuya en Meta.** Hoy la única aprobada es `hello_world` en inglés.
-    Necesito la pregunta 4 respondida para redactarla.
+  - ⚠️ **Accion tuya en Meta.** Hoy la unica aprobada es `hello_world` en ingles.
+  - Texto aprobado por el negocio, categoria **Utility** (no Marketing: es una
+    confirmacion de registro, se aprueba mas rapido y no cuenta contra los limites de
+    marketing):
+
+    > Hola {{1}}! Te damos la bienvenida a Sensia
+    > Ya quedaste registrado. Por este numero podes hacer tus pedidos de agua y
+    > consultar tus entregas.
+    > Gracias por elegirnos!
 
 - [ ] **T5.2** Envío al crear el contacto, detrás de una bandera
   - Acceptance: con la bandera apagada no manda nada; encendida y con plantilla

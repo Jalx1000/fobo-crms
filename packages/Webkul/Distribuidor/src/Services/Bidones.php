@@ -62,6 +62,46 @@ class Bidones
     }
 
     /**
+     * El resumen del cliente para la ficha del CRM.
+     *
+     * Devuelve el saldo y ademas desde cuando: "tiene 3 bidones" sin fecha no dice si
+     * se los dejaron ayer o hace cuatro meses, y esa diferencia es justamente la que
+     * decide si hay que ir a buscarlos.
+     *
+     * @return array{saldo:int, entregados:int, retirados:int, ultimo:?string, movimientos:int}
+     */
+    public function resumenDe(?int $personId): array
+    {
+        $vacio = ['saldo' => 0, 'entregados' => 0, 'retirados' => 0, 'ultimo' => null, 'movimientos' => 0];
+
+        if (! $personId || ! $this->tablaLista()) {
+            return $vacio;
+        }
+
+        $fila = MovimientoBidonesProxy::modelClass()::query()
+            ->where('person_id', $personId)
+            ->selectRaw(
+                'coalesce(sum(entregados), 0) as dejados,'
+                .' coalesce(sum(retirados), 0) as traidos,'
+                .' count(*) as movimientos,'
+                .' max(created_at) as ultimo'
+            )
+            ->first();
+
+        if (! $fila || ! (int) $fila->movimientos) {
+            return $vacio;
+        }
+
+        return [
+            'saldo'       => (int) $fila->dejados - (int) $fila->traidos,
+            'entregados'  => (int) $fila->dejados,
+            'retirados'   => (int) $fila->traidos,
+            'ultimo'      => $fila->ultimo,
+            'movimientos' => (int) $fila->movimientos,
+        ];
+    }
+
+    /**
      * El saldo de varios clientes de una sola consulta.
      *
      * Para las listas del Punto: pedirlo cliente por cliente es un N+1 que se nota

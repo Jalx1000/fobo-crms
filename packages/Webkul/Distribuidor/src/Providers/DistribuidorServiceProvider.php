@@ -3,15 +3,27 @@
 namespace Webkul\Distribuidor\Providers;
 
 use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Webkul\Distribuidor\Http\Middleware\EnsureDistribuidorAccess;
+use Webkul\Distribuidor\Listeners\BidonesEnContacto;
 
 class DistribuidorServiceProvider extends ServiceProvider
 {
     public function boot(Router $router): void
     {
         $this->loadViewsFrom(__DIR__.'/../Resources/views', 'distribuidor');
+
+        /*
+         * La tarjeta de bidones en la ficha del contacto del CRM.
+         *
+         * Por evento de render y no editando el blade del core: ese archivo es de
+         * Krayin y tocarlo deja un conflicto en cada actualización. Además la
+         * dependencia queda apuntando bien —Distribuidor sabe de contactos, Admin no
+         * necesita saber de bidones—.
+         */
+        Event::listen('admin.contact.persons.view.left.after', BidonesEnContacto::class);
 
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 

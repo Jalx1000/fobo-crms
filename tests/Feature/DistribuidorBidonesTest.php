@@ -868,3 +868,80 @@ it('las formas de pago no se aprietan en el celular', function () {
         .'En tres columnas a 375px "Transferencia" no entra.'
     );
 });
+
+// ───────── T2.1: el saldo visible desde el CRM ─────────
+
+it('la ficha del contacto del CRM muestra los bidones', function () {
+    $c = clienteConPedido();
+    app(Bidones::class)->registrar($c['person_id'], $c['lead_id'], 5, 2);
+
+    $html = $this->actingAs(getDefaultAdmin(), 'user')
+        ->get(route('admin.contacts.persons.view', $c['person_id']))
+        ->assertOk()
+        ->getContent();
+
+    /*
+     * El dato existía pero sólo se veía desde el Punto: el encargado que abre la ficha
+     * en el CRM no tenía forma de saber cuántos envases tiene el cliente.
+     */
+    expect($html)->toContain('>Bidones<')
+        ->and($html)->toContain('Entregados')
+        ->and($html)->toContain('Devueltos');
+});
+
+it('no muestra la tarjeta si el cliente nunca movio bidones', function () {
+    $c = clienteConPedido();
+
+    // Una tarjeta que dice "0 bidones" en cada contacto que nunca compró agua es ruido
+    // en una ficha que ya es larga.
+    $html = $this->actingAs(getDefaultAdmin(), 'user')
+        ->get(route('admin.contacts.persons.view', $c['person_id']))
+        ->assertOk()
+        ->getContent();
+
+    expect($html)->not->toContain('>Bidones<');
+});
+
+it('el resumen trae el saldo y desde cuando', function () {
+    $c = clienteConPedido();
+    app(Bidones::class)->registrar($c['person_id'], $c['lead_id'], 4, 1);
+
+    $r = app(Bidones::class)->resumenDe($c['person_id']);
+
+    expect($r['saldo'])->toBe(3)
+        ->and($r['entregados'])->toBe(4)
+        ->and($r['retirados'])->toBe(1)
+        ->and($r['movimientos'])->toBe(1)
+        // Sin fecha, "tiene 3 bidones" no dice si se los dejaron ayer o hace meses.
+        ->and($r['ultimo'])->not->toBeNull();
+});
+
+it('el resumen de un cliente sin movimientos no inventa datos', function () {
+    $c = clienteConPedido();
+
+    expect(app(Bidones::class)->resumenDe($c['person_id']))
+        ->toBe(['saldo' => 0, 'entregados' => 0, 'retirados' => 0, 'ultimo' => null, 'movimientos' => 0]);
+});
+
+it('la tarjeta se engancha por evento y no editando el blade del core', function () {
+    $core = file_get_contents(
+        base_path('packages/Webkul/Admin/src/Resources/views/contacts/persons/view.blade.php')
+    );
+
+    /*
+     * Ese blade es de Krayin. Si la tarjeta se agregara editándolo, cada actualización
+     * dejaría un conflicto, y el día que alguien lo resuelva mal la tarjeta desaparece
+     * sin que nadie se entere. Va por el evento de render que la ficha ya dispara.
+     */
+    $this->assertStringNotContainsString(
+        'distribuidor::',
+        $core,
+        'La ficha del core referencia al módulo Distribuidor: eso se rompe en la próxima actualización de Krayin.'
+    );
+
+    $this->assertStringContainsString(
+        'admin.contact.persons.view.left.after',
+        $core,
+        'Desapareció el evento de render del que depende la tarjeta de bidones: '
+    );
+});
