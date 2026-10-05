@@ -541,6 +541,9 @@ class PuntoController extends Controller
             'id'         => (int) $lead->id,
             'title'      => $lead->title,
             'cliente'    => $lead->person?->name,
+            // Para marcar el domicilio con el GPS desde el diálogo de entrega: el
+            // domicilio es del cliente, no del pedido.
+            'person_id'  => $lead->person_id ? (int) $lead->person_id : null,
             'telefono'   => $this->telefonoDe($lead->person),
             'ciudad_id'  => (int) $lead->lead_pipeline_id,
             'etapa'      => optional($lead->stage)->name,

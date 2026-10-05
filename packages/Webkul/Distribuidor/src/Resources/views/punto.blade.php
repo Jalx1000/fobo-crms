@@ -652,6 +652,20 @@
                                 <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.9 47.9 0 0 0-1.134-.175a2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0a2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>@{{ entrega.preview ? 'Sacar otra foto' : 'Sacar la foto' }}
                             </button>
 
+                            {{--
+                                Marcar el domicilio acá y no sólo en la pestaña de pedido
+                                nuevo: entregar es el único momento en que el teléfono está
+                                de verdad en la puerta del cliente, y un distribuidor que
+                                reparte un pedido ya cargado nunca pasa por esa pestaña.
+                            --}}
+                            <button v-if="entrega.pedido.person_id" type="button"
+                                    @click="marcarUbicacion(entrega.pedido.person_id)"
+                                    :disabled="ubicando || entrega.ubicacionMarcada"
+                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-3 flex min-h-[56px] w-full items-center justify-center rounded-xl border-2 border-gray-300 text-base font-bold text-gray-700 transition-colors duration-200 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                                <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+                                @{{ entrega.ubicacionMarcada ? 'Domicilio marcado' : (ubicando ? 'Tomando ubicación…' : 'Marcar este domicilio') }}
+                            </button>
+
                             <div class="grid grid-cols-2 gap-2">
                                 <button type="button" @click="cancelarEntrega"
                                         class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
@@ -775,7 +789,7 @@
                         cobro: { pedido: null, method: 'efectivo' },
                         // dejo/retiro arrancan vacíos y no en 0: un 0 precargado se
                         // confirma sin leerlo, y entonces el control no sirve de nada.
-                        entrega: { pedido: null, archivo: null, preview: null, dejo: '', retiro: '' },
+                        entrega: { pedido: null, archivo: null, preview: null, dejo: '', retiro: '', ubicacionMarcada: false },
                         ubicando: false,
                         cargando: false,
                         aviso: null,
@@ -1179,8 +1193,13 @@
                      * timeout corto devuelve justamente la posición imprecisa que se
                      * quiere evitar.
                      */
-                    marcarUbicacion() {
-                        if (! this.cliente) return;
+                    marcarUbicacion(personId = null) {
+                        // El id puede venir del diálogo de entrega o de la ficha del
+                        // cliente. Se pasa explícito para no depender de cuál de las dos
+                        // pantallas esté abierta.
+                        const id = personId ?? this.cliente?.id;
+
+                        if (! id) return;
 
                         if (! navigator.geolocation) {
                             this.aviso = 'Este teléfono no permite tomar la ubicación.';
@@ -1193,11 +1212,25 @@
                         navigator.geolocation.getCurrentPosition(
                             pos => {
                                 this.$axios.post(
-                                    '{{ url(config('app.admin_path').'/distribuidor/cliente') }}/' + this.cliente.id + '/ubicacion',
+                                    '{{ url(config('app.admin_path').'/distribuidor/cliente') }}/' + id + '/ubicacion',
                                     { lat: pos.coords.latitude, lng: pos.coords.longitude },
                                 )
                                     .then(r => {
-                                        this.cliente.ubicacion = r.data.ubicacion;
+                                        /*
+                                         * Las dos pantallas guardan formas distintas: la ficha
+                                         * del cliente trae la ubicación del CLIENTE y la tarjeta
+                                         * del pedido la del PEDIDO, con referencia y modo. Se
+                                         * actualiza cada una con lo suyo en vez de cruzarlas, que
+                                         * dejaría la tarjeta sin los campos que usa para dibujar.
+                                         */
+                                        if (this.cliente && this.cliente.id === id) {
+                                            this.cliente.ubicacion = r.data.ubicacion;
+                                        }
+
+                                        if (this.entrega.pedido && this.entrega.pedido.person_id === id) {
+                                            this.entrega.ubicacionMarcada = true;
+                                        }
+
                                         this.aviso = 'Domicilio marcado.';
                                     })
                                     .catch(e => { this.aviso = this.mensaje(e, 'No se pudo guardar el domicilio.'); })
@@ -1217,7 +1250,7 @@
 
                     cancelarEntrega() {
                         if (this.entrega.preview) URL.revokeObjectURL(this.entrega.preview);
-                        this.entrega = { pedido: null, archivo: null, preview: null, dejo: '', retiro: '' };
+                        this.entrega = { pedido: null, archivo: null, preview: null, dejo: '', retiro: '', ubicacionMarcada: false };
                     },
 
                     confirmarEntrega() {

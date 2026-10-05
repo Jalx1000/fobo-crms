@@ -342,3 +342,38 @@ it('el domicilio guardado le gana al texto del pedido', function () {
         ->and($resuelta['modo'])->toBe('pin')
         ->and($resuelta['lat'])->not->toBeNull();
 });
+
+it('el pedido expone lo que el dialogo de entrega necesita', function () {
+    $c = clienteConPedido();
+    app(Bidones::class)->registrar($c['person_id'], $c['lead_id'], 2, 0);
+
+    // "pendientes" lista sólo los confirmados, que es lo que el distribuidor ve en
+    // "Para entregar": el pedido tiene que estar en esa etapa para aparecer.
+    $confirmado = (int) DB::table('lead_pipeline_stages')
+        ->where('lead_pipeline_id', $c['pipeline_id'])
+        ->where('code', config('distribuidor.etapas.confirmado'))
+        ->value('id');
+
+    if (! $confirmado) {
+        $this->markTestSkipped('El pipeline no tiene la etapa de pedido confirmado.');
+    }
+
+    DB::table('leads')->where('id', $c['lead_id'])->update(['lead_pipeline_stage_id' => $confirmado]);
+
+    $pedido = $this->actingAs(distribuidorDeBidones(), 'user')
+        ->getJson(route('admin.distribuidor.pedidos', ['ciudad' => $c['pipeline_id'], 'filtro' => 'pendientes']))
+        ->assertOk()
+        ->json('pedidos');
+
+    $fila = collect($pedido)->firstWhere('id', $c['lead_id']);
+
+    /*
+     * person_id y bidones los consume el diálogo de entrega: con el primero marca
+     * el domicilio con el GPS —entregar es el único momento en que el teléfono está
+     * en la puerta— y con el segundo muestra cuántos envases tenía. Si alguien los
+     * saca del payload, el botón de GPS desaparece sin ningún error.
+     */
+    expect($fila)->not->toBeNull()
+        ->and($fila['person_id'])->toBe($c['person_id'])
+        ->and($fila['bidones'])->toBe(2);
+});
