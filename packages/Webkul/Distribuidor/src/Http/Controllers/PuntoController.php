@@ -50,6 +50,18 @@ class PuntoController extends Controller
              * restringido no ve las sucursales ajenas.
              */
             'sucursales' => $this->alcance->sucursales(),
+
+            /*
+             * El centro del mapa: el medio de la zona de reparto configurada, no una
+             * coordenada escrita a mano. Así una instalación en otra provincia abre el
+             * mapa donde trabaja con sólo cambiar la zona, en vez de mostrar el mapa
+             * de otra ciudad hasta que alguien se acuerde de tocar el código.
+             */
+            'mapaCentro' => [
+                'lat'  => (float) ((config('distribuidor.zona.lat_min') + config('distribuidor.zona.lat_max')) / 2),
+                'lng'  => (float) ((config('distribuidor.zona.lng_min') + config('distribuidor.zona.lng_max')) / 2),
+                'zoom' => 11,
+            ],
             'formasPago' => config('distribuidor.formas_de_pago'),
         ]);
     }
@@ -99,11 +111,48 @@ class PuntoController extends Controller
         $data = $request->validate([
             'telefono' => 'required|string|min:7|max:32',
             'nombre'   => 'required|string|max:255',
+
+            /*
+             * El domicilio y los bidones se cargan JUNTO con el contacto y no en una
+             * pantalla aparte: son los dos datos que el distribuidor tiene a mano
+             * justo cuando está conociendo al cliente, y pedirlos después significa
+             * que no se cargan nunca.
+             *
+             * Los dos opcionales: un contacto se puede crear por teléfono sin saber
+             * todavía dónde vive ni cuántos envases tiene.
+             */
+            'lat'     => 'nullable|numeric|between:-90,90',
+            'lng'     => 'nullable|numeric|between:-180,180',
+            // lng es obligatoria si vino lat: media coordenada no ubica nada.
+            'bidones' => 'nullable|integer|min:0',
         ]);
 
+        if (isset($data['lat']) !== isset($data['lng'])) {
+            return response()->json([
+                'message' => 'La ubicación necesita latitud y longitud.',
+            ], 422);
+        }
+
         $r = $this->pedidos->contacto($data['telefono'], $data['nombre']);
+        $personId = (int) $r['persona']->id;
+
+        if (isset($data['lat'], $data['lng'])) {
+            $this->ubicacion->guardarDelMapa($personId, (float) $data['lat'], (float) $data['lng']);
+        }
+
+        /*
+         * Los bidones iniciales entran como "entregados" porque el saldo se calcula
+         * sumando movimientos y es la única forma de que dé positivo. No es que se
+         * los hayamos entregado hoy: es el saldo de arranque, los envases que el
+         * cliente ya tenía antes de que existiera el control.
+         */
+        if (! empty($data['bidones'])) {
+            $this->bidones->registrar($personId, null, (int) $data['bidones'], 0);
+        }
 
         return response()->json([
+            // Se devuelve la persona YA con su saldo y su domicilio, para que la
+            // pantalla no tenga que volver a pedirlos.
             'persona' => $this->persona($r['persona']),
             'creada'  => $r['creada'],
         ]);

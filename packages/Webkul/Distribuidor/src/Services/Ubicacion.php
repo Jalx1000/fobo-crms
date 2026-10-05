@@ -311,9 +311,35 @@ class Ubicacion
     }
 
     /**
-     * Guarda el pin de WhatsApp, pero NUNCA encima de un GPS.
+     * Guarda un punto elegido a mano sobre el mapa.
      *
-     * El pin es mejor que nada y peor que el GPS de la puerta. Sin esta regla, un
+     * No se le mide precisión: la puso una persona mirando el domicilio, así que la
+     * calidad la juzgó ella. Tampoco se recorta por zona, por lo mismo que el GPS —el
+     * detalle está en guardarGps().
+     */
+    public function guardarDelMapa(int $personId, float $lat, float $lng, ?int $userId = null): bool
+    {
+        if (! $this->tablaLista()) {
+            return false;
+        }
+
+        UbicacionClienteProxy::modelClass()::updateOrCreate(
+            ['person_id' => $personId],
+            [
+                'lat'     => $lat,
+                'lng'     => $lng,
+                'fuente'  => UbicacionCliente::FUENTE_MAPA,
+                'user_id' => $userId ?? auth()->guard('user')->id(),
+            ],
+        );
+
+        return true;
+    }
+
+    /**
+     * Guarda el pin de WhatsApp, pero NUNCA encima de algo puesto a mano.
+     *
+     * El pin es mejor que nada y peor que lo que puso una persona. Sin esta regla, un
      * cliente que manda su ubicación desde el trabajo borraría el domicilio que el
      * distribuidor marcó bien, y el error aparecería recién en el próximo reparto.
      */
@@ -340,7 +366,9 @@ class Ubicacion
 
         $actual = UbicacionClienteProxy::modelClass()::query()->where('person_id', $personId)->first();
 
-        if ($actual && $actual->fuente === UbicacionCliente::FUENTE_GPS) {
+        // No pisa nada que haya puesto una persona a propósito: ni el GPS de la
+        // puerta ni el punto elegido a mano en el mapa.
+        if ($actual && in_array($actual->fuente, UbicacionCliente::fuentesHumanas(), true)) {
             return false;
         }
 

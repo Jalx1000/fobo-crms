@@ -21,6 +21,7 @@
     --}}
     <v-punto
         :sucursales='@json($sucursales)'
+        :mapa-centro='@json($mapaCentro)'
         :formas-pago='@json($formasPago)'
         productos-url="{{ route('admin.distribuidor.productos') }}"
         pedidos-url="{{ route('admin.distribuidor.pedidos') }}"
@@ -158,6 +159,43 @@
                                 </label>
                                 <input id="punto-nombre" v-model="nombre" type="text" placeholder="Nombre y apellido"
                                        class="mb-2 min-h-[64px] w-full rounded-xl border-2 border-gray-300 px-4 text-xl focus:border-brandColor focus:outline-none focus:ring-2 focus:ring-brandColor dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                {{--
+                                    Los bidones que el cliente YA tiene. Se pide al cargarlo
+                                    porque es el único momento en que alguien lo sabe: después
+                                    nadie va a abrir una pantalla aparte a completarlo, y el
+                                    saldo arranca mal para siempre.
+                                --}}
+                                <label for="punto-bidones" class="mb-1 block text-sm font-medium text-amber-900 dark:text-amber-200">
+                                    Bidones que ya tiene <span class="font-normal">(opcional)</span>
+                                </label>
+                                <input id="punto-bidones" v-model="nuevo.bidones" type="number" min="0" step="1"
+                                       inputmode="numeric" placeholder="0"
+                                       class="mb-2 min-h-[64px] w-full rounded-xl border-2 border-gray-300 px-4 text-xl focus:border-brandColor focus:outline-none focus:ring-2 focus:ring-brandColor dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+
+                                {{--
+                                    El domicilio sobre el mapa. Se toca el mapa para poner el
+                                    pin, o se usa el GPS si el distribuidor está en la puerta.
+                                    Los dos caminos sirven: a veces se carga el cliente ahí
+                                    mismo y a veces por teléfono desde el depósito.
+                                --}}
+                                <div class="mb-2 flex items-center justify-between gap-2">
+                                    <span class="text-sm font-medium text-amber-900 dark:text-amber-200">
+                                        Domicilio <span class="font-normal">(opcional)</span>
+                                    </span>
+                                    <button type="button" @click="ubicacionDelGps" :disabled="ubicando"
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[44px] shrink-0 rounded-xl border-2 border-brandColor px-3 text-sm font-bold text-brandColor disabled:opacity-40">
+                                        @{{ ubicando ? 'Tomando…' : 'Estoy acá' }}
+                                    </button>
+                                </div>
+
+                                <div ref="mapaNuevo" class="mb-1 h-56 w-full overflow-hidden rounded-xl border-2 border-gray-300 bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
+                                     role="application" aria-label="Mapa para marcar el domicilio del cliente"></div>
+
+                                <p v-if="mapaError" class="mb-2 text-base text-red-700 dark:text-red-400">@{{ mapaError }}</p>
+                                <p v-else class="mb-2 text-sm text-amber-800 dark:text-amber-300">
+                                    @{{ nuevo.lat ? 'Domicilio marcado. Tocá el mapa para corregirlo.' : 'Tocá el mapa donde vive el cliente.' }}
+                                </p>
+
                                 <button type="button" @click="crearCliente" :disabled="cargando || !nombre.trim()"
                                         class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] w-full rounded-xl bg-emerald-600 text-lg font-bold text-white disabled:opacity-50">
                                     Crear contacto
@@ -753,6 +791,7 @@
 
                 props: {
                     sucursales: { type: Array, default: () => [] },
+                    mapaCentro: { type: Object, default: () => ({ lat: -24.19, lng: -65.3, zoom: 11 }) },
                     formasPago: { type: Object, default: () => ({}) },
                     productosUrl: { type: String, default: '' },
                     pedidosUrl: { type: String, default: '' },
@@ -792,12 +831,23 @@
                         // confirma sin leerlo, y entonces el control no sirve de nada.
                         entrega: { pedido: null, archivo: null, preview: null, dejo: '', retiro: '', ubicacionMarcada: false },
                         ubicando: false,
+                        // El contacto que se está creando: domicilio y envases iniciales.
+                        nuevo: { bidones: '', lat: null, lng: null },
+                        mapaError: null,
+                        mapa: null,
+                        pin: null,
+                        leafletPromise: null,
                         cargando: false,
                         aviso: null,
                     };
                 },
 
                 computed: {
+                    /** Si está visible el formulario de contacto nuevo. */
+                    mostrarFormularioNuevo() {
+                        return ! this.cliente && this.buscado && ! this.encontrado;
+                    },
+
                     /*
                      * Cuántos bidones le quedan al cliente si se confirma así.
                      *
@@ -879,6 +929,18 @@
                 beforeUnmount() {
                     // Sin esto el listener sobrevive al componente y se acumula.
                     if (this.alEscape) window.removeEventListener('keydown', this.alEscape);
+                },
+
+                watch: {
+                    /*
+                     * El mapa se monta cuando el formulario APARECE y no al cargar la
+                     * pantalla: Leaflet mide el contenedor al crearse, y sobre un div que
+                     * todavía está oculto lo mide en 0px y el mapa queda en blanco. Además
+                     * así no se pide un solo tile mientras nadie esté cargando un contacto.
+                     */
+                    mostrarFormularioNuevo(visible) {
+                        if (visible) this.$nextTick(() => this.montarMapa());
+                    },
                 },
 
                 methods: {
@@ -1018,8 +1080,20 @@
                     crearCliente() {
                         this.cargando = true;
 
-                        this.$axios.post(this.guardarContactoUrl, { telefono: this.telefono, nombre: this.nombre })
-                            .then(r => { this.cliente = r.data.persona; })
+                        this.$axios.post(this.guardarContactoUrl, {
+                            telefono: this.telefono,
+                            nombre: this.nombre,
+                            // El domicilio y los envases viajan con el alta: el contacto
+                            // todavía no existe, así que no hay a quién adjuntarlos después.
+                            lat: this.nuevo.lat,
+                            lng: this.nuevo.lng,
+                            bidones: this.enteroDe(this.nuevo.bidones) || null,
+                        })
+                            .then(r => {
+                                this.cliente = r.data.persona;
+                                this.nuevo = { bidones: '', lat: null, lng: null };
+                                this.limpiarMapa();
+                            })
                             .catch(e => { this.aviso = this.mensaje(e, 'No se pudo crear el contacto.'); })
                             .finally(() => { this.cargando = false; });
                     },
@@ -1029,6 +1103,10 @@
                         this.buscado = false;
                         this.encontrado = false;
                         this.nombre = '';
+                        // El domicilio y los envases son del cliente que se descartó: dejarlos
+                        // se los adjudicaría al siguiente.
+                        this.nuevo = { bidones: '', lat: null, lng: null };
+                        this.limpiarMapa();
                     },
 
                     guardarPedido() {
@@ -1193,6 +1271,137 @@
 
                             img.src = url;
                         });
+                    },
+
+                    /*
+                     * Leaflet desde el CDN, una sola vez por página.
+                     *
+                     * Diferido y no en el bundle: el mapa lo usa una pantalla de las tres, y
+                     * el distribuidor abre el Punto desde la calle con datos móviles. Cargar
+                     * la librería y su CSS sólo cuando hacen falta es la diferencia entre que
+                     * la pantalla abra rápido o no.
+                     */
+                    cargarLeaflet() {
+                        if (window.L) return Promise.resolve();
+                        if (this.leafletPromise) return this.leafletPromise;
+
+                        this.leafletPromise = new Promise((resolve, reject) => {
+                            const css = document.createElement('link');
+                            css.rel = 'stylesheet';
+                            css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                            document.head.appendChild(css);
+
+                            const js = document.createElement('script');
+                            js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                            js.onload = resolve;
+                            js.onerror = () => reject(new Error('No se pudo cargar el mapa. Revisá la conexión.'));
+                            document.head.appendChild(js);
+                        });
+
+                        return this.leafletPromise;
+                    },
+
+                    montarMapa() {
+                        this.cargarLeaflet()
+                            .then(() => {
+                                const caja = this.$refs.mapaNuevo;
+
+                                if (! caja) return;
+
+                                if (this.mapa) {
+                                    // Reabierto: Leaflet lo midió mientras estaba oculto y
+                                    // cree que mide 0px de alto.
+                                    this.$nextTick(() => this.mapa.invalidateSize());
+
+                                    return;
+                                }
+
+                                this.mapa = window.L.map(caja)
+                                    .setView([this.mapaCentro.lat, this.mapaCentro.lng], this.mapaCentro.zoom);
+
+                                window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                    attribution: '© OpenStreetMap',
+                                    maxZoom: 19,
+                                }).addTo(this.mapa);
+
+                                this.mapa.on('click', e => this.ponerPin(e.latlng.lat, e.latlng.lng, false));
+
+                                this.$nextTick(() => this.mapa.invalidateSize());
+                            })
+                            .catch(e => { this.mapaError = e.message; });
+                    },
+
+                    /** Pone (o mueve) el pin del domicilio y guarda la coordenada. */
+                    ponerPin(lat, lng, centrar = true) {
+                        this.nuevo.lat = lat;
+                        this.nuevo.lng = lng;
+
+                        if (! this.mapa) return;
+
+                        if (! this.pin) {
+                            this.pin = window.L.marker([lat, lng], { draggable: true }).addTo(this.mapa);
+                            // Arrastrable además de tocable: corregir 20 metros con el dedo es
+                            // más preciso que volver a tocar el punto exacto.
+                            this.pin.on('dragend', () => {
+                                const p = this.pin.getLatLng();
+                                this.nuevo.lat = p.lat;
+                                this.nuevo.lng = p.lng;
+                            });
+                        } else {
+                            this.pin.setLatLng([lat, lng]);
+                        }
+
+                        if (centrar) this.mapa.setView([lat, lng], Math.max(this.mapa.getZoom(), 16));
+                    },
+
+                    /** El GPS del celular, para cuando se carga al cliente en su puerta. */
+                    ubicacionDelGps() {
+                        if (! navigator.geolocation) {
+                            this.mapaError = 'Este teléfono no permite tomar la ubicación.';
+
+                            return;
+                        }
+
+                        this.ubicando = true;
+                        this.mapaError = null;
+
+                        navigator.geolocation.getCurrentPosition(
+                            pos => {
+                                this.ubicando = false;
+                                // Va al mapa y no directo al servidor: acá el contacto todavía
+                                // no existe, así que el punto viaja junto con el alta.
+                                this.ponerPin(pos.coords.latitude, pos.coords.longitude);
+                            },
+                            err => {
+                                this.ubicando = false;
+                                this.mapaError = err.code === err.PERMISSION_DENIED
+                                    ? 'Tenés que permitir el acceso a la ubicación en el navegador.'
+                                    : 'No se pudo tomar la ubicación. Probá a cielo abierto o tocá el mapa.';
+                            },
+                            { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+                        );
+                    },
+
+                    /*
+                     * Desmonta el mapa al cerrar el formulario.
+                     *
+                     * Sin esto, el pin del cliente anterior reaparece sobre el domicilio del
+                     * siguiente: el mapa es el mismo objeto y Leaflet no sabe que cambió el
+                     * cliente. Un domicilio heredado del contacto de antes es el peor de los
+                     * errores posibles acá, porque nadie lo cuestiona.
+                     */
+                    limpiarMapa() {
+                        if (this.pin) {
+                            this.pin.remove();
+                            this.pin = null;
+                        }
+
+                        if (this.mapa) {
+                            this.mapa.remove();
+                            this.mapa = null;
+                        }
+
+                        this.mapaError = null;
                     },
 
                     /** Un entero no negativo a partir de lo que haya en la caja. */

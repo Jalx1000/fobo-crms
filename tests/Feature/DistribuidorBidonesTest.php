@@ -481,3 +481,123 @@ it('ningun handler del punto pasa el evento donde va un id', function () {
         );
     }
 });
+
+// ───────── alta de contacto con domicilio y envases iniciales ─────────
+
+/** Un teléfono que no existe en la base. */
+function telefonoNuevo(): string
+{
+    return '549388'.random_int(1000000, 9999999);
+}
+
+it('crea el contacto con su domicilio y sus bidones', function () {
+    $p = puntoEnZona();
+    $telefono = telefonoNuevo();
+
+    $persona = $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => $telefono,
+            'nombre'   => 'Cliente nuevo '.uniqid(),
+            'lat'      => $p['lat'],
+            'lng'      => $p['lng'],
+            'bidones'  => 3,
+        ])
+        ->assertOk()
+        ->json('persona');
+
+    /*
+     * Los dos datos se cargan JUNTO con el contacto y no en una pantalla aparte:
+     * son los que el distribuidor tiene a mano justo cuando conoce al cliente, y
+     * pedirlos después significa que no se cargan nunca.
+     */
+    expect($persona['bidones'])->toBe(3)
+        ->and($persona['ubicacion'])->not->toBeNull()
+        ->and($persona['ubicacion']['fuente'])->toBe(UbicacionCliente::FUENTE_MAPA);
+});
+
+it('crea el contacto sin domicilio ni bidones', function () {
+    // Un contacto se puede dar de alta por teléfono sin saber todavía dónde vive.
+    $persona = $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => telefonoNuevo(),
+            'nombre'   => 'Cliente sin datos '.uniqid(),
+        ])
+        ->assertOk()
+        ->json('persona');
+
+    expect($persona['bidones'])->toBe(0)
+        ->and($persona['ubicacion'])->toBeNull();
+});
+
+it('rechaza media coordenada', function () {
+    $p = puntoEnZona();
+
+    // Sólo latitud no ubica nada, y guardarla a medias dejaría un domicilio inválido
+    // que después nadie revisa.
+    $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => telefonoNuevo(),
+            'nombre'   => 'Cliente medio '.uniqid(),
+            'lat'      => $p['lat'],
+        ])
+        ->assertStatus(422);
+});
+
+it('el domicilio del alta acepta coordenadas de cualquier lugar', function () {
+    // Mismo criterio que el GPS: la caja de zona es para reconstruir pines, no para
+    // juzgar un punto que una persona eligió mirando el mapa.
+    $persona = $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => telefonoNuevo(),
+            'nombre'   => 'Cliente lejos '.uniqid(),
+            'lat'      => -17.7545,
+            'lng'      => -63.1968,
+        ])
+        ->assertOk()
+        ->json('persona');
+
+    expect($persona['ubicacion'])->not->toBeNull();
+});
+
+it('el pin de WhatsApp no pisa el domicilio puesto en el mapa', function () {
+    $p = puntoEnZona();
+    $ubicacion = app(Ubicacion::class);
+
+    $personaId = (int) $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => telefonoNuevo(),
+            'nombre'   => 'Cliente mapa '.uniqid(),
+            'lat'      => $p['lat'],
+            'lng'      => $p['lng'],
+        ])
+        ->assertOk()
+        ->json('persona.id');
+
+    /*
+     * El punto del mapa lo eligió una persona mirando el domicilio, así que vale
+     * tanto como el GPS de la puerta: un pin que el cliente manda desde el trabajo
+     * no puede borrarlo.
+     */
+    expect($ubicacion->recordarPin($personaId, $p['lat'] + 0.01, $p['lng'] + 0.01))->toBeFalse()
+        ->and($ubicacion->deCliente($personaId)['fuente'])->toBe(UbicacionCliente::FUENTE_MAPA);
+});
+
+it('el GPS sí corrige el domicilio puesto en el mapa', function () {
+    $p = puntoEnZona();
+    $ubicacion = app(Ubicacion::class);
+
+    $personaId = (int) $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono' => telefonoNuevo(),
+            'nombre'   => 'Cliente corregible '.uniqid(),
+            'lat'      => $p['lat'],
+            'lng'      => $p['lng'],
+        ])
+        ->assertOk()
+        ->json('persona.id');
+
+    // Estando en la puerta, el GPS es más preciso que el dedo sobre el mapa.
+    $ubicacion->guardarGps($personaId, $p['lat'] + 0.001, $p['lng'], null, 10.0);
+
+    expect($ubicacion->deCliente($personaId)['fuente'])->toBe(UbicacionCliente::FUENTE_GPS);
+});
