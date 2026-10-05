@@ -137,6 +137,18 @@
                     <x-admin::spinner /> <span>Cargando conversación…</span>
                 </div>
 
+<!--
+                    Un error del hilo va ANTES de "sin mensajes": las dos
+                    situaciones se veían igual, y "Sin mensajes todavía" sobre una
+                    conversación que no se pudo cargar es una mentira que manda al
+                    asesor a escribirle al cliente creyendo que el historial está
+                    vacío.
+                -->
+                <div v-else-if="threadError" class="m-auto max-w-xs text-center">
+                    <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">No se pudo abrir la conversación</div>
+                    <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">@{{ threadError }}</div>
+                </div>
+
                 <div v-else-if="!messages.length" class="m-auto text-sm text-gray-500 dark:text-gray-400">
                     Sin mensajes todavía.
                 </div>
@@ -1412,6 +1424,7 @@
                     messages: [],
                     draft: '',
                     isLoading: false,
+                    threadError: null,
                     aiEnabled: false,
                     replyingTo: null,
                     showAttach: false,
@@ -1844,8 +1857,43 @@
 
                             if (stick) this.scrollToBottom();
                             else if (appended) this.newBelow = true;
+
+                            this.threadError = null;
                         })
-                        .catch(() => {});
+                        .catch(err => {
+                            // Este catch estaba vacío y se tragaba todo: cuando el
+                            // hilo fallaba, el panel caía en "Sin mensajes todavía"
+                            // —o en blanco— y el asesor no tenía forma de saber que
+                            // había habido un error. El hilo es la pantalla
+                            // principal del módulo: si no carga, hay que decirlo.
+                            const status = err.response?.status;
+
+                            if (status === 403) {
+                                // Alcance por ciudad. No se reintenta: el permiso no
+                                // va a cambiar en el próximo poll, y seguir pidiendo
+                                // cada 4 segundos sólo llena el log del servidor.
+                                this.threadError = err.response?.data?.message
+                                    ?? 'No tenés acceso a esta conversación.';
+                                this.stopPolling();
+
+                                return;
+                            }
+
+                            // El poll no avisa: un corte de red de un segundo no
+                            // puede tapar los mensajes que ya están en pantalla.
+                            if (!initial) return;
+
+                            this.threadError = status === 419
+                                ? 'Tu sesión expiró. Recargá la página.'
+                                : 'No se pudo cargar la conversación.';
+                        });
+                },
+
+                stopPolling() {
+                    if (this.pollTimer) {
+                        clearInterval(this.pollTimer);
+                        this.pollTimer = null;
+                    }
                 },
 
                 send() {

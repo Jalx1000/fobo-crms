@@ -330,12 +330,19 @@
                 computed: {
                     // What the shared inbox component needs to load this thread.
                     threadContext() {
+                        // Null-safe aunque el v-if del elemento ya proteja la
+                        // lectura: un computed que lanza con un estado válido
+                        // —selected en null al volver a la lista— tumba el
+                        // componente entero y deja el panel en blanco, que es
+                        // justo el síntoma más difícil de diagnosticar.
+                        const c = this.selected ?? {};
+
                         return {
-                            conversationId: this.selected.id,
-                            personId: this.selected.person_id,
-                            leadId: this.selected.lead_id,
-                            name: this.selected.name,
-                            phone: this.selected.phone,
+                            conversationId: c.id ?? null,
+                            personId: c.person_id ?? null,
+                            leadId: c.lead_id ?? null,
+                            name: c.name ?? null,
+                            phone: c.phone ?? null,
                         };
                     },
                 },
