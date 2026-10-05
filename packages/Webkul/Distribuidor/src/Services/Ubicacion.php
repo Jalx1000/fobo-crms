@@ -3,6 +3,9 @@
 namespace Webkul\Distribuidor\Services;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Webkul\Distribuidor\Models\UbicacionCliente;
+use Webkul\Distribuidor\Models\UbicacionClienteProxy;
 
 /**
  * Dónde hay que entregar un pedido.
@@ -10,8 +13,12 @@ use Illuminate\Support\Facades\DB;
  * Hay tres fuentes posibles y ninguna sola alcanza, así que se consultan en orden
  * de confianza:
  *
- *   1. El pin que el cliente mandó por WhatsApp. Es el más fiable: lat/lng
- *      estructurados, puestos por el propio cliente desde su teléfono.
+ *   0. El GPS guardado del cliente, si alguien lo tomó en la puerta. Le gana a
+ *      todo: el pin de WhatsApp lo manda el cliente desde donde está en ese
+ *      momento —que puede ser el trabajo— mientras el GPS se toma en el domicilio
+ *      al entregar.
+ *   1. El pin que el cliente mandó por WhatsApp. Estructurado y puesto por el
+ *      propio cliente desde su teléfono.
  *   2. Coordenadas en el atributo `ubicacion_lead` del pedido.
  *   3. El texto libre de ese mismo atributo, que no ubica en un mapa pero es lo
  *      que de verdad usa quien toca el timbre: "Portón verde y hay un árbol
@@ -30,10 +37,28 @@ class Ubicacion
     public function dePedido(int $leadId): array
     {
         $texto = $this->textoDe($leadId);
+        $personId = (int) DB::table('leads')->where('id', $leadId)->value('person_id');
 
-        // 1. El pin de WhatsApp gana: lo puso el cliente, no un parseo nuestro.
+        // 0. El domicilio guardado del cliente, si se tomó con GPS en la puerta.
+        $guardada = $this->deCliente($personId);
+
+        if ($guardada && $guardada['fuente'] === UbicacionCliente::FUENTE_GPS) {
+            return $this->resultado($texto, $guardada['lat'], $guardada['lng'], 'cliente_gps');
+        }
+
+        // 1. El pin de WhatsApp. De paso queda guardado en la ficha del cliente:
+        // la próxima vez hay domicilio aunque este pedido no traiga pin.
         if ($pin = $this->pinDeWhatsapp($leadId)) {
+            if ($personId) {
+                $this->recordarPin($personId, $pin['lat'], $pin['lng']);
+            }
+
             return $this->resultado($texto, $pin['lat'], $pin['lng'], 'whatsapp');
+        }
+
+        // 1b. Un pin de WhatsApp de otro pedido, ya guardado en la ficha.
+        if ($guardada) {
+            return $this->resultado($texto, $guardada['lat'], $guardada['lng'], 'cliente_whatsapp');
         }
 
         // 2. Coordenadas dentro del texto del atributo.
@@ -211,6 +236,102 @@ class Ubicacion
         $limpio = trim(preg_replace('/\s*\|\s*$|^\s*\|\s*/', '', trim($limpio)), " \t|,;");
 
         return $limpio !== '' ? $limpio : null;
+    }
+
+    /**
+     * El domicilio guardado del cliente, o null si nadie lo marcó todavía.
+     *
+     * @return array{lat:float, lng:float, fuente:string, url:string}|null
+     */
+    public function deCliente(?int $personId): ?array
+    {
+        if (! $personId || ! $this->tablaLista()) {
+            return null;
+        }
+
+        $fila = UbicacionClienteProxy::modelClass()::query()
+            ->where('person_id', $personId)
+            ->first();
+
+        if (! $fila) {
+            return null;
+        }
+
+        return [
+            'lat'    => (float) $fila->lat,
+            'lng'    => (float) $fila->lng,
+            'fuente' => (string) $fila->fuente,
+            'url'    => $this->url(null, (float) $fila->lat, (float) $fila->lng),
+        ];
+    }
+
+    /**
+     * Guarda el GPS tomado en la puerta. Pisa cualquier cosa anterior.
+     *
+     * Devuelve false si las coordenadas caen fuera de la zona de reparto: un GPS
+     * sin señal fina devuelve la ubicación de la antena, y guardar un domicilio en
+     * otra provincia es peor que no guardar nada, porque después nadie lo
+     * cuestiona.
+     */
+    public function guardarGps(int $personId, float $lat, float $lng, ?int $userId = null): bool
+    {
+        if (! $this->tablaLista() || ! $this->validar($lat, $lng)) {
+            return false;
+        }
+
+        UbicacionClienteProxy::modelClass()::updateOrCreate(
+            ['person_id' => $personId],
+            [
+                'lat'     => $lat,
+                'lng'     => $lng,
+                'fuente'  => UbicacionCliente::FUENTE_GPS,
+                'user_id' => $userId ?? auth()->guard('user')->id(),
+            ],
+        );
+
+        return true;
+    }
+
+    /**
+     * Guarda el pin de WhatsApp, pero NUNCA encima de un GPS.
+     *
+     * El pin es mejor que nada y peor que el GPS de la puerta. Sin esta regla, un
+     * cliente que manda su ubicación desde el trabajo borraría el domicilio que el
+     * distribuidor marcó bien, y el error aparecería recién en el próximo reparto.
+     */
+    /**
+     * Si la tabla de ubicaciones ya existe.
+     *
+     * Igual que en Bidones: entre el despliegue del código y el de la migración, el
+     * Punto quedaba tirando 500. Sin la tabla no hay domicilio guardado y la
+     * cascada sigue funcionando con el pin de WhatsApp y el texto, que es como
+     * funcionaba antes.
+     */
+    protected function tablaLista(): bool
+    {
+        static $existe = null;
+
+        return $existe ??= Schema::hasTable('distribuidor_ubicaciones');
+    }
+
+    public function recordarPin(int $personId, float $lat, float $lng): bool
+    {
+        if (! $this->tablaLista() || ! $this->validar($lat, $lng)) {
+            return false;
+        }
+
+        $actual = UbicacionClienteProxy::modelClass()::query()->where('person_id', $personId)->first();
+
+        if ($actual && $actual->fuente === UbicacionCliente::FUENTE_GPS) {
+            return false;
+        }
+
+        UbicacionClienteProxy::modelClass()::updateOrCreate(
+            ['person_id' => $personId],
+            ['lat' => $lat, 'lng' => $lng, 'fuente' => UbicacionCliente::FUENTE_WHATSAPP],
+        );
+
+        return true;
     }
 
     protected function resultado(?string $texto, ?float $lat, ?float $lng, ?string $fuente): array

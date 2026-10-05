@@ -169,6 +169,25 @@
                                 <div class="min-w-0">
                                     <div class="truncate text-xl font-bold text-gray-800 dark:text-gray-100">@{{ cliente.name }}</div>
                                     <div class="text-base text-gray-600 dark:text-gray-400">@{{ cliente.telefono }}</div>
+
+                                    {{--
+                                        Los bidones que tiene en su casa, acá y no en otra
+                                        pantalla: es el momento en que el distribuidor decide
+                                        cuántos bajar de la camioneta. Sólo si tiene: un "0
+                                        bidones" en cada cliente es ruido.
+                                    --}}
+                                    <div v-if="cliente.bidones" class="mt-1 flex items-center gap-1.5">
+                                        <span class="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-base font-bold text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
+                                            @{{ cliente.bidones }} bidón@{{ cliente.bidones === 1 ? '' : 'es' }} sin devolver
+                                        </span>
+                                    </div>
+
+                                    {{-- Si ya tiene domicilio marcado, se ve y se puede abrir. --}}
+                                    <a v-if="cliente.ubicacion" :href="cliente.ubicacion.url" target="_blank" rel="noopener"
+                                       class="mt-1 inline-flex items-center gap-1 text-base font-semibold text-brandColor hover:underline">
+                                        <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+                                        Domicilio marcado
+                                    </a>
                                 </div>
                                 <div class="flex shrink-0 gap-2">
                                     {{--
@@ -179,6 +198,19 @@
                                             class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor px-5 text-base font-bold text-brandColor transition-colors duration-200 disabled:opacity-40">
                                         Repetir
                                     </button>
+                                    {{--
+                                        Marcar el domicilio con el GPS. Va acá, en la ficha del
+                                        cliente, porque el domicilio es del cliente y no del
+                                        pedido: se marca una vez y sirve para todos los repartos
+                                        siguientes.
+                                    --}}
+                                    <button type="button" @click="marcarUbicacion" :disabled="ubicando"
+                                            :aria-label="cliente.ubicacion ? 'Corregir el domicilio con el GPS' : 'Marcar el domicilio con el GPS'"
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor px-4 text-base font-bold text-brandColor transition-colors duration-200 disabled:opacity-40">
+                                        <svg class="inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+                                        <span class="sr-only">@{{ ubicando ? 'Tomando ubicación' : 'Marcar domicilio' }}</span>
+                                    </button>
+
                                     <button type="button" @click="limpiarCliente"
                                             class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] shrink-0 rounded-xl border-2 border-gray-300 px-5 text-base font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-300">
                                         Cambiar
@@ -419,8 +451,9 @@
                         </button>
 
                         {{--
-                            Entregar abre la cámara: la foto es la prueba de que el pedido
-                            llegó, y es obligatoria. `capture="environment"` abre la cámara
+                            Entregar abre la cámara: la foto es la mejor prueba de que el
+                            pedido llegó, pero NO es obligatoria — exigirla trababa la entrega
+                            cuando no se podía sacar. `capture="environment"` abre la cámara
                             trasera nativa — más confiable que getUserMedia en iOS, y no pide
                             permisos hasta que el usuario toca el botón.
                         --}}
@@ -485,6 +518,50 @@
                             <span class="block text-sm text-gray-600 dark:text-gray-400">@{{ f.cobros }} cobro(s)</span>
                         </span>
                     </div>
+
+                    {{--
+                        Los bidones se cuadran igual que la plata: lo que dejó salió de
+                        la camioneta y lo que retiró tiene que volver a ella. La
+                        diferencia es el número que se mira al cerrar el día, así que va
+                        destacado y no como un dato más.
+                    --}}
+                    <div class="mt-4 rounded-2xl border-2 border-sky-300 p-4 dark:border-sky-800">
+                        <span class="mb-2 block text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                            Bidones de hoy
+                        </span>
+
+                        <div class="grid grid-cols-3 gap-2 text-center">
+                            <div>
+                                <span class="block text-2xl font-extrabold text-gray-900 dark:text-white">@{{ caja.bidones.entregados }}</span>
+                                <span class="block text-sm text-gray-600 dark:text-gray-400">dejados</span>
+                            </div>
+                            <div>
+                                <span class="block text-2xl font-extrabold text-gray-900 dark:text-white">@{{ caja.bidones.retirados }}</span>
+                                <span class="block text-sm text-gray-600 dark:text-gray-400">retirados</span>
+                            </div>
+                            <div>
+                                <span class="block text-2xl font-extrabold" :class="caja.bidones.en_la_calle > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'">
+                                    @{{ caja.bidones.en_la_calle }}
+                                </span>
+                                <span class="block text-sm text-gray-600 dark:text-gray-400">sin volver</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- A quién hay que ir a buscarle los envases. Ordenado por cantidad. --}}
+                    <div v-if="caja.a_recuperar.length" class="mt-4">
+                        <span class="mb-2 block text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                            Bidones a recuperar
+                        </span>
+
+                        <div v-for="c in caja.a_recuperar" :key="c.person_id"
+                             class="mb-2 flex items-center justify-between rounded-xl border-2 border-gray-200 px-4 py-3 dark:border-gray-800">
+                            <span class="min-w-0 truncate text-lg font-semibold text-gray-800 dark:text-gray-200">@{{ c.nombre }}</span>
+                            <span class="ml-2 shrink-0 rounded-full bg-sky-100 px-3 py-1 text-lg font-bold text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
+                                @{{ c.saldo }}
+                            </span>
+                        </div>
+                    </div>
                 </template>
 
                 {{-- ── Barra fija: el total y la acción, al alcance del pulgar ── --}}
@@ -523,6 +600,53 @@
                             <img v-if="entrega.preview" :src="entrega.preview" alt="Foto tomada"
                                  class="mb-3 max-h-64 w-full rounded-xl object-contain">
 
+                            {{--
+                                Se dice que es opcional en vez de dejarlo adivinar: antes el
+                                botón quedaba gris sin explicar por qué, y el distribuidor
+                                creía que la app estaba trabada.
+                            --}}
+                            <p v-if="!entrega.preview" class="mb-3 text-base text-gray-500 dark:text-gray-400">
+                                La foto es opcional, pero es la mejor prueba de que el pedido llegó.
+                            </p>
+
+                            {{--
+                                Los bidones de esta visita. Dos cajas y no una: lo que se deja y
+                                lo que se retira son cantidades distintas —se dejan 2 llenos y se
+                                traen 3 vacíos de la semana pasada— y con un solo número no hay
+                                forma de saber cuántos quedaron en la casa.
+
+                                inputmode="numeric" para que el celular abra el teclado de
+                                números: son dos campos que se completan parado en la puerta.
+                            --}}
+                            <div class="mb-3 rounded-xl border-2 border-sky-200 bg-sky-50 p-3 dark:border-sky-900 dark:bg-sky-900/20">
+                                <div class="mb-2 flex items-baseline justify-between">
+                                    <span class="text-base font-bold text-gray-800 dark:text-gray-100">Bidones</span>
+                                    <span v-if="entrega.pedido.bidones" class="text-base text-gray-600 dark:text-gray-400">
+                                        Tenía @{{ entrega.pedido.bidones }}
+                                    </span>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <label class="block">
+                                        <span class="mb-1 block text-base font-semibold text-gray-700 dark:text-gray-300">Dejo</span>
+                                        <input v-model="entrega.dejo" type="number" min="0" step="1" inputmode="numeric"
+                                               placeholder="0"
+                                               class="min-h-[56px] w-full rounded-xl border-2 border-gray-300 px-3 text-center text-xl font-bold text-gray-900 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                    </label>
+                                    <label class="block">
+                                        <span class="mb-1 block text-base font-semibold text-gray-700 dark:text-gray-300">Retiro</span>
+                                        <input v-model="entrega.retiro" type="number" min="0" step="1" inputmode="numeric"
+                                               placeholder="0"
+                                               class="min-h-[56px] w-full rounded-xl border-2 border-gray-300 px-3 text-center text-xl font-bold text-gray-900 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                    </label>
+                                </div>
+
+                                {{-- El saldo que va a quedar, calculado en vivo: así se ve el error antes de confirmar. --}}
+                                <p v-if="saldoBidonesResultante !== null" class="mt-2 text-base text-gray-700 dark:text-gray-300">
+                                    Le quedan <span class="font-bold">@{{ saldoBidonesResultante }}</span> bidón@{{ saldoBidonesResultante === 1 ? '' : 'es' }}
+                                </p>
+                            </div>
+
                             <button type="button" @click="abrirCamara"
                                     class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-3 flex min-h-[56px] w-full cursor-pointer items-center justify-center rounded-xl border-2 border-gray-300 text-base font-bold text-gray-700 transition-colors duration-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900">
                                 <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.9 47.9 0 0 0-1.134-.175a2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0a2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>@{{ entrega.preview ? 'Sacar otra foto' : 'Sacar la foto' }}
@@ -533,9 +657,9 @@
                                         class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
                                     Cancelar
                                 </button>
-                                <button type="button" @click="confirmarEntrega" :disabled="!entrega.archivo || cargando"
+                                <button type="button" @click="confirmarEntrega" :disabled="cargando"
                                         class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-600 text-lg font-bold text-white disabled:opacity-40">
-                                    @{{ cargando ? 'Enviando…' : 'Entregado' }}
+                                    @{{ cargando ? 'Enviando…' : (entrega.archivo ? 'Entregado' : 'Entregado sin foto') }}
                                 </button>
                             </div>
                         </div>
@@ -642,16 +766,42 @@
                         nota: '',
                         pedidos: [],
                         recientes: [],
-                        caja: { total: 0, cobros: 0, pedidos_del_dia: 0, por_forma: [] },
+                        caja: {
+                            total: 0, cobros: 0, pedidos_del_dia: 0, por_forma: [],
+                            bidones: { entregados: 0, retirados: 0, visitas: 0, en_la_calle: 0 },
+                            a_recuperar: [],
+                        },
                         // Sin `amount`: el importe lo calcula el servidor (siempre el total).
                         cobro: { pedido: null, method: 'efectivo' },
-                        entrega: { pedido: null, archivo: null, preview: null },
+                        // dejo/retiro arrancan vacíos y no en 0: un 0 precargado se
+                        // confirma sin leerlo, y entonces el control no sirve de nada.
+                        entrega: { pedido: null, archivo: null, preview: null, dejo: '', retiro: '' },
+                        ubicando: false,
                         cargando: false,
                         aviso: null,
                     };
                 },
 
                 computed: {
+                    /*
+                     * Cuántos bidones le quedan al cliente si se confirma así.
+                     *
+                     * Se muestra en vivo para que el error se vea ANTES de confirmar:
+                     * cargar "retiro 5" cuando sólo tenía 2 deja un saldo negativo, y
+                     * verlo en pantalla es lo que evita que se guarde mal.
+                     *
+                     * null cuando no se tocó ninguna de las dos cajas: no hay nada que
+                     * anticipar y un número de más distrae.
+                     */
+                    saldoBidonesResultante() {
+                        if (! this.entrega.pedido) return null;
+                        if (this.entrega.dejo === '' && this.entrega.retiro === '') return null;
+
+                        const tenia = Number(this.entrega.pedido.bidones) || 0;
+
+                        return tenia + this.enteroDe(this.entrega.dejo) - this.enteroDe(this.entrega.retiro);
+                    },
+
                     total() {
                         return this.productos.reduce(
                             (t, p) => t + (this.carrito[p.id] || 0) * this.precioDe(p),
@@ -1013,21 +1163,85 @@
                         });
                     },
 
+                    /** Un entero no negativo a partir de lo que haya en la caja. */
+                    enteroDe(valor) {
+                        const n = parseInt(valor, 10);
+
+                        return Number.isFinite(n) && n > 0 ? n : 0;
+                    },
+
+                    /**
+                     * Marca el domicilio del cliente con el GPS del celular.
+                     *
+                     * enableHighAccuracy pide el GPS real y no la ubicación por wifi o
+                     * por antena, que en Jujuy puede errar por kilómetros. El timeout
+                     * es largo a propósito: engancharlo a cielo abierto tarda, y un
+                     * timeout corto devuelve justamente la posición imprecisa que se
+                     * quiere evitar.
+                     */
+                    marcarUbicacion() {
+                        if (! this.cliente) return;
+
+                        if (! navigator.geolocation) {
+                            this.aviso = 'Este teléfono no permite tomar la ubicación.';
+
+                            return;
+                        }
+
+                        this.ubicando = true;
+
+                        navigator.geolocation.getCurrentPosition(
+                            pos => {
+                                this.$axios.post(
+                                    '{{ url(config('app.admin_path').'/distribuidor/cliente') }}/' + this.cliente.id + '/ubicacion',
+                                    { lat: pos.coords.latitude, lng: pos.coords.longitude },
+                                )
+                                    .then(r => {
+                                        this.cliente.ubicacion = r.data.ubicacion;
+                                        this.aviso = 'Domicilio marcado.';
+                                    })
+                                    .catch(e => { this.aviso = this.mensaje(e, 'No se pudo guardar el domicilio.'); })
+                                    .finally(() => { this.ubicando = false; });
+                            },
+                            err => {
+                                this.ubicando = false;
+                                // Se distingue el permiso denegado del resto: son dos
+                                // problemas distintos y se arreglan de forma distinta.
+                                this.aviso = err.code === err.PERMISSION_DENIED
+                                    ? 'Tenés que permitir el acceso a la ubicación en el navegador.'
+                                    : 'No se pudo tomar la ubicación. Probá a cielo abierto.';
+                            },
+                            { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+                        );
+                    },
+
                     cancelarEntrega() {
                         if (this.entrega.preview) URL.revokeObjectURL(this.entrega.preview);
-                        this.entrega = { pedido: null, archivo: null, preview: null };
+                        this.entrega = { pedido: null, archivo: null, preview: null, dejo: '', retiro: '' };
                     },
 
                     confirmarEntrega() {
-                        if (! this.entrega.archivo) return;
-
+                        // Sin exigir foto: es opcional. El guard que había acá era el
+                        // segundo cerrojo —además del :disabled— y dejaba el botón
+                        // habilitado pero sin efecto, que es peor que no dejar tocarlo.
                         const pedido = this.entrega.pedido;
 
                         // multipart: la foto es un archivo, no un string base64 — que
                         // infla el payload un 33% y revienta el límite de POST.
                         const form = new FormData();
                         form.append('etapa', 'entregado');
-                        form.append('foto', this.entrega.archivo);
+                        // Sólo si hay foto: un append con null manda el string "null",
+                        // que la validación `image` rechaza y convierte una entrega
+                        // sin foto —ahora válida— en un error.
+                        if (this.entrega.archivo) {
+                            form.append('foto', this.entrega.archivo);
+                        }
+
+                        // Los campos vacíos se mandan como 0: el servidor no guarda
+                        // movimiento cuando los dos son 0, así que una entrega sin
+                        // bidones no ensucia el libro.
+                        form.append('bidones_entregados', this.enteroDe(this.entrega.dejo));
+                        form.append('bidones_retirados', this.enteroDe(this.entrega.retiro));
                         form.append('_method', 'PATCH');
 
                         this.cargando = true;

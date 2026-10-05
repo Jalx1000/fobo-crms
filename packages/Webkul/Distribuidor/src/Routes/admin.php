@@ -15,6 +15,14 @@ Route::controller(PuntoController::class)->prefix('distribuidor')->group(functio
     Route::post('pedido', 'guardarPedido')->name('admin.distribuidor.pedido.store');
     Route::patch('pedido/{id}/etapa', 'avanzar')->name('admin.distribuidor.pedido.etapa');
     Route::post('pedido/{id}/cobro', 'cobrar')->name('admin.distribuidor.pedido.cobro');
+
+    // El domicilio del cliente, tomado con el GPS en la puerta.
+    Route::post('cliente/{id}/ubicacion', 'guardarUbicacionCliente')
+        ->name('admin.distribuidor.cliente.ubicacion');
+
+    // Bidones sin pedido: pasar a juntar vacíos.
+    Route::post('cliente/{id}/bidones', 'registrarBidones')
+        ->name('admin.distribuidor.cliente.bidones');
 });
 
 /*

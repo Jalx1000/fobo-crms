@@ -303,14 +303,25 @@ it('marca Cliente Antiguo en la segunda compra del mismo cliente', function () {
 });
 
 // ---------------------------------------------------------------------------
-// Entrega: la foto es obligatoria
+// Entrega: la foto es la mejor prueba, pero NO es obligatoria
 // ---------------------------------------------------------------------------
 
-it('no deja marcar entregado sin la foto', function () {
+it('deja marcar entregado sin la foto', function () {
+    /*
+     * Este test afirmaba lo contrario —que sin foto devolvía 422— porque esa era
+     * la regla hasta que el negocio la cambió: exigirla bloqueaba la entrega
+     * cuando no se podía sacar (sin batería, sin luz, el cliente que no quiere que
+     * le fotografíen la puerta). Un pedido entregado que el sistema no deja cerrar
+     * es peor que un pedido cerrado sin foto.
+     *
+     * Queda invertido en vez de borrado para que el cambio de regla sea visible:
+     * quien lo lea ve que la validación se sacó a propósito y no por descuido.
+     * El caso completo —que la entrega se registra con foto_path en null— está en
+     * DistribuidorBidonesTest.
+     */
     test()->actingAs(distribuidor(), 'user')
         ->patchJson(route('admin.distribuidor.pedido.etapa', 1), ['etapa' => 'entregado'])
-        ->assertStatus(422)
-        ->assertJsonValidationErrors('foto');
+        ->assertJsonMissingValidationErrors('foto');
 });
 
 it('guarda la foto, la fecha y quién entregó', function () {

@@ -11,6 +11,7 @@ use Webkul\Distribuidor\Models\EntregaProxy;
 use Webkul\Distribuidor\Models\PagoProxy;
 use Webkul\Distribuidor\Repositories\PagoRepository;
 use Webkul\Distribuidor\Services\Alcance;
+use Webkul\Distribuidor\Services\Bidones;
 use Webkul\Distribuidor\Services\Catalogo;
 use Webkul\Distribuidor\Services\PuntoPedido;
 use Webkul\Distribuidor\Services\Ubicacion;
@@ -32,6 +33,7 @@ class PuntoController extends Controller
         protected PagoRepository $pagos,
         protected Alcance $alcance,
         protected Ubicacion $ubicacion,
+        protected Bidones $bidones,
     ) {}
 
     public function index()
@@ -157,10 +159,25 @@ class PuntoController extends Controller
         $data = $request->validate([
             'etapa' => 'required|string|in:'.implode(',', array_keys(config('distribuidor.etapas'))),
             /*
-             * Obligatoria para entregar: es la prueba de que el pedido llegó.
-             * Cuando el cliente dice que no recibió nada, la fecha sola no alcanza.
+             * Opcional. Sigue siendo la mejor prueba de que el pedido llegó
+             * —cuando el cliente dice que no recibió nada, la fecha sola no
+             * alcanza—, pero exigirla bloqueaba la entrega en los casos en que no
+             * se puede sacar: sin batería, sin luz, el cliente que no quiere que
+             * le fotografíen la puerta. Un pedido entregado que el sistema no deja
+             * cerrar es peor que un pedido cerrado sin foto.
              */
-            'foto'  => 'required_if:etapa,entregado|image|max:8192',
+            'foto'  => 'nullable|image|max:8192',
+
+            /*
+             * Los bidones de la visita. Opcionales: si el cliente compra agua en
+             * botella no hay envase que mover, y obligar a escribir dos ceros sería
+             * trabajo por nada.
+             *
+             * Sin máximo arbitrario: un pedido de un comercio puede ser de 40
+             * bidones, y un techo inventado lo bloquearía sin motivo.
+             */
+            'bidones_entregados' => 'nullable|integer|min:0',
+            'bidones_retirados'  => 'nullable|integer|min:0',
         ]);
 
         $lead = LeadProxy::modelClass()::findOrFail($id);
@@ -186,8 +203,24 @@ class PuntoController extends Controller
                 'entregado_at' => now(),
                 // Nombre aleatorio: la ruta de la foto viaja al navegador, y un
                 // nombre predecible dejaría ver la entrega de otro pedido.
-                'foto_path'    => $request->file('foto')->store('distribuidor/entregas', 'public'),
+                // Null-safe: la foto es opcional y sin el ?-> esto reventaba.
+                'foto_path'    => $request->file('foto')?->store('distribuidor/entregas', 'public'),
             ]);
+
+            /*
+             * Los bidones se cuentan contra el CLIENTE y no contra el pedido: el
+             * saldo que importa es "cuántos tiene en su casa", y eso atraviesa
+             * todos sus pedidos. El lead queda igual en el movimiento, para poder
+             * reconstruir en qué visita pasó.
+             */
+            if ($lead->person_id) {
+                $this->bidones->registrar(
+                    (int) $lead->person_id,
+                    (int) $id,
+                    (int) ($data['bidones_entregados'] ?? 0),
+                    (int) ($data['bidones_retirados'] ?? 0),
+                );
+            }
         }
 
         return response()->json(['pedido' => $this->pedido((int) $id)]);
@@ -480,6 +513,17 @@ class PuntoController extends Controller
             'pedidos_del_dia' => LeadProxy::modelClass()::where('user_id', $userId)
                 ->whereDate('created_at', now()->toDateString())
                 ->count(),
+            /*
+             * Los bidones se cuadran igual que la plata: lo que dejó salió de la
+             * camioneta y lo que retiró tiene que volver a ella. `en_la_calle` es
+             * la diferencia, que es el número que se mira al cerrar el día.
+             */
+            'bidones'   => $this->bidones->delDia($userId),
+            // A quién hay que ir a buscarle los envases, dentro de su alcance.
+            'a_recuperar' => $this->bidones->pendientesDeDevolucion(
+                $this->alcance->ciudadesPermitidas(),
+                15,
+            ),
         ]);
     }
 
@@ -507,6 +551,8 @@ class PuntoController extends Controller
             // desincronizado con los cobros.
             'saldo'         => round($total - $cobrado, 2),
             'ubicacion'     => $this->ubicacion->dePedido($id),
+            // Cuántos bidones tiene el cliente, para decidir cuántos retirar.
+            'bidones'       => $this->bidones->saldoDe($lead->person_id ? (int) $lead->person_id : null),
             'entregado_at'  => optional($this->entregaDe($id))->entregado_at?->format('d/m/Y H:i'),
             'entregado_por' => optional(optional($this->entregaDe($id))->user)->name,
             'entrega_foto'  => ($f = optional($this->entregaDe($id))->foto_path)
@@ -536,12 +582,77 @@ class PuntoController extends Controller
             ->first();
     }
 
+    /**
+     * Guarda el domicilio del cliente con el GPS del celular.
+     *
+     * Se toma en la puerta al entregar, que es el único momento en que el teléfono
+     * está realmente en el domicilio. Pisa el pin de WhatsApp a propósito: ese lo
+     * manda el cliente desde donde está parado, que puede ser el trabajo.
+     */
+    public function guardarUbicacionCliente(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            // Los rangos son los del mundo, no los de la zona: el recorte a la zona
+            // de reparto lo hace el servicio, que es quien puede explicar el
+            // rechazo ("estás fuera de la zona") en vez de un error de validación.
+            'lat' => 'required|numeric|between:-90,90',
+            'lng' => 'required|numeric|between:-180,180',
+        ]);
+
+        $persona = PersonProxy::modelClass()::findOrFail($id);
+
+        $guardada = $this->ubicacion->guardarGps(
+            (int) $persona->id,
+            (float) $data['lat'],
+            (float) $data['lng'],
+        );
+
+        if (! $guardada) {
+            /*
+             * 422 y no 500: el pedido está bien formado, lo que está mal es el
+             * punto. Pasa de verdad cuando el GPS no engancha satélites y devuelve
+             * la posición de la antena, que puede caer a cientos de kilómetros.
+             */
+            return response()->json([
+                'message' => 'Esa ubicación cae fuera de la zona de reparto. Probá de nuevo con el GPS activado y a cielo abierto.',
+            ], 422);
+        }
+
+        return response()->json(['ubicacion' => $this->ubicacion->deCliente((int) $persona->id)]);
+    }
+
+    /**
+     * Registra bidones sin pedido: pasar a juntar vacíos es una visita real.
+     */
+    public function registrarBidones(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            'entregados' => 'nullable|integer|min:0',
+            'retirados'  => 'nullable|integer|min:0',
+        ]);
+
+        $persona = PersonProxy::modelClass()::findOrFail($id);
+
+        $this->bidones->registrar(
+            (int) $persona->id,
+            null,
+            (int) ($data['entregados'] ?? 0),
+            (int) ($data['retirados'] ?? 0),
+        );
+
+        return response()->json(['bidones' => $this->bidones->saldoDe((int) $persona->id)]);
+    }
+
     protected function persona($persona): array
     {
         return [
             'id'       => (int) $persona->id,
             'name'     => $persona->name,
             'telefono' => $this->telefonoDe($persona),
+            // Cuántos bidones tiene en su casa. Se muestra al encontrarlo, que es
+            // el momento en que el distribuidor decide cuántos llevar a la puerta.
+            'bidones'   => $this->bidones->saldoDe((int) $persona->id),
+            'ubicacion' => $this->ubicacion->deCliente((int) $persona->id),
         ];
     }
 
