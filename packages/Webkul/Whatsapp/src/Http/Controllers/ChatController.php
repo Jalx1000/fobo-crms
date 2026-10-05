@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Core\Services\AlcanceCiudades;
 use Webkul\Lead\Models\PipelineProxy;
 use Webkul\Lead\Models\SourceProxy;
 use Webkul\Lead\Models\TypeProxy;
@@ -25,6 +26,8 @@ use Webkul\Whatsapp\Support\ConversationCity;
  */
 class ChatController extends Controller
 {
+    public function __construct(protected AlcanceCiudades $alcance) {}
+
     /**
      * The two-pane chat page.
      */
@@ -162,6 +165,18 @@ class ChatController extends Controller
             }
         }
 
+        /*
+         * El ALCANCE del usuario. Va al final y aparte del filtro de ciudad de
+         * arriba porque son dos cosas distintas: ese filtro lo elige el asesor y
+         * puede sacarlo, éste no se puede sacar.
+         *
+         * Sin esto el filtro de ciudad era decorativo: bastaba con no mandar
+         * `city` —o mandar la de otra ciudad— para ver la bandeja entera.
+         */
+        if (($permitidas = $this->alcance->ciudadesDe()) !== null) {
+            ConversationCity::restringirA($query, $permitidas);
+        }
+
         $conversations = $query
             /*
              * Las derivaciones arriba de todo. Una conversación con una persona
@@ -238,6 +253,12 @@ class ChatController extends Controller
         $conteos = DB::table('whatsapp_conversations')
             ->joinSub($rankeadas, 'ranked', fn ($join) => $join->on('ranked.ranked_id', '=', 'whatsapp_conversations.id'))
             ->where('ranked.rn', 1)
+            // El mismo alcance que la lista: si el desplegable ofreciera una
+            // ciudad que la lista no muestra, elegirla daría cero resultados.
+            ->when(
+                ($permitidas = $this->alcance->ciudadesDe()) !== null,
+                fn ($q) => ConversationCity::restringirA($q, $permitidas ?? [])
+            )
             ->selectRaw(ConversationCity::sql().' as city_id, count(*) as total')
             ->groupByRaw(ConversationCity::sql())
             ->pluck('total', 'city_id');

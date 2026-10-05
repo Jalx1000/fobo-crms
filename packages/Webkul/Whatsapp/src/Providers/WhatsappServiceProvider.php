@@ -11,6 +11,7 @@ use Webkul\Whatsapp\Console\Commands\ListTemplates;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
+use Webkul\Whatsapp\Http\Middleware\EnsureConversationInScope;
 use Webkul\Whatsapp\Http\Middleware\EnsureWhatsappAccess;
 
 class WhatsappServiceProvider extends ServiceProvider
@@ -25,6 +26,7 @@ class WhatsappServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 
         $this->app['router']->aliasMiddleware('whatsapp_access', EnsureWhatsappAccess::class);
+        $this->app['router']->aliasMiddleware('whatsapp_scope', EnsureConversationInScope::class);
 
         // Public webhook endpoints (Meta calls these; no session/CSRF).
         $this->loadRoutesFrom(__DIR__.'/../Routes/api.php');

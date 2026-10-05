@@ -4,6 +4,7 @@ namespace Webkul\Distribuidor\Services;
 
 use Illuminate\Support\Facades\DB;
 use Webkul\Attribute\Repositories\AttributeRepository;
+use Webkul\Core\Services\AlcanceCiudades;
 
 /**
  * Qué puede vender una sucursal, y a qué precio.
@@ -89,9 +90,9 @@ class Catalogo
      */
     protected function normalizar(string $valor): string
     {
-        $sinAcentos = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $valor);
-
-        return mb_strtolower(trim(preg_replace('/\s+/', ' ', $sinAcentos ?: $valor)));
+        // Delega en Core: el puente grupo→pipeline usa la MISMA comparación, y si
+        // las dos se separan el pedido se abre en una ciudad y se cobra en otra.
+        return AlcanceCiudades::normalizar($valor);
     }
 
     /**

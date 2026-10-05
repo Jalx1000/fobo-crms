@@ -389,7 +389,7 @@ it('con ciudades asignadas sólo ve esas, y le corta el acceso a las demás', fu
 
     [$suya, $ajena] = [$ciudades[0], $ciudades[1]];
 
-    DB::table('distribuidor_ciudades')->insert([
+    DB::table('user_ciudades')->insert([
         'user_id'    => $user->id, 'lead_pipeline_id' => $suya['id'],
         'created_at' => now(), 'updated_at' => now(),
     ]);

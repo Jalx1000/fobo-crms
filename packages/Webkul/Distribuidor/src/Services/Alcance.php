@@ -2,54 +2,40 @@
 
 namespace Webkul\Distribuidor\Services;
 
-use Illuminate\Support\Facades\DB;
+use Webkul\Core\Services\AlcanceCiudades;
 
 /**
- * Qué ciudades puede ver el distribuidor que está adelante del Punto.
+ * Qué ciudades y sucursales puede ver el distribuidor que está adelante del Punto.
  *
- * Sin filas asignadas = todas. Es el default a propósito: un distribuidor recién
- * creado tiene que poder trabajar antes de que alguien se acuerde de asignarle
- * ciudades, y el caso de una sola ciudad no necesita configuración.
+ * La pregunta "qué ciudades ve este usuario" la responde AlcanceCiudades, en Core,
+ * porque la bandeja de WhatsApp necesita exactamente la misma respuesta. Lo que
+ * queda acá es lo propio del Punto: traducir esas ciudades a las sucursales desde
+ * las que se puede vender.
  *
- * El alcance se aplica en el SERVIDOR, en los tres lugares que devuelven datos
- * (ciudades, sucursales, pedidos). Filtrar sólo en la UI dejaría los pendientes
- * de otra ciudad a un request de distancia.
+ * El alcance se aplica en el SERVIDOR, en los lugares que devuelven datos
+ * (ciudades, sucursales, pedidos). Filtrar sólo en la UI dejaría los pedidos de
+ * otra ciudad a un request de distancia.
  */
 class Alcance
 {
-    public function __construct(protected Catalogo $catalogo) {}
+    public function __construct(
+        protected Catalogo $catalogo,
+        protected AlcanceCiudades $alcance,
+    ) {}
 
     /**
      * Los ids de ciudad (pipeline) que el usuario puede ver, o null si ve todas.
-     *
-     * Null y no "todas las que existen": así quien consulta puede distinguir "sin
-     * restricción" de "restringido a esta lista", y una ciudad nueva aparece sola
-     * para los no restringidos.
      *
      * @return array<int, int>|null
      */
     public function ciudadesPermitidas(?int $userId = null): ?array
     {
-        $userId ??= auth()->guard('user')->id();
-
-        if (! $userId) {
-            return [];
-        }
-
-        $ids = DB::table('distribuidor_ciudades')
-            ->where('user_id', $userId)
-            ->pluck('lead_pipeline_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        return $ids ?: null;
+        return $this->alcance->ciudadesDe($userId);
     }
 
     public function puedeVerCiudad(int $pipelineId): bool
     {
-        $permitidas = $this->ciudadesPermitidas();
-
-        return $permitidas === null || in_array($pipelineId, $permitidas, true);
+        return $this->alcance->puedeVer($pipelineId);
     }
 
     /**
@@ -59,17 +45,7 @@ class Alcance
      */
     public function ciudades(): array
     {
-        $excluidas = (array) config('whatsapp.handoff.exclude_cities', []);
-        $permitidas = $this->ciudadesPermitidas();
-
-        return DB::table('lead_pipelines')
-            ->when($permitidas !== null, fn ($q) => $q->whereIn('id', $permitidas))
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->reject(fn ($p) => in_array($p->name, $excluidas, true))
-            ->map(fn ($p) => ['id' => (int) $p->id, 'name' => (string) $p->name])
-            ->values()
-            ->all();
+        return $this->alcance->ciudades();
     }
 
     /**

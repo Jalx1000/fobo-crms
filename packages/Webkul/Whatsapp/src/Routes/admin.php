@@ -13,9 +13,17 @@ use Webkul\Whatsapp\Http\Controllers\QuickReplyController;
 | path with the web + user middleware in the service provider.
 */
 
+/*
+ * whatsapp_scope: la conversación tiene que ser de una ciudad del usuario.
+ *
+ * Va sobre todo el grupo y no ruta por ruta porque acá TODO recibe una
+ * conversación —por {id} o por conversation_id— y olvidarse en una sola ruta
+ * reabre el agujero entero.
+ */
 Route::controller(InboxController::class)
     ->prefix('whatsapp')
     ->name('admin.whatsapp.')
+    ->middleware('whatsapp_scope')
     ->group(function () {
         Route::get('thread', 'thread')->name('thread');
         Route::post('send', 'send')->name('send');
@@ -36,7 +44,10 @@ Route::controller(ChatController::class)
     ->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('conversations', 'conversations')->name('conversations');
-        Route::post('conversations/{id}/link-person', 'linkPerson')->name('link-person');
+        // Sólo esta ruta del grupo recibe una conversación: en persons/{id} el
+        // {id} es una persona, y el middleware lo leería como conversación.
+        Route::post('conversations/{id}/link-person', 'linkPerson')
+            ->middleware('whatsapp_scope')->name('link-person');
         Route::get('persons/{id}', 'person')->name('person');
         Route::post('persons/{id}/leads', 'storeLead')->name('person.leads');
         Route::get('products', 'products')->name('products');

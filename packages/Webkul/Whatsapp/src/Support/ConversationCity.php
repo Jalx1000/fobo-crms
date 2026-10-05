@@ -72,6 +72,60 @@ final class ConversationCity
     }
 
     /**
+     * Restringe una consulta de conversaciones a las ciudades permitidas.
+     *
+     * Las conversaciones SIN ciudad pasan igual, y eso es deliberado: medido sobre
+     * las conversaciones reales, la mayoría no tiene ciudad por ningún camino de la
+     * cascada. Si el alcance las dejara afuera, ningún asesor restringido las vería
+     * y quedarían sin atender — invisibles para todos menos el que no tiene filas.
+     * Sin ciudad asignada son de nadie, así que son de todos: funcionan como pool.
+     *
+     * El pipeline llamado "Sin ciudad" entra por el mismo camino, porque para quien
+     * mira la bandeja significa lo mismo que no tener dato.
+     *
+     * @param  array<int, int>  $permitidas
+     */
+    public static function restringirA($query, array $permitidas): void
+    {
+        $sinCiudad = self::noneEquivalentPipelineIds();
+        $sql = self::sql();
+
+        $query->where(function ($q) use ($permitidas, $sinCiudad, $sql) {
+            $q->whereRaw($sql.' is null');
+
+            if ($permitidas) {
+                $q->orWhereRaw(
+                    $sql.' in ('.implode(',', array_fill(0, count($permitidas), '?')).')',
+                    $permitidas
+                );
+            }
+
+            if ($sinCiudad) {
+                $q->orWhereRaw(
+                    $sql.' in ('.implode(',', array_fill(0, count($sinCiudad), '?')).')',
+                    $sinCiudad
+                );
+            }
+        });
+    }
+
+    /**
+     * La ciudad de UNA conversación, resuelta en PHP.
+     *
+     * La misma cascada que sql(), para los controladores que ya tienen la
+     * conversación en la mano y necesitan decidir si el usuario puede verla.
+     */
+    public static function de(int $conversationId): ?int
+    {
+        $valor = DB::table('whatsapp_conversations')
+            ->where('id', $conversationId)
+            ->selectRaw(self::sql().' as city_id')
+            ->value('city_id');
+
+        return $valor === null ? null : (int) $valor;
+    }
+
+    /**
      * Los pipelines que, para el asesor, son lo mismo que no tener ciudad.
      *
      * "Sin ciudad" existe como pipeline real y hay conversaciones que caen ahí.
