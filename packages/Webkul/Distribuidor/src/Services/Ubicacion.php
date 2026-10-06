@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Webkul\Distribuidor\Models\UbicacionCliente;
 use Webkul\Distribuidor\Models\UbicacionClienteProxy;
+use Webkul\Whatsapp\Support\UbicacionDeMensaje;
 
 /**
  * Dónde hay que entregar un pedido.
@@ -107,14 +108,15 @@ class Ubicacion
             return null;
         }
 
-        $payload = json_decode((string) $mensaje->payload, true);
-        $node = $payload['location'] ?? null;
+        $pin = UbicacionDeMensaje::de((array) json_decode((string) $mensaje->payload, true));
 
-        if (! is_array($node) || ! isset($node['latitude'], $node['longitude'])) {
+        if (! $pin) {
             return null;
         }
 
-        return $this->validar((float) $node['latitude'], (float) $node['longitude']);
+        // `validar()` igual: el pin puede venir de cualquier parte del mundo y
+        // uno equivocado manda al distribuidor a otra direccion.
+        return $this->validar($pin['lat'], $pin['lng']);
     }
 
     /**

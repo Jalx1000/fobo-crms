@@ -25,6 +25,7 @@ use Webkul\Whatsapp\Services\ConversationResolver;
 use Webkul\Whatsapp\Services\Handoff as HandoffService;
 use Webkul\Whatsapp\Services\TemplateCatalog;
 use Webkul\Whatsapp\Support\ConversationLocator;
+use Webkul\Whatsapp\Support\UbicacionDeMensaje;
 
 class InboxController extends Controller
 {
@@ -831,36 +832,13 @@ class InboxController extends Controller
         ];
     }
 
-    /**
-     * Coordinates of a location message.
-     *
-     * Reads BOTH shapes of `payload`: `['location' => ...]` for what we sent,
-     * and the provider's own node for what arrived. Handling only ours would
-     * leave every pin a customer shares rendering as an empty bubble — and
-     * inbound locations already arrive today, the thread just cannot draw them.
-     */
+    /** Coordinates of a location message. */
     protected function locationOf($message): ?array
     {
         if ($message->type !== 'location') {
             return null;
         }
 
-        $node = $message->payload['location'] ?? null;
-
-        if (! is_array($node) || ! isset($node['latitude'], $node['longitude'])) {
-            return null;
-        }
-
-        return [
-            'lat'     => (float) $node['latitude'],
-            'lng'     => (float) $node['longitude'],
-            'name'    => $node['name'] ?? null,
-            'address' => $node['address'] ?? null,
-            'url'     => sprintf(
-                'https://www.google.com/maps?q=%s,%s',
-                $node['latitude'],
-                $node['longitude'],
-            ),
-        ];
+        return UbicacionDeMensaje::de((array) $message->payload);
     }
 }

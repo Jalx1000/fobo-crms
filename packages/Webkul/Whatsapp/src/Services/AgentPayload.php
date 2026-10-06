@@ -8,6 +8,7 @@ use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Models\Conversation;
 use Webkul\Whatsapp\Models\Message;
+use Webkul\Whatsapp\Support\UbicacionDeMensaje;
 
 /**
  * Builds the contract the CRM sends to the external AI agent, and the shared
@@ -59,10 +60,12 @@ class AgentPayload
         $selection = $this->gateways->for($message->conversation)
             ->interactiveSelection((array) $message->payload);
 
+        $ubicacion = UbicacionDeMensaje::de((array) $message->payload);
+
         $payload = [
             'id'        => $message->id,
             'type'      => $message->type,
-            'text'      => $message->body,
+            'text'      => $this->texto($message),
             /*
              * La opción que el cliente tocó. MISMA CLAVE Y MISMA FORMA que en
              * imprimir (`selection` con {id, title}), porque el agente es el
@@ -78,8 +81,31 @@ class AgentPayload
                 'id'    => (string) ($selection['id'] ?? ''),
                 'title' => (string) ($selection['title'] ?? ''),
             ] : null,
+            /*
+             * El pin que el cliente compartio, ya separado en numeros.
+             *
+             * `text` trae lo mismo en el formato de `ubicacion_lead` para que el
+             * agente pueda reenviarlo tal cual, pero rutear por numeros es mas
+             * seguro que parsear un string.
+             */
+            'location'  => $ubicacion,
             'timestamp' => optional($message->created_at)->toIso8601String(),
         ];
+
+        /*
+         * Las MISMAS coordenadas tambien planas.
+         *
+         * El equipo del agente dijo que acepta las dos formas —`message.location`
+         * anidado o `message.latitude`/`message.longitude` arriba— y se mandan
+         * las dos a proposito: son cuatro bytes y no depende de que punta lea
+         * cual. Esto fue EL bug: el evento salia con `type: location` y nada
+         * mas, asi que el agente no tenia ubicacion para guardar y terminaba
+         * pidiendole al cliente que escribiera la direccion a mano.
+         */
+        if ($ubicacion) {
+            $payload['latitude'] = $ubicacion['lat'];
+            $payload['longitude'] = $ubicacion['lng'];
+        }
 
         // Se mantiene la clave vieja para no romper a quien ya la lea.
         if ($selection) {
@@ -169,11 +195,28 @@ class AgentPayload
             ->sortBy('id')
             ->map(fn (Message $m) => [
                 'role'    => $m->direction === 'inbound' ? 'user' : 'assistant',
-                'content' => $m->body,
+                'content' => $this->texto($m),
                 'type'    => $m->type,
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * El contenido legible de un mensaje.
+     *
+     * Es `body` salvo para las ubicaciones, que se derivan del `payload`. Se
+     * derivan y no se leen de `body` a proposito: las ubicaciones que ya estan
+     * guardadas tienen `body` null —el gateway no lo llenaba— y con esto el
+     * agente las ve igual, sin migracion.
+     */
+    protected function texto(Message $message): ?string
+    {
+        if ($message->type === 'location') {
+            return UbicacionDeMensaje::texto((array) $message->payload) ?? $message->body;
+        }
+
+        return $message->body;
     }
 
     protected function window(Conversation $conversation): MessagingWindow

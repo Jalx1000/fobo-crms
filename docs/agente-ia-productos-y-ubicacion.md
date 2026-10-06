@@ -78,13 +78,46 @@ Hay dos caminos y conviene usar los dos, porque se complementan.
 
 ### Camino A — Pedirle el pin por WhatsApp (el preferido)
 
-**El CRM ya captura automáticamente la ubicación que el cliente manda por WhatsApp.** El
-agente no tiene que hacer ninguna llamada: alcanza con pedírsela.
+**El CRM guarda la ubicación que el cliente manda por WhatsApp y ahora se la pasa al
+agente en el evento.** Alcanza con pedírsela:
 
 > "¿Me compartís tu ubicación? Tocá el clip 📎 → Ubicación → Enviar tu ubicación actual."
 
-Eso guarda coordenadas exactas, sin errores de tipeo, y queda asociado al cliente para
-todos sus pedidos futuros.
+El evento `message.received` de un pin llega así. Las coordenadas van en **tres lugares a
+la vez** a propósito, para que el agente lea la que le resulte más cómoda:
+
+```jsonc
+"message": {
+  "id": 3240,
+  "type": "location",
+  // Listo para copiar tal cual a `ubicacion_lead` (6 decimales, ~11 cm).
+  "text": "-24.255002,-65.208238",
+  // Objeto anidado.
+  "location": {
+    "lat": -24.2550022,
+    "lng": -65.2082377,
+    "name": "Casa",            // puede ser null
+    "address": "Belgrano 450", // puede ser null
+    "url": "https://www.google.com/maps?q=-24.2550022,-65.2082377"
+  },
+  // Y los mismos números planos.
+  "latitude": -24.2550022,
+  "longitude": -65.2082377,
+  "timestamp": "2026-10-06T16:34:38-04:00"
+}
+```
+
+Cuando el pin trae nombre o dirección del lugar, `text` ya viene en el formato completo de
+`ubicacion_lead`: `"-24.188478,-65.300333 | Casa, Belgrano 450"`.
+
+`location` es `null` y no hay `latitude`/`longitude` sólo si el mensaje llegó sin
+coordenadas utilizables. En ese caso —y nada más en ese caso— hay que pedirle la dirección
+por texto y usar el Camino B.
+
+**Esto antes no funcionaba.** Hasta el 06/10/2026 el evento salía con `type: "location"`,
+`text: null` y sin coordenadas en ningún campo: el pin del cliente quedaba guardado en la
+base del CRM pero nunca salía de ahí, así que el agente no tenía nada que guardar. Las
+ubicaciones recibidas antes de esa fecha también se leen bien ahora, sin migración.
 
 ### Camino B — Escribir la ubicación en el pedido
 

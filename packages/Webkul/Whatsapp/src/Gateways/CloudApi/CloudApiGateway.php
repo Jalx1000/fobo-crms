@@ -21,6 +21,7 @@ use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
 use Webkul\Whatsapp\Gateways\Dto\WebhookSecurity;
 use Webkul\Whatsapp\Models\Conversation;
 use Webkul\Whatsapp\Services\PhoneNumber;
+use Webkul\Whatsapp\Support\UbicacionDeMensaje;
 
 /**
  * WhatsApp Cloud API (Meta). Addresses by phone, returns a wamid, batches
@@ -539,6 +540,13 @@ class CloudApiGateway extends BaseGateway
             'reaction'    => ($message['reaction']['emoji'] ?? '') !== ''
                 ? $message['reaction']['emoji']
                 : null,
+            /*
+             * El pin que el cliente comparte. Sin este caso `body` quedaba null
+             * y el agente recibia el turno VACIO: type 'location' y nada mas,
+             * asi que no podia guardar la direccion ni acusar recibo. Las
+             * coordenadas estaban en `payload` pero nunca salian de la base.
+             */
+            'location'    => UbicacionDeMensaje::texto($message),
             default       => null,
         };
     }
