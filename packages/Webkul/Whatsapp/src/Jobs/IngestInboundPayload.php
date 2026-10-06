@@ -7,12 +7,14 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
 use Webkul\Whatsapp\Gateways\Dto\StatusUpdate;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\ConversationResolver;
+use Webkul\Whatsapp\Services\EnlaceDeMapa;
 
 /**
  * Persists whatever the active gateway hands back. Knows nothing about any
@@ -119,6 +121,24 @@ class IngestInboundPayload implements ShouldQueue
          * responderlas.
          */
         if ($conversation->aiEffective() && ! in_array($created->type, self::TIPOS_QUE_NO_DESPIERTAN_AL_AGENTE, true)) {
+            /*
+             * Si el cliente pegó un link de Maps en vez de usar el 📍, primero se
+             * resuelve a coordenadas y DESPUÉS se avisa al agente.
+             *
+             * Encadenado y no dos dispatch sueltos: el orden tiene que valer con
+             * cualquier driver de cola. Sin esto el agente recibía el evento con
+             * una URL que no sabe leer y le pedía la dirección por texto, igual
+             * que cuando el pin llegaba sin coordenadas.
+             */
+            if (EnlaceDeMapa::hay($created->body)) {
+                Bus::chain([
+                    new ResolverEnlaceDeMapa($created->id),
+                    new NotifyAgent($created->id),
+                ])->onQueue(config('whatsapp.queue'))->dispatch();
+
+                return;
+            }
+
             NotifyAgent::dispatch($created->id)->onQueue(config('whatsapp.queue'));
         }
     }

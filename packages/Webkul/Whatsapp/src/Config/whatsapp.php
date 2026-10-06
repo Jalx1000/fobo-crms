@@ -260,4 +260,21 @@ return [
             'BOB' => 'Bs',
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Links de mapa
+    |--------------------------------------------------------------------------
+    | Los clientes mandan tanto el pin 📍 como un `maps.app.goo.gl` pegado en el
+    | chat. El segundo hay que ir a resolverlo: es una redirección y las
+    | coordenadas están en la URL larga.
+    |
+    | El timeout es corto a propósito. Con QUEUE_CONNECTION=sync esto corre
+    | dentro del request del webhook de Meta, que espera un 200 rápido; si
+    | Google no contesta, es mejor perder la resolución que el mensaje.
+    */
+    'map_links' => [
+        'enabled' => env('WHATSAPP_MAP_LINKS_ENABLED', true),
+        'timeout' => env('WHATSAPP_MAP_LINKS_TIMEOUT', 6),
+    ],
 ];

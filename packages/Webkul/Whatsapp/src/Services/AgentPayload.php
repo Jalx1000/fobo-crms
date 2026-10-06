@@ -62,6 +62,19 @@ class AgentPayload
 
         $ubicacion = UbicacionDeMensaje::de((array) $message->payload);
 
+        /*
+         * El string listo para copiar a `ubicacion_lead`, DENTRO de `location`.
+         *
+         * Va acá y no en `text` porque un link de Maps llega como mensaje de
+         * texto: ahi `text` es lo que escribio el cliente ("aca vivo <link>") y
+         * copiarlo guardaria la URL en el CRM. Con esto el agente tiene UNA
+         * regla que vale para el pin y para el link: si hay `location`, guardar
+         * `location.text`.
+         */
+        if ($ubicacion) {
+            $ubicacion['text'] = UbicacionDeMensaje::texto((array) $message->payload);
+        }
+
         $payload = [
             'id'        => $message->id,
             'type'      => $message->type,

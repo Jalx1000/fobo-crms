@@ -119,6 +119,40 @@ por texto y usar el Camino B.
 base del CRM pero nunca salía de ahí, así que el agente no tenía nada que guardar. Las
 ubicaciones recibidas antes de esa fecha también se leen bien ahora, sin migración.
 
+### Camino A-bis — El cliente pega un link de Google Maps
+
+Pasa **tanto como el pin**: al 06/10/2026 había 5 ubicaciones con 📍 y 5 mensajes de texto
+con un `maps.app.goo.gl`. El CRM ahora los resuelve solo.
+
+Ese mensaje llega como `type: "text"` —porque eso es lo que el cliente mandó— pero **con el
+mismo objeto `location`** que un pin:
+
+```jsonc
+"message": {
+  "type": "text",
+  "text": "acá vivo https://maps.app.goo.gl/zEqrHNf61oZP2qJ4A",   // lo que escribió
+  "location": {
+    "lat": -24.1866232,
+    "lng": -65.3026021,
+    "name": "Gabriel Accesorios, Y4600 San Salvador de Jujuy, Jujuy, Argentina",
+    "text": "-24.186623,-65.302602 | Gabriel Accesorios, Y4600 San Salvador de Jujuy…"
+  },
+  "latitude": -24.1866232,
+  "longitude": -65.3026021
+}
+```
+
+### 🔴 La regla, una sola, para los dos caminos
+
+> **Si el `message` trae `location`, guardar `location.text` en `ubicacion_lead`.**
+> Si no lo trae, pedir la dirección por texto (Camino B).
+
+No usar `message.text` para esto. En un pin `text` son las coordenadas, pero en un link es la
+frase del cliente con la URL adentro — copiarlo guarda `https://maps.app.goo.gl/…` en el CRM,
+que no se puede abrir en un mapa ni le sirve al distribuidor.
+
+Los links de Maps suelen traer **calle y número** en `name`, que el pin nativo no trae.
+
 ### Camino B — Escribir la ubicación en el pedido
 
 Para cuando el cliente **dicta** la dirección en lugar de mandar el pin.

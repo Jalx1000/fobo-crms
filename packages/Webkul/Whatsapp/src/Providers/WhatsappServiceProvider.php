@@ -10,6 +10,7 @@ use Webkul\Whatsapp\Console\Commands\KommoCheck;
 use Webkul\Whatsapp\Console\Commands\ListTemplates;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
+use Webkul\Whatsapp\Console\Commands\ResolveMapLinks;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
 use Webkul\Whatsapp\Http\Middleware\EnsureConversationInScope;
 use Webkul\Whatsapp\Http\Middleware\EnsureWhatsappAccess;
@@ -49,6 +50,7 @@ class WhatsappServiceProvider extends ServiceProvider
                 ListTemplates::class,
                 NormalizePhones::class,
                 RepairGateway::class,
+                ResolveMapLinks::class,
                 WebhookInfo::class,
             ]);
         }

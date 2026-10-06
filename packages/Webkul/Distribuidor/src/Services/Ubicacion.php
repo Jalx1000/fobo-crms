@@ -97,10 +97,19 @@ class Ubicacion
             return null;
         }
 
+        /*
+         * NO se filtra por `type = 'location'`.
+         *
+         * Un cliente que pega un link de Google Maps manda un mensaje de TEXTO,
+         * y las coordenadas se le resuelven despues al `payload`
+         * (ResolverEnlaceDeMapa). Filtrando por tipo, esas direcciones —la mitad
+         * de las que llegan— quedaban invisibles para el distribuidor. Lo que
+         * define que haya pin es el nodo, no el tipo.
+         */
         $mensaje = DB::table('whatsapp_messages')
             ->whereIn('conversation_id', $conversaciones)
-            ->where('type', 'location')
             ->where('direction', 'inbound')
+            ->where('payload', 'like', '%"location"%')
             ->orderByDesc('id')
             ->first();
 
