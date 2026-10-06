@@ -43,6 +43,13 @@ class Kernel extends HttpKernel
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+
+            /*
+             * Los atributos custom en /api/v1/products. Va acá y no en el Resource porque
+             * ese Resource es de krayin/rest-api y usa su clase por nombre, asi que no se
+             * puede sustituir; el detalle completo esta en el middleware.
+             */
+            \App\Http\Middleware\AgregarAtributosDeProducto::class,
         ],
     ];
 
