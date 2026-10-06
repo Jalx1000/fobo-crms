@@ -206,6 +206,21 @@ class LeadRepository extends Repository
      */
     public function update(array $data, $id, $attributes = [])
     {
+        /*
+         * `entity_type` por defecto.
+         *
+         * AttributeValueRepository::save() lo lee para saber qué atributos custom guardar
+         * y en qué entidad. Los controladores del admin lo inyectan a mano, pero el del
+         * REST API —`PUT /api/v1/leads/attributes/edit/{id}`, que es el único camino que
+         * tiene el agente para escribir atributos— hace `request()->all()` y no lo agrega:
+         * el endpoint devolvía 500 con "Undefined array key entity_type" y era inusable.
+         *
+         * Se resuelve acá y no pidiéndole la clave a cada quien llame: este repositorio
+         * SIEMPRE actualiza leads, así que el valor no puede ser otro, y un default
+         * elimina la clase entera de error en vez de un caso.
+         */
+        $data['entity_type'] ??= 'leads';
+
         /**
          * Ciudad del lead ANTES del guardado. La necesita CitySyncService para saber
          * si el pipeline cambió en este request (y por tanto le gana al atributo
