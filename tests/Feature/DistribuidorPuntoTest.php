@@ -946,14 +946,19 @@ it('el pedido expone su ubicación y sus productos por el endpoint', function ()
         ])->assertCreated()->json('pedido');
 
     /*
-     * Los dos los encontró un recorrido manual del flujo, no la suite: la clave
-     * `ubicacion` no se había llegado a exponer, y la dirección que escribe el
-     * distribuidor iba a `description` mientras el bloque "Dónde entregar" leía
-     * sólo el atributo `ubicacion_lead`, así que quedaba vacío.
+     * El pedido expone la clave `ubicacion`, que un recorrido manual descubrió que faltaba.
+     *
+     * Lo que este test afirmaba antes —que la `nota` del pedido apareciera como
+     * `referencia`— se invirtió a propósito. El `description` dejó de ser respaldo de la
+     * ubicación porque producía el peor síntoma del módulo: el agente de WhatsApp vuelca
+     * ahí el resumen completo de la conversación, y la tarjeta se lo mostraba TODO al
+     * distribuidor bajo "Dónde entregar" — un muro de texto en lugar de "casa en esquina".
+     *
+     * Ahora la referencia sale sólo de donde corresponde: el domicilio del cliente o el
+     * atributo `ubicacion_lead` del pedido.
      */
     expect($pedido)->toHaveKey('ubicacion')
-        ->and($pedido['ubicacion']['referencia'])->toBe('Av. Bolivia 2335, portón azul')
-        ->and($pedido['ubicacion']['modo'])->toBe('busqueda');
+        ->and($pedido['ubicacion']['referencia'])->not->toBe('Av. Bolivia 2335, portón azul');
 
     // Y qué hay que entregar: sin esto el reparto sale sin saber qué lleva.
     expect($pedido['productos'])->toHaveCount(1)

@@ -218,9 +218,19 @@ class Ubicacion
             }
         }
 
-        $descripcion = trim((string) DB::table('leads')->where('id', $leadId)->value('description'));
-
-        return $descripcion !== '' ? $descripcion : null;
+        /*
+         * 🔴 El `description` NO es respaldo de la ubicación.
+         *
+         * Lo era, y producía el peor síntoma del módulo: el agente de WhatsApp vuelca en el
+         * description el resumen completo de la conversación —cliente, ciudad, pedido,
+         * total, el mensaje de confirmación entero— y la tarjeta se lo mostraba TODO al
+         * distribuidor bajo el título "Dónde entregar". Un muro de texto en lugar de "casa
+         * en esquina".
+         *
+         * Sin respaldo, un pedido sin ubicación se ve como lo que es: sin ubicación. Es
+         * información honesta, y además señala qué pedidos hay que completar.
+         */
+        return null;
     }
 
     /**

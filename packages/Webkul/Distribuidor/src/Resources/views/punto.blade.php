@@ -370,13 +370,17 @@
                             </div>
                         </section>
 
-                        {{-- Paso 3: nota opcional --}}
-                        <section class="mb-4 rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
-                            <h2 class="mb-3 text-lg font-bold text-gray-800 dark:text-gray-200">3 · Dirección y referencia <span class="text-sm font-normal text-gray-600 dark:text-gray-400">(opcional)</span></h2>
-                            <label for="punto-nota" class="sr-only">Dirección y referencia de entrega</label>
-                            <textarea id="punto-nota" v-model="nota" rows="2" placeholder="Dirección, referencia, horario…"
-                                      class="w-full rounded-xl border-2 border-gray-300 p-3 text-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"></textarea>
-                        </section>
+                        {{--
+                            Acá estaba el paso "3 · Dirección y referencia", un textarea libre
+                            que escribía en el `description` del pedido.
+
+                            Se quita porque duplicaba —peor— lo que ahora son campos propios del
+                            CLIENTE: dirección, referencia y coordenadas, cada uno por separado y
+                            reutilizables en todos sus pedidos. Un solo cuadro de texto mezclando
+                            las tres cosas obliga a parsearlo para mostrarlo, y lo que se parsea
+                            se parsea mal: el `description` terminaba apareciendo entero como
+                            "referencia" en la tarjeta del pedido.
+                        --}}
                     </template>
                 </template>
 
@@ -1193,7 +1197,6 @@
                         cliente: null,
                         buscado: false,
                         encontrado: false,
-                        nota: '',
                         pedidos: [],
                         recientes: [],
                         caja: {
@@ -1647,13 +1650,11 @@
                         this.$axios.post(this.guardarPedidoUrl, {
                             person_id: this.cliente.id,
                             ciudad_id: this.ciudadId,
-                            nota: this.nota || null,
                             productos: this.lineas,
                         })
                             .then(() => {
                                 this.carrito = {};
                                 this.precios = {};
-                                this.nota = '';
                                 this.telefono = '';
                                 this.limpiarCliente();
                                 this.cargarRecientes();
