@@ -216,7 +216,14 @@ class PersonRepository extends Repository
         // from a channel that carries no phone or email, like Messenger — can
         // be de-duplicated against nothing, so it gets a value of its own
         // instead of colliding with the next such contact on an empty string.
-        $data['unique_id'] = $uniqueIdParts
+        //
+        // The owner and the organization do not identify a person: two
+        // phone-less Messenger contacts of the same advisor would otherwise
+        // both get "256" and the second one would fail to register.
+        $identifica = filled($data['emails'][0]['value'] ?? null)
+            || filled($data['contact_numbers'][0]['value'] ?? null);
+
+        $data['unique_id'] = $identifica
             ? implode('|', $uniqueIdParts)
             : (string) Str::uuid();
 

@@ -16,6 +16,13 @@ use Webkul\Whatsapp\Services\Handoff;
  */
 uses(DatabaseTransactions::class);
 
+/*
+| Estos tests cubren el pozo y el ruteo por dueño SIN asesor por defecto. Con
+| ASESOR_POR_DEFECTO configurado (producción: Mariano) nada cae al pozo; ese
+| caso lo cubre tests/Feature/Product/DerivacionAsesorTest.php.
+*/
+beforeEach(fn () => config(['cotizacion.asesor_por_defecto' => null]));
+
 function handoffService(): Handoff
 {
     return app(Handoff::class);

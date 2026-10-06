@@ -320,6 +320,10 @@ class ConversationResolver
                 'name'        => $contact->name
                     ?: ($digits ?: $this->leadSource($gateway).' '.substr((string) $contact->providerId, -6)),
                 'emails' => [], // NOT NULL in the schema; a messaging contact has none
+                // Nace sin ciudad, así que con el asesor por defecto. Cuando el
+                // agente sabe producto y ciudad, Responsables::asignar() lo pasa
+                // a quien corresponde. Nunca un administrador: no vende.
+                'user_id' => app(\Webkul\Product\Services\Responsables::class)->asesorPorDefecto()?->id,
                 // Only ever a real phone number. A channel id (a Messenger
                 // PSID) written here would be matched against phone tails by
                 // resolvePerson() and could bind a stranger to the wrong

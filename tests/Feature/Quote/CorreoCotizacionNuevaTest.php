@@ -240,3 +240,16 @@ it('al enviarse, el logo va incrustado en el correo y no como enlace externo', f
     expect($email->getHtmlBody())->toContain('src="cid:')->not->toContain('imprimir.com.bo/wp-content')
         ->and(collect($email->getAttachments())->map->getMediaType()->all())->toContain('image');
 });
+
+// Caso real: las cotizaciones del agente guardan `variante` como array (cast en
+// QuoteItem) y el correo reventaba con "htmlspecialchars(): array given".
+it('muestra la variante de un ítem aunque venga como array (cotizaciones del agente)', function () {
+    $quote = cqCotizacion($this->producto, cqAsesor('Dueño'));
+
+    $quote->items()->first()->forceFill(['variante' => ['medida' => '50 cm', 'color' => 'Negro']])->save();
+
+    $html = (new CorreoCotizacion($quote->fresh(), null, []))->render();
+
+    // MySQL guarda el JSON con las claves ordenadas: importa que estén, no el orden.
+    expect($html)->toContain('Medida: 50 cm')->toContain('Color: Negro')->toContain(' · ');
+});

@@ -212,30 +212,25 @@ class Handoff
      */
     public function ownerFor(Conversation $conversation): ?int
     {
-        $candidate = $conversation->lead?->user_id ?? $conversation->person?->user_id;
+        $responsables = app(\Webkul\Product\Services\Responsables::class);
 
-        if (! $candidate) {
-            return null;
+        // Un asesor dueño del lead o del contacto se queda con su cliente
+        // (activo, y en la matriz o con un rol que vende: Responsables::esAsesor).
+        foreach ([$conversation->lead?->user_id, $conversation->person?->user_id] as $dueno) {
+            if ($responsables->esAsesor($dueno ? (int) $dueno : null)) {
+                return (int) $dueno;
+            }
         }
 
-        $query = UserProxy::modelClass()::where('id', $candidate)->where('status', 1);
-
-        // Same rule as the pool mailing list: a role that manages rather than
-        // attends is not a valid assignee. Most leads are owned by an admin, so
-        // without this nearly every handoff would land on someone who does not
-        // answer WhatsApp — and never reach the sales pool.
-        //
-        // Except when the owner is in the responsables matrix: being listed
-        // there means they attend, whatever their role says (half of Imprimir's
-        // sales team are "Supervisores"). Sending those to the pool would undo
-        // the round robin that picked them.
-        $roles = array_filter((array) config('whatsapp.handoff.exclude_roles', []));
-
-        if ($roles && ! app(\Webkul\Product\Services\Responsables::class)->atiende((int) $candidate)) {
-            $query->whereHas('role', fn ($q) => $q->whereNotIn('name', $roles));
+        // Si no —el dueño es un administrador, el usuario del agente o
+        // nadie—, quien atiende la ciudad del cliente, o el asesor por
+        // defecto. Antes esto caía al pozo y la conversación no la tomaba nadie.
+        if ($asesor = $responsables->porCiudad($responsables->ciudadDelContacto($conversation))) {
+            return (int) $asesor->id;
         }
 
-        return $query->exists() ? (int) $candidate : null;
+        // Sin asesor por defecto configurado y sin nadie en la ciudad: el pozo.
+        return null;
     }
 
     /**

@@ -72,11 +72,27 @@
         </thead>
         <tbody>
             @foreach ($quote->items as $item)
+                @php
+                    /*
+                     * `variante` tiene cast a array en QuoteItem: las cotizaciones del
+                     * agente guardan los criterios (medida, color…). Las viejas pueden
+                     * traer texto. Se muestra «Medida: 50 cm · Color: Negro».
+                     */
+                    $variante = is_array($item->variante)
+                        ? collect($item->variante)
+                            ->map(fn ($valor, $clave) => trim(
+                                (is_string($clave) ? ucfirst(str_replace('_', ' ', $clave)).': ' : '')
+                                .(is_array($valor) ? collect($valor)->flatten()->filter(fn ($v) => is_scalar($v))->implode(', ') : (string) $valor)
+                            ))
+                            ->filter(fn ($texto) => $texto !== '' && ! str_ends_with($texto, ':'))
+                            ->implode(' · ')
+                        : (string) $item->variante;
+                @endphp
                 <tr>
                     <td style="{{ $celda }}">
                         {{ $item->name }}
-                        @if ($item->variante)
-                            <br><span style="color: #6b6e76; font-size: 12px;">{{ $item->variante }}</span>
+                        @if ($variante !== '')
+                            <br><span style="color: #6b6e76; font-size: 12px;">{{ $variante }}</span>
                         @endif
                     </td>
                     <td style="{{ $celda }} text-align: center;">{{ rtrim(rtrim(number_format((float) $item->quantity, 2, '.', ''), '0'), '.') }}</td>

@@ -144,25 +144,7 @@ class LeadRepository extends Repository
         }
 
         if (empty($data['user_id'])) {
-            $assignedId = null;
-
-            if (auth()->guard('user')->check()) {
-                $assignedId = auth()->guard('user')->user()->id;
-            } elseif (auth()->check()) {
-                $assignedId = auth()->id();
-            }
-
-            if (! $assignedId) {
-                $userRepo = app(\Webkul\User\Repositories\UserRepository::class);
-                $fallbackUser = $userRepo->resetModel()->where('status', 1)->orderBy('id')->first();
-                if ($fallbackUser) {
-                    $assignedId = $fallbackUser->id;
-                }
-            }
-
-            if ($assignedId) {
-                $data['user_id'] = $assignedId;
-            }
+            $data['user_id'] = $this->duenoPorDefecto($person ?? null);
         }
 
         $lead = parent::create(array_merge([
@@ -190,6 +172,31 @@ class LeadRepository extends Repository
         $this->applyLeadValueRule($lead, $data);
 
         return $lead;
+    }
+
+    /**
+     * El dueño de un lead que llega sin uno.
+     *
+     * Antes: el usuario logueado o, sin sesión (webhook), el primer usuario
+     * activo por id — el administrador. Así casi todos los leads quedaban a
+     * nombre de alguien que no vende y el handoff los mandaba al pozo.
+     *
+     * Ahora solo un asesor (activo y en la matriz «Atiende»): quien lo crea si
+     * lo es, si no el dueño de su contacto, si no el asesor por defecto.
+     */
+    protected function duenoPorDefecto($person): ?int
+    {
+        $responsables = app(\Webkul\Product\Services\Responsables::class);
+
+        $logueado = auth()->guard('user')->id() ?? auth()->id();
+
+        foreach ([$logueado, $person?->user_id] as $candidato) {
+            if ($responsables->esAsesor($candidato ? (int) $candidato : null)) {
+                return (int) $candidato;
+            }
+        }
+
+        return $responsables->asesorPorDefecto()?->id;
     }
 
     /**

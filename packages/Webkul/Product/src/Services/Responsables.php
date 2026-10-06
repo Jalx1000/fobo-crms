@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Webkul\Product\Models\Product;
 use Webkul\Product\Models\ProductoResponsableProxy;
 use Webkul\Product\Support\ListaPrecios;
+use Webkul\User\Models\UserProxy;
 use Webkul\Whatsapp\Models\Conversation;
 
 /**
@@ -265,6 +266,101 @@ class Responsables
     public function atiende(int $userId): bool
     {
         return ProductoResponsableProxy::modelClass()::where('user_id', $userId)->exists();
+    }
+
+    /**
+     * Si alguien puede quedar como asesor asignado: activo, y en la matriz
+     * «Atiende» o con un rol que vende (no Administrador/Supervisores/Sistema,
+     * whatsapp.handoff.exclude_roles).
+     *
+     * Deja afuera a los administradores y al usuario del agente: no venden,
+     * así que un lead a su nombre no lo atiende nadie. Un Supervisor que está
+     * en la matriz (Mariano, Bulmaro, Eduardo) sí vende y sí cuenta.
+     */
+    public function esAsesor(?int $userId): bool
+    {
+        if (! $userId) {
+            return false;
+        }
+
+        $query = UserProxy::modelClass()::whereKey($userId)->where('status', 1);
+
+        $roles = array_filter((array) config('whatsapp.handoff.exclude_roles', []));
+
+        if ($roles && ! $this->atiende($userId)) {
+            $query->whereHas('role', fn ($q) => $q->whereNotIn('name', $roles));
+        }
+
+        return $query->exists();
+    }
+
+    /**
+     * El asesor para quien no dijo ciudad, o cuya ciudad no atiende nadie:
+     * cotizacion.asesor_por_defecto (por email), si sigue siendo asesor.
+     * Sin configurar, null: cada llamador conserva su comportamiento de antes
+     * (el handoff, el pozo).
+     */
+    public function asesorPorDefecto()
+    {
+        $email = trim((string) config('cotizacion.asesor_por_defecto'));
+
+        if ($email === '') {
+            return null;
+        }
+
+        $user = UserProxy::modelClass()::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
+
+        return $user && $this->esAsesor($user->id) ? $user : null;
+    }
+
+    /**
+     * El asesor de un cliente por su ciudad, sin producto todavía: quien la
+     * atiende (cualquier producto), por turno. Sin ciudad, o sin nadie en esa
+     * ciudad, el asesor por defecto.
+     *
+     * Con producto conocido manda asignar(): esto es para el alta y para el
+     * handoff que llega sin producto.
+     */
+    public function porCiudad(?string $ciudad)
+    {
+        if ($ciudad && ! self::esNacional($ciudad) && $asesor = $this->turnoEn($ciudad)) {
+            return $asesor;
+        }
+
+        return $this->asesorPorDefecto();
+    }
+
+    /**
+     * El que sigue en una ciudad, mirando todos sus productos: el que hace
+     * más tiempo no recibe nada. Marca el turno en sus casillas de esa ciudad.
+     */
+    protected function turnoEn(string $ciudad)
+    {
+        return DB::transaction(function () use ($ciudad) {
+            $filas = ProductoResponsableProxy::modelClass()::query()
+                ->whereHas('user', fn ($q) => $q->where('status', 1))
+                ->with('user')
+                ->get()
+                ->filter(fn ($r) => self::mismaCiudad((string) $r->ciudad, $ciudad));
+
+            if ($filas->isEmpty()) {
+                return null;
+            }
+
+            // El turno de una persona es su asignación más reciente en la
+            // ciudad; nunca asignado va primero, y a igualdad, el id.
+            $userId = $filas->groupBy('user_id')
+                ->map(fn ($suyas) => optional($suyas->max('ultimo_asignado_at'))->timestamp ?? 0)
+                ->sortBy(fn ($ultimo, $id) => [$ultimo, $id])
+                ->keys()
+                ->first();
+
+            ProductoResponsableProxy::modelClass()::query()
+                ->whereIn('id', $filas->where('user_id', $userId)->pluck('id'))
+                ->update(['ultimo_asignado_at' => now()]);
+
+            return $filas->firstWhere('user_id', $userId)->user;
+        });
     }
 
     /**

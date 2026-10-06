@@ -306,8 +306,10 @@ class AgenteController extends Controller
                 // después de crear, igual que hace el CRM en su controlador.
 
                 // El que le toca por producto y ciudad; si no hay, el asignado
-                // a la conversación o el dueño del contacto.
-                'user_id'      => $asesor?->id ?: ($conversation->assigned_user_id ?: ($conversation->person?->user_id ?: 1)),
+                // a la conversación o el dueño del contacto si son asesores, y
+                // si no, quien atiende la ciudad o el asesor por defecto. Antes
+                // terminaba en `?: 1`: el administrador.
+                'user_id'      => $asesor?->id ?: $this->asesorDeRespaldo($conversation, $ciudad),
                 'expired_at'   => now()->addDays((int) config('cotizacion.validez_dias', 10))->toDateString(),
                 'sub_total'    => $total,
                 'grand_total'  => $total,
@@ -338,8 +340,8 @@ class AgenteController extends Controller
                 | después al contacto— y la sucursal es el id del almacén, que
                 | es lo que espera un atributo `lookup`.
                 */
-                'ciudad'   => $this->opcionDe('ciudad', $ciudad),
-                'sucursal' => $product->warehouse_id,
+                'ciudad'         => $this->opcionDe('ciudad', $ciudad),
+                'sucursal'       => $product->warehouse_id,
                 'forma_pago'     => $this->opcionDe('forma_pago', config('cotizacion.forma_pago_default')),
 
                 'items' => [[
@@ -603,6 +605,23 @@ class AgenteController extends Controller
         return [$fila, null];
     }
 
+    /**
+     * El dueño de una cotización cuando la matriz no dio a nadie para ese
+     * producto y ciudad: el asignado de la conversación o el dueño del
+     * contacto si son asesores; si no, quien atiende la ciudad o el asesor
+     * por defecto. Nunca un administrador.
+     */
+    protected function asesorDeRespaldo($conversation, ?string $ciudad): ?int
+    {
+        foreach ([$conversation->assigned_user_id, $conversation->person?->user_id] as $candidato) {
+            if ($this->responsables->esAsesor($candidato ? (int) $candidato : null)) {
+                return (int) $candidato;
+            }
+        }
+
+        return $this->responsables->porCiudad($ciudad ?: $this->responsables->ciudadDelContacto($conversation))?->id;
+    }
+
     protected function asuntoDe($product, $fila): string
     {
         $combo = $this->comboDe($product, $fila);
@@ -792,7 +811,7 @@ class AgenteController extends Controller
             $plural = ['imagen' => 'imágenes', 'documento' => 'documentos', 'enlace' => 'enlaces'][$datos['tipo']];
 
             $de = $variante
-                ? " para la variante «".Variantes::etiqueta($product, $variante)."»"
+                ? ' para la variante «'.Variantes::etiqueta($product, $variante).'»'
                 : '';
 
             return response()->json([

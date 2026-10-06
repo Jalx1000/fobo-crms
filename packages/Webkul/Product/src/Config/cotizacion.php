@@ -60,6 +60,13 @@ return [
     'cobertura_nacional' => 'Bolivia',
 
     /*
+    | El asesor de quien no dice ciudad, o de una ciudad que no atiende nadie,
+    | por EMAIL. Tiene que figurar en la matriz «Atiende»: si no, se usa el
+    | turno de la cobertura nacional. Nunca un administrador: no vende.
+    */
+    'asesor_por_defecto' => env('ASESOR_POR_DEFECTO'),
+
+    /*
     | Las ciudades que puede tener un CLIENTE, que son más que aquellas donde
     | Imprimir tiene gente: se vende a todo el país. Son las opciones del
     | atributo `ciudad` de contactos, oportunidades y cotizaciones.

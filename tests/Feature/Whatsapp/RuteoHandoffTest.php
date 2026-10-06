@@ -17,6 +17,9 @@ use Webkul\Whatsapp\Services\AgentPayload;
  * rechazaba la respuesta.
  */
 beforeEach(function () {
+    // Sin asesor por defecto: el ruteo que se prueba acá es el de la matriz.
+    config(['cotizacion.asesor_por_defecto' => null]);
+
     $this->conv = Conversation::create([
         'gateway'    => 'cloud_api',
         'wa_phone'   => '59177006'.rand(100, 999),
