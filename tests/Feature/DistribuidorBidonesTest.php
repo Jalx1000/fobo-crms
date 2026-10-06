@@ -1168,3 +1168,48 @@ it('un fallo del geocodificador no impide guardar el domicilio', function () {
         ])
         ->assertOk();
 });
+
+it('el mapa no abre en el medio del campo', function () {
+    $html = $this->actingAs(distribuidorDeBidones(), 'user')
+        ->get(route('admin.distribuidor.index'))
+        ->assertOk()
+        ->getContent();
+
+    preg_match("/:mapa-centro='([^']+)'/", $html, $m);
+    $centro = json_decode($m[1] ?? '{}', true);
+
+    expect($centro)->toHaveKeys(['lat', 'lng', 'zoom']);
+
+    /*
+     * 🔴 El centro salía del punto medio de la caja de la zona de reparto, y esa caja lleva
+     * margen de sobra para VALIDAR coordenadas: su centro geométrico —lat -23.25,
+     * lng -64.75— cae en campo vacío, a 118 km de San Salvador de Jujuy. El distribuidor
+     * abría "Marcar domicilio" y tenía que arrastrar el mapa un centenar de kilómetros.
+     *
+     * Validar una zona y abrir un mapa son dos problemas distintos: el primero quiere un
+     * área generosa, el segundo un punto donde la gente vive.
+     */
+    $km = fn ($aLat, $aLng, $bLat, $bLng) => 2 * 6371 * asin(sqrt(
+        sin(deg2rad($bLat - $aLat) / 2) ** 2
+        + cos(deg2rad($aLat)) * cos(deg2rad($bLat)) * sin(deg2rad($bLng - $aLng) / 2) ** 2
+    ));
+
+    // A menos de 40 km de San Salvador de Jujuy: cualquier barrio donde se reparte.
+    expect($km($centro['lat'], $centro['lng'], -24.1858, -65.2995))->toBeLessThan(40.0);
+
+    /*
+     * Y con zoom de calle. A 11 un píxel son 70 metros: no se distingue una cuadra de otra,
+     * así que no se puede poner un pin en una casa.
+     */
+    expect($centro['zoom'])->toBeGreaterThanOrEqual(13);
+});
+
+it('el centro del mapa no se deriva de la caja de validacion', function () {
+    $z = (array) config('distribuidor.zona');
+    $medioDeLaCaja = [($z['lat_min'] + $z['lat_max']) / 2, ($z['lng_min'] + $z['lng_max']) / 2];
+
+    $centro = (array) config('distribuidor.zona.centro_mapa');
+
+    // Si alguien vuelve a derivarlo de la caja, esto lo detecta.
+    expect(round($centro['lat'], 2))->not->toBe(round($medioDeLaCaja[0], 2));
+});

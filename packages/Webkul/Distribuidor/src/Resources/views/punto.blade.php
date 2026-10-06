@@ -910,7 +910,7 @@
                             <p class="mb-3 text-base text-gray-600 dark:text-gray-400">@{{ mapaCliente.name }}</p>
 
                             <div ref="mapaEditar" class="mb-2 h-72 w-full overflow-hidden rounded-xl border-2 border-gray-300 bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
-                                 role="application" aria-label="Mapa para editar el domicilio del cliente"></div>
+                                 role="application" :aria-label="(mapaCliente && mapaCliente.ubicacion ? 'Editar' : 'Marcar') + ' el domicilio del cliente en el mapa'"></div>
 
                             <p v-if="mapaError" class="mb-2 text-base text-red-700 dark:text-red-400">@{{ mapaError }}</p>
                             <p v-else class="mb-3 text-sm text-gray-600 dark:text-gray-400">

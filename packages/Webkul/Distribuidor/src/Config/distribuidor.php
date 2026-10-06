@@ -95,6 +95,26 @@ return [
         | da cientos o miles.
         */
         'precision_maxima' => (int) env('DISTRIBUIDOR_PRECISION_MAXIMA', 500),
+
+        /*
+        | Dónde abre el mapa cuando el cliente todavía no tiene domicilio.
+        |
+        | 🔴 NO se deriva del punto medio de la caja de arriba, que es lo que se hacía y
+        | estaba mal: esa caja tiene margen de sobra para validar coordenadas, así que su
+        | centro geométrico —lat -23.25, lng -64.75— cae en campo vacío, a 118 km de San
+        | Salvador de Jujuy. El distribuidor abría "Marcar domicilio" y tenía que arrastrar
+        | el mapa un centenar de kilómetros.
+        |
+        | Validar una zona y abrir un mapa son dos problemas distintos: el primero quiere un
+        | área generosa, el segundo un punto preciso donde la gente vive.
+        |
+        | Zoom 14 y no 11: a 11 un píxel son 70 metros y no se distingue una cuadra de otra.
+        */
+        'centro_mapa' => [
+            'lat'  => (float) env('DISTRIBUIDOR_MAPA_LAT', -24.1858),
+            'lng'  => (float) env('DISTRIBUIDOR_MAPA_LNG', -65.2995),
+            'zoom' => (int) env('DISTRIBUIDOR_MAPA_ZOOM', 14),
+        ],
     ],
 
     /*

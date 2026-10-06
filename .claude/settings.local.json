@@ -79,7 +79,9 @@
       "Bash(perl -0pi -e 's/class=\"flex min-h-\\\\[30px\\\\] min-w-\\\\[30px\\\\] items-center justify-center rounded-md border px-2 text-sm transition-all hover:border-gray-400 dark:border-gray-800 dark:hover:border-gray-400\"/class=\"flex w-8 items-center justify-center rounded-md border px-2 py-1 text-sm transition-all hover:border-gray-400 dark:border-gray-800 dark:hover:border-gray-400\"\\\\n                            style=\"min-height: 30px\"/g' packages/Webkul/Admin/src/Resources/views/dashboard/index/tiempo-por-contacto.blade.php)",
       "Bash(./vendor/bin/pint --test packages/Webkul/Admin/src/Helpers/GlobalDateFilter.php packages/Webkul/Admin/src/Http/Controllers/DashboardController.php packages/Webkul/Admin/src/Http/Controllers/Lead/LeadController.php packages/Webkul/Admin/src/Http/Controllers/Contact/Persons/PersonController.php)",
       "Bash(./vendor/bin/pint --test packages/Webkul/Admin/src/Helpers/GlobalDateFilter.php)",
-      "Bash(grep -n 'public function \\\\|protected $table\\\\|namespace' packages/Webkul/Lead/src/Models/Lead.php)"
+      "Bash(grep -n 'public function \\\\|protected $table\\\\|namespace' packages/Webkul/Lead/src/Models/Lead.php)",
+      "Bash(python3 -)",
+      "Bash(./vendor/bin/pint packages/Webkul/Distribuidor/src)"
     ]
   }
 }

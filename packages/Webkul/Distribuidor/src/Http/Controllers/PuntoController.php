@@ -56,16 +56,17 @@ class PuntoController extends Controller
             'sucursales' => $this->alcance->sucursales(),
 
             /*
-             * El centro del mapa: el medio de la zona de reparto configurada, no una
-             * coordenada escrita a mano. Así una instalación en otra provincia abre el
-             * mapa donde trabaja con sólo cambiar la zona, en vez de mostrar el mapa
-             * de otra ciudad hasta que alguien se acuerde de tocar el código.
+             * Dónde abre el mapa para marcar un domicilio nuevo.
+             *
+             * Primero el último domicilio marcado en las ciudades de este usuario: el
+             * distribuidor trabaja una zona, así que el barrio del cliente anterior es casi
+             * siempre el barrio correcto y llegar ahí es cero arrastre.
+             *
+             * Si no hay ninguno, el centro configurado. Lo que NO se usa es el punto medio de
+             * la caja de la zona, que es lo que había: esa caja lleva margen para validar
+             * coordenadas y su centro cae en campo vacío, a 118 km de San Salvador de Jujuy.
              */
-            'mapaCentro' => [
-                'lat'  => (float) ((config('distribuidor.zona.lat_min') + config('distribuidor.zona.lat_max')) / 2),
-                'lng'  => (float) ((config('distribuidor.zona.lng_min') + config('distribuidor.zona.lng_max')) / 2),
-                'zoom' => 11,
-            ],
+            'mapaCentro' => $this->centroDelMapa(),
             'formasPago' => config('distribuidor.formas_de_pago'),
         ]);
     }
@@ -679,6 +680,33 @@ class PuntoController extends Controller
             ->where('lead_id', $leadId)
             ->latest('entregado_at')
             ->first();
+    }
+
+    /**
+     * El punto donde conviene abrir el mapa para este usuario.
+     *
+     * @return array{lat:float, lng:float, zoom:int}
+     */
+    protected function centroDelMapa(): array
+    {
+        $porDefecto = (array) config('distribuidor.zona.centro_mapa');
+        $ciudades = $this->alcance->ciudadesPermitidas();
+
+        $ultima = DB::table('distribuidor_ubicaciones as u')
+            ->when($ciudades !== null, fn ($q) => $q->whereExists(
+                fn ($e) => $e->selectRaw('1')
+                    ->from('leads')
+                    ->whereColumn('leads.person_id', 'u.person_id')
+                    ->whereIn('leads.lead_pipeline_id', $ciudades ?: [0]),
+            ))
+            ->orderByDesc('u.updated_at')
+            ->first(['u.lat', 'u.lng']);
+
+        return [
+            'lat'  => (float) ($ultima->lat ?? $porDefecto['lat'] ?? -24.1858),
+            'lng'  => (float) ($ultima->lng ?? $porDefecto['lng'] ?? -65.2995),
+            'zoom' => (int) ($porDefecto['zoom'] ?? 14),
+        ];
     }
 
     /**
