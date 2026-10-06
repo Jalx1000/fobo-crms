@@ -166,22 +166,28 @@ class PuntoController extends Controller
         }
 
         /*
-         * El saludo, sólo si el contacto es NUEVO: a un cliente que ya existía no se le
-         * da la bienvenida de nuevo.
+         * El saludo sale SIEMPRE que se toca "Crear contacto", exista o no el contacto.
+         *
+         * Antes iba sólo si `creada` era true, y eso dejaba un caso que en la calle pasa
+         * seguido: el distribuidor busca el teléfono, la búsqueda no lo encuentra, toca
+         * Crear contacto, y el repositorio SÍ lo encuentra porque deduplica por teléfono
+         * normalizado. `creada` vuelve false y el saludo no salía, aunque para quien está
+         * adelante de la pantalla acababa de dar de alta a un cliente.
+         *
+         * No hay riesgo de saludar de más: el botón sólo aparece cuando la búsqueda no
+         * encontró el número, y queda deshabilitado mientras el request está en vuelo.
          *
          * En try/catch y sin dejar que nada se propague: crear el cliente es el trabajo,
          * saludarlo es un extra, y un alta que falla porque no salió un mensaje deja al
          * distribuidor sin poder vender con el cliente delante.
          */
-        if ($r['creada']) {
-            try {
-                app(Bienvenida::class)->enviarA($data['telefono'], $data['nombre']);
-            } catch (\Throwable $e) {
-                Log::warning('No se pudo encolar el saludo al contacto nuevo', [
-                    'person_id' => $personId,
-                    'error'     => $e->getMessage(),
-                ]);
-            }
+        try {
+            app(Bienvenida::class)->enviarA($data['telefono'], $data['nombre']);
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo encolar el saludo al contacto', [
+                'person_id' => $personId,
+                'error'     => $e->getMessage(),
+            ]);
         }
 
         return response()->json([

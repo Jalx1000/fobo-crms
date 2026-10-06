@@ -112,7 +112,7 @@ la ficha del contacto.
 
 Último a propósito: es el único que depende de una aprobación externa.
 
-- [ ] **T5.1** Redactar la plantilla y someterla a Meta
+- [x] **T5.1** Redactar la plantilla y someterla a Meta — **HECHO**: bienvenida_sensia, es, Utility, APPROVED
   - Acceptance: existe una plantilla aprobada en español para abrir conversación
   - Verify: aparece en el catálogo con estado aprobado
   - ⚠️ **Accion tuya en Meta.** Hoy la unica aprobada es `hello_world` en ingles.

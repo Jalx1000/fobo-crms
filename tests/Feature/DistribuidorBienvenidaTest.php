@@ -160,7 +160,7 @@ it('saluda al crear un contacto nuevo desde el punto', function () {
     Queue::assertPushed(SendMessage::class);
 });
 
-it('no saluda de nuevo a un contacto que ya existia', function () {
+it('saluda tambien si el contacto ya existia', function () {
     conPlantillaDeBienvenida();
 
     $telefono = telefonoSinUsar();
@@ -174,13 +174,22 @@ it('no saluda de nuevo a un contacto que ya existia', function () {
 
     Queue::fake();
 
-    // Segunda vez con el mismo teléfono: ya existía, no se saluda.
+    /*
+     * Segunda vez con el mismo teléfono: el contacto YA existe —`creada` vuelve false— y
+     * el saludo sale igual.
+     *
+     * Este test afirmaba lo contrario, y la regla vieja dejaba afuera un caso que en la
+     * calle pasa seguido: el distribuidor busca el teléfono, la búsqueda no lo encuentra,
+     * toca Crear contacto, y el repositorio SÍ lo encuentra porque deduplica por teléfono
+     * normalizado. Para quien está adelante de la pantalla acaba de dar de alta a un
+     * cliente, así que el saludo tiene que salir.
+     */
     $this->actingAs($user, 'user')
         ->postJson(route('admin.distribuidor.contacto.store'), ['telefono' => $telefono, 'nombre' => 'Cliente uno'])
         ->assertOk()
         ->assertJsonPath('creada', false);
 
-    Queue::assertNotPushed(SendMessage::class);
+    Queue::assertPushed(SendMessage::class);
 });
 
 it('el alta del contacto no falla si el saludo revienta', function () {
