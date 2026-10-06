@@ -125,7 +125,7 @@ la ficha del contacto.
     > consultar tus entregas.
     > Gracias por elegirnos!
 
-- [ ] **T5.2** Envío al crear el contacto, detrás de una bandera
+- [x] **T5.2** Envío al crear el contacto, detrás de una bandera — **HECHO**
   - Acceptance: con la bandera apagada no manda nada; encendida y con plantilla
     aprobada, encola el envío; si la plantilla falta, lo registra y NO rompe el alta
   - Verify: tests con `Queue::fake()` de los tres casos

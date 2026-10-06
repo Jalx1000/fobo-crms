@@ -83,6 +83,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Mensaje de bienvenida
+    |--------------------------------------------------------------------------
+    |
+    | Se manda al cargar un contacto nuevo desde el Punto.
+    |
+    | Apagado por defecto, y no es exceso de cautela: el saludo va a un número con el
+    | que nunca hablamos, así que cae fuera de la ventana de 24 h de WhatsApp y EXIGE
+    | una plantilla aprobada por Meta. Mientras no exista, cada alta de contacto
+    | generaría un rechazo en el log sin que nadie se enterara de por qué.
+    |
+    | Para encenderlo: crear la plantilla en Meta (categoría Utility, con una variable
+    | para el nombre), esperar la aprobación, y poner WHATSAPP_BIENVENIDA=true.
+    |
+    */
+    'bienvenida' => [
+        'enabled'  => (bool) env('WHATSAPP_BIENVENIDA', false),
+        'template' => env('WHATSAPP_BIENVENIDA_TEMPLATE', 'bienvenida_sensia'),
+        'language' => env('WHATSAPP_BIENVENIDA_LANG', 'es'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Template catalogue
     |--------------------------------------------------------------------------
     | Approved templates are read from Meta and cached: the list barely changes

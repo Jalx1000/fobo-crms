@@ -6,6 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Distribuidor\Models\EntregaProxy;
 use Webkul\Distribuidor\Models\PagoProxy;
@@ -17,6 +18,7 @@ use Webkul\Distribuidor\Services\PuntoPedido;
 use Webkul\Distribuidor\Services\RegistroDeEdicion;
 use Webkul\Distribuidor\Services\Ubicacion;
 use Webkul\Lead\Models\LeadProxy;
+use Webkul\Whatsapp\Services\Bienvenida;
 
 /**
  * El Punto de Distribuidor.
@@ -149,6 +151,25 @@ class PuntoController extends Controller
          */
         if (! empty($data['bidones'])) {
             $this->bidones->registrar($personId, null, (int) $data['bidones'], 0);
+        }
+
+        /*
+         * El saludo, sólo si el contacto es NUEVO: a un cliente que ya existía no se le
+         * da la bienvenida de nuevo.
+         *
+         * En try/catch y sin dejar que nada se propague: crear el cliente es el trabajo,
+         * saludarlo es un extra, y un alta que falla porque no salió un mensaje deja al
+         * distribuidor sin poder vender con el cliente delante.
+         */
+        if ($r['creada']) {
+            try {
+                app(Bienvenida::class)->enviarA($data['telefono'], $data['nombre']);
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo encolar el saludo al contacto nuevo', [
+                    'person_id' => $personId,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
         }
 
         return response()->json([
