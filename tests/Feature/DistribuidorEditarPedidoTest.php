@@ -240,3 +240,78 @@ it('rechaza un pedido sin lineas', function () {
         ->patchJson(route('admin.distribuidor.pedido.productos', $p['lead_id']), ['productos' => []])
         ->assertStatus(422);
 });
+
+// ───────── T3.2: la interfaz de edición ─────────
+
+it('el pedido expone el product_id que el dialogo necesita', function () {
+    $p = pedidoConLineas();
+    $ciudad = (int) DB::table('leads')->where('id', $p['lead_id'])->value('lead_pipeline_id');
+    $user = distribuidorQueEdita();
+
+    /*
+     * El filtro "hoy" lista los pedidos DEL USUARIO creados hoy, y el helper crea el
+     * pedido sin sesión, así que queda sin dueño. Se le asigna acá en vez de cambiar el
+     * helper: los demás tests no necesitan dueño y ponérselo ocultaría que el filtro
+     * depende de él.
+     */
+    DB::table('leads')->where('id', $p['lead_id'])->update(['user_id' => $user->id]);
+
+    $pedidos = $this->actingAs($user, 'user')
+        ->getJson(route('admin.distribuidor.pedidos', ['ciudad' => $ciudad, 'filtro' => 'hoy']))
+        ->assertOk()
+        ->json('pedidos');
+
+    $fila = collect($pedidos)->firstWhere('id', $p['lead_id']);
+
+    /*
+     * Sin product_id la pantalla sabe qué dice cada línea pero no de qué producto es,
+     * así que no puede reconstruir el pedido para reenviarlo.
+     */
+    expect($fila)->not->toBeNull()
+        ->and($fila['productos'][0])->toHaveKey('product_id')
+        ->and($fila['productos'][0]['product_id'])->toBeGreaterThan(0);
+});
+
+it('el dialogo de edicion existe y avisa de la plata cobrada', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    $this->assertStringContainsString('abrirEdicion', $vista, 'Falta el botón de editar productos: ');
+    $this->assertStringContainsString('totalEditado', $vista, 'Falta el total en vivo del pedido editado: ');
+
+    /*
+     * El aviso de la diferencia cobrada es lo que convierte la edición en algo que
+     * alguien tiene que resolver. Sin verlo, el distribuidor guarda y se va sin
+     * devolver la plata.
+     */
+    $this->assertStringContainsString('tenés que devolver', $vista, 'El diálogo no avisa que hay que devolver la diferencia: ');
+    $this->assertStringContainsString('falta cobrar', $vista, 'El diálogo no avisa que falta cobrar la diferencia: ');
+});
+
+it('editar no se ofrece en un pedido cancelado', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    // El servidor lo rechaza con 422 igual, pero ofrecer un botón que va a fallar es
+    // mandar al distribuidor a un error evitable.
+    expect($vista)->toContain("pe.etapa_code !== 'pedidos-cancelado'\" type=\"button\" @click=\"abrirEdicion(pe)");
+});
+
+it('el dialogo copia las lineas en vez de mutar la tarjeta', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    /*
+     * Cancelar tiene que dejar la tarjeta como estaba. Mutando el objeto del listado,
+     * la tarjeta quedaría ya cambiada aunque no se haya guardado nada —y el total
+     * mostrado no coincidiría con el del servidor hasta recargar.
+     */
+    $this->assertStringContainsString(
+        '(pedido.productos || []).map(l => ({',
+        $vista,
+        'El diálogo edita las líneas del listado en el lugar: '
+    );
+});

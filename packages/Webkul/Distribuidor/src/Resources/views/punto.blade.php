@@ -560,6 +560,22 @@
                             Entregado y cobrado
                         </p>
 
+                        {{--
+                            Editar los productos. Va en las salidas laterales y no en la cadena
+                            de pasos: no es algo que haya que hacer en cada pedido, es una
+                            corrección. Y sigue disponible después de cobrado y entregado, que es
+                            lo que pidió el negocio —el caso real es el pedido que armó el agente
+                            y el cliente corrige en la puerta—.
+
+                            Cancelado no: ahí no hay nada que entregar, y el servidor lo rechaza
+                            igual con un 422.
+                        --}}
+                        <button v-if="pe.etapa_code !== 'pedidos-cancelado'" type="button" @click="abrirEdicion(pe)"
+                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-2 min-h-[56px] w-full rounded-xl border-2 border-gray-300 text-base font-bold text-gray-700 transition-colors duration-200 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                            <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"/></svg>
+                            Editar productos
+                        </button>
+
                         {{-- Salidas laterales: no son pasos del pedido. --}}
                         <div class="grid grid-cols-2 gap-2">
                             <a :href="'{{ url(config('app.admin_path').'/distribuidor/whatsapp') }}/' + pe.id"
@@ -902,7 +918,99 @@
                     </div>
                 </Teleport>
 
-{{-- ── Registrar una devolución de envases ── --}}
+{{--
+                    ── Editar los productos del pedido ──
+
+                    Sólo cantidades y quitar líneas. Agregar un producto nuevo necesita el
+                    catálogo de LA CIUDAD DEL PEDIDO con sus precios, que puede no ser la
+                    sucursal elegida en el encabezado: ofrecerlo igual cargaría el precio de
+                    otra sucursal sin que nadie lo note. La corrección real en la puerta es
+                    "pedí 3 y no 4" o "esto no lo quiero", y eso sí está.
+                --}}
+                <Teleport to="body">
+                    <div v-if="edicion.pedido" class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" @click.self="edicion.pedido = null">
+                        <div role="dialog" aria-modal="true" aria-labelledby="titulo-edicion"
+                             class="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
+                            <h3 id="titulo-edicion" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Editar productos</h3>
+                            <p class="mb-3 text-base text-gray-600 dark:text-gray-400">
+                                Pedido #@{{ edicion.pedido.id }} · @{{ edicion.pedido.cliente }}
+                            </p>
+
+                            <div v-for="(l, i) in edicion.lineas" :key="l.product_id"
+                                 class="mb-2 rounded-xl border-2 border-gray-200 p-3 dark:border-gray-800">
+                                <div class="mb-2 flex items-start justify-between gap-2">
+                                    <span class="min-w-0 flex-1 truncate text-base font-semibold text-gray-800 dark:text-gray-200">@{{ l.name }}</span>
+                                    <button type="button" @click="quitarLinea(i)" :aria-label="'Quitar ' + l.name"
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[44px] shrink-0 rounded-lg px-2 text-base font-bold text-red-600 transition-colors duration-200 hover:bg-red-50 dark:hover:bg-red-900/20">
+                                        Quitar
+                                    </button>
+                                </div>
+
+                                <div class="flex items-center gap-2">
+                                    <button type="button" @click="l.quantity = Math.max(1, l.quantity - 1)"
+                                            :aria-label="'Quitar uno de ' + l.name"
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] w-14 shrink-0 rounded-xl border-2 border-gray-300 text-2xl font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                                        −
+                                    </button>
+
+                                    <input v-model.number="l.quantity" type="number" min="1" step="1" inputmode="numeric"
+                                           :aria-label="'Cantidad de ' + l.name"
+                                           class="min-h-[56px] w-full rounded-xl border-2 border-gray-300 px-2 text-center text-xl font-bold text-gray-900 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+
+                                    <button type="button" @click="l.quantity = (Number(l.quantity) || 0) + 1"
+                                            :aria-label="'Agregar uno de ' + l.name"
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] w-14 shrink-0 rounded-xl border-2 border-gray-300 text-2xl font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                                        +
+                                    </button>
+
+                                    <span class="w-24 shrink-0 text-right text-base font-semibold text-gray-700 dark:text-gray-300">
+                                        @{{ money(l.price * (Number(l.quantity) || 0)) }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <p v-if="!edicion.lineas.length" class="mb-3 rounded-xl bg-amber-50 p-3 text-base text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                                Un pedido sin productos no se puede guardar. Si ya no va, usá Cancelar.
+                            </p>
+
+                            {{-- El total de antes y el de ahora, para ver el efecto antes de guardar. --}}
+                            <div class="mb-3 flex items-center justify-between gap-2 border-t-2 border-gray-200 pt-3 dark:border-gray-800">
+                                <span class="text-base text-gray-600 dark:text-gray-400">
+                                    Antes @{{ money(edicion.pedido.total) }}
+                                </span>
+                                <span class="text-2xl font-extrabold text-gray-900 dark:text-white">@{{ money(totalEditado) }}</span>
+                            </div>
+
+                            {{--
+                                El aviso de la plata cobrada. Es lo que convierte la edición en algo
+                                que alguien tiene que resolver: si no se ve acá, el distribuidor
+                                guarda y se va sin devolver la diferencia.
+                            --}}
+                            <p v-if="edicion.pedido.cobrado > 0 && Math.abs(edicion.pedido.cobrado - totalEditado) >= 0.01"
+                               class="mb-3 rounded-xl p-3 text-base font-semibold"
+                               :class="edicion.pedido.cobrado > totalEditado
+                                   ? 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300'
+                                   : 'bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300'">
+                                @{{ edicion.pedido.cobrado > totalEditado
+                                    ? 'Ya cobraste ' + money(edicion.pedido.cobrado) + ': tenés que devolver ' + money(edicion.pedido.cobrado - totalEditado)
+                                    : 'Ya cobraste ' + money(edicion.pedido.cobrado) + ': falta cobrar ' + money(totalEditado - edicion.pedido.cobrado) }}
+                            </p>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <button type="button" @click="edicion.pedido = null"
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                                    Cancelar
+                                </button>
+                                <button type="button" @click="guardarEdicion" :disabled="cargando || !edicion.lineas.length"
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-600 text-lg font-bold text-white disabled:opacity-40">
+                                    @{{ cargando ? 'Guardando…' : 'Guardar' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </Teleport>
+
+                {{-- ── Registrar una devolución de envases ── --}}
                 <Teleport to="body">
                     <div v-if="devolucion.cliente" class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" @click.self="devolucion.cliente = null">
                         <div role="dialog" aria-modal="true" aria-labelledby="titulo-devolucion"
@@ -1060,6 +1168,7 @@
                         mapaError: null,
                         bidones: { clientes: [], en_la_calle: 0, del_dia: { entregados: 0, retirados: 0 } },
                         devolucion: { cliente: null, cantidad: '' },
+                        edicion: { pedido: null, lineas: [] },
                         // El cliente cuyo domicilio se está editando en el mapa.
                         mapaCliente: null,
                         /*
@@ -1079,6 +1188,14 @@
                 },
 
                 computed: {
+                    /** El total que va a quedar con las líneas como están ahora. */
+                    totalEditado() {
+                        return this.edicion.lineas.reduce(
+                            (t, l) => t + (Number(l.price) || 0) * (Number(l.quantity) || 0),
+                            0,
+                        );
+                    },
+
                     /** Si está visible el formulario de contacto nuevo. */
                     mostrarFormularioNuevo() {
                         return ! this.cliente && this.buscado && ! this.encontrado;
@@ -1152,7 +1269,8 @@
 
                         // El mapa primero: es el que puede quedar abierto ENCIMA de otro,
                         // y Escape tiene que cerrar el de arriba.
-                        if (this.devolucion.cliente) this.devolucion.cliente = null;
+                        if (this.edicion.pedido) this.edicion.pedido = null;
+                        else if (this.devolucion.cliente) this.devolucion.cliente = null;
                         else if (this.mapaCliente) this.cerrarMapaCliente();
                         else if (this.entrega.pedido) this.cancelarEntrega();
                         else if (this.cobro.pedido) this.cobro.pedido = null;
@@ -1314,6 +1432,53 @@
                         this.$axios.get('{{ route('admin.distribuidor.bidones') }}')
                             .then(r => { this.bidones = r.data; })
                             .catch(e => { this.aviso = this.mensaje(e, 'No se pudieron cargar los bidones.'); })
+                            .finally(() => { this.cargando = false; });
+                    },
+
+                    abrirEdicion(pedido) {
+                        /*
+                         * Se COPIAN las líneas en vez de editar las del pedido en el lugar:
+                         * cancelar tiene que dejar la tarjeta como estaba, y mutar el objeto
+                         * del listado la dejaría ya cambiada aunque no se haya guardado nada.
+                         */
+                        this.edicion = {
+                            pedido,
+                            lineas: (pedido.productos || []).map(l => ({
+                                product_id: l.product_id,
+                                name: l.name,
+                                price: Number(l.price) || 0,
+                                quantity: Number(l.quantity) || 1,
+                            })),
+                        };
+                    },
+
+                    quitarLinea(i) {
+                        this.edicion.lineas.splice(i, 1);
+                    },
+
+                    guardarEdicion() {
+                        const pedido = this.edicion.pedido;
+
+                        if (! pedido || ! this.edicion.lineas.length) return;
+
+                        this.cargando = true;
+
+                        this.$axios.patch(
+                            '{{ url(config('app.admin_path').'/distribuidor/pedido') }}/' + pedido.id + '/productos',
+                            {
+                                productos: this.edicion.lineas.map(l => ({
+                                    product_id: l.product_id,
+                                    quantity: Math.max(1, this.enteroDe(l.quantity)),
+                                    price: l.price,
+                                })),
+                            },
+                        )
+                            .then(r => {
+                                this.reemplazar(r.data.pedido);
+                                this.edicion = { pedido: null, lineas: [] };
+                                this.aviso = 'Pedido actualizado. Quedó registrado quién lo editó.';
+                            })
+                            .catch(e => { this.aviso = this.mensaje(e, 'No se pudo editar el pedido.'); })
                             .finally(() => { this.cargando = false; });
                     },
 

@@ -612,9 +612,16 @@ class PuntoController extends Controller
                 ? \Illuminate\Support\Facades\Storage::disk('public')->url($f)
                 : null,
             'productos'     => $lead->products->map(fn ($p) => [
-                'name'     => $p->name,
-                'quantity' => (float) $p->quantity,
-                'price'    => (float) $p->price,
+                /*
+                 * product_id va porque el diálogo de edición tiene que REENVIAR las
+                 * líneas, y el endpoint las identifica por producto. Sin esto la
+                 * pantalla sabe qué dice cada línea pero no de qué producto es, así que
+                 * no puede reconstruir el pedido.
+                 */
+                'product_id' => (int) $p->product_id,
+                'name'       => $p->name,
+                'quantity'   => (float) $p->quantity,
+                'price'      => (float) $p->price,
             ])->values()->all(),
         ];
     }

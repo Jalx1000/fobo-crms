@@ -93,7 +93,7 @@ la ficha del contacto.
   - Cada edicion guarda: quien, cuando, que lineas cambiaron, y el total antes y
     despues. Sin el total viejo no se puede auditar un cobro que ya no coincide.
 
-- [ ] **T3.2** UI de edición en la tarjeta del pedido
+- [x] **T3.2** UI de edición en la tarjeta del pedido — **HECHO**
   - Acceptance: se llega en un toque desde "Para entregar"; se ve el total antes y
     después; no se puede guardar un pedido sin líneas
   - Verify: aserciones sobre la plantilla + los tests de foco y responsive que ya
