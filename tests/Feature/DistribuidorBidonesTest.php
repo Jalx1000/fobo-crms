@@ -1213,3 +1213,23 @@ it('el centro del mapa no se deriva de la caja de validacion', function () {
     // Si alguien vuelve a derivarlo de la caja, esto lo detecta.
     expect(round($centro['lat'], 2))->not->toBe(round($medioDeLaCaja[0], 2));
 });
+
+it('los botones primarios tienen contraste suficiente', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    /*
+     * Blanco sobre emerald-600 da 3.77:1. WCAG AA pide 4.5:1 para texto normal y permite
+     * 3:1 sólo para texto GRANDE —24px, o 18.66px en negrita—. Los botones primarios son
+     * text-lg bold, o sea 18px: quedan justo por debajo del umbral, así que necesitan 4.5.
+     * emerald-700 da 5.48:1.
+     *
+     * Se verifica la combinación y no el color suelto: emerald-600 como borde o como fondo
+     * de una insignia con texto oscuro está perfecto.
+     */
+    expect($vista)->not->toMatch('/bg-emerald-600[^"]*text-white/');
+
+    // Y que los primarios sigan existiendo, para que el test no pase por haberlos borrado.
+    expect(substr_count($vista, 'bg-emerald-700'))->toBeGreaterThanOrEqual(5);
+});

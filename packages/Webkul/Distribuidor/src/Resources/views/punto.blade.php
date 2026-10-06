@@ -236,7 +236,7 @@
 
 
                                 <button type="button" @click="crearCliente" :disabled="cargando || !nombre.trim()"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] w-full rounded-xl bg-emerald-600 text-lg font-bold text-white disabled:opacity-50">
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] w-full rounded-xl bg-emerald-700 text-lg font-bold text-white disabled:opacity-50">
                                     Crear contacto
                                 </button>
                             </div>
@@ -608,7 +608,7 @@
                             adelante rompería el orden cobrar→entregar sin notarlo.
                         --}}
                         <button v-else-if="pe.etapa_code === 'pedidos-confirmado' && pe.cobrado > 0" type="button" @click="abrirEntrega(pe)"
-                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-2 min-h-[64px] w-full rounded-xl bg-emerald-600 text-xl font-bold text-white transition-colors duration-200">
+                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-2 min-h-[64px] w-full rounded-xl bg-emerald-700 text-xl font-bold text-white transition-colors duration-200">
                             <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.9 47.9 0 0 0-1.134-.175a2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0a2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>Entregar
                         </button>
 
@@ -903,7 +903,7 @@
                                     Cancelar
                                 </button>
                                 <button type="button" @click="confirmarEntrega" :disabled="cargando"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-600 text-lg font-bold text-white disabled:opacity-40">
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-700 text-lg font-bold text-white disabled:opacity-40">
                                     @{{ cargando ? 'Enviando…' : (entrega.archivo ? 'Entregado' : 'Entregado sin foto') }}
                                 </button>
                             </div>
@@ -979,8 +979,16 @@
                                         class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
                                     Cancelar
                                 </button>
+                                {{--
+                                    emerald-700 y no 600 en los botones primarios: blanco sobre emerald-600 da 3.77:1,
+                                    y el texto es text-lg bold —18px, justo por debajo del umbral de "texto grande" de
+                                    WCAG, que son 18.66px— así que necesita 4.5:1. Con 700 son 5.48:1.
+                                
+                                    Medido, no estimado: el saldo en text-2xl sí califica como texto grande y le basta
+                                    3:1, pero un botón de 18px no.
+                                --}}
                                 <button type="button" @click="guardarMapaCliente" :disabled="cargando || !nuevo.lat"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-600 text-lg font-bold text-white disabled:opacity-40">
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-700 text-lg font-bold text-white disabled:opacity-40">
                                     @{{ cargando ? 'Guardando…' : 'Guardar' }}
                                 </button>
                             </div>
@@ -1072,7 +1080,7 @@
                                     Cancelar
                                 </button>
                                 <button type="button" @click="guardarEdicion" :disabled="cargando || !edicion.lineas.length"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-600 text-lg font-bold text-white disabled:opacity-40">
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-700 text-lg font-bold text-white disabled:opacity-40">
                                     @{{ cargando ? 'Guardando…' : 'Guardar' }}
                                 </button>
                             </div>
@@ -1107,7 +1115,7 @@
                                     Cancelar
                                 </button>
                                 <button type="button" @click="guardarDevolucion" :disabled="cargando || enteroDe(devolucion.cantidad) < 1"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-600 text-lg font-bold text-white disabled:opacity-40">
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-700 text-lg font-bold text-white disabled:opacity-40">
                                     @{{ cargando ? 'Guardando…' : 'Guardar' }}
                                 </button>
                             </div>
@@ -1177,7 +1185,7 @@
                                     Cancelar
                                 </button>
                                 <button type="button" @click="registrarCobro" :disabled="!cobro.method || cargando"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-600 text-lg font-bold text-white transition-colors duration-200 disabled:opacity-40">
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-700 text-lg font-bold text-white transition-colors duration-200 disabled:opacity-40">
                                     @{{ cargando ? 'Registrando…' : 'Cobrado' }}
                                 </button>
                             </div>
