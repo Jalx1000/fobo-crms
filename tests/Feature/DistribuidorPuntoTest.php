@@ -479,7 +479,7 @@ it('la plantilla de Vue está completa y sin condicionales huérfanos', function
     }
 
     // Los estados que el usuario tiene que poder ver.
-    foreach (['Cargando…', 'Dónde estás trabajando', 'Abrir pedido', 'Confirmar entrega'] as $marca) {
+    foreach (['Cargando…', 'Dónde estás trabajando', 'Crear pedido', 'Confirmar entrega'] as $marca) {
         expect($tpl)->toContain($marca);
     }
 });
@@ -1261,4 +1261,39 @@ it('el cobro es siempre por el total: el importe lo decide el servidor', functio
     DB::table('lead_products')->where('lead_id', $pedido['id'])->delete();
     DB::table('leads')->where('id', $pedido['id'])->delete();
     DB::table('persons')->where('id', $contacto['id'])->delete();
+});
+
+/*
+ * La miniatura del domicilio ya estuvo envuelta en un boton una vez. Leaflet le
+ * cuelga al contenedor el link de la atribucion, y el modelo de contenido de un
+ * boton no admite descendientes interactivos: el HTML quedaba invalido y el tap
+ * se lo quedaba el mapa. Este test mira la ESTRUCTURA, no un texto, asi que no
+ * se puede satisfacer con un comentario.
+ */
+it('la miniatura del domicilio no cuelga de un boton', function () {
+    $html = test()->actingAs(distribuidor(), 'user')
+        ->get(route('admin.distribuidor.index'))
+        ->assertOk()
+        ->getContent();
+
+    $pos = strpos($html, 'ref="mapaVista"');
+
+    expect($pos)->toBeGreaterThan(0, 'no se encontro la miniatura del domicilio');
+
+    // La etiqueta que la contiene: la ultima que abre antes del ref.
+    $previo = substr($html, 0, $pos);
+    $ultimaApertura = strrpos($previo, '<');
+
+    $this->assertStringNotContainsString(
+        'button',
+        substr($previo, $ultimaApertura, $pos - $ultimaApertura),
+        'el mapa de la miniatura volvio a quedar dentro de un boton',
+    );
+
+    // El mapa es decorativo: lo que se anuncia es la accion del boton de encima.
+    $this->assertStringContainsString(
+        'aria-hidden',
+        substr($html, $pos, 120),
+        'la miniatura tiene que estar oculta para el lector de pantalla',
+    );
 });

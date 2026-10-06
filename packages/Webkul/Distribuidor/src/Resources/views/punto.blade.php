@@ -276,12 +276,28 @@
                                     uno correcto cuando sólo hay una etiqueta. Tocar el mapa abre el editor.
                                 --}}
                                 <div v-if="cliente.ubicacion" class="w-full">
-                                    <button type="button" @click="abrirMapaCliente()"
-                                            aria-label="Ver y editar el domicilio en el mapa"
-                                            class="block w-full cursor-pointer overflow-hidden rounded-xl border-2 border-emerald-300 focus:outline-none focus:ring-2 focus:ring-brandColor dark:border-emerald-800">
-                                        <div ref="mapaVista" class="h-32 w-full bg-gray-100 dark:bg-gray-800"
-                                             role="img" aria-label="Mapa con el domicilio del cliente"></div>
-                                    </button>
+                                    <!--
+                                        El mapa NO va adentro del boton. Leaflet le cuelga al
+                                        contenedor el link de la atribucion, y un boton no admite
+                                        contenido interactivo adentro: ademas de HTML invalido, el
+                                        tap se lo quedaba el mapa y no llegaba al boton.
+
+                                        Asi que el mapa queda decorativo (aria-hidden: lo que hay que
+                                        anunciar es la accion, no los tiles) y el area tactil es un
+                                        boton real encima. El z-[1100] le gana a los panes de Leaflet,
+                                        que trepan hasta 1000.
+                                    -->
+                                    <div class="relative overflow-hidden rounded-xl border-2 border-emerald-300 dark:border-emerald-800">
+                                        <div ref="mapaVista" class="h-32 w-full bg-gray-100 dark:bg-gray-800" aria-hidden="true"></div>
+
+                                        <button type="button" @click="abrirMapaCliente()"
+                                                aria-label="Corregir el domicilio en el mapa"
+                                                class="group absolute inset-0 z-[1100] flex cursor-pointer items-start justify-end p-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brandColor">
+                                            <span class="rounded-lg bg-white/90 px-2 py-1 text-sm font-bold text-gray-800 shadow-sm transition-colors duration-200 group-hover:bg-white motion-reduce:transition-none dark:bg-gray-900/90 dark:text-gray-100 dark:group-hover:bg-gray-900">
+                                                Corregir
+                                            </span>
+                                        </button>
+                                    </div>
 
                                     <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
                                         <a :href="cliente.ubicacion.url" target="_blank" rel="noopener"
@@ -799,7 +815,7 @@
                         </div>
                         <button type="button" @click="guardarPedido" :disabled="!puedeGuardar || cargando"
                                 class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] flex-1 rounded-xl bg-brandColor text-xl font-bold text-white disabled:opacity-40">
-                            @{{ cargando ? 'Guardando…' : 'Abrir pedido' }}
+                            @{{ cargando ? 'Guardando…' : 'Crear pedido' }}
                         </button>
                     </div>
                 </div>
@@ -924,14 +940,24 @@
                 --}}
                 <Teleport to="body">
                     <div v-if="mapaCliente" class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" @click.self="cerrarMapaCliente">
-                        <div role="dialog" aria-modal="true" aria-labelledby="titulo-mapa"
-                             class="w-full max-w-lg rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
+                        <div role="dialog" style="max-width:90vw !important" aria-modal="true" aria-labelledby="titulo-mapa"
+                             class="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t-2xl bg-white dark:bg-gray-900 sm:rounded-2xl">
+                            {{--
+                                El contenido con scroll y el pie fijo.
+
+                                Medido: con el mapa en h-72 el modal sumaba 830px. En una pantalla de
+                                667 se pasaba por 163px y NO había scroll, así que —por el items-end
+                                del contenedor— lo que se cortaba era ARRIBA: el título y media parte
+                                del mapa quedaban fuera, sin forma de llegar. Y Guardar quedaba
+                                visible pero el usuario no podía ver qué estaba guardando.
+                            --}}
+                            <div class="min-h-0 flex-1 overflow-y-auto p-5 pb-3">
                             <h3 id="titulo-mapa" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">
                                 @{{ mapaCliente.ubicacion ? 'Editar domicilio' : 'Marcar domicilio' }}
                             </h3>
                             <p class="mb-3 text-base text-gray-600 dark:text-gray-400">@{{ mapaCliente.name }}</p>
 
-                            <div ref="mapaEditar" class="mb-2 h-72 w-full overflow-hidden rounded-xl border-2 border-gray-300 bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
+                            <div ref="mapaEditar" class="mb-2 h-56 w-full sm:h-72 overflow-hidden rounded-xl border-2 border-gray-300 bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
                                  role="application" :aria-label="(mapaCliente && mapaCliente.ubicacion ? 'Editar' : 'Marcar') + ' el domicilio del cliente en el mapa'"></div>
 
                             <p v-if="mapaError" class="mb-2 text-base text-red-700 dark:text-red-400">@{{ mapaError }}</p>
@@ -962,18 +988,33 @@
                                 De paso sirve con el dedo: mover el mapa y tocar un botón grande
                                 es más preciso que acertarle a un punto exacto en la pantalla.
                             --}}
+                            {{--
+                                Los dos caminos al pin, en una fila: apilados sumaban 132px de los
+                                830 totales. "Pin al centro" es el único camino con teclado y además
+                                sirve con el dedo; "Estoy acá" sirve parado en la puerta.
+                            --}}
+                            <div class="mb-3 grid grid-cols-2 gap-2">
                             <button type="button" @click="pinAlCentro"
                                     class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-2 flex min-h-[56px] w-full items-center justify-center rounded-xl border-2 border-gray-300 text-base font-bold text-gray-700 transition-colors duration-200 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
-                                <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-                                Poner el pin en el centro
+                                <svg class="mr-1 inline h-5 w-5 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                                Pin al centro
                             </button>
 
                             <button type="button" @click="gpsAlMapa" :disabled="ubicando"
                                     class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-3 flex min-h-[56px] w-full items-center justify-center rounded-xl border-2 border-brandColor text-base font-bold text-brandColor transition-colors duration-200 disabled:opacity-40">
-                                <svg class="mr-1 inline h-6 w-6 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
-                                @{{ ubicando ? 'Tomando ubicación…' : 'Estoy acá (GPS)' }}
+                                <svg class="mr-1 inline h-5 w-5 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+                                @{{ ubicando ? 'Tomando…' : 'Estoy acá' }}
                             </button>
+                            </div>
 
+                        </div>
+
+                        {{--
+                            El pie queda FIJO, fuera del scroll. Con el contenido más alto que la pantalla,
+                            Cancelar y Guardar tienen que estar siempre al alcance: si viajaran con el scroll,
+                            el distribuidor tendría que arrastrar hasta abajo para confirmar algo que ya decidió.
+                        --}}
+                        <div class="border-t border-gray-200 p-5 pt-3 dark:border-gray-800">
                             <div class="grid grid-cols-2 gap-2">
                                 <button type="button" @click="cerrarMapaCliente"
                                         class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
@@ -993,6 +1034,7 @@
                                 </button>
                             </div>
                         </div>
+                        </div>
                     </div>
                 </Teleport>
 
@@ -1008,7 +1050,14 @@
                 <Teleport to="body">
                     <div v-if="edicion.pedido" class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" @click.self="edicion.pedido = null">
                         <div role="dialog" aria-modal="true" aria-labelledby="titulo-edicion"
-                             class="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
+                             class="flex max-h-[90vh] w-full max-w-md flex-col rounded-t-2xl bg-white dark:bg-gray-900 sm:rounded-2xl">
+                            {{--
+                                Mismo armado que el modal del domicilio: el contenido scrollea y el pie
+                                queda fijo. Acá el alto depende de cuántas líneas tenga el pedido, así
+                                que con unos pocos productos Cancelar y Guardar se iban arriba y había
+                                que arrastrar hasta el final para confirmar algo ya decidido.
+                            --}}
+                            <div class="min-h-0 flex-1 overflow-y-auto p-5 pb-3">
                             <h3 id="titulo-edicion" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Editar productos</h3>
                             <p class="mb-3 text-base text-gray-600 dark:text-gray-400">
                                 Pedido #@{{ edicion.pedido.id }} · @{{ edicion.pedido.cliente }}
@@ -1074,6 +1123,9 @@
                                     : 'Ya cobraste ' + money(edicion.pedido.cobrado) + ': falta cobrar ' + money(totalEditado - edicion.pedido.cobrado) }}
                             </p>
 
+                        </div>
+
+                        <div class="border-t border-gray-200 p-5 pt-3 dark:border-gray-800">
                             <div class="grid grid-cols-2 gap-2">
                                 <button type="button" @click="edicion.pedido = null"
                                         class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
@@ -1084,6 +1136,7 @@
                                     @{{ cargando ? 'Guardando…' : 'Guardar' }}
                                 </button>
                             </div>
+                        </div>
                         </div>
                     </div>
                 </Teleport>
@@ -1973,6 +2026,8 @@
                                     boxZoom: false,
                                     keyboard: false,
                                 }).setView(punto, 16);
+
+                                this.vistaMapa.attributionControl.setPrefix(false);
 
                                 window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                                     attribution: '© OpenStreetMap',

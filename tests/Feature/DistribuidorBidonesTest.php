@@ -1233,3 +1233,51 @@ it('los botones primarios tienen contraste suficiente', function () {
     // Y que los primarios sigan existiendo, para que el test no pase por haberlos borrado.
     expect(substr_count($vista, 'bg-emerald-700'))->toBeGreaterThanOrEqual(5);
 });
+
+it('los modales altos tienen scroll y acciones alcanzables', function () {
+    $html = $this->actingAs(distribuidorDeBidones(), 'user')
+        ->get(route('admin.distribuidor.index'))
+        ->assertOk()
+        ->getContent();
+
+    $i = strpos($html, 'id="v-punto-template"');
+    $tpl = substr($html, $i, strpos($html, '</script>', $i) - $i);
+
+    /*
+     * El modal del domicilio sumaba 830px de alto: en una pantalla de 667 se pasaba por 163
+     * y NO tenía scroll. Por el `items-end` del contenedor, lo que se cortaba era ARRIBA —el
+     * título y media parte del mapa quedaban fuera, sin forma de llegar— y Guardar quedaba
+     * visible sin poder ver qué se estaba guardando.
+     *
+     * Un diálogo con contenido más alto que la pantalla necesita las dos cosas: scroll para
+     * llegar a todo, y las acciones fuera del scroll para no tener que arrastrar hasta abajo
+     * para confirmar algo ya decidido.
+     */
+    preg_match_all('/<div[^>]*role="dialog"[^>]*>/', $tpl, $dialogos);
+
+    expect($dialogos[0])->not->toBeEmpty();
+
+    $conAlturaLimitada = 0;
+
+    foreach ($dialogos[0] as $d) {
+        if (str_contains($d, 'max-h-[')) {
+            $conAlturaLimitada++;
+
+            $this->assertStringContainsString(
+                'flex-col',
+                $d,
+                'Un diálogo con alto máximo necesita ser columna para separar el scroll del pie: '
+            );
+        }
+    }
+
+    // El del domicilio y el de editar productos son los dos altos.
+    expect($conAlturaLimitada)->toBeGreaterThanOrEqual(2);
+
+    // Y el mapa del modal se achica en el celular, donde el alto es el recurso escaso.
+    $this->assertStringContainsString(
+        'h-56 w-full sm:h-72',
+        $tpl,
+        'El mapa del modal no se achica en pantallas chicas: '
+    );
+});
