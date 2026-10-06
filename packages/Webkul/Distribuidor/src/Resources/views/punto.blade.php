@@ -242,71 +242,93 @@
                             </div>
 
                             {{-- Elegido --}}
-                            <div v-if="cliente" class="flex flex-col items-center justify-between gap-3 rounded-xl bg-emerald-50 p-4 dark:bg-emerald-900/20">
-                                <div class="min-w-0">
+                            {{--
+                                La ficha del cliente elegido.
+                            
+                                En COLUMNA y a ancho completo, no en fila: antes era `flex flex-col items-center`
+                                con hijos pensados para una fila —min-w-0, truncate, shrink-0— y esa mezcla rompía
+                                las dos cosas. Centrado en columna, el bloque de datos se encoge al ancho del texto,
+                                así que `truncate` no recorta nada y la miniatura del mapa queda del ancho del
+                                nombre en lugar de la tarjeta.
+                            
+                                El botón de icono suelto del domicilio se quitó: la miniatura del mapa YA abre el
+                                mismo editor, así que eran dos caminos a lo mismo, y uno de ellos un icono sin
+                                texto apretado entre dos botones. Cuando no hay domicilio, un botón de ancho
+                                completo CON texto dice qué hace.
+                            --}}
+                            <div v-if="cliente" class="flex flex-col gap-3 rounded-xl bg-emerald-50 p-4 dark:bg-emerald-900/20">
+                                <div class="w-full min-w-0">
                                     <div class="truncate text-xl font-bold text-gray-800 dark:text-gray-100">@{{ cliente.name }}</div>
                                     <div class="text-base text-gray-600 dark:text-gray-400">@{{ cliente.telefono }}</div>
-                                    {{--
-                                        Los bidones que tiene en su casa, acá y no en otra
-                                        pantalla: es el momento en que el distribuidor decide
-                                        cuántos bajar de la camioneta. Sólo si tiene: un "0
-                                        bidones" en cada cliente es ruido.
-                                    --}}
-                                    <div v-if="cliente.bidones" class="mt-1 flex items-center gap-1.5">
-                                        <span class="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-base font-bold text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
-                                            @{{ cliente.bidones }} bidón@{{ cliente.bidones === 1 ? '' : 'es' }} sin devolver
-                                        </span>
-                                    </div>
 
                                     {{--
-                                        El domicilio marcado SE VE, no se anuncia.
-                                        Antes acá había un texto que decía "Domicilio marcado":
-                                        confirmaba que había un dato pero no dejaba comprobar si
-                                        estaba bien, y un pin a dos cuadras se ve igual que uno
-                                        correcto cuando sólo hay una etiqueta.
-                                        El mapa es chico y no interactivo —tocarlo abre el editor—
-                                        porque acá el trabajo es RECONOCER la cuadra de un
-                                        vistazo, no navegar.
+                                        Los bidones que tiene en su casa, acá y no en otra pantalla: es el momento
+                                        en que el distribuidor decide cuántos bajar de la camioneta. Sólo si tiene:
+                                        un "0 bidones" en cada cliente es ruido.
                                     --}}
-                                    <div v-if="cliente.ubicacion" class="mt-2">
-                                        <button type="button" @click="abrirMapaCliente()"
-                                                aria-label="Ver y editar el domicilio en el mapa"
-                                                class="block w-full cursor-pointer overflow-hidden rounded-xl border-2 border-emerald-300 focus:outline-none focus:ring-2 focus:ring-brandColor dark:border-emerald-800">
-                                            <div ref="mapaVista" class="h-32 w-full bg-gray-100 dark:bg-gray-800"
-                                                 role="img" aria-label="Mapa con el domicilio del cliente"></div>
-                                        </button>
+                                    <span v-if="cliente.bidones" class="mt-1 inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-base font-bold text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
+                                        @{{ cliente.bidones }} bidón@{{ cliente.bidones === 1 ? '' : 'es' }} sin devolver
+                                    </span>
+                                </div>
 
+                                {{--
+                                    El domicilio marcado SE VE, no se anuncia: un pin a dos cuadras se ve igual que
+                                    uno correcto cuando sólo hay una etiqueta. Tocar el mapa abre el editor.
+                                --}}
+                                <div v-if="cliente.ubicacion" class="w-full">
+                                    <button type="button" @click="abrirMapaCliente()"
+                                            aria-label="Ver y editar el domicilio en el mapa"
+                                            class="block w-full cursor-pointer overflow-hidden rounded-xl border-2 border-emerald-300 focus:outline-none focus:ring-2 focus:ring-brandColor dark:border-emerald-800">
+                                        <div ref="mapaVista" class="h-32 w-full bg-gray-100 dark:bg-gray-800"
+                                             role="img" aria-label="Mapa con el domicilio del cliente"></div>
+                                    </button>
+
+                                    <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
                                         <a :href="cliente.ubicacion.url" target="_blank" rel="noopener"
-                                           class="cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mt-1 inline-flex items-center gap-1 text-base font-semibold text-brandColor hover:underline">
-                                            <svg class="h-5 w-full shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z"/></svg>
+                                           class="cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 inline-flex items-center gap-1 text-base font-semibold text-brandColor hover:underline">
+                                            <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z"/></svg>
                                             Abrir en el mapa
                                         </a>
+
                                     </div>
                                 </div>
-                                <div class="flex shrink-0 gap-4">
-                                    {{--
-                                        Repetir: en este rubro el mismo cliente pide lo mismo
-                                        cada semana. Convierte un pedido de seis toques en dos.
+
+
+                                {{--
+                                    Dos acciones, dos columnas iguales. Repetir existe porque en este rubro el mismo
+                                    cliente pide lo mismo cada semana: convierte un pedido de seis toques en dos.
+                                --}}
+                                {{--
+                                        Las tres acciones del cliente en UNA fila, con el domicilio
+                                        en el medio.
+
+                                        Sin iconos y con px-2: a 375px la tarjeta deja unos 98px por
+                                        celda y un icono más texto no entra en una línea. Repetir y
+                                        Cambiar tampoco llevan icono, así que las tres se leen igual.
+
+                                        El botón del domicilio sirve para marcarlo y para corregirlo.
+                                        Antes había TRES caminos al mismo editor —la miniatura, un
+                                        link "Corregir" y un botón suelto de ancho completo— y los dos
+                                        últimos se quitaron. La miniatura sigue abriéndolo porque es
+                                        lo natural: tocás lo que querés cambiar.
                                     --}}
+                                    <div class="grid w-full grid-cols-3 gap-2">
                                     <button type="button" @click="repetirPedido" :disabled="cargando"
-                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor px-5 text-base font-bold text-brandColor transition-colors duration-200 disabled:opacity-40">
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor px-2 text-base font-bold text-brandColor transition-colors duration-200 disabled:opacity-40">
                                         Repetir
                                     </button>
-                                    {{--
-                                        Marcar el domicilio con el GPS. Va acá, en la ficha del
-                                        cliente, porque el domicilio es del cliente y no del
-                                        pedido: se marca una vez y sirve para todos los repartos
-                                        siguientes.
-                                    --}}
-                                    <button type="button" @click="abrirMapaCliente()"
-                                            :aria-label="cliente.ubicacion ? 'Editar el domicilio en el mapa' : 'Marcar el domicilio en el mapa'"
-                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor px-4 text-base font-bold text-brandColor transition-colors duration-200 disabled:opacity-40">
-                                        <svg class="inline h-6 w-full shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
-                                        <span class="sr-only">@{{ cliente.ubicacion ? 'Editar domicilio' : 'Marcar domicilio' }}</span>
-                                    </button>
 
-                                    <button type="button" @click="limpiarCliente"
-                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] shrink-0 rounded-xl border-2 border-gray-300 px-5 text-base font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                                    <button type="button" @click="abrirMapaCliente()"
+                                                :aria-label="cliente.ubicacion ? 'Editar el domicilio en el mapa' : 'Marcar el domicilio en el mapa'"
+                                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 px-2 text-base font-bold transition-colors duration-200"
+                                                :class="cliente.ubicacion
+                                                    ? 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'
+                                                    : 'border-brandColor text-brandColor'">
+                                            Domicilio
+                                        </button>
+
+                                        <button type="button" @click="limpiarCliente"
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-gray-300 px-2 text-base font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-300">
                                         Cambiar
                                     </button>
                                 </div>
