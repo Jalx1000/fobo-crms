@@ -1045,3 +1045,126 @@ it('el apartado es una pestaña propia y no un bloque de caja', function () {
     // informa obliga a anotar en papel, y lo que se anota en papel no se carga.
     $this->assertStringContainsString('abrirDevolucion', $vista, 'La lista no es accionable: ');
 });
+
+// ───────── T1: dirección escrita y REFERENCIA del cliente ─────────
+
+it('guarda la direccion y la referencia junto al pin', function () {
+    $p = puntoEnZona();
+
+    $persona = $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), [
+            'telefono'   => telefonoNuevo(),
+            'nombre'     => 'Cliente con referencia '.uniqid(),
+            'lat'        => $p['lat'],
+            'lng'        => $p['lng'],
+            'direccion'  => 'Avenida San Martín 1234',
+            'referencia' => 'Portón verde, hay un árbol afuera',
+        ])
+        ->assertOk()
+        ->json('persona');
+
+    expect($persona['ubicacion']['direccion'])->toBe('Avenida San Martín 1234')
+        ->and($persona['ubicacion']['referencia'])->toBe('Portón verde, hay un árbol afuera');
+});
+
+it('marcar el domicilio con un toque NO borra la referencia escrita', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+    $ubicacion = app(Ubicacion::class);
+
+    $ubicacion->guardarDelMapa($c['person_id'], $p['lat'], $p['lng'], null, [
+        'direccion'  => 'Calle 253',
+        'referencia' => 'Timbre del fondo',
+    ]);
+
+    /*
+     * El botón de un toque del diálogo de entrega guarda SOLO coordenadas. Si eso
+     * sobreescribiera los textos con null, marcar el domicilio en la puerta borraría la
+     * referencia que alguien escribió antes, sin ningún aviso.
+     */
+    $ubicacion->guardarGps($c['person_id'], $p['lat'] + 0.001, $p['lng'], null, 10.0);
+
+    $guardada = $ubicacion->deCliente($c['person_id']);
+
+    expect($guardada['referencia'])->toBe('Timbre del fondo')
+        ->and($guardada['direccion'])->toBe('Calle 253');
+});
+
+it('se puede vaciar un texto a proposito mandando vacio', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+    $ubicacion = app(Ubicacion::class);
+
+    $ubicacion->guardarDelMapa($c['person_id'], $p['lat'], $p['lng'], null, ['referencia' => 'Algo viejo']);
+    // Cadena vacía sí se guarda: es "borralo a propósito", distinto de "no lo mandé".
+    $ubicacion->guardarDelMapa($c['person_id'], $p['lat'], $p['lng'], null, ['referencia' => '']);
+
+    expect($ubicacion->deCliente($c['person_id'])['referencia'])->toBe('');
+});
+
+it('la referencia del cliente le gana a la del pedido', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+
+    app(Ubicacion::class)->guardarDelMapa($c['person_id'], $p['lat'], $p['lng'], null, [
+        'referencia' => 'La del cliente',
+    ]);
+
+    /*
+     * Si ganara la del pedido, cada pedido nuevo que no la traiga haría desaparecer la
+     * referencia que alguien ya escribió, y nadie entendería por qué un cliente conocido
+     * quedó sin indicaciones.
+     */
+    $resuelta = app(Ubicacion::class)->dePedido($c['lead_id']);
+
+    expect($resuelta['referencia'])->toBe('La del cliente')
+        ->and($resuelta['fuente'])->toBe('cliente_mapa');
+});
+
+it('el pedido expone la direccion escrita para quien toca el timbre', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+
+    app(Ubicacion::class)->guardarDelMapa($c['person_id'], $p['lat'], $p['lng'], null, [
+        'direccion'  => 'Calle 253 esquina 420 Viviendas',
+        'referencia' => 'Casa de rejas blancas',
+    ]);
+
+    $u = app(Ubicacion::class)->dePedido($c['lead_id']);
+
+    expect($u['direccion'])->toBe('Calle 253 esquina 420 Viviendas')
+        ->and($u['referencia'])->toBe('Casa de rejas blancas');
+});
+
+it('la direccion se precarga del pin pero no pisa lo escrito a mano', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    /*
+     * El geocodificador devuelve calle y barrio pero muchas veces sin altura, así que la
+     * corrección a mano es MEJOR dato. Pisarla al reacomodar el pin dos metros borraría el
+     * trabajo bueno.
+     */
+    $this->assertStringContainsString('precargarDireccion', $vista, 'Falta la precarga de la dirección desde el pin: ');
+    $this->assertStringContainsString('escritoAMano', $vista, 'La precarga pisa lo que el distribuidor corrigió: ');
+});
+
+it('un fallo del geocodificador no impide guardar el domicilio', function () {
+    $c = clienteConPedido();
+    $p = puntoEnZona();
+
+    // Apagado: es el mismo efecto que el servicio sin responder.
+    config(['distribuidor.geocodificacion.enabled' => false]);
+
+    expect(app(\Webkul\Distribuidor\Services\Geocodificador::class)->direccionDe($p['lat'], $p['lng']))->toBeNull();
+
+    // Y el pin se guarda igual, que es lo que importa.
+    $this->actingAs(distribuidorDeBidones(), 'user')
+        ->postJson(route('admin.distribuidor.cliente.ubicacion', $c['person_id']), [
+            'lat'    => $p['lat'],
+            'lng'    => $p['lng'],
+            'origen' => 'mapa',
+        ])
+        ->assertOk();
+});

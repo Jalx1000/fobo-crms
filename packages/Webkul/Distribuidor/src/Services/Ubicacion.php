@@ -42,8 +42,14 @@ class Ubicacion
         // 0. El domicilio guardado del cliente, si se tomó con GPS en la puerta.
         $guardada = $this->deCliente($personId);
 
-        if ($guardada && $guardada['fuente'] === UbicacionCliente::FUENTE_GPS) {
-            return $this->resultado($texto, $guardada['lat'], $guardada['lng'], 'cliente_gps');
+        if ($guardada && in_array($guardada['fuente'], UbicacionCliente::fuentesHumanas(), true)) {
+            return $this->resultado(
+                $texto,
+                $guardada['lat'],
+                $guardada['lng'],
+                $guardada['fuente'] === UbicacionCliente::FUENTE_GPS ? 'cliente_gps' : 'cliente_mapa',
+                $guardada,
+            );
         }
 
         // 1. El pin de WhatsApp. De paso queda guardado en la ficha del cliente:
@@ -53,21 +59,21 @@ class Ubicacion
                 $this->recordarPin($personId, $pin['lat'], $pin['lng']);
             }
 
-            return $this->resultado($texto, $pin['lat'], $pin['lng'], 'whatsapp');
+            return $this->resultado($texto, $pin['lat'], $pin['lng'], 'whatsapp', $guardada);
         }
 
         // 1b. Un pin de WhatsApp de otro pedido, ya guardado en la ficha.
         if ($guardada) {
-            return $this->resultado($texto, $guardada['lat'], $guardada['lng'], 'cliente_whatsapp');
+            return $this->resultado($texto, $guardada['lat'], $guardada['lng'], 'cliente_whatsapp', $guardada);
         }
 
         // 2. Coordenadas dentro del texto del atributo.
         if ($coords = $this->coordenadasEn($texto)) {
-            return $this->resultado($texto, $coords[0], $coords[1], 'pedido');
+            return $this->resultado($texto, $coords[0], $coords[1], 'pedido', $guardada);
         }
 
         // 3. Sólo la referencia escrita.
-        return $this->resultado($texto, null, null, $texto ? 'referencia' : null);
+        return $this->resultado($texto, null, null, $texto ? 'referencia' : null, $guardada);
     }
 
     /**
@@ -258,10 +264,12 @@ class Ubicacion
         }
 
         return [
-            'lat'    => (float) $fila->lat,
-            'lng'    => (float) $fila->lng,
-            'fuente' => (string) $fila->fuente,
-            'url'    => $this->url(null, (float) $fila->lat, (float) $fila->lng),
+            'lat'        => (float) $fila->lat,
+            'lng'        => (float) $fila->lng,
+            'fuente'     => (string) $fila->fuente,
+            'direccion'  => $fila->direccion,
+            'referencia' => $fila->referencia,
+            'url'        => $this->url(null, (float) $fila->lat, (float) $fila->lng),
         ];
     }
 
@@ -288,6 +296,7 @@ class Ubicacion
         float $lng,
         ?int $userId = null,
         ?float $precision = null,
+        ?array $textos = null,
     ): bool {
         if (! $this->tablaLista()) {
             return false;
@@ -299,12 +308,12 @@ class Ubicacion
 
         UbicacionClienteProxy::modelClass()::updateOrCreate(
             ['person_id' => $personId],
-            [
+            array_merge([
                 'lat'     => $lat,
                 'lng'     => $lng,
                 'fuente'  => UbicacionCliente::FUENTE_GPS,
                 'user_id' => $userId ?? auth()->guard('user')->id(),
-            ],
+            ], $this->textosAGuardar($textos)),
         );
 
         return true;
@@ -317,23 +326,69 @@ class Ubicacion
      * calidad la juzgó ella. Tampoco se recorta por zona, por lo mismo que el GPS —el
      * detalle está en guardarGps().
      */
-    public function guardarDelMapa(int $personId, float $lat, float $lng, ?int $userId = null): bool
-    {
+    public function guardarDelMapa(
+        int $personId,
+        float $lat,
+        float $lng,
+        ?int $userId = null,
+        ?array $textos = null,
+    ): bool {
         if (! $this->tablaLista()) {
             return false;
         }
 
         UbicacionClienteProxy::modelClass()::updateOrCreate(
             ['person_id' => $personId],
-            [
+            array_merge([
                 'lat'     => $lat,
                 'lng'     => $lng,
                 'fuente'  => UbicacionCliente::FUENTE_MAPA,
                 'user_id' => $userId ?? auth()->guard('user')->id(),
-            ],
+            ], $this->textosAGuardar($textos)),
         );
 
         return true;
+    }
+
+    /**
+     * Qué textos del domicilio se escriben en este guardado.
+     *
+     * 🔴 Sólo los que LLEGAN. Un null significa "no lo mandé", no "borralo": el botón de
+     * un toque del diálogo de entrega guarda las coordenadas sin textos, y si esto los
+     * sobreescribiera con null, marcar el domicilio en la puerta BORRARÍA la referencia
+     * que alguien escribió antes —"portón verde, hay un árbol"— sin ningún aviso.
+     *
+     * Para vaciar un texto a propósito se manda la cadena vacía, que sí se guarda.
+     *
+     * Las columnas pueden no existir todavía: el código y las migraciones se despliegan
+     * por separado, y escribirlas antes de tiempo tira una excepción de columna
+     * desconocida en medio del alta de un contacto.
+     *
+     * @param  array{direccion?:?string, referencia?:?string}|null  $textos
+     * @return array<string, string>
+     */
+    protected function textosAGuardar(?array $textos): array
+    {
+        if (! $textos || ! $this->columnasDeTextoListas()) {
+            return [];
+        }
+
+        $guardar = [];
+
+        foreach (['direccion', 'referencia'] as $campo) {
+            if (array_key_exists($campo, $textos) && $textos[$campo] !== null) {
+                $guardar[$campo] = trim((string) $textos[$campo]);
+            }
+        }
+
+        return $guardar;
+    }
+
+    protected function columnasDeTextoListas(): bool
+    {
+        static $listas = null;
+
+        return $listas ??= Schema::hasColumn('distribuidor_ubicaciones', 'referencia');
     }
 
     /**
@@ -380,12 +435,34 @@ class Ubicacion
         return true;
     }
 
-    protected function resultado(?string $texto, ?float $lat, ?float $lng, ?string $fuente): array
-    {
-        $referencia = $this->referenciaLimpia($texto);
+    /**
+     * @param  array{direccion?:?string, referencia?:?string}|null  $delCliente
+     */
+    protected function resultado(
+        ?string $texto,
+        ?float $lat,
+        ?float $lng,
+        ?string $fuente,
+        ?array $delCliente = null,
+    ): array {
+        /*
+         * La referencia del CLIENTE le gana a la del pedido.
+         *
+         * Las dos existen porque llegaron en momentos distintos: `ubicacion_lead` es un
+         * atributo por pedido que venía de antes, y la del cliente la escribe el
+         * distribuidor una vez. Si gana la del pedido, cada pedido nuevo que no la traiga
+         * hace desaparecer la referencia que alguien ya escribió, y nadie entiende por qué
+         * un cliente conocido quedó sin indicaciones.
+         *
+         * La del pedido queda como respaldo y no se borra: en los pedidos viejos es el
+         * único dato que hay.
+         */
+        $referencia = trim((string) ($delCliente['referencia'] ?? '')) ?: $this->referenciaLimpia($texto);
 
         return [
             'referencia' => $referencia,
+            // La dirección escrita, que sólo existe a nivel cliente.
+            'direccion'  => trim((string) ($delCliente['direccion'] ?? '')) ?: null,
             'lat'        => $lat,
             'lng'        => $lng,
             'url'        => $this->url($referencia, $lat, $lng),

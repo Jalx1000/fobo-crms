@@ -208,6 +208,32 @@
                                 <p v-else class="mb-2 text-sm text-amber-800 dark:text-amber-300">
                                     @{{ nuevo.lat ? 'Domicilio marcado. Tocá el mapa para corregirlo.' : 'Tocá el mapa donde vive el cliente.' }}
                                 </p>
+                                {{--
+                                    La dirección y la REFERENCIA, debajo del mapa.
+
+                                    La dirección la precarga el geocodificador al mover el pin y
+                                    queda EDITABLE: devuelve calle y barrio pero muchas veces sin
+                                    altura, y una altura inventada que se guarda a ciegas no la
+                                    cuestiona nadie nunca.
+
+                                    La referencia no se deduce de ninguna coordenada. "Portón verde
+                                    y hay un árbol afuera" es lo que de verdad usa quien toca el
+                                    timbre, y vale más que un pin a veinte metros.
+                                --}}
+                                <label for="punto-direccion" class="mb-1 mt-2 block text-sm font-medium text-amber-900 dark:text-amber-200">
+                                    Dirección <span class="font-normal">(se completa con el pin)</span>
+                                </label>
+                                <input id="punto-direccion" v-model="nuevo.direccion" type="text"
+                                       placeholder="Calle y altura"
+                                       class="mb-2 min-h-[56px] w-full rounded-xl border-2 border-gray-300 px-4 text-base focus:border-brandColor focus:outline-none focus:ring-2 focus:ring-brandColor dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+
+                                <label for="punto-referencia" class="mb-1 block text-sm font-medium text-amber-900 dark:text-amber-200">
+                                    Referencia <span class="font-normal">(cómo encontrar la casa)</span>
+                                </label>
+                                <textarea id="punto-referencia" v-model="nuevo.referencia" rows="2"
+                                          placeholder="Portón verde, hay un árbol afuera, timbre del fondo…"
+                                          class="mb-2 w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-base focus:border-brandColor focus:outline-none focus:ring-2 focus:ring-brandColor dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"></textarea>
+
 
                                 <button type="button" @click="crearCliente" :disabled="cargando || !nombre.trim()"
                                         class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] w-full rounded-xl bg-emerald-600 text-lg font-bold text-white disabled:opacity-50">
@@ -457,11 +483,16 @@
                             "portón verde y hay un árbol afuera" es lo que de verdad usa
                             quien toca el timbre, y un pin puede estar a 20 metros.
                         --}}
-                        <div v-if="pe.ubicacion && (pe.ubicacion.referencia || pe.ubicacion.url)"
+                        <div v-if="pe.ubicacion && (pe.ubicacion.direccion || pe.ubicacion.referencia || pe.ubicacion.url)"
                              class="mb-3 rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-800/50">
                             <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
                                 Dónde entregar
                             </span>
+
+                            {{-- La dirección escrita, arriba de la referencia: primero dónde es, después cómo encontrarla. --}}
+                            <p v-if="pe.ubicacion.direccion" class="mb-1 break-words text-base font-semibold text-gray-800 dark:text-gray-200">
+                                @{{ pe.ubicacion.direccion }}
+                            </p>
 
                             <p v-if="pe.ubicacion.referencia" class="mb-2 break-words text-base text-gray-800 dark:text-gray-200">
                                 @{{ pe.ubicacion.referencia }}
@@ -882,6 +913,19 @@
                                 Tocá el mapa o arrastrá el pin. Si estás en la puerta, usá el GPS.
                             </p>
 
+                            <label for="editar-direccion" class="mb-1 block text-base font-semibold text-gray-700 dark:text-gray-300">
+                                Dirección
+                            </label>
+                            <input id="editar-direccion" v-model="nuevo.direccion" type="text" placeholder="Calle y altura"
+                                   class="mb-2 min-h-[56px] w-full rounded-xl border-2 border-gray-300 px-4 text-base focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+
+                            <label for="editar-referencia" class="mb-1 block text-base font-semibold text-gray-700 dark:text-gray-300">
+                                Referencia
+                            </label>
+                            <textarea id="editar-referencia" v-model="nuevo.referencia" rows="2"
+                                      placeholder="Portón verde, hay un árbol afuera…"
+                                      class="mb-3 w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-base focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"></textarea>
+
                             {{--
                                 Poner el pin en el centro del mapa.
 
@@ -1164,8 +1208,9 @@
                         entrega: { pedido: null, archivo: null, preview: null, dejo: '', retiro: '', ubicacionMarcada: false, ubicacion: null },
                         ubicando: false,
                         // El contacto que se está creando: domicilio y envases iniciales.
-                        nuevo: { bidones: '', lat: null, lng: null },
+                        nuevo: { bidones: '', lat: null, lng: null, direccion: '', referencia: '' },
                         mapaError: null,
+                        direccionSugerida: null,
                         bidones: { clientes: [], en_la_calle: 0, del_dia: { entregados: 0, retirados: 0 } },
                         devolucion: { cliente: null, cantidad: '' },
                         edicion: { pedido: null, lineas: [] },
@@ -1564,10 +1609,12 @@
                             lat: this.nuevo.lat,
                             lng: this.nuevo.lng,
                             bidones: this.enteroDe(this.nuevo.bidones) || null,
+                            direccion: this.nuevo.direccion || null,
+                            referencia: this.nuevo.referencia || null,
                         })
                             .then(r => {
                                 this.cliente = r.data.persona;
-                                this.nuevo = { bidones: '', lat: null, lng: null };
+                                this.nuevo = { bidones: '', lat: null, lng: null, direccion: '', referencia: '' };
                                 this.limpiarMapa();
                             })
                             .catch(e => { this.aviso = this.mensaje(e, 'No se pudo crear el contacto.'); })
@@ -1581,7 +1628,7 @@
                         this.nombre = '';
                         // El domicilio y los envases son del cliente que se descartó: dejarlos
                         // se los adjudicaría al siguiente.
-                        this.nuevo = { bidones: '', lat: null, lng: null };
+                        this.nuevo = { bidones: '', lat: null, lng: null, direccion: '', referencia: '' };
                         this.limpiarMapa();
                         this.limpiarVistaDomicilio();
                     },
@@ -1831,6 +1878,7 @@
                     ponerPin(lat, lng, centrar = true) {
                         this.nuevo.lat = lat;
                         this.nuevo.lng = lng;
+                        this.precargarDireccion(lat, lng);
 
                         if (! this.mapa) return;
 
@@ -1933,6 +1981,10 @@
                         const actual = cliente.ubicacion;
                         this.nuevo.lat = actual ? Number(actual.lat) : null;
                         this.nuevo.lng = actual ? Number(actual.lng) : null;
+                        // Los textos que ya tenía, para editarlos y no reescribirlos.
+                        this.nuevo.direccion = actual?.direccion || '';
+                        this.nuevo.referencia = actual?.referencia || '';
+                        this.direccionSugerida = null;
 
                         this.$nextTick(() => this.montarMapa('mapaEditar', actual
                             ? { lat: Number(actual.lat), lng: Number(actual.lng) }
@@ -2007,6 +2059,8 @@
                             {
                                 lat: this.nuevo.lat,
                                 lng: this.nuevo.lng,
+                                direccion: this.nuevo.direccion || null,
+                                referencia: this.nuevo.referencia || null,
                                 /*
                                  * origen 'mapa' aunque el punto haya salido del GPS: lo que
                                  * importa es que una persona lo VIO en el mapa y lo confirmó,
@@ -2026,6 +2080,37 @@
                             })
                             .catch(e => { this.mapaError = this.mensaje(e, 'No se pudo guardar el domicilio.'); })
                             .finally(() => { this.cargando = false; });
+                    },
+
+                    /**
+                     * Precarga la dirección a partir del pin, sin pisar lo escrito a mano.
+                     *
+                     * 🔴 No sobreescribe un texto que el distribuidor ya corrigió: el
+                     * geocodificador devuelve calle y barrio pero muchas veces sin altura, así
+                     * que la corrección a mano es MEJOR dato que lo que viene del servicio.
+                     * Pisarla al reacomodar el pin dos metros borraría el trabajo bueno.
+                     *
+                     * Se recuerda qué texto puso el geocodificador para poder distinguir
+                     * "vacío o puesto por mí" de "escrito por una persona".
+                     */
+                    precargarDireccion(lat, lng) {
+                        const escritoAMano = this.nuevo.direccion
+                            && this.nuevo.direccion !== this.direccionSugerida;
+
+                        if (escritoAMano) return;
+
+                        this.$axios.get('{{ route('admin.distribuidor.direccion') }}', { params: { lat, lng } })
+                            .then(r => {
+                                const d = r.data.direccion;
+
+                                // Null es normal: hay coordenadas en medio del campo. Se deja el
+                                // campo como está y el pin se guarda igual.
+                                if (! d) return;
+
+                                this.nuevo.direccion = d;
+                                this.direccionSugerida = d;
+                            })
+                            .catch(() => { /* que no resuelva no puede trabar el guardado */ });
                     },
 
                     /** El GPS del celular, para cuando se carga al cliente en su puerta. */

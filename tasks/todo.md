@@ -14,7 +14,7 @@ Cubre dos puntos de la lista: el llenado literal de la dirección y el cuadro de
 REFERENCIA debajo de la dirección y el mapa. Van juntos porque son el mismo dato y la
 misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
 
-- [ ] **T1.1** Migración: `direccion` y `referencia` (texto, nullable) en
+- [x] **T1.1** Migración: `direccion` y `referencia` (texto, nullable) en
       `distribuidor_ubicaciones`
   - Acceptance: las dos columnas existen y admiten null; una ubicación que sólo tiene
     coordenadas sigue siendo válida
@@ -24,13 +24,13 @@ misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
   - ⚠️ Bloquea a T1.2 y T1.3. Y mientras no corra, el servicio tiene que tolerar su
     ausencia como ya hace con la tabla, o el Punto tira 500 en producción.
 
-- [ ] **T1.2** `Ubicacion` guarda y devuelve dirección y referencia
+- [x] **T1.2** `Ubicacion` guarda y devuelve dirección y referencia
   - Acceptance: `guardarDelMapa` y `guardarGps` aceptan los dos textos; `deCliente`
     los devuelve; un punto sin texto sigue funcionando
   - Verify: tests de servicio, incluido el caso sin la columna todavía creada
   - Files: `Services/Ubicacion.php`, `Models/UbicacionCliente.php`
 
-- [ ] **T1.2b** Geocodificación inversa: del pin al texto de la dirección
+- [x] **T1.2b** Geocodificación inversa: del pin al texto de la dirección
   - Acceptance: al mover el pin, el campo de dirección se **precarga** con la calle y
     altura que resuelve el servicio, y queda editable. Si el servicio no responde o no
     encuentra nada, el campo queda vacío y el pin se guarda igual
@@ -43,14 +43,14 @@ misma migración; separarlos obligaría a dos migraciones sobre la misma tabla.
   - Precargado y editable, nunca guardado a ciegas: el riesgo real es una altura
     inventada por el geocodificador que nadie cuestiona.
 
-- [ ] **T1.3** Los dos campos en el Punto, debajo del mapa
+- [x] **T1.3** Los dos campos en el Punto, debajo del mapa
   - Acceptance: están en el alta de contacto y en el modal de editar domicilio; se
     guardan; la referencia se ve en la tarjeta del pedido, que es donde la lee quien
     toca el timbre
   - Verify: test HTTP del alta con los tres datos + aserción sobre la plantilla
   - Files: `Resources/views/punto.blade.php`, `Http/Controllers/PuntoController.php`
 
-- [ ] **T1.4** Reconciliar con `ubicacion_lead`
+- [x] **T1.4** Reconciliar con `ubicacion_lead`
   - Acceptance: queda UNA fuente de verdad para la referencia. La cascada de
     `dePedido()` prefiere la del cliente y usa la del pedido como respaldo
   - Verify: test de que una referencia por cliente le gana a la del atributo del lead

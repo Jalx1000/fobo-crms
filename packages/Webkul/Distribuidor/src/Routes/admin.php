@@ -21,6 +21,9 @@ Route::controller(PuntoController::class)->prefix('distribuidor')->group(functio
     Route::patch('pedido/{id}/productos', 'editarProductos')
         ->name('admin.distribuidor.pedido.productos');
 
+    // La dirección que corresponde a un punto del mapa, para precargar el campo.
+    Route::get('direccion', 'direccionDelPin')->name('admin.distribuidor.direccion');
+
     // El domicilio del cliente, tomado con el GPS en la puerta.
     Route::post('cliente/{id}/ubicacion', 'guardarUbicacionCliente')
         ->name('admin.distribuidor.cliente.ubicacion');

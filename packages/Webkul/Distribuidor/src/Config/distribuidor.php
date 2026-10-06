@@ -99,6 +99,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Geocodificación inversa (del pin a la dirección escrita)
+    |--------------------------------------------------------------------------
+    |
+    | Nominatim de OpenStreetMap: sin clave ni facturación. Su política pide identificar
+    | la aplicación con un User-Agent propio —sin eso devuelve 403— y limita a una
+    | consulta por segundo, que sobra para una consulta por contacto nuevo.
+    |
+    | Se puede apagar: la dirección pasa a escribirse a mano, que es lo que se hacía
+    | antes. El pin se guarda igual en los dos casos.
+    |
+    */
+    'geocodificacion' => [
+        'enabled'    => (bool) env('DISTRIBUIDOR_GEOCODIFICAR', true),
+        'timeout'    => (int) env('DISTRIBUIDOR_GEOCODIFICAR_TIMEOUT', 5),
+        'user_agent' => env('DISTRIBUIDOR_GEOCODIFICAR_UA', 'SensiaCRM/1.0 (sensia.sofopolis.com)'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Formas de cobro
     |--------------------------------------------------------------------------
     | Cerradas a propósito: un campo libre acá vuelve imposible cuadrar la caja.

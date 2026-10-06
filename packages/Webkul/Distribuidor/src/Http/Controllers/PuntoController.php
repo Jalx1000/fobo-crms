@@ -14,6 +14,7 @@ use Webkul\Distribuidor\Repositories\PagoRepository;
 use Webkul\Distribuidor\Services\Alcance;
 use Webkul\Distribuidor\Services\Bidones;
 use Webkul\Distribuidor\Services\Catalogo;
+use Webkul\Distribuidor\Services\Geocodificador;
 use Webkul\Distribuidor\Services\PuntoPedido;
 use Webkul\Distribuidor\Services\RegistroDeEdicion;
 use Webkul\Distribuidor\Services\Ubicacion;
@@ -128,6 +129,11 @@ class PuntoController extends Controller
             'lng'     => 'nullable|numeric|between:-180,180',
             // lng es obligatoria si vino lat: media coordenada no ubica nada.
             'bidones' => 'nullable|integer|min:0',
+
+            // La dirección la precarga el geocodificador y queda editable; la referencia
+            // la escribe el distribuidor y no se deduce de ninguna coordenada.
+            'direccion'  => 'nullable|string|max:255',
+            'referencia' => 'nullable|string|max:2000',
         ]);
 
         if (isset($data['lat']) !== isset($data['lng'])) {
@@ -140,7 +146,13 @@ class PuntoController extends Controller
         $personId = (int) $r['persona']->id;
 
         if (isset($data['lat'], $data['lng'])) {
-            $this->ubicacion->guardarDelMapa($personId, (float) $data['lat'], (float) $data['lng']);
+            $this->ubicacion->guardarDelMapa(
+                $personId,
+                (float) $data['lat'],
+                (float) $data['lng'],
+                null,
+                array_intersect_key($data, array_flip(['direccion', 'referencia'])),
+            );
         }
 
         /*
@@ -664,6 +676,26 @@ class PuntoController extends Controller
     }
 
     /**
+     * La dirección escrita que corresponde a un punto del mapa.
+     *
+     * Endpoint propio y no parte del guardado: la pantalla la pide cuando se MUEVE el pin,
+     * para precargar el campo antes de guardar nada. Así el distribuidor ve y corrige lo
+     * que resolvió, que es la única forma de que una altura inventada no quede guardada
+     * sin que nadie la cuestione.
+     */
+    public function direccionDelPin(Request $request, Geocodificador $geo): JsonResponse
+    {
+        $data = $request->validate([
+            'lat' => 'required|numeric|between:-90,90',
+            'lng' => 'required|numeric|between:-180,180',
+        ]);
+
+        // Null es una respuesta válida: hay coordenadas en medio del campo. La pantalla
+        // deja el campo vacío y el pin se guarda igual.
+        return response()->json(['direccion' => $geo->direccionDe((float) $data['lat'], (float) $data['lng'])]);
+    }
+
+    /**
      * Guarda el domicilio del cliente con el GPS del celular.
      *
      * Se toma en la puerta al entregar, que es el único momento en que el teléfono
@@ -693,7 +725,17 @@ class PuntoController extends Controller
              * Default 'gps' para no romper al botón que ya existía.
              */
             'origen' => 'nullable|string|in:gps,mapa',
+
+            /*
+             * Los textos del domicilio. Ausentes significa "no los mandé", no "borralos":
+             * el botón de un toque del diálogo de entrega guarda sólo coordenadas, y el
+             * servicio no toca los textos que no llegan.
+             */
+            'direccion'  => 'nullable|string|max:255',
+            'referencia' => 'nullable|string|max:2000',
         ]);
+
+        $textos = array_intersect_key($data, array_flip(['direccion', 'referencia']));
 
         $persona = PersonProxy::modelClass()::findOrFail($id);
 
@@ -701,13 +743,14 @@ class PuntoController extends Controller
         $delMapa = ($data['origen'] ?? 'gps') === 'mapa';
 
         $guardada = $delMapa
-            ? $this->ubicacion->guardarDelMapa((int) $persona->id, (float) $data['lat'], (float) $data['lng'])
+            ? $this->ubicacion->guardarDelMapa((int) $persona->id, (float) $data['lat'], (float) $data['lng'], null, $textos)
             : $this->ubicacion->guardarGps(
                 (int) $persona->id,
                 (float) $data['lat'],
                 (float) $data['lng'],
                 null,
                 $precision,
+                $textos,
             );
 
         if (! $guardada) {

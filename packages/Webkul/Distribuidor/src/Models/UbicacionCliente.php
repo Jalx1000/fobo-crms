@@ -41,6 +41,8 @@ class UbicacionCliente extends Model implements UbicacionClienteContract
         'person_id',
         'lat',
         'lng',
+        'direccion',
+        'referencia',
         'fuente',
         'user_id',
     ];
