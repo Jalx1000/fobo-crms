@@ -276,9 +276,17 @@
                             -->
                             <div v-else-if="msg.type === 'location'" style="width: min(340px, 70vw)">
                                 <template v-if="msg.location">
+                                    <!--
+                                        `isolate`: Leaflet reparte z-index de 400 a 1000 entre sus
+                                        panes y controles, y `.leaflet-container` no crea stacking
+                                        context, asi que sin esto esos 1000 compiten en el contexto
+                                        raiz. Hoy no se nota porque los modales del admin estan en
+                                        10002, pero cualquier overlay por debajo de 1000 quedaria
+                                        tapado por los tiles del mapa.
+                                    -->
                                     <div :ref="el => registerBubbleMap(el, msg)"
                                          style="height: 220px; width: 100%"
-                                         class="overflow-hidden rounded-lg border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-700"></div>
+                                         class="isolate overflow-hidden rounded-lg border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-700"></div>
 
                                     <div class="mt-1.5 flex items-start gap-2">
                                         <span class="icon-location shrink-0 text-xl text-brandColor"></span>

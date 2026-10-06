@@ -284,10 +284,22 @@
 
                                         Asi que el mapa queda decorativo (aria-hidden: lo que hay que
                                         anunciar es la accion, no los tiles) y el area tactil es un
-                                        boton real encima. El z-[1100] le gana a los panes de Leaflet,
-                                        que trepan hasta 1000.
+                                        boton real encima.
+
+                                        🔴 El `isolate` del contenedor es lo que hace que esto no
+                                        tape los modales. Leaflet reparte z-index de 400 a 1000
+                                        entre sus panes y controles, y `.leaflet-container` es
+                                        `position: relative; z-index: auto`, asi que NO crea
+                                        stacking context: esos 1000 competian en el contexto raiz y
+                                        le ganaban a cualquier modal. `isolation: isolate` los
+                                        encierra acá, y el contenedor participa afuera como una sola
+                                        capa con z-index auto.
+
+                                        Bajarle el z-index al boton no alcanza: el problema no es el
+                                        boton, son los tiles del mapa, que con 400 ya tapaban el
+                                        modal igual.
                                     -->
-                                    <div class="relative overflow-hidden rounded-xl border-2 border-emerald-300 dark:border-emerald-800">
+                                    <div class="relative isolate overflow-hidden rounded-xl border-2 border-emerald-300 dark:border-emerald-800">
                                         <div ref="mapaVista" class="h-32 w-full bg-gray-100 dark:bg-gray-800" aria-hidden="true"></div>
 
                                         <button type="button" @click="abrirMapaCliente()"
@@ -676,7 +688,7 @@
                         <span class="block text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
                             Cobrado hoy
                         </span>
-                        <span class="block text-4xl font-extrabold text-gray-900 dark:text-white">@{{ money(caja.total) }}</span>
+                        <span class="block text-4xl font-extrabold text-gray-900 dark:text-white">@{{ caja.total }} ARS$</span>
                         <span class="block text-base text-gray-600 dark:text-gray-400">
                             @{{ caja.cobros }} cobro(s) · @{{ caja.pedidos_del_dia }} pedido(s)
                         </span>
@@ -828,9 +840,18 @@
                 <input ref="camara" type="file" accept="image/*" capture="environment"
                        class="hidden" tabindex="-1" aria-hidden="true" @change="fotoTomada">
 
-                {{-- ── Confirmar la entrega con la foto a la vista ── --}}
+                {{--
+                    ── Confirmar la entrega con la foto a la vista ──
+
+                    z-[10002] y no z-50: es LA ESCALA DEL ADMIN, no un número suelto.
+                    Los modales de Krayin usan 10002/10003/10004
+                    (components/modal/index.blade.php), así que un z-50 quedaba
+                    debajo de cualquier componente del admin — y debajo de los panes
+                    de Leaflet, que llegan a 1000. Los cinco modales del Punto van a
+                    la misma capa: son mutuamente excluyentes, nunca compiten entre sí.
+                --}}
                 <Teleport to="body">
-                    <div v-if="entrega.pedido" class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" @click.self="cancelarEntrega">
+                    <div v-if="entrega.pedido" class="fixed inset-0 z-[10002] flex items-end justify-center bg-black/60 sm:items-center" @click.self="cancelarEntrega">
                         <div role="dialog" aria-modal="true" aria-labelledby="titulo-entrega"
                              class="w-full max-w-md rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
                             <h3 id="titulo-entrega" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Confirmar entrega</h3>
@@ -939,7 +960,7 @@
                     "Estoy acá" sirve parado en la puerta.
                 --}}
                 <Teleport to="body">
-                    <div v-if="mapaCliente" class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" @click.self="cerrarMapaCliente">
+                    <div v-if="mapaCliente" class="fixed inset-0 z-[10002] flex items-end justify-center bg-black/60 sm:items-center" @click.self="cerrarMapaCliente">
                         <div role="dialog" style="max-width:90vw !important" aria-modal="true" aria-labelledby="titulo-mapa"
                              class="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t-2xl bg-white dark:bg-gray-900 sm:rounded-2xl">
                             {{--
@@ -1048,7 +1069,7 @@
                     "pedí 3 y no 4" o "esto no lo quiero", y eso sí está.
                 --}}
                 <Teleport to="body">
-                    <div v-if="edicion.pedido" class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" @click.self="edicion.pedido = null">
+                    <div v-if="edicion.pedido" class="fixed inset-0 z-[10002] flex items-end justify-center bg-black/60 sm:items-center" @click.self="edicion.pedido = null">
                         <div role="dialog" aria-modal="true" aria-labelledby="titulo-edicion"
                              class="flex max-h-[90vh] w-full max-w-md flex-col rounded-t-2xl bg-white dark:bg-gray-900 sm:rounded-2xl">
                             {{--
@@ -1143,7 +1164,7 @@
 
                 {{-- ── Registrar una devolución de envases ── --}}
                 <Teleport to="body">
-                    <div v-if="devolucion.cliente" class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" @click.self="devolucion.cliente = null">
+                    <div v-if="devolucion.cliente" class="fixed inset-0 z-[10002] flex items-end justify-center bg-black/60 sm:items-center" @click.self="devolucion.cliente = null">
                         <div role="dialog" aria-modal="true" aria-labelledby="titulo-devolucion"
                              class="w-full max-w-md rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
                             <h3 id="titulo-devolucion" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Recibí envases</h3>
@@ -1178,7 +1199,7 @@
 
                 {{-- ── Cobro: dentro del pedido, no en otra sección ── --}}
                 <Teleport to="body">
-                    <div v-if="cobro.pedido" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" @click.self="cobro.pedido = null">
+                    <div v-if="cobro.pedido" class="fixed inset-0 z-[10002] flex items-end justify-center bg-black/50 sm:items-center" @click.self="cobro.pedido = null">
                         {{--
                             role/aria-modal/aria-labelledby: sin eso un lector de pantalla no
                             anuncia que se abrió un diálogo ni lo nombra, y lee el fondo como

@@ -1297,3 +1297,63 @@ it('la miniatura del domicilio no cuelga de un boton', function () {
         'la miniatura tiene que estar oculta para el lector de pantalla',
     );
 });
+
+/*
+ * El mapa de la ficha tapaba los modales.
+ *
+ * Leaflet reparte z-index de 400 (panes) a 1000 (controles) y
+ * `.leaflet-container` es `position: relative; z-index: auto`, así que NO crea
+ * stacking context: esos valores competían en el contexto raíz y le ganaban a
+ * un modal en z-50. Bajarle el z-index al botón no alcanzaba — el problema eran
+ * los tiles, que con 400 ya tapaban el modal igual.
+ */
+it('el mapa de la ficha no puede taparle a los modales', function () {
+    $html = test()->actingAs(distribuidor(), 'user')
+        ->get(route('admin.distribuidor.index'))
+        ->assertOk()
+        ->getContent();
+
+    $pos = strpos($html, 'ref="mapaVista"');
+    $previo = substr($html, 0, $pos);
+
+    // El último <div> antes del ref es el del mapa mismo; el contenedor que
+    // tiene que aislar es el anterior.
+    $delMapa = strrpos($previo, '<div');
+    $contenedor = substr($previo, strrpos(substr($previo, 0, $delMapa), '<div'), $delMapa);
+
+    $this->assertStringContainsString(
+        'isolate',
+        $contenedor,
+        'el contenedor del mapa tiene que ser stacking context propio (isolate), '
+            .'o los z-index de Leaflet se escapan al contexto raíz',
+    );
+});
+
+/*
+ * La escala del admin, no un número suelto: los modales de Krayin están en
+ * 10002/10003/10004. Un modal del Punto por debajo de 1000 lo tapan los tiles
+ * de cualquier mapa de la página.
+ */
+it('los modales del Punto están por encima de todo lo de Leaflet', function () {
+    $html = test()->actingAs(distribuidor(), 'user')
+        ->get(route('admin.distribuidor.index'))
+        ->assertOk()
+        ->getContent();
+
+    $i = strpos($html, 'id="v-punto-template"');
+    $tpl = substr($html, $i, strpos($html, '</script>', $i) - $i);
+
+    preg_match_all('/class="fixed inset-0 z-(\[?\d+\]?)/', $tpl, $m);
+
+    expect($m[1])->not->toBeEmpty('no se encontró ningún overlay de modal');
+
+    foreach ($m[1] as $valor) {
+        $n = (int) trim($valor, '[]');
+
+        expect($n)->toBeGreaterThan(
+            1000,
+            "Un modal en z-$n queda debajo de los controles de Leaflet (1000). ".
+            'La escala del admin es 10002+.'
+        );
+    }
+});
