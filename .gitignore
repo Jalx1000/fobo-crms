@@ -44,8 +44,16 @@ node_modules/
 !/package.json
 !/package-lock.json
 !/phpunit.xml
-# Build de Vite del admin: artefacto generado, se compila en cada servidor
-/public/admin/build
+# El build de Vite del admin SÍ se commitea, igual que los de webform, installer
+# y /public/build. No es por gusto: el Dockerfile no tiene etapa de Node —el
+# .dockerignore habla de un `COPY --from=node_builder` que no existe— así que
+# nadie compila el admin en el deploy. Cuando esto estaba ignorado, el CSS de
+# producción se quedó en el build que alguien había corrido a mano, y cada clase
+# nueva de Tailwind escrita después salía sin generar: el botón se veía gris, sin
+# un error en ningún log.
+#
+# 🔴 Si cambiás clases de Tailwind, hay que correr el build Y commitearlo:
+#     cd packages/Webkul/Admin && npm run build
 
 # Caché de resultados de PHPUnit: artefacto local
 /.phpunit.cache
