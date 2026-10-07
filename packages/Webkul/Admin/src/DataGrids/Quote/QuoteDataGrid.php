@@ -42,6 +42,25 @@ class QuoteDataGrid extends DataGrid
 
         ContactChannel::joinTo($queryBuilder, 'persons.id');
 
+        /*
+        | El envío por WhatsApp de cada cotización: estado y hora del último, y
+        | cuántas veces se mandó. Subconsultas por fila: el listado pagina de a
+        | pocas, y un join repetiría la cotización por cada mensaje.
+        |
+        | Un mensaje es de la cotización por `quote_id` en el payload (desde
+        | 2026-10-07) o, los anteriores, por el nombre del PDF «Cotizacion-<id>-».
+        */
+        $deEstaCotizacion = fn ($q) => $q->from('whatsapp_messages')
+            ->where('whatsapp_messages.direction', 'outbound')
+            ->where(fn ($w) => $w
+                ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT({$tablePrefix}whatsapp_messages.payload, '$.quote_id')) = {$tablePrefix}quotes.id")
+                ->orWhereRaw("{$tablePrefix}whatsapp_messages.media_name LIKE CONCAT('Cotizacion-', {$tablePrefix}quotes.id, '-%')"));
+
+        $queryBuilder
+            ->selectSub(fn ($q) => $deEstaCotizacion($q)->select('status')->orderByDesc('whatsapp_messages.id')->limit(1), 'whatsapp_status')
+            ->selectSub(fn ($q) => $deEstaCotizacion($q)->select('created_at')->orderByDesc('whatsapp_messages.id')->limit(1), 'whatsapp_sent_at')
+            ->selectSub(fn ($q) => $deEstaCotizacion($q)->where('whatsapp_messages.status', '!=', 'failed')->selectRaw('COUNT(*)'), 'whatsapp_envios');
+
         if ($userIds = bouncer()->getAuthorizedUserIds()) {
             $queryBuilder->whereIn('quotes.user_id', $userIds);
         }
@@ -165,6 +184,17 @@ class QuoteDataGrid extends DataGrid
             'closure'    => fn ($row) => core()->formatBasePrice($row->grand_total, 2),
         ]);
 
+        // Si ya se mandó por WhatsApp, cómo está y cuántas veces: evita que se
+        // reenvíe "por las dudas" (caso P.S.A, cotización #2198, 5 envíos).
+        $this->addColumn([
+            'index'      => 'whatsapp',
+            'label'      => trans('admin::app.quotes.index.datagrid.whatsapp-status'),
+            'type'       => 'string',
+            'sortable'   => false,
+            'filterable' => false,
+            'closure'    => fn ($row) => self::estadoWhatsapp($row),
+        ]);
+
         $this->addColumn([
             'index'      => 'contact_numbers',
             'label'      => trans('admin::app.quotes.index.datagrid.phone'),
@@ -276,5 +306,38 @@ class QuoteDataGrid extends DataGrid
             'method' => 'POST',
             'url'    => route('admin.quotes.mass_delete'),
         ]);
+    }
+
+    /**
+     * La etiqueta de la columna WhatsApp: estado del último envío, hace cuánto
+     * y, si se mandó más de una vez, cuántas.
+     *
+     * Estilos en línea: el CSS compilado del admin no trae clases de color
+     * para etiquetas (solo label-active / label-inactive).
+     */
+    public static function estadoWhatsapp($row): string
+    {
+        if (! $row->whatsapp_status) {
+            return '<span style="color:#9ca3af;font-size:12px;">No enviada</span>';
+        }
+
+        [$texto, $fondo, $color] = match ($row->whatsapp_status) {
+            'queued'    => ['Enviando…', '#f3f4f6', '#4b5563'],
+            'sent'      => ['Enviada', '#dbeafe', '#1d4ed8'],
+            'delivered' => ['Entregada', '#dcfce7', '#15803d'],
+            'read'      => ['Leída', '#dcfce7', '#15803d'],
+            'failed'    => ['Falló', '#fee2e2', '#b91c1c'],
+            default     => [ucfirst((string) $row->whatsapp_status), '#f3f4f6', '#4b5563'],
+        };
+
+        $veces = (int) $row->whatsapp_envios > 1 ? ' ×'.(int) $row->whatsapp_envios : '';
+
+        $hace = $row->whatsapp_sent_at
+            ? \Carbon\Carbon::parse($row->whatsapp_sent_at)->diffForHumans()
+            : '';
+
+        return '<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:12px;font-weight:600;background:'.$fondo.';color:'.$color.';">'
+            .e($texto.$veces).'</span>'
+            .($hace ? '<div style="color:#6b7280;font-size:11px;margin-top:2px;">'.e($hace).'</div>' : '');
     }
 }

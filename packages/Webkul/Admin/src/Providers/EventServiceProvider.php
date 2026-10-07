@@ -49,6 +49,11 @@ class EventServiceProvider extends ServiceProvider
             'Webkul\Admin\Listeners\CotizacionNueva@handle',
         ],
 
+        // Cotización enviada por WhatsApp: queda en el historial del lead y del contacto.
+        'quote.whatsapp.after' => [
+            'Webkul\Admin\Listeners\CotizacionEnviada@handle',
+        ],
+
         'quote.update.after' => [
             'Webkul\Admin\Listeners\Nit@sincronizar',
             'Webkul\Admin\Listeners\Ciudad@deCotizacion',

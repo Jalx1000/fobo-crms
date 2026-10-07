@@ -411,6 +411,7 @@ return [
                 'delete'       => 'Eliminar',
                 'print'        => 'Imprimir',
                 'whatsapp'     => 'Enviar por WhatsApp',
+                'whatsapp-status' => 'WhatsApp',
             ],
 
             'whatsapp' => [
@@ -423,6 +424,7 @@ return [
                 'storage-failed'   => 'No se pudo guardar el PDF en el servidor. Avisá al equipo técnico (permisos de storage).',
                 'already-sent'     => 'La cotización #:id ya se envió a :phone :ago. No se reenvía para no duplicarla en el chat del cliente; si hace falta, se puede volver a enviar pasados :minutes minutos.',
                 'in-progress'      => 'La cotización #:id se está enviando en este momento. Esperá unos segundos.',
+                'activity'         => 'Cotización #:id enviada por WhatsApp a :to (:user)',
                 'param-customer'   => 'cliente',
                 'param-no-expiry'  => 'sin fecha de vencimiento',
                 'counter'          => ':count plantillas este mes',
