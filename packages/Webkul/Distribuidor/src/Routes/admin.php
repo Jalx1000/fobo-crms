@@ -44,6 +44,8 @@ Route::controller(\Webkul\Distribuidor\Http\Controllers\PuntoController::class)
     ->prefix('distribuidor')->group(function () {
         Route::get('recientes', 'recientes')->name('admin.distribuidor.recientes');
         Route::get('caja', 'caja')->name('admin.distribuidor.caja');
-        Route::get('bidones', 'bidones')->name('admin.distribuidor.bidones');
+        // La agenda de clientes. Antes era 'bidones' y listaba solo a los que
+        // debian envases; ahora es la agenda entera y el saldo es una columna.
+        Route::get('clientes', 'clientes')->name('admin.distribuidor.clientes');
         Route::get('repetir/{personId}', 'repetir')->name('admin.distribuidor.repetir');
     });

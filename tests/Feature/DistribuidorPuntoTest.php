@@ -817,7 +817,7 @@ it('con sólo dirección escrita arma una búsqueda con la ciudad y el país', f
     DB::table('persons')->where('id', $contacto['id'])->delete();
 });
 
-it('"Para entregar" muestra sólo los confirmados, no los prospectos', function () {
+it('"Pedidos pendientes" muestra sólo los confirmados, no los prospectos', function () {
     $sucursal = primeraSucursal();
 
     if (! $sucursal['ciudad_id']) {

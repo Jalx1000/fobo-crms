@@ -432,7 +432,7 @@ it('el pedido expone lo que el dialogo de entrega necesita', function () {
     app(Bidones::class)->registrar($c['person_id'], $c['lead_id'], 2, 0);
 
     // "pendientes" lista sólo los confirmados, que es lo que el distribuidor ve en
-    // "Para entregar": el pedido tiene que estar en esa etapa para aparecer.
+    // "Pedidos pendientes": el pedido tiene que estar en esa etapa para aparecer.
     $confirmado = (int) DB::table('lead_pipeline_stages')
         ->where('lead_pipeline_id', $c['pipeline_id'])
         ->where('code', config('distribuidor.etapas.confirmado'))
@@ -961,14 +961,18 @@ it('la tarjeta se engancha por evento y no editando el blade del core', function
     );
 });
 
-// ───────── T2.2: el apartado de bidones en el Punto ─────────
+// ───────── T2.2: los envases en la agenda de clientes del Punto ─────────
+//
+// El apartado "Bidones" se fundió en "Clientes": listaba sólo a los que debían
+// envases, y ese recorte dejaba afuera el caso más común de la calle —acordarse del
+// cliente y no del teléfono—. Lo que sigue cuidando que el saldo no se pierda.
 
-it('el apartado lista los clientes con envases sin devolver', function () {
+it('la agenda muestra el saldo de envases de cada cliente', function () {
     $c = clienteConPedido();
     app(Bidones::class)->registrar($c['person_id'], $c['lead_id'], 6, 1);
 
     $r = $this->actingAs(distribuidorDeBidones(), 'user')
-        ->getJson(route('admin.distribuidor.bidones'))
+        ->getJson(route('admin.distribuidor.clientes', ['ciudad' => $c['pipeline_id']]))
         ->assertOk()
         ->json();
 
@@ -978,24 +982,32 @@ it('el apartado lista los clientes con envases sin devolver', function () {
         ->and($fila['saldo'])->toBe(5);
 });
 
-it('el total de arriba sale de sumar la lista', function () {
-    $c = clienteConPedido();
-    app(Bidones::class)->registrar($c['person_id'], $c['lead_id'], 4, 0);
+it('el total de envases es el de la zona y no el de la pagina', function () {
+    $pipelineId = (int) DB::table('lead_pipelines')->orderBy('id')->value('id');
+
+    /*
+     * 🔴 Cambió respecto del apartado viejo, a propósito.
+     *
+     * Antes el total se calculaba sumando la lista, porque la lista ERA todo. Ahora la
+     * lista está paginada de 30: sumarla daría un número menor al real justo cuando hay
+     * muchos envases afuera, que es cuando el número importa. Se calcula sobre la zona.
+     */
+    for ($i = 0; $i < 31; $i++) {
+        $c = clienteConPedido($pipelineId);
+        app(Bidones::class)->registrar($c['person_id'], $c['lead_id'], 1, 0);
+    }
 
     $r = $this->actingAs(distribuidorDeBidones(), 'user')
-        ->getJson(route('admin.distribuidor.bidones'))
+        ->getJson(route('admin.distribuidor.clientes', ['ciudad' => $pipelineId]))
         ->assertOk()
         ->json();
 
-    /*
-     * El número de arriba y las filas de abajo no pueden contradecirse. Calcularlo con
-     * otra consulta es el problema clásico de un resumen que no cuadra con su detalle,
-     * y nadie sabe a cuál creerle.
-     */
-    expect($r['en_la_calle'])->toBe(array_sum(array_column($r['clientes'], 'saldo')));
+    expect(count($r['clientes']))->toBe(30)
+        ->and($r['en_la_calle'])->toBeGreaterThanOrEqual(31)
+        ->and($r['en_la_calle'])->toBeGreaterThan(array_sum(array_column($r['clientes'], 'saldo')));
 });
 
-it('el apartado respeta el alcance por ciudad', function () {
+it('la agenda respeta el alcance por ciudad', function () {
     $pipelines = DB::table('lead_pipelines')->orderBy('id')->pluck('id')->all();
 
     if (count($pipelines) < 2) {
@@ -1005,11 +1017,12 @@ it('el apartado respeta el alcance por ciudad', function () {
     $c = clienteConPedido((int) $pipelines[1]);
     app(Bidones::class)->registrar($c['person_id'], $c['lead_id'], 3, 0);
 
-    // Un distribuidor de otra ciudad no tiene que ver a este cliente.
+    // Un distribuidor de otra ciudad no tiene que ver a este cliente ni pidiendo
+    // su propia agenda, ni —el 403 lo cubre aparte— pidiendo la ajena.
     $user = usuarioDeCiudadParaBidones((int) $pipelines[0]);
 
     $r = $this->actingAs($user, 'user')
-        ->getJson(route('admin.distribuidor.bidones'))
+        ->getJson(route('admin.distribuidor.clientes', ['ciudad' => (int) $pipelines[0]]))
         ->assertOk()
         ->json();
 
@@ -1029,20 +1042,23 @@ it('registrar una devolucion baja el saldo', function () {
     expect(app(Bidones::class)->saldoDe($c['person_id']))->toBe(3);
 });
 
-it('el apartado es una pestaña propia y no un bloque de caja', function () {
+it('los envases se ven y se saldan desde la agenda de clientes', function () {
     $vista = file_get_contents(
         base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
     );
 
     /*
-     * Caja se mira una vez al cerrar el día; los envases a recuperar se miran al ARMAR
-     * el recorrido. Enterrado dentro de Caja nadie los veía a tiempo para ir a buscarlos.
+     * El apartado "Bidones" se fundió en "Clientes". Listaba SÓLO a los que debían
+     * envases, y ese recorte dejaba afuera el caso más común de la calle: acordarse del
+     * cliente y no del teléfono. Lo que NO puede perderse en la fusión es el saldo
+     * —el dato con el que se arma el recorrido— ni poder saldarlo ahí mismo.
      */
-    $this->assertStringContainsString("vista === 'bidones'", $vista, 'Falta la sección propia de bidones: ');
-    $this->assertStringContainsString('irABidones', $vista, 'Falta la pestaña de bidones: ');
+    $this->assertStringContainsString("vista === 'clientes'", $vista, 'Falta la agenda de clientes: ');
+    $this->assertStringContainsString('irAClientes', $vista, 'Falta la pestaña de clientes: ');
+    $this->assertStringContainsString('c.saldo', $vista, 'La agenda no muestra el saldo de envases: ');
 
-    // Y la lista tiene que poder registrar la devolución ahí mismo: un listado que sólo
-    // informa obliga a anotar en papel, y lo que se anota en papel no se carga.
+    // Un listado que sólo informa obliga a anotar en papel, y lo que se anota en papel
+    // no se carga: la devolución se registra desde la misma fila.
     $this->assertStringContainsString('abrirDevolucion', $vista, 'La lista no es accionable: ');
 });
 

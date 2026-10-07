@@ -29,7 +29,7 @@
         guardar-contacto-url="{{ route('admin.distribuidor.contacto.store') }}"
         guardar-pedido-url="{{ route('admin.distribuidor.pedido.store') }}"
         recientes-url="{{ route('admin.distribuidor.recientes') }}"
-        caja-url="{{ route('admin.distribuidor.caja') }}"
+        clientes-url="{{ route('admin.distribuidor.clientes') }}"
     />
 
     @pushOnce('scripts')
@@ -67,21 +67,28 @@
 
                 {{-- ── Tres pestañas grandes ── --}}
                 {{--
-                    Cuatro pestañas en dos filas en el celular y una sola desde sm.
-                
-                    Con cuatro en una fila a 375px cada una queda en 81px y las etiquetas se
-                    parten. Dos filas cuestan altura pero se leen; cuatro columnas apretadas no.
+                    Tres y no cuatro: Caja y Bidones se fueron.
+
+                    Caja era un resumen que se mira UNA vez, al cerrar el día, y ocupaba
+                    un cuarto de la barra de navegación todo el día; el número sigue en el
+                    admin. Bidones listaba sólo a los que debían envases, que es un recorte
+                    de la agenda: ahora son una columna de Clientes.
+
+                    Tres caben en una fila incluso a 375px, así que no hace falta la
+                    segunda fila que necesitaban cuatro. `text-base sm:text-lg` porque a
+                    ese ancho la celda queda en ~105px y "Crear pedido" en text-lg se
+                    parte por el medio.
                 --}}
-                <div class="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div class="mb-4 grid grid-cols-3 gap-2">
                     <button type="button" @click="vista = 'nuevo'"
-                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-lg font-bold transition-colors duration-200"
+                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-base font-bold transition-colors duration-200 sm:text-lg"
                             :class="vista === 'nuevo'
                                 ? 'border-brandColor bg-brandColor/10 text-brandColor'
                                 : 'border-gray-200 text-gray-600 dark:border-gray-800 dark:text-gray-400'">
-                        Nuevo pedido
+                        Crear pedido
                     </button>
                     <button type="button" @click="irAPedidos"
-                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-lg font-bold transition-colors duration-200"
+                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-base font-bold transition-colors duration-200 sm:text-lg"
                             :class="vista === 'pedidos'
                                 ? 'border-brandColor bg-brandColor/10 text-brandColor'
                                 : 'border-gray-200 text-gray-600 dark:border-gray-800 dark:text-gray-400'">
@@ -90,20 +97,12 @@
                             @{{ pedidos.length }}
                         </span>
                     </button>
-
-                    <button type="button" @click="irACaja"
-                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-lg font-bold transition-colors duration-200"
-                            :class="vista === 'caja'
+                    <button type="button" @click="irAClientes"
+                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-base font-bold transition-colors duration-200 sm:text-lg"
+                            :class="vista === 'clientes'
                                 ? 'border-brandColor bg-brandColor/10 text-brandColor'
                                 : 'border-gray-200 text-gray-600 dark:border-gray-800 dark:text-gray-400'">
-                        Caja
-                    </button>
-                    <button type="button" @click="irABidones"
-                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 text-lg font-bold transition-colors duration-200"
-                            :class="vista === 'bidones'
-                                ? 'border-brandColor bg-brandColor/10 text-brandColor'
-                                : 'border-gray-200 text-gray-600 dark:border-gray-800 dark:text-gray-400'">
-                        Bidones
+                        Clientes
                     </button>
                 </div>
 
@@ -443,14 +442,14 @@
                                 :class="filtro === 'pendientes'
                                     ? 'border-brandColor bg-brandColor text-white'
                                     : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'">
-                            Para entregar
+                            Pedidos pendientes
                         </button>
                         <button type="button" @click="cambiarFiltro('hoy')"
                                 class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 text-base font-bold transition-colors duration-200"
                                 :class="filtro === 'hoy'
                                     ? 'border-brandColor bg-brandColor text-white'
                                     : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'">
-                            Mis pedidos de hoy
+                            Historial de pedidos
                         </button>
                     </div>
 
@@ -465,7 +464,7 @@
 
                     <div v-else-if="!pedidos.length" class="rounded-xl border-2 border-dashed border-gray-300 px-4 py-10 text-center text-base text-gray-600 dark:text-gray-400 dark:border-gray-700">
                         @{{ filtro === 'pendientes'
-                            ? 'No hay pedidos confirmados para entregar acá. Los que acabás de cargar están en "Mis pedidos de hoy", para confirmarlos.'
+                            ? 'No hay pedidos confirmados para entregar acá. Los que acabás de cargar están en "Historial de pedidos", para confirmarlos.'
                             : 'Todavía no tomaste pedidos hoy.' }}
                     </div>
 
@@ -677,139 +676,131 @@
                     </div>
                 </template>
 
-                {{-- ══════════════ CAJA DEL DÍA ══════════════ --}}
-                <template v-if="vista === 'caja'">
+                {{-- ══════════════ CLIENTES ══════════════ --}}
+                {{--
+                    La agenda del distribuidor, que antes era el apartado "Bidones".
+
+                    Bidones listaba SÓLO a los que debían envases, y eso dejaba afuera el
+                    caso más común de la calle: acordarse del cliente y no del teléfono.
+                    Para llegar a su ficha había que pasar por un pedido. Ahora la lista es
+                    la agenda entera, con buscador, y el saldo de envases es una columna —
+                    los que deben siguen primeros, porque el servidor ordena por saldo.
+                --}}
+                <template v-if="vista === 'clientes'">
                     {{--
-                        El número que necesita quien cierra la jornada entregando
-                        efectivo. Cortado por forma de pago porque lo que se rinde en
-                        mano es sólo la parte en efectivo.
+                        Sin sucursal no hay agenda que mostrar: la lista es la de UNA ciudad.
+                        El cartel va antes del buscador y no después, porque un buscador que
+                        no devuelve nada parece roto en vez de parecer vacío.
                     --}}
-                    <div class="mb-4 rounded-2xl border-2 border-brandColor p-5 text-center">
-                        <span class="block text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-                            Cobrado hoy
-                        </span>
-                        <span class="block text-4xl font-extrabold text-gray-900 dark:text-white">@{{ caja.total }} ARS$</span>
-                        <span class="block text-base text-gray-600 dark:text-gray-400">
-                            @{{ caja.cobros }} cobro(s) · @{{ caja.pedidos_del_dia }} pedido(s)
-                        </span>
+                    <div v-if="! sucursal" class="rounded-xl border-2 border-dashed border-gray-300 px-4 py-10 text-center text-base text-gray-600 dark:text-gray-400 dark:border-gray-700">
+                        Elegí una sucursal para ver sus clientes.
                     </div>
 
-                    <div v-for="f in caja.por_forma" :key="f.key"
-                         class="mb-2 flex items-center justify-between rounded-xl border-2 border-gray-200 px-4 py-3 dark:border-gray-800">
-                        <span class="text-lg font-semibold text-gray-800 dark:text-gray-200">@{{ f.label }}</span>
-                        <span class="text-right">
-                            <span class="block text-xl font-bold text-gray-900 dark:text-white">@{{ money(f.total) }}</span>
-                            <span class="block text-sm text-gray-600 dark:text-gray-400">@{{ f.cobros }} cobro(s)</span>
-                        </span>
-                    </div>
-
+                    <template v-else>
                     {{--
-                        Los bidones se cuadran igual que la plata: lo que dejó salió de
-                        la camioneta y lo que retiró tiene que volver a ella. La
-                        diferencia es el número que se mira al cerrar el día, así que va
-                        destacado y no como un dato más.
+                        El total de envases afuera arriba y no al final: es el número con
+                        el que se arma el recorrido, y abajo de una lista paginada nadie lo
+                        ve. No se calcula sumando la página —la página son 30 de una lista
+                        más larga— sino sobre la zona entera.
                     --}}
-                    <div class="mt-4 rounded-2xl border-2 border-sky-300 p-4 dark:border-sky-800">
-                        <span class="mb-2 block text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-                            Bidones de hoy
-                        </span>
-
-                        <div class="grid grid-cols-3 gap-2 text-center">
-                            <div>
-                                <span class="block text-2xl font-extrabold text-gray-900 dark:text-white">@{{ caja.bidones.entregados }}</span>
-                                <span class="block text-sm text-gray-600 dark:text-gray-400">dejados</span>
-                            </div>
-                            <div>
-                                <span class="block text-2xl font-extrabold text-gray-900 dark:text-white">@{{ caja.bidones.retirados }}</span>
-                                <span class="block text-sm text-gray-600 dark:text-gray-400">retirados</span>
-                            </div>
-                            <div>
-                                <span class="block text-2xl font-extrabold" :class="caja.bidones.en_la_calle > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'">
-                                    @{{ caja.bidones.en_la_calle }}
-                                </span>
-                                <span class="block text-sm text-gray-600 dark:text-gray-400">sin volver</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- A quién hay que ir a buscarle los envases. Ordenado por cantidad. --}}
-                    <div v-if="caja.a_recuperar.length" class="mt-4">
-                        <span class="mb-2 block text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-                            Bidones a recuperar
-                        </span>
-
-                        <div v-for="c in caja.a_recuperar" :key="c.person_id"
-                             class="mb-2 flex items-center justify-between rounded-xl border-2 border-gray-200 px-4 py-3 dark:border-gray-800">
-                            <span class="min-w-0 truncate text-lg font-semibold text-gray-800 dark:text-gray-200">@{{ c.nombre }}</span>
-                            <span class="ml-2 shrink-0 rounded-full bg-sky-100 px-3 py-1 text-lg font-bold text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">
-                                @{{ c.saldo }}
+                    <div class="mb-4 flex items-center justify-between gap-3 rounded-2xl border-2 border-sky-300 px-5 py-4 dark:border-sky-800">
+                        <div>
+                            <span class="block text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                                Envases en la calle
+                            </span>
+                            <span class="block text-sm text-gray-600 dark:text-gray-400">
+                                Hoy dejaste @{{ clientes.del_dia.entregados }} y retiraste @{{ clientes.del_dia.retirados }}
                             </span>
                         </div>
-                    </div>
-                </template>
-
-                {{--
-                    ── Bidones: a quién hay que irle a buscar los envases ──
-
-                    Apartado propio y no un bloque dentro de Caja, que es donde estaba:
-                    Caja se mira una vez al cerrar el día, y esto se mira al ARMAR el
-                    recorrido. Enterrado ahí abajo nadie lo veía a tiempo.
-
-                    La lista es ACCIONABLE: cada fila registra la devolución ahí mismo.
-                    Un listado que sólo informa obliga a anotar en papel y cargarlo
-                    después, y lo que se carga después no se carga.
-                --}}
-                <template v-if="vista === 'bidones'">
-                    <div class="mb-4 rounded-2xl border-2 border-sky-300 p-5 text-center dark:border-sky-800">
-                        <span class="block text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-                            Bidones en la calle
-                        </span>
-                        <span class="block text-4xl font-extrabold text-gray-900 dark:text-white">@{{ bidones.en_la_calle }}</span>
-                        <span class="block text-base text-gray-600 dark:text-gray-400">
-                            en @{{ bidones.clientes.length }} cliente@{{ bidones.clientes.length === 1 ? '' : 's' }}
+                        <span class="shrink-0 text-4xl font-extrabold text-gray-900 dark:text-white">
+                            @{{ clientes.en_la_calle }}
                         </span>
                     </div>
 
-                    <div class="mb-4 grid grid-cols-2 gap-2 text-center">
-                        <div class="rounded-xl border-2 border-gray-200 px-3 py-3 dark:border-gray-800">
-                            <span class="block text-2xl font-extrabold text-gray-900 dark:text-white">@{{ bidones.del_dia.entregados }}</span>
-                            <span class="block text-sm text-gray-600 dark:text-gray-400">dejados hoy</span>
-                        </div>
-                        <div class="rounded-xl border-2 border-gray-200 px-3 py-3 dark:border-gray-800">
-                            <span class="block text-2xl font-extrabold text-gray-900 dark:text-white">@{{ bidones.del_dia.retirados }}</span>
-                            <span class="block text-sm text-gray-600 dark:text-gray-400">retirados hoy</span>
-                        </div>
+                    {{--
+                        El buscador busca por nombre O por teléfono con el mismo campo: el
+                        que está parado en la puerta no quiere elegir antes de escribir.
+
+                        `type="search"` y no "text": el teclado del celular muestra la tecla
+                        de buscar y el navegador agrega la cruz para vaciarlo.
+                    --}}
+                    <div class="mb-3 flex gap-2">
+                        <label for="punto-buscar-cliente" class="sr-only">Buscar un cliente por nombre o teléfono</label>
+                        <input id="punto-buscar-cliente" v-model="busquedaCliente" type="search"
+                               @keyup.enter="buscarClientes" placeholder="Nombre o teléfono"
+                               class="min-h-[56px] w-full rounded-xl border-2 border-gray-300 px-4 text-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                        <button type="button" @click="buscarClientes" :disabled="cargando"
+                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] shrink-0 rounded-xl bg-brandColor px-5 text-lg font-bold text-white transition-colors duration-200 disabled:opacity-40">
+                            Buscar
+                        </button>
                     </div>
 
-                    <div v-if="cargando && !bidones.clientes.length" class="py-8 text-center text-base text-gray-600 dark:text-gray-400">
+                    <div v-if="cargando && ! clientes.clientes.length" class="py-8 text-center text-base text-gray-600 dark:text-gray-400">
                         Cargando…
                     </div>
 
-                    <div v-else-if="!bidones.clientes.length" class="rounded-xl border-2 border-dashed border-gray-300 py-10 text-center dark:border-gray-700">
-                        <p class="text-lg font-semibold text-gray-700 dark:text-gray-300">No hay envases sin devolver</p>
-                        <p class="mt-1 text-base text-gray-600 dark:text-gray-400">Todos los clientes de tu zona están al día.</p>
+                    <div v-else-if="! clientes.clientes.length" class="rounded-xl border-2 border-dashed border-gray-300 py-10 text-center dark:border-gray-700">
+                        <p class="text-lg font-semibold text-gray-700 dark:text-gray-300">
+                            @{{ busquedaCliente.trim() ? 'Ningún cliente coincide' : 'Todavía no hay clientes en tu zona' }}
+                        </p>
+                        <p class="mt-1 text-base text-gray-600 dark:text-gray-400">
+                            @{{ busquedaCliente.trim()
+                                ? 'Probá con parte del nombre, o con los últimos números del teléfono.'
+                                : 'Un contacto entra en la agenda al cargarle el primer pedido.' }}
+                        </p>
                     </div>
 
-                    <div v-for="c in bidones.clientes" :key="c.person_id"
-                         class="mb-3 flex items-center justify-between gap-3 rounded-2xl border-2 border-gray-200 p-4 dark:border-gray-800">
-                        <div class="min-w-0">
-                            <div class="truncate text-xl font-bold text-gray-800 dark:text-gray-100">@{{ c.nombre }}</div>
-                            <div class="text-base text-gray-600 dark:text-gray-400">
-                                Desde @{{ fechaCorta(c.ultimo) }}
+                    <div v-for="c in clientes.clientes" :key="c.person_id"
+                         class="mb-3 rounded-2xl border-2 border-gray-200 p-4 dark:border-gray-800">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <div class="truncate text-xl font-bold text-gray-800 dark:text-gray-100">@{{ c.nombre }}</div>
+                                <div class="text-base text-gray-600 dark:text-gray-400">@{{ c.telefono || 'Sin teléfono' }}</div>
+
+                                {{--
+                                    Cuándo fue la última entrega.
+
+                                    Sale de `distribuidor_entregas.entregado_at` y no del
+                                    lead: la etapa dice QUE se entregó, pero `updated_at`
+                                    se mueve con cualquier edición posterior y mostraría
+                                    la fecha de la última corrección disfrazada de entrega.
+
+                                    Sin fecha NO quiere decir "nunca compró": puede haber
+                                    comprado antes de que existiera este registro. Por eso
+                                    dice "sin entregas registradas" y no "nunca".
+                                --}}
+                                <div class="mt-1 text-base" :class="c.ultima_entrega
+                                    ? 'text-gray-600 dark:text-gray-400'
+                                    : 'text-gray-500 dark:text-gray-500'">
+                                    @{{ c.ultima_entrega
+                                        ? 'Última entrega: ' + fechaCorta(c.ultima_entrega)
+                                        : 'Sin entregas registradas' }}
+                                </div>
+                            </div>
+
+                            <div class="flex shrink-0 flex-col items-end gap-2">
+                                {{-- El saldo sólo cuando hay algo afuera: un "0" en todas las
+                                     filas es ruido que esconde a las que importan. --}}
+                                <span v-if="c.saldo > 0"
+                                      class="rounded-full bg-amber-100 px-3 py-1 text-xl font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                    @{{ c.saldo }}
+                                </span>
+
+                                <button v-if="c.saldo > 0" type="button" @click="abrirDevolucion(c)"
+                                        :aria-label="'Registrar devolución de envases de ' + c.nombre"
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor px-4 text-base font-bold text-brandColor transition-colors duration-200">
+                                    Recibí envases
+                                </button>
                             </div>
                         </div>
-
-                        <div class="flex shrink-0 items-center gap-2">
-                            <span class="rounded-full bg-amber-100 px-3 py-1 text-xl font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                                @{{ c.saldo }}
-                            </span>
-                            <button type="button" @click="abrirDevolucion(c)"
-                                    :aria-label="'Registrar devolución de ' + c.nombre"
-                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor px-4 text-base font-bold text-brandColor transition-colors duration-200">
-                                Recibí
-                            </button>
-                        </div>
                     </div>
+
+                    {{-- "Ver más" y no paginador numerado: se usa con una mano, de pie. --}}
+                    <button v-if="clientes.hay_mas" type="button" @click="masClientes" :disabled="cargando"
+                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] w-full rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 transition-colors duration-200 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300">
+                        @{{ cargando ? 'Cargando…' : 'Ver más clientes' }}
+                    </button>
+                    </template>
                 </template>
 
                 {{-- ── Barra fija: el total y la acción, al alcance del pulgar ── --}}
@@ -1283,7 +1274,7 @@
                     guardarContactoUrl: { type: String, default: '' },
                     guardarPedidoUrl: { type: String, default: '' },
                     recientesUrl: { type: String, default: '' },
-                    cajaUrl: { type: String, default: '' },
+                    clientesUrl: { type: String, default: '' },
                 },
 
                 data() {
@@ -1303,11 +1294,6 @@
                         encontrado: false,
                         pedidos: [],
                         recientes: [],
-                        caja: {
-                            total: 0, cobros: 0, pedidos_del_dia: 0, por_forma: [],
-                            bidones: { entregados: 0, retirados: 0, visitas: 0, en_la_calle: 0 },
-                            a_recuperar: [],
-                        },
                         // Sin `amount`: el importe lo calcula el servidor (siempre el total).
                         cobro: { pedido: null, method: 'efectivo' },
                         // dejo/retiro arrancan vacíos y no en 0: un 0 precargado se
@@ -1318,7 +1304,14 @@
                         nuevo: { bidones: '', lat: null, lng: null, direccion: '', referencia: '' },
                         mapaError: null,
                         direccionSugerida: null,
-                        bidones: { clientes: [], en_la_calle: 0, del_dia: { entregados: 0, retirados: 0 } },
+                        /*
+                         * La agenda. `clientes.clientes` se lee raro pero es a propósito:
+                         * el objeto es la RESPUESTA del servidor entera —filas, totales y
+                         * si hay más— y desarmarla en cuatro propiedades sueltas abre la
+                         * puerta a que queden desincronizadas entre sí.
+                         */
+                        clientes: { clientes: [], pagina: 1, hay_mas: false, en_la_calle: 0, del_dia: { entregados: 0, retirados: 0 } },
+                        busquedaCliente: '',
                         devolucion: { cliente: null, cantidad: '' },
                         edicion: { pedido: null, lineas: [] },
                         // El cliente cuyo domicilio se está editando en el mapa.
@@ -1484,8 +1477,11 @@
 
                         this.cargarRecientes();
 
-                        // Si estoy mirando pedidos, la lista sigue al lugar elegido.
+                        // La lista que esté en pantalla sigue al lugar elegido. Las dos son
+                        // de la ciudad: dejarlas con los datos de la sucursal anterior es
+                        // peor que vaciarlas, porque no se nota.
                         if (this.vista === 'pedidos') this.cargarPedidos();
+                        if (this.vista === 'clientes') this.cargarClientes();
                     },
 
                     cargarProductos() {
@@ -1573,18 +1569,50 @@
                             .finally(() => { this.cargando = false; });
                     },
 
-                    irABidones() {
-                        this.vista = 'bidones';
-                        this.cargarBidones();
+                    irAClientes() {
+                        this.vista = 'clientes';
+                        this.cargarClientes();
                     },
 
-                    cargarBidones() {
+                    /**
+                     * Trae una página de la agenda.
+                     *
+                     * `acumular` es lo que distingue "Ver más" de "Buscar": el primero
+                     * agrega abajo, el segundo reemplaza. Un solo método con una bandera y
+                     * no dos: la diferencia entre los dos son tres líneas, y duplicarlo
+                     * garantiza que un arreglo se aplique a uno solo.
+                     */
+                    cargarClientes(pagina = 1, acumular = false) {
+                        if (! this.sucursal) return;
+
                         this.cargando = true;
 
-                        this.$axios.get('{{ route('admin.distribuidor.bidones') }}')
-                            .then(r => { this.bidones = r.data; })
-                            .catch(e => { this.aviso = this.mensaje(e, 'No se pudieron cargar los bidones.'); })
+                        this.$axios.get(this.clientesUrl, {
+                            params: {
+                                // Obligatoria: el backend rechaza la consulta sin sucursal,
+                                // porque sin ella devolvería clientes de otras ciudades.
+                                ciudad: this.sucursal.ciudad_id,
+                                busqueda: this.busquedaCliente.trim() || null,
+                                pagina,
+                            },
+                        })
+                            .then(r => {
+                                this.clientes = acumular
+                                    ? { ...r.data, clientes: this.clientes.clientes.concat(r.data.clientes) }
+                                    : r.data;
+                            })
+                            .catch(e => { this.aviso = this.mensaje(e, 'No se pudo cargar la agenda de clientes.'); })
                             .finally(() => { this.cargando = false; });
+                    },
+
+                    buscarClientes() {
+                        // Siempre desde la página 1: buscar con la página 3 puesta devuelve
+                        // la tercera página de un resultado que recién empieza, o nada.
+                        this.cargarClientes(1, false);
+                    },
+
+                    masClientes() {
+                        this.cargarClientes(this.clientes.pagina + 1, true);
                     },
 
                     abrirEdicion(pedido) {
@@ -1661,7 +1689,11 @@
                                 // Se recarga la lista en vez de descontar en memoria: el saldo lo
                                 // calcula el servidor sumando movimientos, y restar acá abriría
                                 // una segunda verdad que puede no coincidir.
-                                this.cargarBidones();
+                                //
+                                // Desde la página 1 a propósito: la fila que se acaba de saldar
+                                // sale del orden —se ordena por saldo— y pedir la página que
+                                // estaba puesta dejaría un hueco.
+                                this.cargarClientes();
                             })
                             .catch(e => { this.aviso = this.mensaje(e, 'No se pudo registrar la devolución.'); })
                             .finally(() => { this.cargando = false; });
@@ -1676,17 +1708,6 @@
                         return Number.isNaN(d.getTime())
                             ? '—'
                             : d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-                    },
-
-                    irACaja() {
-                        this.vista = 'caja';
-                        this.cargarCaja();
-                    },
-
-                    cargarCaja() {
-                        this.$axios.get(this.cajaUrl)
-                            .then(r => { this.caja = r.data; })
-                            .catch(() => { this.aviso = 'No se pudo cargar la caja.'; });
                     },
 
                     buscarCliente() {
@@ -2419,7 +2440,6 @@
                             .then(r => {
                                 this.reemplazar(r.data.pedido);
                                 this.cobro.pedido = null;
-                                if (this.vista === 'caja') this.cargarCaja();
                             })
                             .catch(e => { this.aviso = this.mensaje(e, 'No se pudo registrar el cobro.'); })
                             .finally(() => { this.cargando = false; });

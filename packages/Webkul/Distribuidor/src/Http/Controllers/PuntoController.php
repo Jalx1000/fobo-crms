@@ -14,6 +14,7 @@ use Webkul\Distribuidor\Repositories\PagoRepository;
 use Webkul\Distribuidor\Services\Alcance;
 use Webkul\Distribuidor\Services\Bidones;
 use Webkul\Distribuidor\Services\Catalogo;
+use Webkul\Distribuidor\Services\Clientes;
 use Webkul\Distribuidor\Services\Geocodificador;
 use Webkul\Distribuidor\Services\PuntoPedido;
 use Webkul\Distribuidor\Services\RegistroDeEdicion;
@@ -38,6 +39,7 @@ class PuntoController extends Controller
         protected Alcance $alcance,
         protected Ubicacion $ubicacion,
         protected Bidones $bidones,
+        protected Clientes $clientes,
     ) {}
 
     public function index()
@@ -378,14 +380,14 @@ class PuntoController extends Controller
                 ->whereDate('created_at', now()->toDateString());
         } else {
             /*
-             * "Para entregar" son SÓLO los confirmados.
+             * "Pedidos pendientes" son SÓLO los confirmados.
              *
              * Un prospecto no es trabajo de reparto: es un pedido que todavía
              * nadie confirmó, y mezclarlo con la ruta del día obliga a decidir
              * en cada tarjeta si corresponde salir con ella o no. El que sale a
              * la calle quiere una lista de cosas que hay que llevar.
              *
-             * Los prospectos se confirman desde "Mis pedidos de hoy", que es
+             * Los prospectos se confirman desde "Historial de pedidos", que es
              * donde aparece lo que el distribuidor acaba de cargar.
              *
              * Es trabajo de la ciudad y no de una persona, así que no se filtra
@@ -864,26 +866,69 @@ class PuntoController extends Controller
     }
 
     /**
-     * El apartado de bidones: quién debe envases y cuántos hay en la calle.
+     * La agenda de clientes: a quién le vende el distribuidor.
      *
-     * Aparte de Caja y no dentro, que es donde estaba: Caja se mira una vez al cerrar
-     * el día, y los envases a recuperar se miran al ARMAR el recorrido. Enterrado ahí
-     * abajo, nadie los veía a tiempo para ir a buscarlos.
+     * Reemplaza al apartado de Bidones, que listaba sólo a los que debían envases.
+     * Ese recorte dejaba afuera el caso más común de la calle —acordarse del cliente
+     * pero no del teléfono— y obligaba a llegar a su ficha pasando por un pedido. Los
+     * que deben envases siguen primeros: el servicio ordena por saldo.
      */
-    public function bidones(): JsonResponse
+    public function clientes(Request $request): JsonResponse
     {
-        $ciudades = $this->alcance->ciudadesPermitidas();
-        $clientes = $this->bidones->pendientesDeDevolucion($ciudades, 100);
+        $data = $request->validate([
+            // Obligatoria, igual que en `pedidos()`: la agenda es la de ESTA
+            // sucursal. Los de Jujuy no reparten en Palpalá, y una agenda que
+            // mezcla las dos pone a un cliente de otra ciudad a un toque de que
+            // alguien le cargue un pedido con el catálogo equivocado.
+            'ciudad'   => 'required|integer',
+            'busqueda' => 'nullable|string|max:64',
+            // Paginado por página y no por offset crudo: es un "ver más" en el
+            // celular, no una tabla con numeritos.
+            'pagina'   => 'nullable|integer|min:1|max:200',
+        ]);
+
+        abort_if(
+            ! $this->alcance->puedeVerCiudad((int) $data['ciudad']),
+            403,
+            'Esa sucursal no está en tu alcance.',
+        );
+
+        $porPagina = 30;
+        $pagina = max(1, (int) ($data['pagina'] ?? 1));
+
+        $ciudades = [(int) $data['ciudad']];
+
+        /*
+         * Se piden 31 para saber si hay una más SIN hacer un count().
+         *
+         * El count() sobre esta consulta —con su group by y su subconsulta de saldo—
+         * cuesta casi lo mismo que la consulta entera, y lo único que la pantalla
+         * necesita saber es si pintar el botón "Ver más".
+         */
+        $filas = $this->clientes->listar(
+            $ciudades,
+            $data['busqueda'] ?? null,
+            $porPagina + 1,
+            ($pagina - 1) * $porPagina,
+        );
+
+        $hayMas = count($filas) > $porPagina;
 
         return response()->json([
-            'clientes' => $clientes,
+            'clientes' => array_slice($filas, 0, $porPagina),
+            'pagina'   => $pagina,
+            'hay_mas'  => $hayMas,
             /*
-             * El total sale de sumar la lista y no de otra consulta: así el número de
-             * arriba y las filas de abajo no pueden contradecirse, que es el problema
-             * clásico de un resumen calculado por separado.
+             * El total de envases afuera en la zona, que era el número grande del
+             * apartado de Bidones. Se mantiene porque es el dato con el que se arma
+             * el recorrido, y no se calcula sumando la página: la página son 30 de
+             * una lista más larga y la suma daría un número menor al real.
              */
-            'en_la_calle' => array_sum(array_column($clientes, 'saldo')),
-            'del_dia'     => $this->bidones->delDia(),
+            'en_la_calle' => array_sum(array_column(
+                $this->bidones->pendientesDeDevolucion($ciudades, 500),
+                'saldo',
+            )),
+            'del_dia' => $this->bidones->delDia(),
         ]);
     }
 
