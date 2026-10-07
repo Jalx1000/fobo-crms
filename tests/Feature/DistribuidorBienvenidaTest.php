@@ -306,3 +306,37 @@ it('el formato del nodo sale de la plantilla y no de la extension del archivo', 
 
     expect($payload['header']['format'])->toBe('IMAGE');
 });
+
+// ───────────────────── el archivo del logo ─────────────────────
+
+it('el banner del saludo existe y respeta la proporcion de WhatsApp', function () {
+    $ruta = public_path('whatsapp/bienvenida-sensia.jpg');
+
+    expect(file_exists($ruta))->toBeTrue(
+        'Falta el banner del saludo. Es el encabezado de la plantilla: sin él, Meta '
+        .'rechaza el envío con 132012.'
+    );
+
+    [$ancho, $alto] = getimagesize($ruta);
+
+    /*
+     * WhatsApp muestra los encabezados de imagen a 1.91:1. Lo que no respeta esa
+     * proporción sale recortado o con zoom — un logo cuadrado pierde la mitad.
+     *
+     * La tolerancia es por el redondeo a píxeles enteros, no por holgura de criterio.
+     */
+    expect(round($ancho / $alto, 2))->toBeGreaterThanOrEqual(1.89)
+        ->and(round($ancho / $alto, 2))->toBeLessThanOrEqual(1.93);
+
+    // Meta corta en 5 MB, pero el límite real es otro: lo descarga en CADA envío.
+    expect(filesize($ruta))->toBeLessThan(500 * 1024);
+});
+
+it('el logo por defecto apunta a una URL absoluta', function () {
+    /*
+     * La descarga META desde sus servidores, no el celular del cliente: una ruta
+     * relativa no resuelve a nada del lado de Meta, y el síntoma sería el mismo 132012
+     * de siempre.
+     */
+    expect(config('whatsapp.bienvenida.logo'))->toStartWith('http');
+});

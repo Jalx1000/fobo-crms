@@ -131,11 +131,20 @@ return [
         | tiene que ser HTTPS pública, sin login y sin VPN. Un archivo en `public/`
         | servido por APP_URL cumple y además queda versionado con el repo.
         |
-        | Meta acepta JPEG y PNG, hasta 5 MB. El encabezado se recorta a ~1.91:1, así
-        | que un logo cuadrado pierde los costados: conviene un banner (1125×600) con
-        | el logo centrado y aire alrededor.
+        | Meta acepta JPEG y PNG, hasta 5 MB, y muestra el encabezado a 1.91:1. Lo que
+        | no respeta esa proporción sale recortado o con zoom.
+        |
+        | El archivo versionado es `public/whatsapp/bienvenida-sensia.jpg`: el logo
+        | cuadrado de la marca recortado a su banda central, que es donde vive el texto
+        | —el cuadrado tiene aire arriba y abajo, así que el recorte no pierde logo,
+        | saca fondo—. En JPEG y no PNG porque el fondo es un degradado, que es
+        | justamente lo que PNG comprime mal: 549 KB contra 65 KB, y Meta lo descarga
+        | en CADA envío.
+        |
+        | Va en `public/` y no en `storage/`: ahí queda versionado con el repo y no
+        | depende del symlink ni de que sobreviva un redeploy del volumen.
         */
-        'logo' => env('WHATSAPP_BIENVENIDA_LOGO'),
+        'logo' => env('WHATSAPP_BIENVENIDA_LOGO', env('APP_URL').'/whatsapp/bienvenida-sensia.jpg'),
     ],
 
     /*
