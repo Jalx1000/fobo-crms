@@ -876,16 +876,17 @@ it('"Pedidos pendientes" muestra sólo los confirmados, no los prospectos', func
     expect($ids)->toContain($lConfirmado)
         ->and($ids)->not->toContain($lProspecto);
 
-    // Y el prospecto sigue siendo visible donde se lo confirma.
-    $hoy = collect(
+    // Y el prospecto sigue siendo visible donde se lo confirma: el historial no
+    // filtra por etapa.
+    $historial = collect(
         test()->actingAs($user, 'user')
             ->getJson(route('admin.distribuidor.pedidos', [
-                'filtro' => 'hoy', 'ciudad' => $sucursal['ciudad_id'],
+                'filtro' => 'historial', 'ciudad' => $sucursal['ciudad_id'],
             ]))
             ->json('pedidos')
     )->pluck('id');
 
-    expect($hoy)->toContain($lProspecto);
+    expect($historial)->toContain($lProspecto);
 
     DB::table('lead_products')->whereIn('lead_id', [$lProspecto, $lConfirmado])->delete();
     DB::table('leads')->whereIn('id', [$lProspecto, $lConfirmado])->delete();

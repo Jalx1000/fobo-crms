@@ -20,6 +20,7 @@ class Clientes
 {
     public function __construct(
         protected Bidones $bidones,
+        protected Ubicacion $ubicacion,
     ) {}
 
     /**
@@ -42,7 +43,7 @@ class Clientes
      * entrega.
      *
      * @param  array<int, int>|null  $ciudades  null = todas (usuario sin restricción)
-     * @return array<int, array{person_id:int, nombre:string, telefono:?string, saldo:int, ultima_entrega:?string}>
+     * @return array<int, array{person_id:int, nombre:string, telefono:?string, saldo:int, ultima_entrega:?string, ubicacion:?array}>
      */
     public function listar(
         ?array $ciudades = null,
@@ -64,6 +65,9 @@ class Clientes
          */
         $saldos = $this->bidones->saldosDe($ids);
         $entregas = $this->ultimasEntregas($ids);
+        // El domicilio viaja con la fila para que "Editar domicilio" abra el mapa
+        // sobre el pin guardado y no en el centro de la provincia.
+        $ubicaciones = $this->ubicacion->deVarios($ids);
 
         $personas = PersonProxy::modelClass()::query()
             ->whereIn('id', $ids)
@@ -94,6 +98,7 @@ class Clientes
                  * entregas. No se inventa una fecha para tapar el segundo caso.
                  */
                 'ultima_entrega' => $entregas[$id] ?? null,
+                'ubicacion'      => $ubicaciones[$id] ?? null,
             ];
         }
 

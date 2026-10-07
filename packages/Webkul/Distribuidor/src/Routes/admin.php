@@ -24,6 +24,10 @@ Route::controller(PuntoController::class)->prefix('distribuidor')->group(functio
     // La dirección que corresponde a un punto del mapa, para precargar el campo.
     Route::get('direccion', 'direccionDelPin')->name('admin.distribuidor.direccion');
 
+    // Corregir el nombre y el teléfono. PATCH y no PUT: cambia parte de la ficha
+    // —el domicilio tiene su propio editor con mapa— y no la reemplaza.
+    Route::patch('cliente/{id}', 'actualizarCliente')->name('admin.distribuidor.cliente.update');
+
     // El domicilio del cliente, tomado con el GPS en la puerta.
     Route::post('cliente/{id}/ubicacion', 'guardarUbicacionCliente')
         ->name('admin.distribuidor.cliente.ubicacion');

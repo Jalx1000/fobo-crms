@@ -295,6 +295,38 @@ class Ubicacion
     }
 
     /**
+     * El domicilio de varios clientes de una sola consulta.
+     *
+     * Para la agenda: pedirlo cliente por cliente son 30 idas y vueltas por página, y
+     * esto corre en un celular con datos móviles, donde cada consulta se paga en
+     * segundos. Mismo motivo que `Bidones::saldosDe()`.
+     *
+     * @param  array<int, int>  $personIds
+     * @return array<int, array{lat:float, lng:float, fuente:string, direccion:?string, referencia:?string, url:string}>
+     */
+    public function deVarios(array $personIds): array
+    {
+        if (! $personIds || ! $this->tablaLista()) {
+            return [];
+        }
+
+        return UbicacionClienteProxy::modelClass()::query()
+            ->whereIn('person_id', $personIds)
+            ->get()
+            ->mapWithKeys(fn ($fila) => [
+                (int) $fila->person_id => [
+                    'lat'        => (float) $fila->lat,
+                    'lng'        => (float) $fila->lng,
+                    'fuente'     => (string) $fila->fuente,
+                    'direccion'  => $fila->direccion,
+                    'referencia' => $fila->referencia,
+                    'url'        => $this->url(null, (float) $fila->lat, (float) $fila->lng),
+                ],
+            ])
+            ->all();
+    }
+
+    /**
      * Guarda el GPS tomado en la puerta. Pisa cualquier cosa anterior.
      *
      * NO se valida contra la zona de reparto, y es deliberado: esa caja existe para

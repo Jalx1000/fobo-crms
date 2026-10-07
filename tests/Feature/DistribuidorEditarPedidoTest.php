@@ -257,7 +257,7 @@ it('el pedido expone el product_id que el dialogo necesita', function () {
     DB::table('leads')->where('id', $p['lead_id'])->update(['user_id' => $user->id]);
 
     $pedidos = $this->actingAs($user, 'user')
-        ->getJson(route('admin.distribuidor.pedidos', ['ciudad' => $ciudad, 'filtro' => 'hoy']))
+        ->getJson(route('admin.distribuidor.pedidos', ['ciudad' => $ciudad, 'filtro' => 'historial']))
         ->assertOk()
         ->json('pedidos');
 

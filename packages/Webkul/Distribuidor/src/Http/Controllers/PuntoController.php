@@ -366,19 +366,44 @@ class PuntoController extends Controller
     {
         $data = $request->validate([
             'ciudad' => 'required|integer',
-            'filtro' => 'nullable|string|in:pendientes,hoy',
+            'filtro' => 'nullable|string|in:pendientes,historial',
+            /*
+             * El rango del historial. Los dos opcionales y por separado: "desde el 1"
+             * sin tope y "hasta el 5" sin piso son las dos formas en que se usa de
+             * verdad, y exigir los dos obliga a inventar el que falta.
+             *
+             * `date` y no `date_format`: acepta lo que manda un <input type="date">,
+             * que es ISO.
+             *
+             * `after_or_equal` y no `after`: un rango de un solo día —desde y hasta
+             * iguales— es el caso más común de todos.
+             */
+            'desde' => 'nullable|date',
+            'hasta' => 'nullable|date|after_or_equal:desde',
         ]);
 
         $filtro = $data['filtro'] ?? 'pendientes';
 
         $query = LeadProxy::modelClass()::query();
 
-        if ($filtro === 'hoy') {
-            // "Hoy" es lo propio: lo que ESTE distribuidor tomó en el día, en esta
-            // sucursal (la ciudad la aplica el scope de abajo, para los dos filtros).
-            $query->where('user_id', auth()->guard('user')->id())
-                ->whereDate('created_at', now()->toDateString());
-        } else {
+        /*
+         * 🔴 El historial NO filtra nada más que la ciudad, y eso es un cambio.
+         *
+         * Era "mis pedidos de hoy": `user_id = yo` y `created_at = hoy`. Con ese
+         * filtro la pestaña aparecía VACÍA cualquier día en que el distribuidor
+         * todavía no hubiera cargado nada —o sea, cada mañana— y vacía también para
+         * quien reparte lo que cargó otro, que es el caso normal.
+         *
+         * Un historial que arranca en blanco todos los días no es un historial. Lo
+         * que se quiere al abrirlo es "qué pasó acá": todos los pedidos de la
+         * sucursal, los más nuevos arriba. Por eso tampoco filtra por dueño — es
+         * trabajo de la ciudad, igual que los pendientes.
+         *
+         * Incluye a los pendientes, y está bien: un historial que esconde los
+         * últimos pedidos justo porque todavía no se entregaron oculta la parte que
+         * más se consulta.
+         */
+        if ($filtro === 'pendientes') {
             /*
              * "Pedidos pendientes" son SÓLO los confirmados.
              *
@@ -387,8 +412,8 @@ class PuntoController extends Controller
              * en cada tarjeta si corresponde salir con ella o no. El que sale a
              * la calle quiere una lista de cosas que hay que llevar.
              *
-             * Los prospectos se confirman desde "Historial de pedidos", que es
-             * donde aparece lo que el distribuidor acaba de cargar.
+             * Los prospectos se confirman desde "Historial de pedidos", que los
+             * muestra porque no filtra por etapa.
              *
              * Es trabajo de la ciudad y no de una persona, así que no se filtra
              * por dueño. Sin fecha tampoco: un pedido de antes de ayer que sigue
@@ -420,6 +445,29 @@ class PuntoController extends Controller
         );
 
         $query->where('lead_pipeline_id', (int) $data['ciudad']);
+
+        /*
+         * El rango de fechas del historial. Sin rango, los últimos 100 de la sucursal,
+         * que es con lo que se abre la pestaña.
+         *
+         * Existe porque el listado se separa por día en la pantalla, y una vez que
+         * alguien ve los encabezados de día quiere poder ir a un período. Sin esto,
+         * llegar a los pedidos de la semana pasada es scrollear 100 tarjetas.
+         *
+         * `whereDate` y no `where` sobre el timestamp: `hasta` es un día entero, y
+         * comparar contra "2026-10-06" como datetime lo convierte en las 00:00 de ese
+         * día, dejando afuera todo lo que se cargó entre la medianoche y el final —o
+         * sea, el día completo.
+         */
+        if ($filtro === 'historial') {
+            if (! empty($data['desde'])) {
+                $query->whereDate('created_at', '>=', $data['desde']);
+            }
+
+            if (! empty($data['hasta'])) {
+                $query->whereDate('created_at', '<=', $data['hasta']);
+            }
+        }
 
         $ids = $query->orderByDesc('id')->limit(100)->pluck('id')->all();
 
@@ -638,6 +686,16 @@ class PuntoController extends Controller
             'person_id'  => $lead->person_id ? (int) $lead->person_id : null,
             'telefono'   => $this->telefonoDe($lead->person),
             'ciudad_id'  => (int) $lead->lead_pipeline_id,
+            /*
+             * Cuándo se cargó, para separar el historial por día.
+             *
+             * El día va APARTE y ya calculado en el servidor. Derivarlo en el navegador
+             * lo deja a merced del huso horario del celular: un pedido de las 23:30 se
+             * iría al día siguiente en un teléfono mal configurado, y el encabezado
+             * mentiría sobre el día de trabajo.
+             */
+            'creado_at'  => $lead->created_at?->format('d/m/Y H:i'),
+            'dia'        => $lead->created_at?->toDateString(),
             'etapa'      => optional($lead->stage)->name,
             'etapa_code' => optional($lead->stage)->code,
             'total'      => $total,
@@ -930,6 +988,92 @@ class PuntoController extends Controller
             )),
             'del_dia' => $this->bidones->delDia(),
         ]);
+    }
+
+    /**
+     * Corrige el nombre y el teléfono del cliente.
+     *
+     * El domicilio NO se toca acá: tiene su propio editor con mapa
+     * (`guardarUbicacionCliente`), que es el único lugar donde se puede ver dónde cae
+     * el pin antes de guardarlo.
+     *
+     * Hace falta desde la calle: el nombre se carga apurado con el cliente delante
+     * —"Marcela", sin apellido— y el teléfono se tipea mal. Hasta ahora corregirlo
+     * exigía entrar al CRM desde una computadora, así que no se corregía.
+     */
+    public function actualizarCliente(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            'nombre'   => 'required|string|max:255',
+            'telefono' => 'required|string|min:7|max:32',
+        ]);
+
+        $personas = app(\Webkul\Contact\Repositories\PersonRepository::class);
+
+        $persona = PersonProxy::modelClass()::findOrFail($id);
+
+        /*
+         * 🔴 El teléfono es la IDENTIDAD del cliente en todo el Punto: se lo busca por
+         * número, el agente de WhatsApp lo encuentra por número y la bienvenida se le
+         * manda al número. Dejar pasar un número que ya es de otra ficha crea dos
+         * clientes que responden al mismo teléfono, y a partir de ahí no hay forma de
+         * saber a cuál pertenece un pedido.
+         *
+         * Se compara contra el dueño del número y no contra una lista: el repositorio
+         * ya deduplica por cola normalizada, que es el mismo criterio con el que se
+         * busca.
+         */
+        $dueno = $personas->findByPhone($data['telefono']);
+
+        if ($dueno && (int) $dueno->id !== (int) $persona->id) {
+            return response()->json([
+                'message' => 'Ese teléfono ya es de '.$dueno->name.'. Revisá el número.',
+            ], 422);
+        }
+
+        /*
+         * Por el repositorio y no por el modelo: Krayin dispara los eventos de contacto
+         * ahí —`contacts.person.update.after`, entre otros— y saltearlos deja sin
+         * actualizar lo que escuche de ese lado.
+         *
+         * `entity_type` explícito por el mismo motivo que en `PuntoPedido::crear`: el
+         * repositorio se lo pasa a `AttributeValueRepository::save()`, que lo lee para
+         * saber qué atributos custom guardar, y sin la clave explota DESPUÉS de haber
+         * escrito la persona.
+         */
+        $persona = $personas->update([
+            'entity_type' => 'persons',
+            'name'        => $data['nombre'],
+            /*
+             * Se reemplaza SÓLO el primer número y se conservan los demás: una ficha
+             * puede tener el fijo y el celular, y una corrección del celular no es una
+             * orden de borrar el resto.
+             */
+            'contact_numbers' => $this->numerosCon($persona, $data['telefono']),
+        ], $persona->id);
+
+        return response()->json(['persona' => $this->persona($persona)]);
+    }
+
+    /**
+     * Los números de la ficha con el primero reemplazado.
+     *
+     * @return array<int, array{label:string, value:string}>
+     */
+    protected function numerosCon($persona, string $telefono): array
+    {
+        $numeros = array_values((array) $persona->contact_numbers);
+
+        if (! $numeros) {
+            return [['label' => 'work', 'value' => $telefono]];
+        }
+
+        $numeros[0] = [
+            'label' => $numeros[0]['label'] ?? 'work',
+            'value' => $telefono,
+        ];
+
+        return $numeros;
     }
 
     /**

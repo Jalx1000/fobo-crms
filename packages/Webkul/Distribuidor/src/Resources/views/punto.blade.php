@@ -129,22 +129,7 @@
                                 pedido y no alfabéticamente: a quien le vendiste ayer es
                                 mucho más probable que sea el de hoy.
                             --}}
-                            <div v-if="!cliente && recientes.length" class="mb-3">
-                                <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Últimos atendidos
-                                </span>
-
-                                <div class="grid grid-cols-2 gap-2">
-                                    <button v-for="r in recientes" :key="r.id" type="button"
-                                            @click="elegirReciente(r)"
-                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-200 px-3 py-2 text-left transition-colors duration-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800">
-                                        <span class="block truncate text-base font-semibold text-gray-800 dark:text-gray-200">@{{ r.name }}</span>
-                                        <span class="block truncate text-sm text-gray-600 dark:text-gray-400">@{{ r.telefono }}</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div v-if="!cliente" class="flex flex-col gap-2 sm:flex-row">
+                            <div v-if="!cliente" class="flex flex-col gap-2 sm:flex-row mb-3">
                                 {{-- inputmode="tel": teclado numérico nativo, sin buscar números en el alfabético --}}
                                 <div class="flex-1">
                                     <label for="punto-telefono" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -160,6 +145,23 @@
                                     @{{ cargando ? '…' : 'Buscar' }}
                                 </button>
                             </div>
+
+                            <div v-if="!cliente && recientes.length" class="">
+                                <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Últimos atendidos
+                                </span>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button v-for="r in recientes" :key="r.id" type="button"
+                                            @click="elegirReciente(r)"
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-200 px-3 py-2 text-left transition-colors duration-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800">
+                                        <span class="block truncate text-base font-semibold text-gray-800 dark:text-gray-200">@{{ r.name }}</span>
+                                        <span class="block truncate text-sm text-gray-600 dark:text-gray-400">@{{ r.telefono }}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                          
 
                             {{-- No encontrado: se pide el nombre, no se crea a ciegas --}}
                             <div v-if="!cliente && buscado && !encontrado" class="mt-3 rounded-xl bg-amber-50 p-3 dark:bg-amber-900/20">
@@ -444,12 +446,58 @@
                                     : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'">
                             Pedidos pendientes
                         </button>
-                        <button type="button" @click="cambiarFiltro('hoy')"
+                        <button type="button" @click="cambiarFiltro('historial')"
                                 class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 text-base font-bold transition-colors duration-200"
-                                :class="filtro === 'hoy'
+                                :class="filtro === 'historial'
                                     ? 'border-brandColor bg-brandColor text-white'
                                     : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'">
                             Historial de pedidos
+                        </button>
+                    </div>
+
+                    {{--
+                        El rango de fechas del historial.
+
+                        Sólo en el historial: en los pendientes la fecha no ordena nada
+                        —un pedido de antes de ayer que sigue sin entregar es más urgente,
+                        no menos— y un filtro de fecha ahí invita a esconder trabajo viejo.
+
+                        Los dos extremos son opcionales por separado: "desde el 1" sin tope
+                        y "hasta el 5" sin piso son las dos formas en que se usa de verdad.
+                        Vacíos los dos = los últimos 100.
+
+                        El botón "Todos" existe porque un <input type="date"> no se puede
+                        vaciar con el teclado en todos los navegadores de celular.
+                    --}}
+                    <div v-if="filtro === 'historial'" class="mb-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label for="punto-desde" class="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Desde
+                                </label>
+                                <input id="punto-desde" v-model="rangoHistorial.desde" type="date" @change="cargarPedidos"
+                                       :max="rangoHistorial.hasta || null"
+                                       class="min-h-[56px] w-full rounded-xl border-2 border-gray-300 px-3 text-base dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                            </div>
+                            <div>
+                                <label for="punto-hasta" class="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Hasta
+                                </label>
+                                {{--
+                                    `min` atado al otro extremo: el navegador no deja elegir un
+                                    "hasta" anterior al "desde", así que el rango imposible no
+                                    llega nunca al servidor. El 422 queda igual, para quien
+                                    llame al endpoint sin pasar por esta pantalla.
+                                --}}
+                                <input id="punto-hasta" v-model="rangoHistorial.hasta" type="date" @change="cargarPedidos"
+                                       :min="rangoHistorial.desde || null"
+                                       class="min-h-[56px] w-full rounded-xl border-2 border-gray-300 px-3 text-base dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                            </div>
+                        </div>
+
+                        <button v-if="rangoHistorial.desde || rangoHistorial.hasta" type="button" @click="limpiarRango"
+                                class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mt-2 min-h-[56px] w-full rounded-xl border-2 border-gray-300 text-base font-bold text-gray-700 transition-colors duration-200 dark:border-gray-700 dark:text-gray-300">
+                            Ver todos
                         </button>
                     </div>
 
@@ -465,10 +513,28 @@
                     <div v-else-if="!pedidos.length" class="rounded-xl border-2 border-dashed border-gray-300 px-4 py-10 text-center text-base text-gray-600 dark:text-gray-400 dark:border-gray-700">
                         @{{ filtro === 'pendientes'
                             ? 'No hay pedidos confirmados para entregar acá. Los que acabás de cargar están en "Historial de pedidos", para confirmarlos.'
-                            : 'Todavía no tomaste pedidos hoy.' }}
+                            : ((rangoHistorial.desde || rangoHistorial.hasta)
+                                ? 'No hay pedidos de esas fechas en esta sucursal.'
+                                : 'Todavía no hay pedidos en esta sucursal.') }}
                     </div>
 
-                    <div v-for="pe in pedidos" :key="pe.id" class="mb-3 rounded-2xl border-2 border-gray-200 p-4 dark:border-gray-800">
+                    {{--
+                        Separado por día en el historial, plano en los pendientes.
+
+                        Los pendientes NO se agrupan a propósito: ahí son una cola de
+                        trabajo, y partirla en días sugiere que los de ayer son de otra
+                        tanda cuando en realidad son los más urgentes.
+                    --}}
+                    <template v-for="grupo in pedidosAgrupados" :key="grupo.dia || 'todos'">
+                        <div v-if="grupo.dia"
+                             class="mb-2 mt-4 flex items-baseline justify-between gap-2 border-b-2 border-gray-200 pb-1 first:mt-0 dark:border-gray-800">
+                            <span class="text-lg font-bold text-gray-800 dark:text-gray-100">@{{ grupo.etiqueta }}</span>
+                            <span class="shrink-0 text-base text-gray-600 dark:text-gray-400">
+                                @{{ grupo.pedidos.length }} pedido@{{ grupo.pedidos.length === 1 ? '' : 's' }}
+                            </span>
+                        </div>
+
+                    <div v-for="pe in grupo.pedidos" :key="pe.id" class="mb-3 rounded-2xl border-2 border-gray-200 p-4 dark:border-gray-800">
                         <div class="mb-3 flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <div class="truncate text-xl font-bold text-gray-800 dark:text-gray-100">@{{ pe.cliente || pe.title }}</div>
@@ -674,6 +740,7 @@
                             </button>
                         </div>
                     </div>
+                    </template>
                 </template>
 
                 {{-- ══════════════ CLIENTES ══════════════ --}}
@@ -778,20 +845,41 @@
                                 </div>
                             </div>
 
-                            <div class="flex shrink-0 flex-col items-end gap-2">
-                                {{-- El saldo sólo cuando hay algo afuera: un "0" en todas las
-                                     filas es ruido que esconde a las que importan. --}}
-                                <span v-if="c.saldo > 0"
-                                      class="rounded-full bg-amber-100 px-3 py-1 text-xl font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                                    @{{ c.saldo }}
-                                </span>
+                            {{--
+                                El saldo sólo cuando hay algo afuera: un "0" en todas las filas
+                                es ruido que esconde a las que importan.
 
-                                <button v-if="c.saldo > 0" type="button" @click="abrirDevolucion(c)"
-                                        :aria-label="'Registrar devolución de envases de ' + c.nombre"
-                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor px-4 text-base font-bold text-brandColor transition-colors duration-200">
-                                    Recibí envases
-                                </button>
-                            </div>
+                                Con unidad y no un número pelado: "3" al lado de un nombre no
+                                dice si son envases, pedidos o kilómetros.
+                            --}}
+                            <span v-if="c.saldo > 0"
+                                  class="shrink-0 rounded-full bg-amber-100 px-3 py-1 text-base font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                @{{ c.saldo }} envase@{{ c.saldo === 1 ? '' : 's' }}
+                            </span>
+                        </div>
+
+                        {{--
+                            Las acciones abajo y en ancho completo, no apretadas contra el borde
+                            derecho: "Recibí envases" en una columna de 100px se leía como una
+                            etiqueta y no como un botón, y encima no decía qué iba a pasar.
+
+                            "Devolvió envases" describe el hecho que se registra, desde el lado
+                            del cliente, que es como lo cuenta el distribuidor: "me devolvió
+                            tres". "Recibí" obligaba a resolver quién era el sujeto.
+                        --}}
+                        <div class="mt-3 grid gap-2" :class="c.saldo > 0 ? 'grid-cols-2' : 'grid-cols-1'">
+                            <button type="button" @click="abrirEdicionCliente(c)"
+                                    :aria-label="'Editar los datos de ' + c.nombre"
+                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-gray-300 text-base font-bold text-gray-700 transition-colors duration-200 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                                <svg class="mr-1 inline h-5 w-5 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"/></svg>
+                                Editar cliente
+                            </button>
+
+                            <button v-if="c.saldo > 0" type="button" @click="abrirDevolucion(c)"
+                                    :aria-label="'Registrar que ' + c.nombre + ' devolvió envases'"
+                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] rounded-xl border-2 border-brandColor text-base font-bold text-brandColor transition-colors duration-200">
+                                Devolvió envases
+                            </button>
                         </div>
                     </div>
 
@@ -1153,14 +1241,81 @@
                     </div>
                 </Teleport>
 
+                {{--
+                    ── Editar el cliente ──
+
+                    Nombre y teléfono, nada más. El domicilio tiene su propio editor con
+                    mapa y se llega desde acá: es el único lugar donde se puede VER dónde
+                    cae el pin antes de guardarlo, y un par de campos de texto para una
+                    coordenada es cómo se marcan domicilios equivocados.
+
+                    Hace falta desde la calle: el nombre se carga apurado con el cliente
+                    delante —"Marcela", sin apellido— y el teléfono se tipea mal. Hasta
+                    ahora corregirlo exigía entrar al CRM desde una computadora, así que
+                    no se corregía.
+                --}}
+                <Teleport to="body">
+                    <div v-if="edicionCliente" class="fixed inset-0 z-[10002] flex items-end justify-center bg-black/60 sm:items-center" @click.self="edicionCliente = null">
+                        <div role="dialog" aria-modal="true" aria-labelledby="titulo-editar-cliente"
+                             class="w-full max-w-md rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
+                            <h3 id="titulo-editar-cliente" class="mb-3 text-xl font-bold text-gray-800 dark:text-gray-100">
+                                Editar cliente
+                            </h3>
+
+                            <label for="cliente-nombre" class="mb-1 block text-base font-semibold text-gray-700 dark:text-gray-300">
+                                Nombre
+                            </label>
+                            <input id="cliente-nombre" v-model="edicionCliente.nombre" type="text"
+                                   class="mb-3 min-h-[64px] w-full rounded-xl border-2 border-gray-300 px-4 text-lg focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+
+                            <label for="cliente-telefono" class="mb-1 block text-base font-semibold text-gray-700 dark:text-gray-300">
+                                Teléfono
+                            </label>
+                            {{--
+                                `type="tel"` y no "number": abre el teclado numérico pero deja
+                                escribir el +, los espacios y los paréntesis que la gente usa, y
+                                no se come los ceros de adelante como hace number.
+                            --}}
+                            <input id="cliente-telefono" v-model="edicionCliente.telefono" type="tel" inputmode="tel"
+                                   class="mb-1 min-h-[64px] w-full rounded-xl border-2 border-gray-300 px-4 text-lg focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                            <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">
+                                Es con lo que se identifica al cliente en todo el sistema, incluido WhatsApp.
+                            </p>
+
+                            {{-- Al editor con mapa, que es donde el domicilio se puede ver. --}}
+                            <button type="button" @click="editarDomicilioDelCliente"
+                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 mb-3 flex min-h-[56px] w-full items-center justify-center rounded-xl border-2 border-gray-300 text-base font-bold text-gray-700 transition-colors duration-200 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                                <svg class="mr-1 inline h-5 w-5 shrink-0 align-text-bottom" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+                                @{{ edicionCliente.ubicacion ? 'Editar domicilio' : 'Marcar domicilio' }}
+                            </button>
+
+                            <p v-if="avisoCliente" class="mb-3 rounded-xl bg-red-50 px-4 py-3 text-base text-red-700 dark:bg-red-900/25 dark:text-red-300">
+                                @{{ avisoCliente }}
+                            </p>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <button type="button" @click="edicionCliente = null"
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-300 text-lg font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                                    Cancelar
+                                </button>
+                                <button type="button" @click="guardarEdicionCliente"
+                                        :disabled="cargando || ! edicionCliente.nombre.trim() || ! edicionCliente.telefono.trim()"
+                                        class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-emerald-700 text-lg font-bold text-white disabled:opacity-40">
+                                    @{{ cargando ? 'Guardando…' : 'Guardar' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </Teleport>
+
                 {{-- ── Registrar una devolución de envases ── --}}
                 <Teleport to="body">
                     <div v-if="devolucion.cliente" class="fixed inset-0 z-[10002] flex items-end justify-center bg-black/60 sm:items-center" @click.self="devolucion.cliente = null">
                         <div role="dialog" aria-modal="true" aria-labelledby="titulo-devolucion"
                              class="w-full max-w-md rounded-t-2xl bg-white p-5 dark:bg-gray-900 sm:rounded-2xl">
-                            <h3 id="titulo-devolucion" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Recibí envases</h3>
+                            <h3 id="titulo-devolucion" class="mb-1 text-xl font-bold text-gray-800 dark:text-gray-100">Devolución de envases</h3>
                             <p class="mb-3 text-base text-gray-600 dark:text-gray-400">
-                                @{{ devolucion.cliente.nombre }} · tiene @{{ devolucion.cliente.saldo }}
+                                @{{ devolucion.cliente.nombre }} · tiene @{{ devolucion.cliente.saldo }} envase@{{ devolucion.cliente.saldo === 1 ? '' : 's' }}
                             </p>
 
                             <label for="punto-devueltos" class="mb-1 block text-base font-semibold text-gray-700 dark:text-gray-300">
@@ -1312,6 +1467,16 @@
                          */
                         clientes: { clientes: [], pagina: 1, hay_mas: false, en_la_calle: 0, del_dia: { entregados: 0, retirados: 0 } },
                         busquedaCliente: '',
+                        // El cliente que se está editando: nombre y teléfono.
+                        edicionCliente: null,
+                        /*
+                         * El error del modal, aparte de `aviso`. El aviso general se dibuja
+                         * arriba de la pantalla, detrás del modal: un "ese teléfono ya es de
+                         * otro" ahí no lo ve nadie y el usuario cree que no pasó nada.
+                         */
+                        avisoCliente: null,
+                        // El rango del historial. Los dos vacíos = los últimos 100.
+                        rangoHistorial: { desde: '', hasta: '' },
                         devolucion: { cliente: null, cantidad: '' },
                         edicion: { pedido: null, lineas: [] },
                         // El cliente cuyo domicilio se está editando en el mapa.
@@ -1333,6 +1498,40 @@
                 },
 
                 computed: {
+                    /**
+                     * Los pedidos en grupos de día, para el historial.
+                     *
+                     * Los pendientes van en UN grupo sin día: ahí la lista es una cola de
+                     * trabajo, y partirla por fecha sugiere que los de ayer son de otra tanda
+                     * cuando son los más urgentes. `dia: null` es lo que la plantilla lee para
+                     * no dibujar el encabezado.
+                     *
+                     * Se agrupa recorriendo en orden y no con un objeto indexado por día: el
+                     * servidor ya los manda del más nuevo al más viejo, y un objeto reordena
+                     * sus claves —las numéricas primero— así que un día podría saltar de lugar.
+                     */
+                    pedidosAgrupados() {
+                        if (this.filtro !== 'historial') {
+                            return [{ dia: null, etiqueta: null, pedidos: this.pedidos }];
+                        }
+
+                        const grupos = [];
+
+                        this.pedidos.forEach(pe => {
+                            const dia = pe.dia || 'sin-fecha';
+                            const ultimo = grupos[grupos.length - 1];
+
+                            if (ultimo && ultimo.dia === dia) {
+                                ultimo.pedidos.push(pe);
+                                return;
+                            }
+
+                            grupos.push({ dia, etiqueta: this.etiquetaDeDia(pe.dia), pedidos: [pe] });
+                        });
+
+                        return grupos;
+                    },
+
                     /** El total que va a quedar con las líneas como están ahora. */
                     totalEditado() {
                         return this.edicion.lineas.reduce(
@@ -1416,6 +1615,7 @@
                         // y Escape tiene que cerrar el de arriba.
                         if (this.edicion.pedido) this.edicion.pedido = null;
                         else if (this.devolucion.cliente) this.devolucion.cliente = null;
+                        else if (this.edicionCliente) this.edicionCliente = null;
                         else if (this.mapaCliente) this.cerrarMapaCliente();
                         else if (this.entrega.pedido) this.cancelarEntrega();
                         else if (this.cobro.pedido) this.cobro.pedido = null;
@@ -1662,6 +1862,71 @@
                             .finally(() => { this.cargando = false; });
                     },
 
+                    abrirEdicionCliente(cliente) {
+                        /*
+                         * Se COPIAN los campos en vez de editar la fila de la lista: cancelar
+                         * tiene que dejar la fila como estaba, y atar los inputs al objeto del
+                         * listado la deja ya cambiada aunque no se haya guardado nada. Mismo
+                         * motivo que en `abrirEdicion` de un pedido.
+                         */
+                        this.edicionCliente = {
+                            person_id: cliente.person_id,
+                            nombre: cliente.nombre || '',
+                            telefono: cliente.telefono || '',
+                            ubicacion: cliente.ubicacion || null,
+                        };
+                        this.avisoCliente = null;
+                    },
+
+                    guardarEdicionCliente() {
+                        const c = this.edicionCliente;
+
+                        if (! c || ! c.nombre.trim() || ! c.telefono.trim()) return;
+
+                        this.cargando = true;
+                        this.avisoCliente = null;
+
+                        this.$axios.patch(
+                            '{{ url(config('app.admin_path').'/distribuidor/cliente') }}/' + c.person_id,
+                            { nombre: c.nombre.trim(), telefono: c.telefono.trim() },
+                        )
+                            .then(() => {
+                                this.edicionCliente = null;
+                                this.aviso = 'Cliente actualizado.';
+                                // Se recarga y no se parchea la fila en memoria: el teléfono lo
+                                // normaliza el servidor, así que lo que quedó guardado puede no
+                                // ser carácter por carácter lo que se tipeó.
+                                this.cargarClientes(this.clientes.pagina);
+                            })
+                            .catch(e => { this.avisoCliente = this.mensaje(e, 'No se pudo guardar el cliente.'); })
+                            .finally(() => { this.cargando = false; });
+                    },
+
+                    /**
+                     * Del modal de datos al editor con mapa.
+                     *
+                     * Se cierra el de datos antes de abrir el otro: dos modales apilados en el
+                     * mismo z-index dejan el de abajo tocable por los bordes, y en un celular
+                     * eso es un toque accidental garantizado. Lo que se haya escrito en los
+                     * campos y no se haya guardado se pierde, y por eso el botón dice
+                     * "domicilio" y no "guardar y seguir".
+                     */
+                    editarDomicilioDelCliente() {
+                        const c = this.edicionCliente;
+
+                        if (! c) return;
+
+                        this.edicionCliente = null;
+
+                        // `abrirMapaCliente` espera la forma de una persona del CRM
+                        // (id/name/ubicacion), no la de una fila de la agenda.
+                        this.abrirMapaCliente({
+                            id: c.person_id,
+                            name: c.nombre,
+                            ubicacion: c.ubicacion,
+                        });
+                    },
+
                     abrirDevolucion(cliente) {
                         /*
                          * La cantidad arranca vacía y no en el saldo del cliente: precargarla
@@ -1697,6 +1962,40 @@
                             })
                             .catch(e => { this.aviso = this.mensaje(e, 'No se pudo registrar la devolución.'); })
                             .finally(() => { this.cargando = false; });
+                    },
+
+                    /**
+                     * El encabezado de un día del historial: "Hoy", "Ayer" o "lun 06/10".
+                     *
+                     * El día lo decide el SERVIDOR y llega ya calculado (`pe.dia`): acá sólo
+                     * se le pone nombre. Si el reloj del celular está en otro huso, lo que
+                     * puede quedar mal es la palabra "Hoy", nunca la agrupación — y abajo
+                     * siempre está la fecha explícita.
+                     */
+                    etiquetaDeDia(dia) {
+                        if (! dia) return 'Sin fecha';
+
+                        const hoy = new Date();
+                        const iso = d => [
+                            d.getFullYear(),
+                            String(d.getMonth() + 1).padStart(2, '0'),
+                            String(d.getDate()).padStart(2, '0'),
+                        ].join('-');
+
+                        if (dia === iso(hoy)) return 'Hoy';
+
+                        const ayer = new Date(hoy);
+                        ayer.setDate(ayer.getDate() - 1);
+
+                        if (dia === iso(ayer)) return 'Ayer';
+
+                        // Con día de la semana: en un historial de reparto "¿qué vendimos el
+                        // sábado?" es una pregunta más común que "¿qué vendimos el día 4?".
+                        const [a, m, d] = dia.split('-').map(Number);
+
+                        return new Date(a, m - 1, d).toLocaleDateString('es-AR', {
+                            weekday: 'short', day: '2-digit', month: '2-digit',
+                        });
                     },
 
                     /** Una fecha corta a partir de lo que devuelve el servidor. */
@@ -1796,6 +2095,16 @@
 
                     cambiarFiltro(filtro) {
                         this.filtro = filtro;
+
+                        // El rango es del historial: dejarlo puesto al volver a pendientes
+                        // escondería trabajo pendiente de otros días sin que se vea por qué.
+                        if (filtro !== 'historial') this.rangoHistorial = { desde: '', hasta: '' };
+
+                        this.cargarPedidos();
+                    },
+
+                    limpiarRango() {
+                        this.rangoHistorial = { desde: '', hasta: '' };
                         this.cargarPedidos();
                     },
 
@@ -1810,6 +2119,10 @@
                                 // Obligatoria: el backend rechaza la consulta sin sucursal,
                                 // porque sin ella devolvería pedidos de otras ciudades.
                                 ciudad: this.sucursal ? this.sucursal.ciudad_id : null,
+                                // Sólo tienen sentido en el historial, y se mandan sólo si están:
+                                // un null en los pendientes sería un parámetro que no hace nada.
+                                desde: this.filtro === 'historial' ? (this.rangoHistorial.desde || null) : null,
+                                hasta: this.filtro === 'historial' ? (this.rangoHistorial.hasta || null) : null,
                             },
                         })
                             .then(r => { this.pedidos = r.data.pedidos; })
@@ -2201,6 +2514,16 @@
                             .then(r => {
                                 if (this.cliente && this.cliente.id === id) {
                                     this.cliente.ubicacion = r.data.ubicacion;
+                                }
+
+                                /*
+                                 * El editor también se abre desde la agenda, y ahí `cliente` es
+                                 * otro —o ninguno—. Sin esto, volver de guardar el domicilio
+                                 * mostraba la fila con el domicilio viejo y el botón seguía
+                                 * diciendo "Marcar" para algo que ya estaba marcado.
+                                 */
+                                if (this.vista === 'clientes') {
+                                    this.cargarClientes(this.clientes.pagina);
                                 }
 
                                 this.aviso = 'Domicilio guardado.';

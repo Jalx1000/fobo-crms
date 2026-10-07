@@ -403,3 +403,303 @@ it('la caja ya no se dibuja en el Punto', function () {
         ->and($vista)->not->toContain('cargarCaja')
         ->and($vista)->not->toContain('cajaUrl');
 });
+
+// ───────────────────────── editar el cliente ─────────────────────────
+
+it('corrige el nombre y el telefono del cliente', function () {
+    [$ciudad] = dosCiudades();
+
+    $c = clienteDeAgenda($ciudad, 'Marcela', '+54 388 400 0001');
+
+    $persona = test()->actingAs(distribuidorDeAgenda(), 'user')
+        ->patchJson(route('admin.distribuidor.cliente.update', $c['person_id']), [
+            'nombre'   => 'Marcela Quispe',
+            'telefono' => '+54 388 400 9999',
+        ])
+        ->assertOk()
+        ->json('persona');
+
+    expect($persona['name'])->toBe('Marcela Quispe')
+        ->and($persona['telefono'])->toBe('+54 388 400 9999');
+});
+
+it('no deja poner un telefono que ya es de otro cliente', function () {
+    [$ciudad] = dosCiudades();
+
+    $tomado = '+5493884'.random_int(100000, 999999);
+
+    $dueno = clienteDeAgenda($ciudad, 'Dueño del número', $tomado);
+    $otro = clienteDeAgenda($ciudad, 'Otro cliente', '+5493884'.random_int(100000, 999999));
+
+    /*
+     * 🔴 El teléfono es la IDENTIDAD del cliente en todo el Punto: se lo busca por
+     * número, el agente de WhatsApp lo encuentra por número y la bienvenida se le manda
+     * al número. Dos fichas con el mismo teléfono es un estado del que no se vuelve: no
+     * hay forma de saber a cuál pertenece un pedido.
+     */
+    test()->actingAs(distribuidorDeAgenda(), 'user')
+        ->patchJson(route('admin.distribuidor.cliente.update', $otro['person_id']), [
+            'nombre'   => 'Otro cliente',
+            'telefono' => $tomado,
+        ])
+        ->assertStatus(422);
+
+    // Y el número sigue siendo del dueño original.
+    expect(app(\Webkul\Contact\Repositories\PersonRepository::class)->findByPhone($tomado)->id)
+        ->toBe($dueno['person_id']);
+});
+
+it('guardar el mismo telefono del propio cliente no es un duplicado', function () {
+    [$ciudad] = dosCiudades();
+
+    $propio = '+5493884'.random_int(100000, 999999);
+    $c = clienteDeAgenda($ciudad, 'Sin cambio de número', $propio);
+
+    /*
+     * El caso de corregir SÓLO el nombre: el teléfono se reenvía igual porque el
+     * formulario manda los dos campos. Si la validación mirara nada más que "existe
+     * alguien con este número", se rechazaría a sí mismo y el nombre no se podría
+     * corregir nunca.
+     */
+    test()->actingAs(distribuidorDeAgenda(), 'user')
+        ->patchJson(route('admin.distribuidor.cliente.update', $c['person_id']), [
+            'nombre'   => 'Nombre corregido',
+            'telefono' => $propio,
+        ])
+        ->assertOk()
+        ->assertJsonPath('persona.name', 'Nombre corregido');
+});
+
+it('corregir el telefono conserva los otros numeros de la ficha', function () {
+    [$ciudad] = dosCiudades();
+
+    $personId = (int) DB::table('persons')->insertGetId([
+        'name'            => 'Con dos números '.uniqid(),
+        'contact_numbers' => json_encode([
+            ['value' => '+5493884000111', 'label' => 'work'],
+            ['value' => '+5493884000222', 'label' => 'home'],
+        ]),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    test()->actingAs(distribuidorDeAgenda(), 'user')
+        ->patchJson(route('admin.distribuidor.cliente.update', $personId), [
+            'nombre'   => 'Con dos números',
+            'telefono' => '+5493884000333',
+        ])
+        ->assertOk();
+
+    $numeros = json_decode(
+        (string) DB::table('persons')->where('id', $personId)->value('contact_numbers'),
+        true,
+    );
+
+    /*
+     * Una ficha puede tener el fijo y el celular, y corregir el celular no es una orden
+     * de borrar el resto. Se reemplaza el PRIMERO —el que el Punto muestra y usa— y los
+     * demás quedan.
+     */
+    expect(collect($numeros)->pluck('value')->all())
+        ->toBe(['+5493884000333', '+5493884000222']);
+});
+
+it('la agenda trae el domicilio para abrir el mapa donde ya está el pin', function () {
+    [$ciudad] = dosCiudades();
+
+    $c = clienteDeAgenda($ciudad);
+
+    app(\Webkul\Distribuidor\Services\Ubicacion::class)->guardarDelMapa(
+        $c['person_id'], -24.1858, -65.2995, null, ['direccion' => 'Belgrano 100'],
+    );
+
+    $fila = collect(app(Clientes::class)->listar([$ciudad], null, 500))
+        ->firstWhere('person_id', $c['person_id']);
+
+    /*
+     * Sin esto el editor abría en el centro de la provincia y corregir 20 metros
+     * obligaba a buscar la casa desde cero. Viaja con la fila y no en una consulta por
+     * cliente: 30 filas serían 30 idas y vueltas en un celular con datos móviles.
+     */
+    expect($fila['ubicacion'])->not->toBeNull()
+        ->and($fila['ubicacion']['direccion'])->toBe('Belgrano 100')
+        ->and(round($fila['ubicacion']['lat'], 4))->toBe(-24.1858);
+});
+
+// ───────────────────────── el historial ─────────────────────────
+
+it('el historial trae todos los pedidos de la sucursal, no los de hoy', function () {
+    [$ciudad] = dosCiudades();
+
+    $c = clienteDeAgenda($ciudad);
+
+    /*
+     * 🔴 El pedido es de ANTEAYER y de OTRO usuario, que es el caso que la pestaña no
+     * mostraba: filtraba por `user_id = yo` y `created_at = hoy`, así que aparecía
+     * vacía cada mañana y vacía también para quien reparte lo que cargó otro.
+     */
+    DB::table('leads')->where('id', $c['lead_id'])->update([
+        'user_id'    => 1,
+        'created_at' => now()->subDays(2),
+    ]);
+
+    $pedidos = test()->actingAs(distribuidorDeAgenda(), 'user')
+        ->getJson(route('admin.distribuidor.pedidos', [
+            'ciudad' => $ciudad,
+            'filtro' => 'historial',
+        ]))
+        ->assertOk()
+        ->json('pedidos');
+
+    expect(array_column($pedidos, 'id'))->toContain($c['lead_id']);
+});
+
+it('el historial se puede acotar a un rango de fechas', function () {
+    [$ciudad] = dosCiudades();
+
+    $antiguo = clienteDeAgenda($ciudad);
+    $medio = clienteDeAgenda($ciudad);
+    $reciente = clienteDeAgenda($ciudad);
+
+    DB::table('leads')->where('id', $antiguo['lead_id'])->update(['created_at' => now()->subDays(20)]);
+    DB::table('leads')->where('id', $medio['lead_id'])->update(['created_at' => now()->subDays(10)]);
+    DB::table('leads')->where('id', $reciente['lead_id'])->update(['created_at' => now()->subDay()]);
+
+    $user = distribuidorDeAgenda();
+
+    $pedir = fn (array $rango) => array_column(
+        test()->actingAs($user, 'user')->getJson(route('admin.distribuidor.pedidos', array_merge(
+            ['ciudad' => $ciudad, 'filtro' => 'historial'],
+            $rango,
+        )))->assertOk()->json('pedidos'),
+        'id',
+    );
+
+    // Rango cerrado: entra el del medio, quedan afuera los dos extremos.
+    $cerrado = $pedir([
+        'desde' => now()->subDays(15)->toDateString(),
+        'hasta' => now()->subDays(5)->toDateString(),
+    ]);
+
+    expect($cerrado)->toContain($medio['lead_id'])
+        ->and($cerrado)->not->toContain($antiguo['lead_id'])
+        ->and($cerrado)->not->toContain($reciente['lead_id']);
+
+    // Sólo "desde": sin tope. Es una de las dos formas en que se usa de verdad.
+    $soloDesde = $pedir(['desde' => now()->subDays(15)->toDateString()]);
+
+    expect($soloDesde)->toContain($medio['lead_id'])
+        ->and($soloDesde)->toContain($reciente['lead_id'])
+        ->and($soloDesde)->not->toContain($antiguo['lead_id']);
+
+    // Sólo "hasta": sin piso.
+    $soloHasta = $pedir(['hasta' => now()->subDays(15)->toDateString()]);
+
+    expect($soloHasta)->toContain($antiguo['lead_id'])
+        ->and($soloHasta)->not->toContain($medio['lead_id']);
+});
+
+it('un rango de un solo dia trae ese dia completo', function () {
+    [$ciudad] = dosCiudades();
+
+    $c = clienteDeAgenda($ciudad);
+
+    /*
+     * 🔴 A las 23:30, que es el caso que rompe la comparación ingenua. Si `hasta` se
+     * compara contra el timestamp en vez de contra la fecha, "2026-10-06" se lee como
+     * las 00:00 de ese día y deja afuera el día entero.
+     */
+    $dia = now()->subDays(4)->setTime(23, 30);
+    DB::table('leads')->where('id', $c['lead_id'])->update(['created_at' => $dia]);
+
+    $pedidos = test()->actingAs(distribuidorDeAgenda(), 'user')
+        ->getJson(route('admin.distribuidor.pedidos', [
+            'ciudad' => $ciudad,
+            'filtro' => 'historial',
+            'desde'  => $dia->toDateString(),
+            'hasta'  => $dia->toDateString(),
+        ]))
+        ->assertOk()
+        ->json('pedidos');
+
+    expect(array_column($pedidos, 'id'))->toContain($c['lead_id']);
+});
+
+it('rechaza un rango al reves', function () {
+    [$ciudad] = dosCiudades();
+
+    // "Hasta" antes de "desde" no devuelve nada nunca, y devolver una lista vacía sin
+    // decir por qué parece que no hay pedidos en vez de un rango mal puesto.
+    test()->actingAs(distribuidorDeAgenda(), 'user')
+        ->getJson(route('admin.distribuidor.pedidos', [
+            'ciudad' => $ciudad,
+            'filtro' => 'historial',
+            'desde'  => now()->toDateString(),
+            'hasta'  => now()->subDays(3)->toDateString(),
+        ]))
+        ->assertStatus(422);
+});
+
+it('cada pedido dice de qué día es, calculado en el servidor', function () {
+    [$ciudad] = dosCiudades();
+
+    $c = clienteDeAgenda($ciudad);
+    DB::table('leads')->where('id', $c['lead_id'])->update(['created_at' => now()->subDays(3)]);
+
+    $pedidos = test()->actingAs(distribuidorDeAgenda(), 'user')
+        ->getJson(route('admin.distribuidor.pedidos', ['ciudad' => $ciudad, 'filtro' => 'historial']))
+        ->assertOk()
+        ->json('pedidos');
+
+    $fila = collect($pedidos)->firstWhere('id', $c['lead_id']);
+
+    /*
+     * El día lo calcula el SERVIDOR y llega aparte. Derivarlo en el navegador lo deja a
+     * merced del huso horario del celular: un pedido de las 23:30 se iría al día
+     * siguiente en un teléfono mal configurado, y el encabezado mentiría sobre el día
+     * de trabajo.
+     */
+    expect($fila['dia'])->toBe(now()->subDays(3)->toDateString())
+        ->and($fila['creado_at'])->toContain(now()->subDays(3)->format('d/m/Y'));
+});
+
+it('el filtro viejo "hoy" ya no existe', function () {
+    [$ciudad] = dosCiudades();
+
+    // Se renombró a 'historial' y cambió de significado. Dejar pasar el nombre viejo
+    // devolvería silenciosamente el listado de pendientes, que no es lo que se pidió.
+    test()->actingAs(distribuidorDeAgenda(), 'user')
+        ->getJson(route('admin.distribuidor.pedidos', ['ciudad' => $ciudad, 'filtro' => 'hoy']))
+        ->assertStatus(422);
+});
+
+it('los pendientes no se separan por dia', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    /*
+     * Los pendientes son una COLA de trabajo. Partirla en días sugiere que los de ayer
+     * son de otra tanda, cuando son los más urgentes. El agrupador devuelve un grupo
+     * único sin día para que la plantilla no dibuje encabezados.
+     */
+    $this->assertStringContainsString("if (this.filtro !== 'historial')", $vista,
+        'El agrupador tiene que devolver un grupo plano fuera del historial: ');
+    $this->assertStringContainsString('dia: null', $vista,
+        'Falta el grupo sin día que apaga los encabezados: ');
+});
+
+it('el boton de envases dice qué registra', function () {
+    $vista = file_get_contents(
+        base_path('packages/Webkul/Distribuidor/src/Resources/views/punto.blade.php')
+    );
+
+    /*
+     * "Recibí" obligaba a resolver quién era el sujeto, y en una columna de 100px se
+     * leía como una etiqueta y no como un botón. "Devolvió envases" describe el hecho
+     * que se registra, desde el lado del cliente, que es como lo cuenta el distribuidor.
+     */
+    $this->assertStringContainsString('Devolvió envases', $vista, 'Falta la etiqueta: ');
+    $this->assertStringNotContainsString('>Recibí envases<', $vista, 'Quedó la etiqueta vieja: ');
+    $this->assertStringContainsString('Editar cliente', $vista, 'Falta poder editar al cliente: ');
+});
