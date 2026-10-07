@@ -101,6 +101,41 @@ return [
         'enabled'  => (bool) env('WHATSAPP_BIENVENIDA', false),
         'template' => env('WHATSAPP_BIENVENIDA_TEMPLATE', 'bienvenida_sensia'),
         'language' => env('WHATSAPP_BIENVENIDA_LANG', 'es'),
+
+        /*
+        | El logo que acompaña al saludo.
+        |
+        | 🔴 NO es una decisión de este archivo si se ve o no: la manda la PLANTILLA.
+        | El logo viaja como encabezado, y Meta valida el mensaje contra la estructura
+        | exacta con la que la plantilla fue aprobada. Los dos desajustes posibles dan
+        | el mismo error:
+        |
+        |   plantilla CON header IMAGE + envío sin imagen  → (#132012)
+        |   plantilla SIN header        + envío con imagen → (#132012)
+        |
+        | Así que para que el logo salga hay que hacer las dos cosas:
+        |
+        |   1. En Meta, crear una plantilla NUEVA con encabezado de tipo Imagen.
+        |
+        |      Nueva y no editar `bienvenida_sensia`: al editar una plantilla aprobada
+        |      Meta la pasa a revisión y mientras tanto el saludo no sale, y si la
+        |      rechazan no queda la anterior. Con una nueva, la que funciona sigue
+        |      funcionando y el cambio es apuntar WHATSAPP_BIENVENIDA_TEMPLATE a la
+        |      nueva cuando esté aprobada — y volver atrás es la misma variable.
+        |
+        |   2. Poner la URL del logo acá. Mientras la plantilla apuntada no declare un
+        |      header de media, esta URL se IGNORA a propósito: mandarla antes rompería
+        |      el saludo que hoy sale bien.
+        |
+        | La URL la descarga META desde sus servidores, no el celular del cliente:
+        | tiene que ser HTTPS pública, sin login y sin VPN. Un archivo en `public/`
+        | servido por APP_URL cumple y además queda versionado con el repo.
+        |
+        | Meta acepta JPEG y PNG, hasta 5 MB. El encabezado se recorta a ~1.91:1, así
+        | que un logo cuadrado pierde los costados: conviene un banner (1125×600) con
+        | el logo centrado y aire alrededor.
+        */
+        'logo' => env('WHATSAPP_BIENVENIDA_LOGO'),
     ],
 
     /*

@@ -69,7 +69,35 @@ class Bienvenida
             max(0, (int) ($plantilla['variables'] ?? 0)),
         );
 
-        $mensaje = DB::transaction(function () use ($telefono, $nombre, $plantilla, $variables) {
+        /*
+         * El encabezado con el logo.
+         *
+         * 🔴 Lo decide la PLANTILLA, no la config. Meta valida el mensaje contra la
+         * estructura exacta con la que la plantilla fue aprobada, y los dos desajustes
+         * dan el mismo error `(#132012) Parameter format does not match format in the
+         * created template`:
+         *
+         *   plantilla CON header IMAGE + envío sin imagen  → 132012
+         *   plantilla SIN header        + envío con imagen → 132012
+         *
+         * Por eso no basta con tener la URL configurada: se manda sólo si la plantilla
+         * declara un header de media. Así, configurar el logo antes de que la plantilla
+         * nueva esté aprobada no rompe el saludo que hoy sale bien.
+         */
+        $header = $this->headerDeLogo($plantilla, (string) ($config['logo'] ?? ''));
+
+        if ($header === false) {
+            // La plantilla pide imagen y no hay URL: el envío saldría rechazado con un
+            // 132012 que habla de "formato de parámetros" y no de un logo faltante.
+            Log::warning('WhatsApp: la plantilla de bienvenida pide un encabezado de imagen y no hay logo configurado', [
+                'template' => $plantilla['name'],
+                'formato'  => $plantilla['header']['format'] ?? null,
+            ]);
+
+            return false;
+        }
+
+        $mensaje = DB::transaction(function () use ($telefono, $nombre, $plantilla, $variables, $header) {
             $conversacion = $this->conversaciones->findOrCreate($telefono, $nombre);
 
             return MessageProxy::modelClass()::create([
@@ -85,16 +113,60 @@ class Bienvenida
                  * armar el request y lo que lee un reintento, así que tiene que bastar
                  * por sí solo.
                  */
-                'payload' => [
+                'payload' => array_filter([
                     'template'  => $plantilla['name'],
                     'language'  => $plantilla['language'],
                     'variables' => $variables,
-                ],
+                    // Sólo si la plantilla lo declara: SendMessage lo convierte en
+                    // TemplateHeader y el gateway lo manda como componente `header`.
+                    'header' => $header,
+                ], fn ($v) => $v !== null),
             ]);
         });
 
         SendMessage::dispatch($mensaje->id)->onQueue(config('whatsapp.queue'));
 
         return true;
+    }
+
+    /**
+     * El encabezado que hay que mandar con esta plantilla.
+     *
+     * Devuelve:
+     *   null  → la plantilla no declara header de media; el logo configurado se ignora.
+     *   false → lo declara pero no hay URL; no hay nada que mandar que Meta acepte.
+     *   array → el nodo listo para el payload.
+     *
+     * El tercer estado existe porque "no hay header" y "falta el header que se pidió"
+     * necesitan caminos distintos: el primero manda el saludo igual, el segundo tiene
+     * que frenar y dejar dicho por qué.
+     *
+     * @param  array{header?:?array}  $plantilla
+     * @return array{format:string, link:string}|false|null
+     */
+    protected function headerDeLogo(array $plantilla, string $logo): array|false|null
+    {
+        $header = $plantilla['header'] ?? null;
+
+        // Sin header, o un header TEXT con variables: no es donde va un logo. Un TEXT
+        // con {{n}} en la bienvenida no está contemplado a propósito — la plantilla la
+        // armamos nosotros, y si algún día lo tiene, esto se entera acá y no en Meta.
+        if (! $header || ! ($header['media'] ?? false)) {
+            return null;
+        }
+
+        $logo = trim($logo);
+
+        if ($logo === '') {
+            return false;
+        }
+
+        return [
+            // El formato sale de la PLANTILLA y no de la extensión del archivo: si Meta
+            // la aprobó como IMAGE, el nodo tiene que decir image aunque la URL termine
+            // en algo raro.
+            'format' => (string) $header['format'],
+            'link'   => $logo,
+        ];
     }
 }
