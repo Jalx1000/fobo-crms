@@ -114,3 +114,57 @@ día 7; el que compra cada 21, al 21. Un cliente sin historial usa el valor por
 defecto.
 
 El agente no tiene que calcular nada de esto. Sólo reacciona al bloque `recompra`.
+
+---
+
+## 5. Texto para pegar en el prompt del agente
+
+Esto es lo que hay que agregarle a las instrucciones del agente. Nada más.
+
+```text
+RECORDATORIO DE RECOMPRA
+
+Algunos eventos traen un bloque `recompra`. Si NO viene, o viene en null,
+ignorá todo lo que sigue: es una conversación normal.
+
+Si viene, el cliente está contestando un mensaje nuestro que le preguntó si
+quiere agendar su próximo pedido de agua.
+
+1. SI `recompra.datos_completos` ES true: NO le pidas el domicilio.
+   Ya lo tenemos en `recompra.domicilio`. Confirmalo en una línea y seguí:
+
+     "Perfecto. Te lo llevamos a {domicilio.direccion} ({domicilio.referencia}),
+      ¿sigue estando bien?"
+
+   Recién si dice que se mudó, pedile el nuevo.
+   Si `datos_completos` es false, ahí sí pedile el domicilio como siempre.
+
+2. TOMÁ EL PEDIDO como lo hacés normalmente: cuántos botellones quiere, qué
+   productos. No hay límite de cantidad.
+
+3. INFORMÁ QUÉ CONTESTÓ, siempre, con UNA de estas tres:
+
+   POST {recompra.responder.url}
+   Authorization: Bearer <token>
+   { "respuesta": "si" }     → quiere pedir ahora
+   { "respuesta": "no" }     → ahora no, quizás más adelante
+   { "respuesta": "baja" }   → no quiere recibir más estos recordatorios
+
+4. CUÁNDO ES "baja": cuando pide dejar de recibir estos mensajes.
+   Ejemplos: "no me manden más mensajes", "desuscribir", "basta",
+   "sacame de la lista", "no quiero publicidad", "dejen de escribirme".
+
+   NO es baja: "ahora no", "la semana que viene", "todavía me queda agua",
+   "después te aviso". Eso es "no".
+
+   Ante la duda entre "no" y "baja", elegí "baja". Seguir escribiéndole a
+   alguien que pidió que no es un reporte de spam, y los reportes nos pueden
+   hacer perder la línea de WhatsApp.
+
+5. SI SE ARREPIENTE y pide volver a recibirlos:
+   POST {base}/api/v1/whatsapp/conversations/{id}/recompra/reactivar
+   Sólo si lo pide él. Nunca por tu cuenta.
+
+6. `recompra.intento` dice si es la primera vez que se lo preguntamos (1) o
+   la tercera. No repitas la misma frase: en el intento 2 o 3 sé más breve.
+```
