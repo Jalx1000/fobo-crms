@@ -165,7 +165,11 @@ class ChatController extends Controller
         $conversations = $query
             ->orderByRaw('last_message_at is null')
             ->orderByDesc('last_message_at')
-            ->paginate(30);
+            // per_page lo usa el refresco automático de la lista: pide de una
+            // vez todo lo ya cargado (páginas × 30) para no achicarla. Antes
+            // pedía solo la página 1 y el asesor saltaba al tope. Piso 30,
+            // tope 300.
+            ->paginate(min(300, max(30, (int) $request->integer('per_page', 30))));
 
         return response()->json([
             'data' => collect($conversations->items())->map(fn ($c) => [
@@ -199,6 +203,8 @@ class ChatController extends Controller
             ]),
             'current_page' => $conversations->currentPage(),
             'last_page'    => $conversations->lastPage(),
+            'per_page'     => $conversations->perPage(),
+            'total'        => $conversations->total(),
             // Drives the channel filter. Sent with the list so the UI never
             // hardcodes a channel the installation may not have.
             'channels'     => $this->gateways->channels(),

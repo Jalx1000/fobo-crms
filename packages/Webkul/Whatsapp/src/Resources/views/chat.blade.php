@@ -382,12 +382,28 @@
                     load(background = false) {
                         if (!background) this.listLoading = true;
 
-                        return this.$axios.get(this.conversationsUrl, { params: this.listParams(1) })
+                        // El refresco automático pide de una vez todo lo que ya
+                        // estaba cargado (páginas × 30). Si pidiera solo la página
+                        // 1, la lista volvería a 30 cada 10 s: la página se acorta
+                        // y el asesor salta al tope (y pierde lo de "Cargar más").
+                        const params = background && this.page > 1
+                            ? { ...this.listParams(1), per_page: this.page * 30 }
+                            : this.listParams(1);
+
+                        return this.$axios.get(this.conversationsUrl, { params })
                             .then(res => {
                                 this.conversations = res.data?.data ?? [];
-                                this.page = res.data?.current_page ?? 1;
-                                this.lastPage = res.data?.last_page ?? 1;
                                 this.channels = res.data?.channels ?? [];
+
+                                if (background && this.page > 1) {
+                                    // Se conserva la página: "Cargar más" sigue
+                                    // desde donde estaba, en unidades de 30.
+                                    this.lastPage = Math.max(1, Math.ceil((res.data?.total ?? 0) / 30));
+                                    this.page = Math.min(this.page, this.lastPage);
+                                } else {
+                                    this.page = res.data?.current_page ?? 1;
+                                    this.lastPage = res.data?.last_page ?? 1;
+                                }
                             })
                             .catch(() => {})
                             .finally(() => { this.listLoading = false; });
