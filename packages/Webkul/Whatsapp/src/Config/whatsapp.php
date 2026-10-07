@@ -128,8 +128,12 @@ return [
         // cambia y el inbox lo pide en cada conversacion.
         'cache_minutes' => env('WHATSAPP_TEMPLATES_CACHE_MINUTES', 30),
 
-        // Cotización enviada como PDF adjunto en el header.
-        // Body: {{1}} contacto, {{2}} asunto, {{3}} total, {{4}} validez.
+        // Cotización enviada como PDF adjunto en el header (DOCUMENT).
+        // Body: {{1}} asunto de la cotización, {{2}} total — exactamente estos
+        // dos (QuoteController::templateBodyParams); con otra cantidad Meta
+        // rechaza el envío. La plantilla es por WABA: al cambiar de número hay
+        // que crearla en la cuenta nueva (2026-10-07: cotizacion_documento_v2
+        // creada en la WABA 1090399237204184, número 77655508).
         'quote' => [
             'name'     => env('WHATSAPP_TEMPLATE_QUOTE', 'cotizacion_documento'),
             'language' => env('WHATSAPP_TEMPLATE_QUOTE_LANG', 'es'),
