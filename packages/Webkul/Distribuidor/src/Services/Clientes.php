@@ -21,6 +21,7 @@ class Clientes
     public function __construct(
         protected Bidones $bidones,
         protected Ubicacion $ubicacion,
+        protected Recordatorios $recordatorios,
     ) {}
 
     /**
@@ -43,7 +44,7 @@ class Clientes
      * entrega.
      *
      * @param  array<int, int>|null  $ciudades  null = todas (usuario sin restricción)
-     * @return array<int, array{person_id:int, nombre:string, telefono:?string, saldo:int, ultima_entrega:?string, ubicacion:?array}>
+     * @return array<int, array{person_id:int, nombre:string, telefono:?string, saldo:int, ultima_entrega:?string, ubicacion:?array, recordatorio:?array}>
      */
     public function listar(
         ?array $ciudades = null,
@@ -68,6 +69,7 @@ class Clientes
         // El domicilio viaja con la fila para que "Editar domicilio" abra el mapa
         // sobre el pin guardado y no en el centro de la provincia.
         $ubicaciones = $this->ubicacion->deVarios($ids);
+        $recordatorios = $this->estadosDeRecordatorio($ids);
 
         $personas = PersonProxy::modelClass()::query()
             ->whereIn('id', $ids)
@@ -99,6 +101,7 @@ class Clientes
                  */
                 'ultima_entrega' => $entregas[$id] ?? null,
                 'ubicacion'      => $ubicaciones[$id] ?? null,
+                'recordatorio'   => $recordatorios[$id] ?? null,
             ];
         }
 
@@ -236,6 +239,38 @@ class Clientes
         static $existe = null;
 
         return $existe ??= Schema::hasTable('distribuidor_bidones');
+    }
+
+    /**
+     * El estado del recordatorio de recompra de cada cliente de la página.
+     *
+     * Una consulta para todos, igual que los saldos y los domicilios. Devuelve sólo
+     * lo que la agenda dibuja: si está encendido, si el cliente se dio de baja y
+     * cuándo le toca.
+     *
+     * @param  array<int, int>  $personIds
+     * @return array<int, array{activo:bool, baja:bool, proximo_at:?string, intentos:int}>
+     */
+    protected function estadosDeRecordatorio(array $personIds): array
+    {
+        if (! $personIds || ! Schema::hasTable('distribuidor_recordatorios')) {
+            return [];
+        }
+
+        return DB::table('distribuidor_recordatorios')
+            ->whereIn('person_id', $personIds)
+            ->get()
+            ->mapWithKeys(fn ($f) => [
+                (int) $f->person_id => [
+                    'activo' => (bool) $f->activo,
+                    // La baja la pidió el CLIENTE y no se puede deshacer desde el
+                    // interruptor: la pantalla las muestra distinto por eso.
+                    'baja'       => (bool) $f->baja_at,
+                    'proximo_at' => $f->proximo_at,
+                    'intentos'   => (int) $f->intentos,
+                ],
+            ])
+            ->all();
     }
 
     protected function telefonoDe($persona): ?string

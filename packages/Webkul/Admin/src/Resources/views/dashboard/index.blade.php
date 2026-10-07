@@ -97,6 +97,9 @@
             @include('admin::dashboard.index.quantity-products-sold-pie')
 
             @include('admin::dashboard.index.leads-por-ciudad-pie')
+
+            {{-- Lo que se le paga a Meta por los mensajes automáticos. --}}
+            @include('admin::dashboard.index.plantillas-enviadas')
         </div>
 
         {!! view_render_event('admin.dashboard.index.content.right.after') !!}

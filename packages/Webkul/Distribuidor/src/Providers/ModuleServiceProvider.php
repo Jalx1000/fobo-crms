@@ -11,5 +11,6 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         \Webkul\Distribuidor\Models\Entrega::class,
         \Webkul\Distribuidor\Models\MovimientoBidones::class,
         \Webkul\Distribuidor\Models\UbicacionCliente::class,
+        \Webkul\Distribuidor\Models\Recordatorio::class,
     ];
 }

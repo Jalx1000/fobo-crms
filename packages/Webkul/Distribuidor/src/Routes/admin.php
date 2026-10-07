@@ -32,6 +32,10 @@ Route::controller(PuntoController::class)->prefix('distribuidor')->group(functio
     Route::post('cliente/{id}/ubicacion', 'guardarUbicacionCliente')
         ->name('admin.distribuidor.cliente.ubicacion');
 
+    // Prender o apagar el recordatorio de recompra de un cliente.
+    Route::patch('cliente/{id}/recordatorio', 'recordatorioDeCliente')
+        ->name('admin.distribuidor.cliente.recordatorio');
+
     // Bidones sin pedido: pasar a juntar vacíos.
     Route::post('cliente/{id}/bidones', 'registrarBidones')
         ->name('admin.distribuidor.cliente.bidones');

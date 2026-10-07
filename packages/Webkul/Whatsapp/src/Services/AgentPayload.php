@@ -39,7 +39,10 @@ class AgentPayload
                 'open'       => $window->open,
                 'expires_at' => $window->expiresAt?->toIso8601String(),
             ],
-            'reply' => [
+            // Si venimos de un recordatorio de recompra: qué le preguntamos, qué sabemos
+            // ya de él y dónde avisar qué contestó.
+            'recompra' => $this->recompra($conversation),
+            'reply'    => [
                 'method' => 'POST',
                 'url'    => url("api/v1/whatsapp/conversations/{$conversation->id}/messages"),
             ],
@@ -126,6 +129,72 @@ class AgentPayload
         }
 
         return $payload;
+    }
+
+    /**
+     * El contexto del recordatorio de recompra.
+     *
+     * Devuelve null cuando no hay ninguno pendiente, que es el caso normal: una
+     * conversación cualquiera no tiene nada que ver con esto y el bloque sobraría.
+     *
+     * 🔴 `datos_completos` es lo que resuelve el pedido del negocio: "que el agente
+     * tome el pedido sin volver a preguntar la ubicación, porque ya la tenemos". El
+     * agente no puede deducirlo —desde su lado, todas las conversaciones se parecen—
+     * así que se lo decimos, y le mandamos el domicilio para que lo CONFIRME en vez
+     * de pedirlo de nuevo.
+     *
+     * @return array{esperando_respuesta:bool, intento:int, ultima_entrega:?string, datos_completos:bool, domicilio:?array, responder:array}|null
+     */
+    public function recompra(Conversation $conversation): ?array
+    {
+        if (! $conversation->person_id || ! class_exists(\Webkul\Distribuidor\Services\Recordatorios::class)) {
+            return null;
+        }
+
+        $estado = app(\Webkul\Distribuidor\Services\Recordatorios::class)->de((int) $conversation->person_id);
+
+        if (! $estado || ! $estado->ultimo_envio_at) {
+            return null;
+        }
+
+        /*
+         * Sólo mientras la pregunta esté viva. Pasada la ventana de reintento, lo que
+         * el cliente escriba ya no es "la respuesta al recordatorio" sino una
+         * conversación nueva, y marcarla como respuesta haría que el agente conteste
+         * sobre algo que el cliente no preguntó.
+         */
+        $dias = (int) (config('distribuidor.recordatorios.reintento_dias') ?? 2);
+
+        if ($estado->ultimo_envio_at->copy()->addDays($dias)->isPast()) {
+            return null;
+        }
+
+        $domicilio = app(\Webkul\Distribuidor\Services\Ubicacion::class)
+            ->deCliente((int) $conversation->person_id);
+
+        return [
+            'esperando_respuesta' => $estado->ultima_respuesta === null,
+            'intento'             => (int) $estado->intentos,
+            'ultima_entrega'      => $estado->ultimo_envio_at->toIso8601String(),
+            // Con domicilio guardado no hay nada que preguntar: se confirma y se toma
+            // el pedido. Sin domicilio sí hay que pedirlo, aunque sea un cliente viejo.
+            'datos_completos' => (bool) $domicilio,
+            'domicilio'       => $domicilio,
+            /*
+             * Dónde avisar qué contestó. Va en el payload y no en la documentación
+             * para que el agente no tenga que construir la URL: las tres respuestas
+             * posibles y el endpoint, juntos.
+             */
+            'responder' => [
+                'method'     => 'POST',
+                'url'        => url("api/v1/whatsapp/conversations/{$conversation->id}/recompra"),
+                'respuestas' => [
+                    'si'   => 'Quiere pedir ahora. Tomá el pedido sin volver a pedirle el domicilio.',
+                    'no'   => 'No quiere ahora. Se le vuelve a preguntar en unos días.',
+                    'baja' => 'No quiere recibir más estos recordatorios. No se le manda ninguno más.',
+                ],
+            ],
+        ];
     }
 
     public function contact(Conversation $conversation): array

@@ -111,6 +111,78 @@ class AgentController extends Controller
         ]);
     }
 
+    /**
+     * Lo que el cliente contestó al recordatorio de recompra.
+     *
+     * Lo informa el AGENTE y no lo deduce el CRM: distinguir "dale, mandame dos" de
+     * "ahora no" de "no me escribas más" es interpretar lenguaje, y hacerlo acá con
+     * una lista de palabras acertaría a veces. Una baja mal detectada es la peor de
+     * las dos equivocaciones posibles —seguir escribiéndole a alguien que pidió que
+     * no— así que la decide quien entiende la frase.
+     */
+    public function recompra(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            // Cerrado a tres valores: un campo libre acá vuelve imposible saber
+            // después por qué alguien dejó de recibir recordatorios.
+            'respuesta' => 'required|string|in:si,no,baja',
+        ]);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        if (! $conversation->person_id) {
+            return response()->json([
+                'message' => 'La conversación todavía no está vinculada a un contacto.',
+            ], 422);
+        }
+
+        $recordatorios = app(\Webkul\Distribuidor\Services\Recordatorios::class);
+
+        $estado = $recordatorios->registrarRespuesta(
+            (int) $conversation->person_id,
+            $data['respuesta'],
+        );
+
+        return response()->json([
+            'recompra' => [
+                'respuesta' => $data['respuesta'],
+                'intentos'  => $estado?->intentos,
+                // Cuándo se le vuelve a preguntar. null = no se le pregunta más: dijo
+                // que sí y está pidiendo, se dio de baja, o se agotaron los intentos.
+                'proximo_at'   => $estado?->proximo_at?->toIso8601String(),
+                'dado_de_baja' => (bool) $estado?->baja_at,
+            ],
+        ]);
+    }
+
+    /**
+     * El cliente volvió a pedir los recordatorios después de haberse dado de baja.
+     *
+     * Endpoint aparte y no un cuarto valor de `respuesta`: levantar una baja no es
+     * una respuesta a un recordatorio —justamente, ya no le llegan— sino algo que el
+     * cliente dice por su cuenta. Y separarlo deja que se audite distinto.
+     */
+    public function recompraReactivar(string $id): JsonResponse
+    {
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        if (! $conversation->person_id) {
+            return response()->json([
+                'message' => 'La conversación todavía no está vinculada a un contacto.',
+            ], 422);
+        }
+
+        $estado = app(\Webkul\Distribuidor\Services\Recordatorios::class)
+            ->reactivar((int) $conversation->person_id);
+
+        return response()->json([
+            'recompra' => [
+                'dado_de_baja' => false,
+                'proximo_at'   => $estado?->proximo_at?->toIso8601String(),
+            ],
+        ]);
+    }
+
     public function send(Request $request, string $id, InteractiveParser $parser): JsonResponse
     {
         $data = $request->validate([

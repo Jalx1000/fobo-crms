@@ -262,6 +262,60 @@ class Dashboard
      *
      * @return \Carbon\Carbon
      */
+    /**
+     * Cuántas plantillas de WhatsApp se mandaron en el período.
+     *
+     * Existe porque cada plantilla SE PAGA. Es el único gasto del CRM que crece solo
+     * —la bienvenida sale con cada alta de contacto, el recordatorio de recompra con
+     * cada ciclo de cada cliente— y sin un número a la vista nadie se entera hasta
+     * que llega la factura de Meta.
+     *
+     * Se cuentan las que SALIERON (sent/delivered/read) y no las encoladas ni las
+     * fallidas: Meta cobra el mensaje entregado, no el intento.
+     */
+    public function getPlantillasEnviadasStats(): array
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('whatsapp_messages')) {
+            return ['total' => 0, 'por_motivo' => []];
+        }
+
+        $base = fn () => \Illuminate\Support\Facades\DB::table('whatsapp_messages')
+            ->where('direction', 'outbound')
+            ->where('type', 'template')
+            ->whereIn('status', ['sent', 'delivered', 'read']);
+
+        $enRango = fn ($q) => $q->whereBetween('created_at', [
+            $this->getStartDate(),
+            $this->getEndDate(),
+        ]);
+
+        $total = (clone $enRango($base()))->count();
+
+        /*
+         * Cortado por plantilla y no sólo el total: "mandamos 400" no dice nada, y
+         * "320 de bienvenida y 80 de recordatorio" dice si el gasto viene de captar
+         * clientes nuevos o de insistirle a los que ya están.
+         *
+         * El nombre sale del payload, que es donde SendMessage lo escribe. En MySQL
+         * la columna es JSON nativo, así que se lee con ->> y no con un LIKE.
+         */
+        $porMotivo = $enRango($base())
+            ->selectRaw("json_unquote(json_extract(payload, '$.template')) as plantilla, count(*) as total")
+            ->groupBy('plantilla')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($f) => [
+                'plantilla' => (string) ($f->plantilla ?: 'sin nombre'),
+                'total'     => (int) $f->total,
+            ])
+            ->all();
+
+        return [
+            'total'      => $total,
+            'por_motivo' => $porMotivo,
+        ];
+    }
+
     public function getStartDate(): Carbon
     {
         return $this->leadReporting->getStartDate();

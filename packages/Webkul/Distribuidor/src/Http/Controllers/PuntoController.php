@@ -17,6 +17,7 @@ use Webkul\Distribuidor\Services\Catalogo;
 use Webkul\Distribuidor\Services\Clientes;
 use Webkul\Distribuidor\Services\Geocodificador;
 use Webkul\Distribuidor\Services\PuntoPedido;
+use Webkul\Distribuidor\Services\Recordatorios;
 use Webkul\Distribuidor\Services\RegistroDeEdicion;
 use Webkul\Distribuidor\Services\Ubicacion;
 use Webkul\Lead\Models\LeadProxy;
@@ -40,6 +41,7 @@ class PuntoController extends Controller
         protected Ubicacion $ubicacion,
         protected Bidones $bidones,
         protected Clientes $clientes,
+        protected Recordatorios $recordatorios,
     ) {}
 
     public function index()
@@ -312,6 +314,27 @@ class PuntoController extends Controller
                     (int) ($data['bidones_entregados'] ?? 0),
                     (int) ($data['bidones_retirados'] ?? 0),
                 );
+
+                /*
+                 * El recordatorio de recompra se programa acá, al entregar: es el
+                 * único momento en que sabemos que el cliente YA TIENE el agua, y la
+                 * cuenta regresiva hasta que se le acabe empieza ahí. Programarlo al
+                 * tomar el pedido lo adelantaría todos los días que tarde el reparto.
+                 *
+                 * En try/catch y sin dejar que nada se propague: entregar es el
+                 * trabajo, el recordatorio es un extra, y una entrega que no se puede
+                 * confirmar porque falló algo de WhatsApp deja al distribuidor
+                 * trabado en la puerta del cliente. Mismo criterio que la bienvenida.
+                 */
+                try {
+                    $this->recordatorios->programarTrasEntrega((int) $lead->person_id);
+                } catch (\Throwable $e) {
+                    Log::warning('No se pudo programar el recordatorio de recompra', [
+                        'person_id' => $lead->person_id,
+                        'lead_id'   => $id,
+                        'error'     => $e->getMessage(),
+                    ]);
+                }
             }
         }
 
@@ -1074,6 +1097,33 @@ class PuntoController extends Controller
         ];
 
         return $numeros;
+    }
+
+    /**
+     * El interruptor de recordatorios de un cliente, desde la agenda.
+     *
+     * 🔴 Sólo enciende y apaga el interruptor del EQUIPO. No levanta una baja que
+     * pidió el cliente: para eso está `Recordatorios::reactivar()`, y lo dispara el
+     * agente cuando el cliente lo pide de nuevo. Que alguien del equipo pueda
+     * deshacer un "no me escribas más" con un toque es exactamente lo que no debe
+     * poder pasar.
+     */
+    public function recordatorioDeCliente(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate(['activo' => 'required|boolean']);
+
+        $persona = PersonProxy::modelClass()::findOrFail($id);
+
+        $estado = $this->recordatorios->activar((int) $persona->id, (bool) $data['activo']);
+
+        return response()->json([
+            'recordatorio' => $estado ? [
+                'activo'     => (bool) $estado->activo,
+                'baja'       => (bool) $estado->baja_at,
+                'proximo_at' => $estado->proximo_at,
+                'intentos'   => (int) $estado->intentos,
+            ] : null,
+        ]);
     }
 
     /**

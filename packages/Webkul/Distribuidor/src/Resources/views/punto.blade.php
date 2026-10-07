@@ -881,6 +881,41 @@
                                 Devolvió envases
                             </button>
                         </div>
+
+                        {{--
+                            El recordatorio de recompra de este cliente.
+
+                            🔴 Son DOS estados distintos y la pantalla no los mezcla:
+
+                              baja = el CLIENTE pidió no recibir más. No hay interruptor,
+                                     sólo el cartel. Se levanta cuando él lo vuelve a pedir
+                                     por WhatsApp, no con un toque de alguien del equipo.
+                              activo = el interruptor del EQUIPO, ese sí se toca acá.
+
+                            Dejar que un operador deshaga un "no me escribas más" con un
+                            toque es exactamente lo que no debe poder pasar.
+                        --}}
+                        <div v-if="c.recordatorio" class="mt-3 flex items-center justify-between gap-3 border-t border-gray-200 pt-3 dark:border-gray-800">
+                            <div class="min-w-0">
+                                <span class="block text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                                    Recordatorio de recompra
+                                </span>
+                                <span class="block text-base" :class="c.recordatorio.baja
+                                    ? 'text-amber-700 dark:text-amber-400'
+                                    : 'text-gray-600 dark:text-gray-400'">
+                                    @{{ textoRecordatorio(c.recordatorio) }}
+                                </span>
+                            </div>
+
+                            <button v-if="! c.recordatorio.baja" type="button" @click="cambiarRecordatorio(c)"
+                                    :aria-label="(c.recordatorio.activo ? 'Apagar' : 'Encender') + ' el recordatorio de ' + c.nombre"
+                                    class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[56px] shrink-0 rounded-xl border-2 px-4 text-base font-bold transition-colors duration-200"
+                                    :class="c.recordatorio.activo
+                                        ? 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'
+                                        : 'border-brandColor text-brandColor'">
+                                @{{ c.recordatorio.activo ? 'Apagar' : 'Encender' }}
+                            </button>
+                        </div>
                     </div>
 
                     {{-- "Ver más" y no paginador numerado: se usa con una mano, de pie. --}}
@@ -1860,6 +1895,39 @@
                             })
                             .catch(e => { this.aviso = this.mensaje(e, 'No se pudo editar el pedido.'); })
                             .finally(() => { this.cargando = false; });
+                    },
+
+                    /** Qué dice la fila sobre el recordatorio de este cliente. */
+                    textoRecordatorio(r) {
+                        // La baja primero: pesa más que cualquier otro estado y es lo
+                        // único que el equipo no puede deshacer desde acá.
+                        if (r.baja) return 'El cliente pidió no recibir más';
+                        if (! r.activo) return 'Apagado';
+                        if (! r.proximo_at) return 'Sin fecha programada';
+
+                        return 'Próximo: ' + this.fechaCorta(r.proximo_at)
+                            + (r.intentos ? ' · intento ' + (r.intentos + 1) : '');
+                    },
+
+                    cambiarRecordatorio(cliente) {
+                        const r = cliente.recordatorio;
+
+                        // Defensivo: el botón no se dibuja si hay baja, pero el método es
+                        // público y una baja revertida por accidente no se nota hasta que
+                        // el cliente se queja.
+                        if (! r || r.baja) return;
+
+                        this.$axios.patch(
+                            '{{ url(config('app.admin_path').'/distribuidor/cliente') }}/' + cliente.person_id + '/recordatorio',
+                            { activo: ! r.activo },
+                        )
+                            .then(res => {
+                                // Se parchea la fila en vez de recargar la página entera:
+                                // es un cambio de una fila y recargar pierde el scroll en
+                                // una lista de 30.
+                                cliente.recordatorio = res.data.recordatorio;
+                            })
+                            .catch(e => { this.aviso = this.mensaje(e, 'No se pudo cambiar el recordatorio.'); });
                     },
 
                     abrirEdicionCliente(cliente) {

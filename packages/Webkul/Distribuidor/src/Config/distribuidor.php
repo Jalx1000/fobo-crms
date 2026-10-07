@@ -138,6 +138,74 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Recordatorio de recompra
+    |--------------------------------------------------------------------------
+    |
+    | Después de la entrega, preguntarle al cliente si quiere agendar el próximo
+    | pedido. Apagado por defecto, y no por cautela de más: el recordatorio sale
+    | días después de la última conversación, o sea FUERA de la ventana de 24 h de
+    | WhatsApp, así que EXIGE una plantilla aprobada por Meta. Mientras no exista,
+    | cada corrida generaría rechazos en el log sin que nadie se entere.
+    |
+    | 🔴 Además necesita un scheduler corriendo (`php artisan schedule:run` cada
+    | minuto). Sin eso no hay nada que despierte al comando y el sistema entero es
+    | código muerto, aunque esté encendido.
+    |
+    */
+    'recordatorios' => [
+        'enabled' => (bool) env('DISTRIBUIDOR_RECORDATORIOS', false),
+
+        /*
+        | La plantilla con la que se pregunta. Una variable: el nombre del cliente.
+        */
+        'template' => env('DISTRIBUIDOR_RECORDATORIO_TEMPLATE', 'recordatorio_pedido'),
+        'language' => env('DISTRIBUIDOR_RECORDATORIO_LANG', 'es'),
+
+        /*
+        | Cada cuántos días compra un cliente del que todavía no sabemos nada.
+        |
+        | Se usa sólo hasta que tenga DOS entregas; a partir de ahí manda su propio
+        | promedio. Ver Recordatorios::cadenciaDe().
+        */
+        'cadencia_defecto' => (int) env('DISTRIBUIDOR_RECORDATORIO_CADENCIA', 7),
+
+        /*
+        | Los topes del promedio.
+        |
+        | Mínimo: un cliente con dos entregas seguidas en días distintos de la misma
+        | semana da un promedio de 1 o 2, y recordarle cada 2 días es spam.
+        | Máximo: dos compras con un año de diferencia dan un promedio que no
+        | describe ningún hábito.
+        */
+        'cadencia_minima' => (int) env('DISTRIBUIDOR_RECORDATORIO_CADENCIA_MIN', 3),
+        'cadencia_maxima' => (int) env('DISTRIBUIDOR_RECORDATORIO_CADENCIA_MAX', 60),
+
+        /*
+        | Si dice que no —o si no contesta—, cuántos días hasta el próximo intento.
+        */
+        'reintento_dias' => (int) env('DISTRIBUIDOR_RECORDATORIO_REINTENTO', 2),
+
+        /*
+        | Cuántos recordatorios como máximo por ciclo.
+        |
+        | 🔴 El tope NO es una preferencia de diseño: insistirle cada 2 días a alguien
+        | que ya dijo que no termina en reportes de spam, y los reportes bajan la
+        | calidad del número en Meta hasta que restringen o bloquean la línea. Es la
+        | línea por la que entra TODO el negocio.
+        |
+        | Agotado el tope se corta, y vuelve a arrancar solo cuando el cliente compra.
+        */
+        'intentos_maximos' => (int) env('DISTRIBUIDOR_RECORDATORIO_INTENTOS', 3),
+
+        /*
+        | Cuántos mandar por corrida del comando. Es un freno, no una cuota: con el
+        | scheduler cada hora, 100 por corrida son 2.400 por día.
+        */
+        'por_corrida' => (int) env('DISTRIBUIDOR_RECORDATORIO_POR_CORRIDA', 100),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Formas de cobro
     |--------------------------------------------------------------------------
     | Cerradas a propósito: un campo libre acá vuelve imposible cuadrar la caja.

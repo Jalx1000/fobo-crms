@@ -54,4 +54,13 @@ Route::prefix('api/v1/whatsapp')
 
         // El agente suelta la conversación y se la pasa a una persona.
         Route::post('conversations/{id}/handoff', [AgentController::class, 'handoff']);
+
+        /*
+         * Lo que el cliente contestó al recordatorio de recompra: si | no | baja.
+         * Lo informa el agente porque distinguir esas tres cosas es interpretar
+         * lenguaje, y una baja mal detectada significa seguir escribiéndole a alguien
+         * que pidió que no.
+         */
+        Route::post('conversations/{id}/recompra', [AgentController::class, 'recompra']);
+        Route::post('conversations/{id}/recompra/reactivar', [AgentController::class, 'recompraReactivar']);
     });
