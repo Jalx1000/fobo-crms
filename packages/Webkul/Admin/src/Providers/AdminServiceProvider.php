@@ -33,6 +33,22 @@ class AdminServiceProvider extends ServiceProvider
         Route::middleware(['web', 'admin_locale'])
             ->group(__DIR__.'/../Routes/Front/web.php');
 
+        /*
+        | API REST de leads con atributos personalizados (LeadApiController).
+        | En booted(): tiene que quedar DESPUÉS de las rutas de krayin/rest-api
+        | para reemplazar sus GET/PUT /api/v1/leads/{id} y POST /api/v1/leads
+        | (una ruta registrada más tarde con el mismo método y URI gana).
+        */
+        $this->app->booted(function () {
+            Route::middleware(['api', 'auth:sanctum'])
+                ->prefix('api/v1')
+                ->group(function () {
+                    Route::get('leads/{id}', [\Webkul\Admin\Http\Controllers\Api\LeadApiController::class, 'show'])->whereNumber('id');
+                    Route::put('leads/{id}', [\Webkul\Admin\Http\Controllers\Api\LeadApiController::class, 'update'])->whereNumber('id');
+                    Route::post('leads', [\Webkul\Admin\Http\Controllers\Api\LeadApiController::class, 'store']);
+                });
+        });
+
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 
         $this->loadTranslationsFrom(__DIR__.'/../Resources/lang', 'admin');

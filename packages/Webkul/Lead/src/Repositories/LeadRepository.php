@@ -116,6 +116,8 @@ class LeadRepository extends Repository
      */
     public function create(array $data)
     {
+        $data = $this->prepararAtributos($data);
+
         // Sanitize foreign key values
         $foreignKeys = ['lead_source_id', 'lead_type_id', 'user_id'];
         foreach ($foreignKeys as $key) {
@@ -175,6 +177,54 @@ class LeadRepository extends Repository
     }
 
     /**
+     * Deja los atributos personalizados listos para AttributeValueRepository.
+     *
+     * La API REST (krayin/rest-api) no manda `entity_type`: sin él save() lee
+     * `$data['entity_type']` y revienta con 500, o no encuentra ningún atributo
+     * y no guarda nada (handoff del agente, 2026-10-07: la `ciudad` del lead
+     * nunca persistía). El repositorio sabe que guarda leads.
+     *
+     * Los select propios (como `ciudad`) se aceptan por id de opción o por
+     * nombre, sin importar tildes ni mayúsculas. Un valor que no es ninguna
+     * opción se descarta, para no pisar el que había con basura.
+     */
+    protected function prepararAtributos(array $data): array
+    {
+        if (empty($data['entity_type'])) {
+            $data['entity_type'] = 'leads';
+        }
+
+        $selects = $this->attributeRepository->getModel()->newQuery()
+            ->where('entity_type', 'leads')
+            ->where('is_user_defined', 1)
+            ->where('type', 'select')
+            ->whereNull('lookup_type')
+            ->with('options')
+            ->get();
+
+        foreach ($selects as $attribute) {
+            $valor = $data[$attribute->code] ?? null;
+
+            if ($valor === null || $valor === '' || is_array($valor)) {
+                continue;
+            }
+
+            $comparable = fn ($texto) => \Webkul\Product\Support\ListaPrecios::comparable((string) $texto);
+
+            $opcion = (is_numeric($valor) ? $attribute->options->firstWhere('id', (int) $valor) : null)
+                ?? $attribute->options->first(fn ($o) => $comparable($o->name) === $comparable($valor));
+
+            if ($opcion) {
+                $data[$attribute->code] = $opcion->id;
+            } else {
+                unset($data[$attribute->code]);
+            }
+        }
+
+        return $data;
+    }
+
+    /**
      * El dueño de un lead que llega sin uno.
      *
      * Antes: el usuario logueado o, sin sesión (webhook), el primer usuario
@@ -208,6 +258,8 @@ class LeadRepository extends Repository
      */
     public function update(array $data, $id, $attributes = [])
     {
+        $data = $this->prepararAtributos($data);
+
         // Sanitize foreign key values
         $foreignKeys = ['lead_source_id', 'lead_type_id', 'user_id'];
         foreach ($foreignKeys as $key) {
