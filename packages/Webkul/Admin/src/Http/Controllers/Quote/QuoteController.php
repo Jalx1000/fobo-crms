@@ -6,8 +6,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -293,6 +294,44 @@ class QuoteController extends Controller
             ], 422);
         }
 
+        /*
+        | Misma cotización, misma conversación, hace un momento: no se reenvía.
+        | Caso real (cotización #2198, P.S.A): el botón se confirmó 5 veces en
+        | 38 segundos y el cliente recibió el PDF 5 veces. Un candado corto
+        | además frena dos clics casi simultáneos, antes de que exista la fila.
+        */
+        $minutos = (int) config('whatsapp.quote_resend_minutes', 10);
+
+        if ($previo = $dispatcher->recentQuoteSend($conversation, $quote->id, $minutos)) {
+            return response()->json([
+                'message' => trans('admin::app.quotes.index.whatsapp.already-sent', [
+                    'id'      => $quote->id,
+                    'phone'   => $conversation->wa_phone ?: $conversation->wa_name,
+                    'ago'     => $previo->created_at->diffForHumans(),
+                    'minutes' => $minutos,
+                ]),
+            ], 422);
+        }
+
+        /*
+        | Un candado mientras dura el envío: frena dos clics casi simultáneos,
+        | antes de que exista la fila del primero. lock()->get() lo libera
+        | siempre al terminar, salga como salga.
+        */
+        $respuesta = Cache::lock("quote-whatsapp:{$quote->id}:{$conversation->id}", 60)
+            ->get(fn () => $this->despacharCotizacion($quote, $person, $conversation, $dispatcher));
+
+        return $respuesta ?: response()->json([
+            'message' => trans('admin::app.quotes.index.whatsapp.in-progress', ['id' => $quote->id]),
+        ], 422);
+    }
+
+    /**
+     * El envío en sí de sendWhatsapp(), ya verificado que no es un reenvío.
+     */
+    protected function despacharCotizacion($quote, $person, $conversation, DocumentDispatcher $dispatcher): JsonResponse
+    {
+
         // Outside the 24h service window WhatsApp only accepts approved
         // templates. Inside it we deliberately keep sending free-form: the text
         // stays editable and the send does not depend on Meta keeping the
@@ -326,6 +365,7 @@ class QuoteController extends Controller
                 'application/pdf',
                 $this->quoteCaption($quote),
                 $template,
+                ['quote_id' => $quote->id],
             );
         } catch (AttachmentStorageException $e) {
             // The transaction rolled back, so no orphan message row survives.

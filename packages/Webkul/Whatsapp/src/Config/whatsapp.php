@@ -269,6 +269,12 @@ return [
     |
     | pool_emails only adds extra addresses on top (a shared sales mailbox).
     */
+    /*
+    | Minutos en los que no se reenvía la misma cotización a la misma
+    | conversación (el botón «Enviar por WhatsApp» del listado). 0 = sin límite.
+    */
+    'quote_resend_minutes' => (int) env('WHATSAPP_QUOTE_RESEND_MINUTES', 10),
+
     'handoff' => [
         'notify' => env('WHATSAPP_HANDOFF_NOTIFY', true),
 

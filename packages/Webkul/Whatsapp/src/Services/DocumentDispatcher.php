@@ -152,6 +152,7 @@ class DocumentDispatcher
         string $mime,
         ?string $caption = null,
         ?OutboundTemplate $template = null,
+        array $meta = [],
     ): Model {
         $useTemplate = $this->requiresTemplate($conversation);
 
@@ -159,7 +160,7 @@ class DocumentDispatcher
             throw MessagingWindowClosedException::noTemplate($conversation->id);
         }
 
-        $message = DB::transaction(function () use ($conversation, $contents, $filename, $mime, $caption, $template, $useTemplate) {
+        $message = DB::transaction(function () use ($conversation, $contents, $filename, $mime, $caption, $template, $useTemplate, $meta) {
             $file = $this->attachments->stageContents($contents, $filename, $mime, $conversation->id);
 
             $message = MessageProxy::modelClass()::create([
@@ -177,10 +178,12 @@ class DocumentDispatcher
                 // Disk-relative path for the gateway; media_path is the public
                 // URL the browser renders. `template` is present only on the
                 // out-of-window route and is what SendMessage routes on.
-                'payload'         => array_filter([
+                // $meta: de qué es el documento (p. ej. quote_id), para poder
+                // reconocer un reenvío del mismo documento.
+                'payload'         => array_filter(array_merge($meta, [
                     'media_disk_path' => $file['path'],
                     'template'        => $useTemplate ? $template->toArray() : null,
-                ]),
+                ])),
             ]);
 
             $conversation->forceFill(['last_message_at' => now()])->save();
@@ -191,5 +194,30 @@ class DocumentDispatcher
         SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
 
         return $message;
+    }
+
+    /**
+     * El último envío de esta cotización a esta conversación dentro de los
+     * últimos $minutos, o null. Los fallidos no cuentan: reintentar uno es
+     * justamente lo que hay que poder hacer.
+     *
+     * Por `quote_id` en el payload; los mensajes anteriores a guardarlo se
+     * reconocen por el nombre del PDF («Cotizacion-<id>-…»).
+     */
+    public function recentQuoteSend(Model $conversation, int $quoteId, int $minutos): ?Model
+    {
+        if ($minutos <= 0) {
+            return null;
+        }
+
+        return MessageProxy::modelClass()::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('direction', 'outbound')
+            ->where('status', '!=', 'failed')
+            ->where('created_at', '>=', now()->subMinutes($minutos))
+            ->where(fn ($q) => $q->where('payload->quote_id', $quoteId)
+                ->orWhere('media_name', 'like', 'Cotizacion-'.$quoteId.'-%'))
+            ->latest('id')
+            ->first();
     }
 }

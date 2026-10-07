@@ -421,6 +421,8 @@ return [
                 'no-phone'         => ':person no tiene un número de WhatsApp registrado ni una conversación abierta.',
                 'template-missing' => 'El cliente no escribe hace más de 24 horas, así que hay que enviarlo como plantilla, pero no hay ninguna configurada. Avisá al equipo técnico (WHATSAPP_TEMPLATE_QUOTE).',
                 'storage-failed'   => 'No se pudo guardar el PDF en el servidor. Avisá al equipo técnico (permisos de storage).',
+                'already-sent'     => 'La cotización #:id ya se envió a :phone :ago. No se reenvía para no duplicarla en el chat del cliente; si hace falta, se puede volver a enviar pasados :minutes minutos.',
+                'in-progress'      => 'La cotización #:id se está enviando en este momento. Esperá unos segundos.',
                 'param-customer'   => 'cliente',
                 'param-no-expiry'  => 'sin fecha de vencimiento',
                 'counter'          => ':count plantillas este mes',
