@@ -4,6 +4,7 @@ namespace Webkul\Lead\Providers;
 
 use Illuminate\Routing\Router;
 use Illuminate\Support\ServiceProvider;
+use Webkul\Lead\Console\Commands\RemoveDiscardedStage;
 use Webkul\Lead\Console\Commands\ReportLeadsWithoutDetail;
 
 class LeadServiceProvider extends ServiceProvider
@@ -19,6 +20,7 @@ class LeadServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->commands([
+                RemoveDiscardedStage::class,
                 ReportLeadsWithoutDetail::class,
             ]);
         }
