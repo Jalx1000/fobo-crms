@@ -8,14 +8,15 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Webkul\Whatsapp\Console\Commands\BackfillConversationLeads;
 use Webkul\Whatsapp\Console\Commands\BackfillMessageBodies;
-use Webkul\Whatsapp\Console\Commands\CloseStaleHandoffs;
 use Webkul\Whatsapp\Console\Commands\DiscardDuplicateLeads;
 use Webkul\Whatsapp\Console\Commands\DiscardGhostLeads;
 use Webkul\Whatsapp\Console\Commands\KommoCheck;
 use Webkul\Whatsapp\Console\Commands\ListTemplates;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
+use Webkul\Whatsapp\Console\Commands\ReactivateAgent;
 use Webkul\Whatsapp\Console\Commands\ReopenWindow;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
+use Webkul\Whatsapp\Console\Commands\ResendFailedMessages;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
 use Webkul\Whatsapp\Http\Middleware\EnsureWhatsappAccess;
 use Webkul\Whatsapp\Listeners\DiscardEmptyWhatsappLead;
@@ -61,9 +62,10 @@ class WhatsappServiceProvider extends ServiceProvider
             $this->commands([
                 BackfillConversationLeads::class,
                 BackfillMessageBodies::class,
-                CloseStaleHandoffs::class,
                 DiscardDuplicateLeads::class,
                 DiscardGhostLeads::class,
+                ReactivateAgent::class,
+                ResendFailedMessages::class,
                 KommoCheck::class,
                 ListTemplates::class,
                 ReopenWindow::class,

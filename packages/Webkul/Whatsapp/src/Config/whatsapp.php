@@ -155,6 +155,27 @@ return [
     'unknown_city_pipeline' => env('WHATSAPP_UNKNOWN_CITY_PIPELINE', 'Sin ciudad'),
 
     /*
+    |--------------------------------------------------------------------------
+    | Reactivación automática del agente
+    |--------------------------------------------------------------------------
+    |
+    | Horas que el agente puede quedarse apagado en una conversación antes de
+    | volver solo. Cuenta desde que se apagó —por el interruptor del inbox o por
+    | una derivación—, no desde el último mensaje: el plazo no se corre porque
+    | el asesor siga escribiendo.
+    |
+    | Al medirlo había 100 conversaciones con el bot apagado, 98 de ellas sin
+    | ninguna derivación abierta: alguien lo apagó y nadie se acordó de
+    | prenderlo. Entre ellas, una clienta que había pedido una promo.
+    |
+    | Reactivar CIERRA también la derivación abierta, si la hay: sin eso el
+    | agente seguiría callado por handoffOpen() aunque el flag diga que sí.
+    |
+    | En 0 queda desactivado y ninguna conversación se reactiva sola.
+    */
+    'reactivate_after_hours' => (int) env('WHATSAPP_AI_REACTIVATE_HOURS', 6),
+
+    /*
     | Quién queda como dueño de esos pedidos sin ciudad. Vacío = sin dueño.
     | Es el nombre exacto del usuario, para no clavar un id que cambia entre
     | instalaciones.

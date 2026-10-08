@@ -28,13 +28,16 @@ class Kernel extends ConsoleKernel
         // $schedule->command('inbound-emails:process')->everyFiveMinutes();
 
         /*
-         * Una derivación abierta silencia al agente (Conversation::aiEffective),
-         * así que una que nadie cierra deja al cliente sin nadie del otro lado:
-         * el asesor ya no la mira y el bot no puede hablar. Cada hora alcanza —
-         * el corte es de 24 h— y withoutOverlapping evita que dos corridas se
-         * pisen si una se cuelga.
+         * El agente apagado deja al cliente sin nadie del otro lado: el asesor
+         * ya no mira la conversación y el bot no puede hablar. Al medirlo había
+         * 100 así, 98 sin ninguna derivación.
+         *
+         * Reemplaza a whatsapp:cerrar-derivaciones-inactivas, que sólo cubría
+         * las derivaciones. El plazo se configura con
+         * WHATSAPP_AI_REACTIVATE_HOURS (6 por defecto, 0 lo desactiva); cada
+         * hora alcanza, y withoutOverlapping evita que dos corridas se pisen.
          */
-        $schedule->command('whatsapp:cerrar-derivaciones-inactivas')
+        $schedule->command('whatsapp:reactivar-agente')
             ->hourly()
             ->withoutOverlapping();
     }

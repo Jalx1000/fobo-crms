@@ -38,6 +38,7 @@ class Conversation extends Model implements ConversationContract
         'provider_conversation_id',
         'wa_name',
         'ai_enabled',
+        'ai_disabled_at',
         'status',
         'last_message_at',
         'unread_count',
@@ -60,11 +61,32 @@ class Conversation extends Model implements ConversationContract
      */
     protected $casts = [
         'ai_enabled'           => 'boolean',
+        'ai_disabled_at'       => 'datetime',
         'last_message_at'      => 'datetime',
         'last_inbound_at'      => 'datetime',
         'handoff_requested_at' => 'datetime',
         'assigned_at'          => 'datetime',
     ];
+
+    /**
+     * Marca cuándo se apagó el agente, sin importar quién lo apagó.
+     *
+     * Va en el modelo y no en cada llamador a propósito: hoy se apaga desde el
+     * interruptor del inbox y desde Handoff::request(), y cualquier camino
+     * nuevo lo heredaría igual. Sin esta marca no hay cómo saber hace cuánto
+     * está callado —`updated_at` cambia con cada mensaje entrante— y así fue
+     * como quedaron 100 conversaciones con el bot apagado que nadie reactivó.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $conversacion) {
+            if (! $conversacion->isDirty('ai_enabled')) {
+                return;
+            }
+
+            $conversacion->ai_disabled_at = $conversacion->ai_enabled === false ? now() : null;
+        });
+    }
 
     /**
      * Resolve whether the AI agent is effectively enabled for this conversation,
