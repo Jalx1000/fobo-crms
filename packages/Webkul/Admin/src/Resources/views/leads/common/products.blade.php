@@ -15,7 +15,7 @@
         <div class="flex flex-col gap-4">
             {!! view_render_event('admin.leads.create.products.form_controls.table.before') !!}
 
-            <div class="min-h-[1000px] block w-full overflow-x-auto">
+            <div class="block w-full overflow-x-auto">
                 <!-- Table -->
                 <x-admin::table>
                     {!! view_render_event('admin.leads.create.products.form_controls.table.head.before') !!}

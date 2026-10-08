@@ -146,7 +146,8 @@
       "Bash(./vendor/bin/pint --test packages/Webkul/Messenger packages/Webkul/Whatsapp tests/Feature/MessengerChannelTest.php)",
       "Bash(./vendor/bin/pint packages/Webkul/Messenger packages/Webkul/Whatsapp tests/Feature/MessengerChannelTest.php)",
       "Bash(grep -E '^DB_|^APP_ENV|^APP_URL' /etc/easypanel/projects/heaven/imprimir_laravel/code/.env)",
-      "Bash(./vendor/bin/pest --filter=\"registers a CRM contact|waits for the phone\")"
+      "Bash(./vendor/bin/pest --filter=\"registers a CRM contact|waits for the phone\")",
+      "Bash(grep -n \"class NotifyAgent\\\\|function __construct\\\\|function handle\\\\|public \\\\$\\\\|dispatch\\\\|onQueue\\\\|messageId\\\\|conversationId\" Jobs/NotifyAgent.php)"
     ]
   }
 }
