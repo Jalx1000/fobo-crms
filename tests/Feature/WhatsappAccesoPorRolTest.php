@@ -120,3 +120,57 @@ it('la pestaña sí se dibuja para un administrador', function () {
 
     expect($html)->toContain('v-whatsapp-inbox');
 });
+
+/*
+|--------------------------------------------------------------------------
+| WhatsApp es la primera pestaña del pedido
+|--------------------------------------------------------------------------
+|
+| Es por donde llega el cliente, así que entrar al pedido y verla ya abierta
+| ahorra un clic en el flujo más usado del CRM.
+*/
+
+it('la vista del pedido abre en WhatsApp y la pone primera', function () {
+    $lead = Webkul\Lead\Models\Lead::query()->first();
+
+    if (! $lead) {
+        test()->markTestSkipped('No hay leads en la base para renderizar la vista.');
+    }
+
+    $html = test()->actingAs(getDefaultAdmin(), 'user')
+        ->get(route('admin.leads.view', $lead->id))
+        ->assertStatus(200)
+        ->getContent();
+
+    /*
+     * El componente de actividades pisaba este prop con 'all' en su mounted(),
+     * así que `activeType` existía y no hacía nada: la vista ya le pasaba
+     * 'quotes' en un caso y nunca se respetó.
+     */
+    expect($html)->toContain('active-type="whatsapp"')
+        ->and($html)->toContain('extra-types-first');
+
+    // Y es la primera de las extras, antes de Historial IA y Productos.
+    preg_match('/extra-types=\'(\[.*?\])\'/s', $html, $m);
+
+    $extras = json_decode(html_entity_decode($m[1] ?? '[]'), true) ?: [];
+
+    expect($extras)->not->toBeEmpty()
+        ->and($extras[0]['name'])->toBe('whatsapp');
+});
+
+it('un rol sin WhatsApp abre en las actividades, no en una pestaña que no tiene', function () {
+    $lead = Webkul\Lead\Models\Lead::query()->first();
+
+    if (! $lead) {
+        test()->markTestSkipped('No hay leads en la base para renderizar la vista.');
+    }
+
+    $html = test()->actingAs(usuarioConPermisos(['dashboard', 'leads', 'leads.view']), 'user')
+        ->get(route('admin.leads.view', $lead->id))
+        ->assertStatus(200)
+        ->getContent();
+
+    expect($html)->toContain('active-type="all"')
+        ->and($html)->not->toContain('v-whatsapp-inbox');
+});

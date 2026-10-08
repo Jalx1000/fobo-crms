@@ -4,6 +4,7 @@
     'activeType'          => 'all',
     'types'               => null,
     'extraTypes'          => null,
+    'extraTypesFirst'     => false,
 ])
 
 {!! view_render_event('admin.components.activities.before') !!}
@@ -15,6 +16,7 @@
     active-type="{{ $activeType }}"
     @if($types):types='@json($types)'@endif
     @if($extraTypes):extra-types='@json($extraTypes)'@endif
+    @if($extraTypesFirst) extra-types-first @endif
     ref="activities"
 >
     <!-- Shimmer -->
@@ -534,6 +536,19 @@
                     type: Array,
                     default: [],
                 },
+
+                /**
+                 * Pone las pestañas extra ANTES de las de actividades.
+                 *
+                 * En la vista del pedido, WhatsApp tiene que ser lo primero que
+                 * se ve: es por donde llega el cliente. Las demás vistas que
+                 * usan este componente (contacto, producto, almacén) siguen con
+                 * las extras al final.
+                 */
+                extraTypesFirst: {
+                    type: Boolean,
+                    default: false,
+                },
             },
 
             data() {
@@ -633,9 +648,20 @@
                 this.get();
 
                 if (this.extraTypes?.length) {
-                    this.extraTypes.forEach(type => {
-                        this.types.push(type);
-                    });
+                    if (this.extraTypesFirst) {
+                        /*
+                         * Al principio, en el mismo orden en que vinieron: se
+                         * recorre al revés porque cada unshift empuja al
+                         * anterior una posición a la derecha.
+                         */
+                        [...this.extraTypes].reverse().forEach(type => {
+                            this.types.unshift(type);
+                        });
+                    } else {
+                        this.extraTypes.forEach(type => {
+                            this.types.push(type);
+                        });
+                    }
                 }
 
                 /* if (! this.types.find(t => t.name === 'calendar')) {
@@ -645,7 +671,16 @@
                     });
                 } */
 
-                this.selectedType = 'all';
+                /*
+                 * La pestaña que se abre la decide quien usa el componente.
+                 *
+                 * Acá estaba fijo en 'all', así que el prop `activeType`
+                 * existía y no hacía nada: la vista del pedido ya le pasaba
+                 * 'quotes' en un caso y nunca se respetó.
+                 */
+                this.selectedType = this.types.find(t => t.name === this.activeType)
+                    ? this.activeType
+                    : 'all';
 
                 this.$emitter.on('on-activity-added', (activity) => this.activities.unshift(activity));
             },
