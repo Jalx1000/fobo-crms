@@ -411,6 +411,7 @@ return [
                 'delete'       => 'Eliminar',
                 'print'        => 'Imprimir',
                 'whatsapp'     => 'Enviar por WhatsApp',
+                'messenger'    => 'Enviar por Messenger',
                 'whatsapp-status' => 'WhatsApp',
             ],
 
@@ -424,11 +425,16 @@ return [
                 'storage-failed'   => 'No se pudo guardar el PDF en el servidor. Avisá al equipo técnico (permisos de storage).',
                 'already-sent'     => 'La cotización #:id ya se envió a :phone :ago. No se reenvía para no duplicarla en el chat del cliente; si hace falta, se puede volver a enviar pasados :minutes minutos.',
                 'in-progress'      => 'La cotización #:id se está enviando en este momento. Esperá unos segundos.',
-                'activity'         => 'Cotización #:id enviada por WhatsApp a :to (:user)',
+                'activity'         => 'Cotización #:id enviada por :channel a :to (:user)',
                 'param-customer'   => 'cliente',
                 'param-no-expiry'  => 'sin fecha de vencimiento',
                 'counter'          => ':count plantillas este mes',
                 'counter-hint'     => 'Cotizaciones enviadas por WhatsApp fuera de la ventana de 24 h. Cada una tiene costo. Solo visible para Administradores.',
+            ],
+            'messenger' => [
+                'success'         => 'Cotización enviada por Messenger a :person.',
+                'no-conversation' => ':person no tiene una conversación de Messenger. Solo se puede enviar a clientes que escribieron a la página de Facebook.',
+                'window-closed'   => ':person no escribe por Messenger hace más de 24 horas y Messenger no permite plantillas: no se puede enviar hasta que vuelva a escribir. Probá por WhatsApp.',
             ],
             'pdf' => [
                 'adjustment'       => 'Ajuste',

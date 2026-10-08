@@ -18,6 +18,8 @@ Route::controller(QuoteController::class)->prefix('quotes')->group(function () {
 
     Route::post('{id}/whatsapp', 'sendWhatsapp')->name('admin.quotes.whatsapp');
 
+    Route::post('{id}/messenger', 'sendMessenger')->name('admin.quotes.messenger');
+
     Route::delete('{id}', 'destroy')->name('admin.quotes.delete');
 
     Route::get('search', 'search')->name('admin.quotes.search');

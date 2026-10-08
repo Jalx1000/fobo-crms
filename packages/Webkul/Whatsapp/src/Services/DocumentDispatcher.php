@@ -68,6 +68,26 @@ class DocumentDispatcher
     }
 
     /**
+     * The contact's most recent thread on a channel family other than phone
+     * (e.g. 'messenger').
+     *
+     * Unlike conversationFor() there is no fallback: a Messenger thread can only
+     * be opened by the customer writing to the Page, never from a phone number.
+     */
+    public function familyConversationFor(?int $personId, string $family): ?Model
+    {
+        if (! $personId || ! $gateways = $this->gateways->keysInFamily($family)) {
+            return null;
+        }
+
+        return ConversationProxy::modelClass()::where('person_id', $personId)
+            ->whereIn('gateway', $gateways)
+            ->orderByDesc('last_inbound_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
      * The 24h service window for a thread.
      *
      * Outside it WhatsApp only accepts approved templates, and this pipeline

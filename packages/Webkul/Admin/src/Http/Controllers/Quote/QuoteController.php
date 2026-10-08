@@ -294,6 +294,88 @@ class QuoteController extends Controller
             ], 422);
         }
 
+        return $this->sinReenvio($quote, $conversation, $dispatcher,
+            fn () => $this->despacharCotizacion($quote, $person, $conversation, $dispatcher));
+    }
+
+    /**
+     * Send the quote PDF over the contact's Messenger thread.
+     *
+     * Same PDF, resend guard, status column and activity as sendWhatsapp(). The
+     * difference: Messenger has no templates, so outside the 24h window there
+     * is no way to deliver it and the salesperson is told so up front.
+     */
+    public function sendMessenger(int $id, DocumentDispatcher $dispatcher): JsonResponse
+    {
+        $quote = $this->quoteRepository->findOrFail($id);
+
+        if (! $person = $quote->person) {
+            return response()->json([
+                'message' => trans('admin::app.quotes.index.whatsapp.no-person'),
+            ], 422);
+        }
+
+        if (! $conversation = $dispatcher->familyConversationFor($person->id, 'messenger')) {
+            return response()->json([
+                'message' => trans('admin::app.quotes.index.messenger.no-conversation', ['person' => $person->name]),
+            ], 422);
+        }
+
+        if ($dispatcher->requiresTemplate($conversation)) {
+            return response()->json([
+                'message' => trans('admin::app.quotes.index.messenger.window-closed', ['person' => $person->name]),
+            ], 422);
+        }
+
+        return $this->sinReenvio($quote, $conversation, $dispatcher,
+            fn () => $this->despacharPorMessenger($quote, $conversation, $dispatcher));
+    }
+
+    /**
+     * El envío por Messenger, ya verificado que no es un reenvío. Sin plantillas.
+     */
+    protected function despacharPorMessenger($quote, $conversation, DocumentDispatcher $dispatcher): JsonResponse
+    {
+        try {
+            $message = $dispatcher->queue(
+                $conversation,
+                $this->generatePDF(view('admin::quotes.pdf', compact('quote'))->render()),
+                $this->quoteFileName($quote),
+                'application/pdf',
+                // El caption de WhatsApp usa *negrita*, que Messenger muestra tal cual.
+                str_replace('*', '', $this->quoteCaption($quote)),
+                null,
+                ['quote_id' => $quote->id],
+            );
+        } catch (AttachmentStorageException $e) {
+            Log::error('Quotes: could not stage the PDF for a Messenger send.', [
+                'quote_id'     => $quote->id,
+                'conversation' => $conversation->id,
+                'error'        => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => trans('admin::app.quotes.index.whatsapp.storage-failed'),
+            ], 422);
+        }
+
+        Event::dispatch('quote.messenger.after', $quote);
+
+        return response()->json([
+            'message'    => trans('admin::app.quotes.index.messenger.success', [
+                'person' => $conversation->wa_name ?: $quote->person->name,
+            ]),
+            'message_id' => $message->id,
+        ]);
+    }
+
+    /**
+     * Guardas comunes a todo envío de la cotización, sea cual sea el canal.
+     *
+     * @param  callable(): JsonResponse  $enviar
+     */
+    protected function sinReenvio($quote, $conversation, DocumentDispatcher $dispatcher, callable $enviar): JsonResponse
+    {
         /*
         | Misma cotización, misma conversación, hace un momento: no se reenvía.
         | Caso real (cotización #2198, P.S.A): el botón se confirmó 5 veces en
@@ -319,7 +401,7 @@ class QuoteController extends Controller
         | siempre al terminar, salga como salga.
         */
         $respuesta = Cache::lock("quote-whatsapp:{$quote->id}:{$conversation->id}", 60)
-            ->get(fn () => $this->despacharCotizacion($quote, $person, $conversation, $dispatcher));
+            ->get($enviar);
 
         return $respuesta ?: response()->json([
             'message' => trans('admin::app.quotes.index.whatsapp.in-progress', ['id' => $quote->id]),

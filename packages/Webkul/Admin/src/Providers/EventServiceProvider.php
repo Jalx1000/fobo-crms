@@ -54,6 +54,10 @@ class EventServiceProvider extends ServiceProvider
             'Webkul\Admin\Listeners\CotizacionEnviada@handle',
         ],
 
+        'quote.messenger.after' => [
+            'Webkul\Admin\Listeners\CotizacionEnviada@handle',
+        ],
+
         'quote.update.after' => [
             'Webkul\Admin\Listeners\Nit@sincronizar',
             'Webkul\Admin\Listeners\Ciudad@deCotizacion',

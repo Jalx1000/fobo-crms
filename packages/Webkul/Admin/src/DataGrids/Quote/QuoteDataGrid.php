@@ -275,6 +275,14 @@ class QuoteDataGrid extends DataGrid
                 'method' => 'POST',
                 'url'    => fn ($row) => route('admin.quotes.whatsapp', $row->id),
             ]);
+
+            $this->addAction([
+                'index'  => 'messenger',
+                'icon'   => 'icon-message',
+                'title'  => trans('admin::app.quotes.index.datagrid.messenger'),
+                'method' => 'POST',
+                'url'    => fn ($row) => route('admin.quotes.messenger', $row->id),
+            ]);
         }
 
         if (bouncer()->hasPermission('quotes.delete')) {

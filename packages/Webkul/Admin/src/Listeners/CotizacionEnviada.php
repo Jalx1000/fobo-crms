@@ -6,10 +6,11 @@ use Illuminate\Support\Facades\DB;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Lead\Models\LeadProxy;
+use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Models\MessageProxy;
 
 /**
- * Cotización enviada por WhatsApp → actividad en la oportunidad y el contacto:
+ * Cotización enviada por WhatsApp o Messenger → actividad en la oportunidad y el contacto:
  * «Cotización #2198 enviada por WhatsApp a +591… (Fabio Sandoval)».
  *
  * Así el historial cuenta que ya se mandó, quién y a qué número, aunque el
@@ -33,14 +34,20 @@ class CotizacionEnviada
 
         $destino = $mensaje?->conversation?->wa_phone ?: $mensaje?->conversation?->wa_name;
 
+        // WhatsApp, WhatsApp (Kommo) o Messenger: el canal por el que salió.
+        $canal = $mensaje?->conversation
+            ? app(GatewayManager::class)->label((string) $mensaje->conversation->gateway)
+            : 'WhatsApp';
+
         $usuario = auth()->guard('user')->user();
 
         $activity = $this->activities->create([
             'type'    => 'system',
             'title'   => trans('admin::app.quotes.index.whatsapp.activity', [
-                'id'   => $quote->id,
-                'to'   => $destino ?: trans('admin::app.quotes.index.whatsapp.param-customer'),
-                'user' => $usuario?->name ?? '—',
+                'id'      => $quote->id,
+                'channel' => $canal,
+                'to'      => $destino ?: trans('admin::app.quotes.index.whatsapp.param-customer'),
+                'user'    => $usuario?->name ?? '—',
             ]),
             'is_done' => 1,
             'user_id' => $usuario?->id,
