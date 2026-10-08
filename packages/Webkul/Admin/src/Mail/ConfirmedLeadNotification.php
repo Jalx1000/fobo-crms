@@ -29,8 +29,14 @@ class ConfirmedLeadNotification extends Mailable
      */
     public function build()
     {
-        return $this->from(core()->getSenderEmailDetails()['email'], core()->getSenderEmailDetails()['name'])
-                    ->subject(trans('admin::app.emails.leads.confirmed.subject', ['id' => $this->lead->id]))
-                    ->view('admin::emails.leads.confirmed');
+        /*
+         * core()->getSenderEmailDetails() NO existe en Webkul\Core\Core, así que
+         * este correo venía muriendo con "Call to undefined method" en cada
+         * intento: el almacén nunca recibió un aviso. El remitente sale de
+         * config/mail.php, que es el que el CRM tiene configurado.
+         */
+        return $this->from(config('mail.from.address'), config('mail.from.name'))
+            ->subject(trans('admin::app.emails.leads.confirmed.subject', ['id' => $this->lead->id]))
+            ->view('admin::emails.leads.confirmed');
     }
 }
