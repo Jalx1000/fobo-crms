@@ -264,6 +264,37 @@ class QuoteController extends Controller
     }
 
     /**
+     * El único botón «Enviar cotización»: elige el canal y delega.
+     *
+     * Sale por donde el cliente escribió último, porque ahí es donde está
+     * mirando. Messenger solo si su ventana de 24 h sigue abierta: no tiene
+     * plantillas, y WhatsApp sí puede llegarle fuera de la ventana.
+     */
+    public function send(int $id, DocumentDispatcher $dispatcher): JsonResponse
+    {
+        $person = $this->quoteRepository->findOrFail($id)->person;
+
+        return $person && $this->prefiereMessenger($person, $dispatcher)
+            ? $this->sendMessenger($id, $dispatcher)
+            : $this->sendWhatsapp($id, $dispatcher);
+    }
+
+    protected function prefiereMessenger($person, DocumentDispatcher $dispatcher): bool
+    {
+        $messenger = $dispatcher->familyConversationFor($person->id, 'messenger');
+
+        if (! $messenger || $dispatcher->requiresTemplate($messenger)) {
+            return false;
+        }
+
+        // Sin teléfono: solo buscar, no abrir una conversación de WhatsApp nueva.
+        $whatsapp = $dispatcher->conversationFor($person->id, null);
+
+        return ! $whatsapp?->last_inbound_at
+            || $messenger->last_inbound_at->gt($whatsapp->last_inbound_at);
+    }
+
+    /**
      * Send the quote to the contact over WhatsApp, as an attached PDF.
      *
      * The PDF is the very same document print() hands to the browser — rendered

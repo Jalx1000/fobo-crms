@@ -412,6 +412,7 @@ return [
                 'print'        => 'Imprimir',
                 'whatsapp'     => 'Enviar por WhatsApp',
                 'messenger'    => 'Enviar por Messenger',
+                'send'         => 'Enviar cotización',
                 'whatsapp-status' => 'WhatsApp',
             ],
 

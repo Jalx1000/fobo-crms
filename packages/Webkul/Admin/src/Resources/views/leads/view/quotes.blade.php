@@ -156,7 +156,7 @@
                                                 <div class="flex items-center gap-2">
                                                     <span class="icon-sent text-2xl"></span>
 
-                                                    @lang('admin::app.leads.view.quotes.whatsapp')
+                                                    @lang('admin::app.quotes.index.datagrid.send')
                                                 </div>
                                             </x-admin::dropdown.menu.item>
 
@@ -244,7 +244,7 @@
 
             methods: {
                 /**
-                 * Queue the quote PDF into the contact's WhatsApp thread.
+                 * Queue the quote PDF by the channel the customer used last (WhatsApp or Messenger).
                  *
                  * Confirmed first, because it reaches the customer: unlike Edit
                  * or Download, there is no undo once it leaves.
@@ -252,7 +252,7 @@
                 sendQuoteOverWhatsapp(quote) {
                     this.$emitter.emit('open-confirm-modal', {
                         agree: () => {
-                            this.$axios.post("{{ route('admin.quotes.index') }}/" + quote.id + "/whatsapp")
+                            this.$axios.post("{{ route('admin.quotes.index') }}/" + quote.id + "/enviar")
                                 .then(response => {
                                     this.$emitter.emit('add-flash', { type: 'success', message: response.data.message });
                                 })

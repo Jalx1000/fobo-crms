@@ -268,20 +268,13 @@ class QuoteDataGrid extends DataGrid
             // flashes whatever the controller answers — which is exactly what we
             // need: the send can be refused for several reasons the salesperson
             // has to read (no number, 24h window closed).
+            // Un solo botón: el canal (WhatsApp o Messenger) lo elige QuoteController::send().
             $this->addAction([
-                'index'  => 'whatsapp',
+                'index'  => 'send',
                 'icon'   => 'icon-sent',
-                'title'  => trans('admin::app.quotes.index.datagrid.whatsapp'),
+                'title'  => trans('admin::app.quotes.index.datagrid.send'),
                 'method' => 'POST',
-                'url'    => fn ($row) => route('admin.quotes.whatsapp', $row->id),
-            ]);
-
-            $this->addAction([
-                'index'  => 'messenger',
-                'icon'   => 'icon-message',
-                'title'  => trans('admin::app.quotes.index.datagrid.messenger'),
-                'method' => 'POST',
-                'url'    => fn ($row) => route('admin.quotes.messenger', $row->id),
+                'url'    => fn ($row) => route('admin.quotes.send', $row->id),
             ]);
         }
 

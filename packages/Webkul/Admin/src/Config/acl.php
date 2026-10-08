@@ -54,7 +54,7 @@ return [
     ], [
         'key'   => 'quotes.whatsapp',
         'name'  => 'admin::app.acl.send-whatsapp',
-        'route' => ['admin.quotes.whatsapp', 'admin.quotes.messenger'],
+        'route' => ['admin.quotes.send', 'admin.quotes.whatsapp', 'admin.quotes.messenger'],
         'sort'  => 4,
     ], [
         'key'   => 'quotes.delete',

@@ -16,6 +16,8 @@ Route::controller(QuoteController::class)->prefix('quotes')->group(function () {
 
     Route::get('print/{id?}', 'print')->name('admin.quotes.print');
 
+    Route::post('{id}/enviar', 'send')->name('admin.quotes.send');
+
     Route::post('{id}/whatsapp', 'sendWhatsapp')->name('admin.quotes.whatsapp');
 
     Route::post('{id}/messenger', 'sendMessenger')->name('admin.quotes.messenger');

@@ -139,10 +139,72 @@ it('deja la actividad diciendo que salió por Messenger', function () {
     expect($titulo)->toContain('#'.$this->quote->id)->toContain('Messenger');
 });
 
-it('el listado tiene la acción Enviar por Messenger', function () {
+/*
+| Un solo botón «Enviar cotización»: el canal lo elige el sistema, por donde
+| el cliente escribió último. Messenger cerrado (más de 24 h) → WhatsApp, que
+| sí puede usar plantilla.
+*/
+function msEnviarUnico($test)
+{
+    return $test->withHeaders(['Accept' => 'application/json'])
+        ->post(route('admin.quotes.send', $test->quote->id));
+}
+
+function msWhatsapp($test, $ultimoMensaje): Conversation
+{
+    return Conversation::create([
+        'gateway' => 'cloud_api', 'wa_phone' => '+5916'.random_int(1000000, 9999999), 'ai_enabled' => false,
+        'status'  => 'open', 'person_id' => $test->person->id, 'last_inbound_at' => $ultimoMensaje, 'last_message_at' => $ultimoMensaje,
+    ]);
+}
+
+function msEnviados(Conversation $conv): int
+{
+    return DB::table('whatsapp_messages')->where('conversation_id', $conv->id)->count();
+}
+
+it('el botón único sale por Messenger si el cliente escribió último por ahí', function () {
+    $messenger = msConversacion($this, ['last_inbound_at' => now()->subMinutes(5)]);
+    $whatsapp = msWhatsapp($this, now()->subHours(3));
+
+    msEnviarUnico($this)->assertOk()->assertJsonPath('message', fn ($m) => str_contains($m, 'Messenger'));
+
+    expect(msEnviados($messenger))->toBe(1)->and(msEnviados($whatsapp))->toBe(0);
+});
+
+it('el botón único sale por WhatsApp si el cliente escribió último por ahí', function () {
+    $messenger = msConversacion($this, ['last_inbound_at' => now()->subHours(3)]);
+    $whatsapp = msWhatsapp($this, now()->subMinutes(5));
+
+    msEnviarUnico($this)->assertOk()->assertJsonPath('message', fn ($m) => str_contains($m, 'WhatsApp'));
+
+    expect(msEnviados($messenger))->toBe(0)->and(msEnviados($whatsapp))->toBe(1);
+});
+
+it('el botón único usa WhatsApp cuando Messenger ya pasó las 24 h', function () {
+    $messenger = msConversacion($this, ['last_inbound_at' => now()->subDays(2)]);
+    $whatsapp = msWhatsapp($this, now()->subDays(5));
+
+    msEnviarUnico($this);
+
+    expect(msEnviados($messenger))->toBe(0);
+});
+
+it('el botón único sin Messenger sale por WhatsApp como siempre', function () {
+    $whatsapp = msWhatsapp($this, now()->subMinutes(5));
+
+    msEnviarUnico($this)->assertOk();
+
+    expect(msEnviados($whatsapp))->toBe(1);
+});
+
+it('el listado tiene un solo botón de enviar', function () {
     $grid = app(QuoteDataGrid::class);
     $grid->prepareActions();
 
-    expect(collect($grid->getActions())->map(fn ($a) => $a->index)->all())
-        ->toContain('messenger');
+    $acciones = collect($grid->getActions())->map(fn ($a) => $a->index)->all();
+
+    expect($acciones)->toContain('send')
+        ->not->toContain('whatsapp')
+        ->not->toContain('messenger');
 });
