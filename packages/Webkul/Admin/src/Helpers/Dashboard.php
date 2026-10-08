@@ -185,6 +185,21 @@ class Dashboard
     }
 
     /**
+     * Cuánto tarda en contestarse un mensaje de WhatsApp: agente vs asesor.
+     *
+     * No se superpone con getResponseTimeByUsersStats(), que mide el ciclo de
+     * vida del pedido —de created_at a la etapa actual—. Eso es cuánto tarda en
+     * cerrarse una venta; esto es cuánto espera un cliente una respuesta.
+     */
+    public function getWhatsappResponseTimeStats(): array
+    {
+        return (new \Webkul\Whatsapp\Services\ResponseTimeReport(
+            $this->getStartDate(),
+            $this->getEndDate(),
+        ))->build();
+    }
+
+    /**
      * Detalle paginado de "tiempo en responder", una fila por contacto.
      */
     public function getResponseTimeDetailStats(): array

@@ -154,6 +154,7 @@ class InboxController extends Controller
                 'reply_to_id'     => $data['reply_to_id'] ?? null,
                 'status'          => 'queued',
                 'sender'          => 'human',
+                'user_id'         => auth()->guard('user')->id(),
             ]);
 
             $conversation->forceFill(['last_message_at' => now()])->save();
@@ -267,6 +268,7 @@ class InboxController extends Controller
                 'reply_to_id'     => $data['reply_to_id'] ?? null,
                 'status'          => 'queued',
                 'sender'          => 'human',
+                'user_id'         => auth()->guard('user')->id(),
                 'payload'         => ['media' => $media->toArray()],
             ]);
 
@@ -332,6 +334,7 @@ class InboxController extends Controller
                 'reply_to_id'     => $data['reply_to_id'] ?? null,
                 'status'          => 'queued',
                 'sender'          => 'human',
+                'user_id'         => auth()->guard('user')->id(),
                 'payload'         => ['location' => $location->toArray()],
             ]);
 
@@ -544,6 +547,7 @@ class InboxController extends Controller
                 'body'            => $catalog->render($template['body'], $variables),
                 'status'          => 'queued',
                 'sender'          => 'human',
+                'user_id'         => auth()->guard('user')->id(),
                 /*
                  * Written before the send, not after: this payload is what
                  * SendMessage reads to build the request, what a retry reads

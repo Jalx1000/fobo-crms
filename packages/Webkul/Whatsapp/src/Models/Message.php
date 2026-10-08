@@ -28,6 +28,7 @@ class Message extends Model implements MessageContract
         'status',
         'error',
         'sender',
+        'user_id',
         'payload',
     ];
 
