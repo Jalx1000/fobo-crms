@@ -67,7 +67,7 @@
                                     :class="filter === f.value
                                         ? 'bg-brandColor text-white'
                                         : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'"
-                                    @click="filter = f.value; load()">
+                                    @click="filter = f.value; reload()">
                                 @{{ f.label }}
                             </button>
                         </div>
@@ -106,7 +106,7 @@
                                     :class="!stageFilter
                                         ? 'bg-sky-600 text-white'
                                         : 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300'"
-                                    @click="stageFilter = null; load()">
+                                    @click="stageFilter = null; reload()">
                                 Todas las etapas
                             </button>
                             <button v-for="s in stages" :key="s" type="button"
@@ -114,7 +114,7 @@
                                     :class="stageFilter === s
                                         ? 'bg-sky-600 text-white'
                                         : 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300'"
-                                    @click="stageFilter = s; load()">
+                                    @click="stageFilter = s; reload()">
                                 @{{ s }}
                             </button>
                         </div>
@@ -212,10 +212,11 @@
                                 </div>
                             </div>
 
-                            <button v-if="page < lastPage" type="button"
-                                    class="w-full py-3 text-center text-xs font-medium text-brandColor transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brandColor dark:hover:bg-gray-800"
+                            <button v-if="hasMore" type="button"
+                                    :disabled="loadingMore"
+                                    class="w-full py-3 text-center text-xs font-medium text-brandColor transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brandColor disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-gray-800"
                                     @click="loadMore">
-                                Cargar más conversaciones
+                                @{{ loadingMore ? 'Cargando…' : 'Cargar más conversaciones' }}
                             </button>
                         </template>
                     </div>
@@ -319,15 +320,44 @@
                         cityFilter: /^\d+$/.test(this.savedCity || '')
                             ? Number(this.savedCity)
                             : null,
-                        page: 1,
-                        lastPage: 1,
+                        /*
+                         * Bloques de 30 que el usuario tiene en pantalla. NO es
+                         * la página del paginador del servidor: el refresco
+                         * automático pide todo el bloque de una, así que el
+                         * servidor siempre responde current_page = 1. Mientras
+                         * las dos cosas compartían la variable `page`, el
+                         * refresco la devolvía a 1 y el botón de cargar más
+                         * desaparecía aunque quedaran conversaciones.
+                         */
+                        loadedPages: 1,
+                        /** Cuántas hay en total, según el servidor. */
+                        totalCount: 0,
+                        /** Techo del backend; lo informa la propia respuesta. */
+                        maxPages: 10,
                         listLoading: false,
+                        loadingMore: false,
                         searchTimer: null,
                         pollTimer: null,
                     };
                 },
 
                 computed: {
+                    /**
+                     * ¿Queda algo por traer?
+                     *
+                     * Se compara contra el total del servidor y no contra
+                     * `last_page`: el refresco pide un bloque de tamaño variable,
+                     * así que el last_page que devuelve el paginador cambia con
+                     * cada llamada y no sirve para decidir esto.
+                     *
+                     * El backend tiene un techo (300); pasado eso el botón se
+                     * apaga aunque haya más, y el usuario filtra o busca.
+                     */
+                    hasMore() {
+                        return this.conversations.length < this.totalCount
+                            && this.loadedPages < this.maxPages;
+                    },
+
                     // What the shared inbox component needs to load this thread.
                     threadContext() {
                         return {
@@ -356,19 +386,47 @@
                 },
 
                 methods: {
+                    /**
+                     * Recarga la lista conservando lo que el usuario ya cargó.
+                     *
+                     * Pide de una todos los bloques acumulados en vez de la
+                     * página 1: si no, el refresco de cada 10 s borraba lo que
+                     * había traído "cargar más" y la lista saltaba arriba.
+                     */
                     load(background = false) {
                         if (!background) this.listLoading = true;
 
+                        // Un refresco en medio de un "cargar más" pisaría la
+                        // respuesta que viene en camino.
+                        if (background && this.loadingMore) return Promise.resolve();
+
                         return this.$axios.get(this.conversationsUrl, {
-                                params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, city: this.cityFilter, page: 1 },
+                                params: {
+                                    search: this.search || null,
+                                    filter: this.filter,
+                                    stage: this.stageFilter,
+                                    city: this.cityFilter,
+                                    page: 1,
+                                    per_page: this.loadedPages * 30,
+                                },
                             })
                             .then(res => {
                                 this.conversations = res.data?.data ?? [];
-                                this.page = res.data?.current_page ?? 1;
-                                this.lastPage = res.data?.last_page ?? 1;
+                                this.totalCount = res.data?.total ?? this.conversations.length;
+                                this.maxPages = res.data?.max_pages ?? this.maxPages;
                             })
                             .catch(() => {})
                             .finally(() => { this.listLoading = false; });
+                    },
+
+                    /**
+                     * Cambió un filtro o la búsqueda: el acumulado no aplica al
+                     * listado nuevo, así que se vuelve al primer bloque.
+                     */
+                    reload() {
+                        this.loadedPages = 1;
+
+                        return this.load();
                     },
 
                     /**
@@ -378,7 +436,7 @@
                     onCityChange() {
                         this.rememberCity(this.cityFilter);
 
-                        this.load();
+                        this.reload();
                     },
 
                     /**
@@ -424,20 +482,44 @@
                     },
 
                     loadMore() {
+                        // Sin esto, dos clicks piden el mismo bloque dos veces y
+                        // la lista queda con filas repetidas (y con keys
+                        // duplicadas en el v-for).
+                        if (this.loadingMore || !this.hasMore) return;
+
+                        this.loadingMore = true;
+
                         this.$axios.get(this.conversationsUrl, {
-                                params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, city: this.cityFilter, page: this.page + 1 },
+                                params: {
+                                    search: this.search || null,
+                                    filter: this.filter,
+                                    stage: this.stageFilter,
+                                    city: this.cityFilter,
+                                    page: this.loadedPages + 1,
+                                },
                             })
                             .then(res => {
-                                this.conversations.push(...(res.data?.data ?? []));
-                                this.page = res.data?.current_page ?? this.page + 1;
-                                this.lastPage = res.data?.last_page ?? this.lastPage;
+                                const nuevas = res.data?.data ?? [];
+
+                                /*
+                                 * La lista se reordena sola (llega un mensaje y
+                                 * esa conversación sube), así que entre un
+                                 * bloque y el siguiente una fila puede repetirse.
+                                 * Se filtra por id antes de agregar.
+                                 */
+                                const yaEstan = new Set(this.conversations.map(c => c.id));
+
+                                this.conversations.push(...nuevas.filter(c => !yaEstan.has(c.id)));
+                                this.loadedPages += 1;
+                                this.totalCount = res.data?.total ?? this.totalCount;
                             })
-                            .catch(() => {});
+                            .catch(() => {})
+                            .finally(() => { this.loadingMore = false; });
                     },
 
                     debouncedLoad() {
                         if (this.searchTimer) clearTimeout(this.searchTimer);
-                        this.searchTimer = setTimeout(() => this.load(), 350);
+                        this.searchTimer = setTimeout(() => this.reload(), 350);
                     },
 
                     select(conversation) {

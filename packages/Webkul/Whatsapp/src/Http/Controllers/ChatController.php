@@ -22,6 +22,12 @@ use Webkul\Whatsapp\Support\ConversationCity;
  */
 class ChatController extends Controller
 {
+    /** Conversaciones por página en el listado. */
+    private const POR_PAGINA = 30;
+
+    /** Techo del bloque que puede pedir el refresco automático. */
+    private const POR_PAGINA_MAX = 300;
+
     /**
      * The two-pane chat page.
      */
@@ -170,7 +176,7 @@ class ChatController extends Controller
             ->orderByRaw("(handoff_state in ('requested','assigned')) desc")
             ->orderByRaw('last_message_at is null')
             ->orderByDesc('last_message_at')
-            ->paginate(30);
+            ->paginate($this->porPagina($request));
 
         // Dos consultas sueltas en vez de un join por fila: son un puñado de
         // ciudades y de asesores, y así la lista no hace N+1.
@@ -204,6 +210,16 @@ class ChatController extends Controller
             ]),
             'current_page' => $conversations->currentPage(),
             'last_page'    => $conversations->lastPage(),
+            /*
+             * El front decide con `total` si queda algo por traer, no con
+             * `last_page`: el refresco pide bloques de tamaño variable, así que
+             * last_page cambia en cada llamada y no sirve para eso.
+             *
+             * `max_pages` es el techo del bloque que puede pedir el refresco,
+             * para que el número viva en un solo lado.
+             */
+            'total'     => $conversations->total(),
+            'max_pages' => (int) (self::POR_PAGINA_MAX / self::POR_PAGINA),
         ]);
     }
 
@@ -544,5 +560,26 @@ class ChatController extends Controller
             'message'   => 'Contacto creado y vinculado.',
             'person_id' => $person->id,
         ]);
+    }
+
+    /**
+     * Cuántas conversaciones devolver.
+     *
+     * El listado se refresca solo cada 10 s, y ese refresco pedía siempre la
+     * página 1 y reemplazaba el array entero: quien había apretado "cargar más"
+     * perdía lo acumulado y la lista le saltaba al principio. Ahora el front
+     * pide de una el bloque completo que ya tiene en pantalla.
+     *
+     * Con techo, porque el bloque viaja cada 10 segundos: 30 filas son ~10 KB,
+     * así que 300 son ~100 KB por refresco y por pestaña abierta. Medido, la
+     * consulta aguanta de sobra —729 filas tardan 95 ms contra 53 ms de 30,
+     * porque el costo fijo es la window function que deduplica por teléfono—;
+     * lo que no conviene dejar sin límite es el JSON.
+     */
+    protected function porPagina(Request $request): int
+    {
+        $pedido = (int) $request->input('per_page', self::POR_PAGINA);
+
+        return max(self::POR_PAGINA, min($pedido, self::POR_PAGINA_MAX));
     }
 }
