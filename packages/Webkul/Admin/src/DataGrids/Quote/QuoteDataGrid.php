@@ -23,8 +23,6 @@ class QuoteDataGrid extends DataGrid
                 'quotes.expired_at',
                 'quotes.sub_total',
                 'quotes.discount_amount',
-                'quotes.tax_amount',
-                'quotes.adjustment_amount',
                 'quotes.grand_total',
                 'quotes.created_at',
                 'users.id as user_id',
@@ -155,24 +153,6 @@ class QuoteDataGrid extends DataGrid
             'sortable'   => true,
             'filterable' => true,
             'closure'    => fn ($row) => core()->formatBasePrice($row->discount_amount, 2),
-        ]);
-
-        $this->addColumn([
-            'index'      => 'tax_amount',
-            'label'      => trans('admin::app.quotes.index.datagrid.tax'),
-            'type'       => 'string',
-            'filterable' => true,
-            'sortable'   => true,
-            'closure'    => fn ($row) => core()->formatBasePrice($row->tax_amount, 2),
-        ]);
-
-        $this->addColumn([
-            'index'      => 'adjustment_amount',
-            'label'      => trans('admin::app.quotes.index.datagrid.adjustment'),
-            'type'       => 'string',
-            'sortable'   => true,
-            'filterable' => false,
-            'closure'    => fn ($row) => core()->formatBasePrice($row->adjustment_amount, 2),
         ]);
 
         $this->addColumn([
