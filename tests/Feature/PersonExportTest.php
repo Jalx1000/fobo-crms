@@ -1,8 +1,17 @@
 <?php
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Webkul\Attribute\Models\Attribute;
 use Webkul\DataGrid\Exports\DataGridExport;
+
+/*
+ * La suite corre contra la base de PRODUCCIÓN: todo dentro de una
+ * transacción, así lo que el test crea se deshace al terminar.
+ *
+ * Creaba un pipeline sin etapas que después rompía a otros tests.
+ */
+uses(DatabaseTransactions::class);
 
 /**
  * These tests exercise the prospect (persons) export and require a database
@@ -55,9 +64,23 @@ it('exports the city custom attribute as its label, not the raw id', function ()
 
     $export = new DataGridExport($dataGrid);
 
+    /*
+     * La fila real que produce el DataGrid, no un objeto armado a mano.
+     *
+     * Antes se le pasaba (object) ['id' => $personId] y el export leía cada
+     * columna por su índice: al agregarse `person_name` a la grilla, el stub
+     * quedó corto y reventaba con "Undefined property". Tomando la fila de la
+     * propia consulta, cualquier columna nueva viene incluida.
+     */
+    $registro = $dataGrid->prepareQueryBuilder()
+        ->where('persons.id', $personId)
+        ->first();
+
+    expect($registro)->not->toBeNull('El DataGrid no devolvió la persona creada.');
+
     // Zip the export headings with the mapped row and read the city cell by its
     // column label, so the assertion is exact (no substring false positives).
-    $cells = collect($export->headings())->combine($export->map((object) ['id' => $personId]));
+    $cells = collect($export->headings())->combine($export->map($registro));
 
     expect($cells->get($attribute->name))->toBe($pipelineName);
 });

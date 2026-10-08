@@ -1,8 +1,17 @@
 <?php
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Webkul\User\Models\User;
+
+/*
+ * La suite corre contra la base de PRODUCCIÓN: todo dentro de una
+ * transacción, así lo que el test crea se deshace al terminar.
+ *
+ * Creaba productos y atributos sobre el catálogo real.
+ */
+uses(DatabaseTransactions::class);
 
 /*
 |--------------------------------------------------------------------------
@@ -124,10 +133,21 @@ function teardownProductTables(): void
     $GLOBALS['__atributosDePrueba'] = [];
 }
 
+/**
+ * Un usuario autenticado para la API.
+ *
+ * Los modelos de Krayin no tienen factories, así que `User::factory()` tiraba
+ * BadMethodCallException y estos tests nunca corrieron. Se crea a mano y la
+ * transacción del archivo lo deshace al terminar.
+ */
 function authenticatedUser(): User
 {
-    $user = User::factory()->create([
-        'status' => 1,
+    $user = User::create([
+        'name'     => 'Usuario test '.uniqid(),
+        'email'    => 'test-'.uniqid().'@example.com',
+        'password' => bcrypt('secret'),
+        'status'   => 1,
+        'role_id'  => DB::table('roles')->value('id'),
     ]);
 
     Sanctum::actingAs($user);

@@ -297,7 +297,27 @@ function etapaDescartado(int $pipelineId): ?int
         ->value('id');
 }
 
+/*
+ * La etapa "Descartado" se eliminó de todos los pipelines el 30/09/2026 por
+ * decisión del negocio, junto con los 101 pedidos que tenía (copia en
+ * storage/backups/descartados-20260930-115117.json).
+ *
+ * Los tests que dependen de ella quedan SALTEADOS y no borrados: el mecanismo
+ * de limpieza de fantasmas sigue existiendo en el código y hay una decisión
+ * pendiente sobre qué hace de ahora en más —borrar el fantasma directo o
+ * dejarlo visible en el kanban—. Cuando eso se resuelva, estos tests se
+ * reescriben o se eliminan con el resto.
+ */
+function etapaDescartadoDisponible(): void
+{
+    if (! DB::table('lead_pipeline_stages')->where('code', 'descartado')->exists()) {
+        test()->markTestSkipped('La etapa "Descartado" se eliminó el 30/09/2026; queda pendiente definir el reemplazo.');
+    }
+}
+
 it('existe la etapa Descartado en todos los pipelines', function () {
+    etapaDescartadoDisponible();
+
     /*
      * Sólo los pipelines que tienen etapas: otros tests crean pipelines
      * temporales sin ninguna ("Bogotá Export …"), y ésos no son parte del
@@ -313,6 +333,8 @@ it('existe la etapa Descartado en todos los pipelines', function () {
 });
 
 it('Descartado cuenta como etapa cerrada', function () {
+    etapaDescartadoDisponible();
+
     expect(Webkul\Lead\Services\CitySyncService::CLOSED_STAGE_CODES)->toContain('descartado');
 });
 
@@ -346,6 +368,8 @@ it('sigue siendo fantasma aunque lo hayan movido de etapa', function () {
 });
 
 it('deja de ser fantasma si lo mandaron a una etapa de cierre', function () {
+    etapaDescartadoDisponible();
+
     $lead = app(LeadOpener::class)->open(contactoConCiudad(null));
 
     $cerrada = DB::table('lead_pipeline_stages')
@@ -371,6 +395,8 @@ it('deja de ser fantasma si tiene monto', function () {
  * tenga que cambiar nada.
  */
 it('crear un pedido real descarta el fantasma del mismo contacto', function () {
+    etapaDescartadoDisponible();
+
     $person = contactoConCiudad(Pipeline::where('name', 'Sucre')->first()?->id);
 
     $fantasma = app(LeadOpener::class)->open($person);
@@ -398,6 +424,8 @@ it('crear un pedido real descarta el fantasma del mismo contacto', function () {
  * real no descarta al primero. Medido: 14 contactos ya tienen más de un pedido.
  */
 it('un segundo pedido real no descarta al primero', function () {
+    etapaDescartadoDisponible();
+
     $person = contactoConCiudad(null);
 
     app(LeadOpener::class)->open($person);

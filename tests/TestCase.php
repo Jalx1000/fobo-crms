@@ -13,15 +13,43 @@ abstract class TestCase extends BaseTestCase
     /**
      * Tablas cuyo contenido es dato de negocio irrecuperable desde un test.
      */
+    /**
+     * Tablas con datos reales. Ver protegerDatosReales().
+     *
+     * La lista se amplió el 2026-09-26 después de encontrar que
+     * `DoctorApiTest` truncaba `doctors` (73 filas reales) y `activities`
+     * (29.760). Nunca llegó a ejecutarse: falla una línea antes por una foreign
+     * key de `doctor_activities`. O sea que lo único que separaba a la suite de
+     * borrar el historial completo del CRM era una restricción de integridad
+     * que nadie puso con ese fin.
+     */
     protected array $tablasProtegidas = [
+        // Catálogo y contactos
         'products',
         'attributes',
         'attribute_values',
         'persons',
         'organizations',
-        'leads',
         'users',
         'roles',
+        // Pedidos y su estructura
+        'leads',
+        'lead_products',
+        'lead_pipelines',
+        'lead_pipeline_stages',
+        // Historial: no se regenera, y es lo que mira el tablero
+        'activities',
+        'lead_activities',
+        'person_activities',
+        // WhatsApp
+        'whatsapp_conversations',
+        'whatsapp_messages',
+        // Agenda médica
+        'doctors',
+        'doctor_shifts',
+        'doctor_activities',
+        'doctor_specialty',
+        'specialties',
     ];
 
     protected function setUp(): void

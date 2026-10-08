@@ -1,22 +1,44 @@
 <?php
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Webkul\Product\Models\Product;
 
+/*
+ * La suite corre contra la base de PRODUCCIÓN: todo dentro de una
+ * transacción, así lo que el test crea se deshace al terminar.
+ *
+ * Creaba atributos y sus valores sobre el catálogo real.
+ */
+uses(DatabaseTransactions::class);
+
 it('muestra el atributo una sola vez en la vista de producto', function () {
     // Crear producto mínimo
+    /*
+     * SKU único por corrida: 'TEST-SKU-1' era fijo y quedó grabado en el
+     * catálogo real en una corrida anterior (producto #81, del 22/09), así que
+     * desde entonces el test chocaba contra su propia basura.
+     */
     $product = Product::create([
-        'name'        => 'Test Product',
-        'sku'         => 'TEST-SKU-1',
+        'name'        => 'Test Product '.uniqid(),
+        'sku'         => 'TEST-SKU-'.uniqid(),
         'description' => 'Desc',
         'quantity'    => 5,
         'price'       => 10.5,
     ]);
 
-    // Asegurar un atributo custom para products
+    /*
+     * Code y nombre únicos por corrida, por la misma razón que el SKU: el
+     * atributo fijo `custom_attr_one` quedó grabado en producción el 01/09
+     * (#79, con 3 valores) y desde entonces el test chocaba con él. Peor que
+     * romper el test: un atributo de prueba le aparece en el formulario de
+     * productos a cualquiera que entre.
+     */
+    $marca = 'Custom '.uniqid();
+
     $attributeId = DB::table('attributes')->insertGetId([
-        'code'            => 'custom_attr_one',
-        'name'            => 'Custom One',
+        'code'            => 'custom_attr_'.uniqid(),
+        'name'            => $marca,
         'type'            => 'text',
         'entity_type'     => 'products',
         'lookup_type'     => null,
@@ -41,23 +63,30 @@ it('muestra el atributo una sola vez en la vista de producto', function () {
         'json_value'    => null,
         'datetime_value'=> null,
         'date_value'    => null,
-        'created_at'    => now(),
-        'updated_at'    => now(),
+        // attribute_values no tiene timestamps en este esquema.
     ]);
 
     // Renderizar la sección de atributos
     $html = view('admin::products.view.attributes', ['product' => $product])->render();
 
-    // Verifica que el atributo custom se muestre exactamente una vez
-    expect(substr_count($html, 'Custom One'))
-        ->toBe(1);
+    /*
+     * Se cuenta la ETIQUETA renderizada, no el nombre suelto en el HTML.
+     *
+     * La versión anterior hacía substr_count($html, $nombre) y esperaba 1, pero
+     * cada campo escribe su nombre tres veces: la etiqueta visible más el
+     * `label=` y el `placeholder=` del componente de edición inline. O sea que
+     * la aserción daba 3 para un campo que se muestra UNA vez, y habría dado 6
+     * para uno realmente duplicado: no distinguía las dos cosas.
+     *
+     * Nunca se notó porque el test moría antes, chocando contra su propia
+     * basura de corridas anteriores.
+     */
+    $etiqueta = fn (string $nombre) => substr_count($html, '>'.$nombre.'</div>');
+
+    expect($etiqueta($marca))->toBe(1);
 
     // Verifica que atributos por defecto no se dupliquen
-    expect(substr_count($html, __('installer::app.seeders.attributes.products.price')) <= 1)
-        ->toBeTrue();
-    expect(substr_count($html, __('installer::app.seeders.attributes.products.quantity')) <= 1)
-        ->toBeTrue();
-    expect(substr_count($html, __('installer::app.seeders.attributes.products.sku')) <= 1)
-        ->toBeTrue();
+    expect($etiqueta(__('installer::app.seeders.attributes.products.price')))->toBeLessThanOrEqual(1);
+    expect($etiqueta(__('installer::app.seeders.attributes.products.quantity')))->toBeLessThanOrEqual(1);
+    expect($etiqueta(__('installer::app.seeders.attributes.products.sku')))->toBeLessThanOrEqual(1);
 });
-

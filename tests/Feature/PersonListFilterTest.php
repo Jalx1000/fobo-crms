@@ -1,64 +1,16 @@
 <?php
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
-use Webkul\Attribute\Models\Attribute;
 
-/**
- * Ensures the "cliente_ciudad" select attribute (lookup to lead_pipelines)
- * exists for persons and returns its id.
+/*
+ * La suite corre contra la base de PRODUCCIÓN: todo dentro de una
+ * transacción, así lo que el test crea se deshace al terminar.
+ *
+ * Dejó 9 personas "Explicit Sin Ciudad" en la base real.
  */
-function ensureCityAttribute(): int
-{
-    $attribute = Attribute::where('code', 'cliente_ciudad')
-        ->where('entity_type', 'persons')
-        ->first();
+uses(DatabaseTransactions::class);
 
-    if (! $attribute) {
-        $attribute = Attribute::create([
-            'code'            => 'cliente_ciudad',
-            'name'            => 'Ciudad',
-            'type'            => 'select',
-            'entity_type'     => 'persons',
-            'lookup_type'     => 'lead_pipelines',
-            'is_required'     => 0,
-            'is_unique'       => 0,
-            'validation'      => '',
-            'sort_order'      => 1,
-            'is_user_defined' => 1,
-        ]);
-    }
-
-    return $attribute->id;
-}
-
-function createPerson(string $name, $createdAt, int $attributeId, int $pipelineId): int
-{
-    $personId = createPersonWithoutCity($name, $createdAt);
-
-    DB::table('attribute_values')->insert([
-        'entity_type'   => 'persons',
-        'attribute_id'  => $attributeId,
-        'entity_id'     => $personId,
-        'integer_value' => $pipelineId,
-    ]);
-
-    return $personId;
-}
-
-function createPersonWithoutCity(string $name, $createdAt): int
-{
-    return DB::table('persons')->insertGetId([
-        'name'       => $name,
-        'emails'     => json_encode([]),
-        'created_at' => $createdAt,
-        'updated_at' => $createdAt,
-    ]);
-}
-
-/**
- * Resolves the "Sin ciudad" pipeline id, creating it if the environment
- * doesn't already have it.
- */
 function noCityPipelineId(): int
 {
     $id = DB::table('lead_pipelines')->where('name', 'Sin ciudad')->value('id');
