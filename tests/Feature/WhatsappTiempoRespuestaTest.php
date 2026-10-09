@@ -171,3 +171,37 @@ it('el endpoint del tablero lo devuelve con las dos ramas', function () {
     expect($r)->toHaveKeys(['agente', 'asesor', 'por_asesor'])
         ->and($r['agente'])->toHaveKeys(['respuestas', 'mediana', 'p90', 'promedio']);
 });
+
+// ---------------------------------------------------------------------------
+// Filtro por ciudad, como el resto del tablero
+// ---------------------------------------------------------------------------
+
+it('acota el reporte a una ciudad', function () {
+    $tarija = (int) DB::table('lead_pipelines')->where('name', 'Tarija')->value('id');
+
+    $todas = (new ResponseTimeReport(now()->subDays(30), now()))->build();
+    $sola = (new ResponseTimeReport(now()->subDays(30), now()))->enPipeline($tarija)->build();
+
+    expect($sola['agente']['respuestas'])->toBeLessThan($todas['agente']['respuestas'])
+        ->and($sola['agente']['respuestas'])->toBeGreaterThan(0);
+});
+
+it('sin ciudad devuelve todo, como antes', function () {
+    $a = (new ResponseTimeReport(now()->subDays(30), now()))->build();
+    $b = (new ResponseTimeReport(now()->subDays(30), now()))->enPipeline(null)->build();
+
+    expect($b['agente']['respuestas'])->toBe($a['agente']['respuestas']);
+});
+
+it('el endpoint del tablero respeta pipeline_id', function () {
+    $tarija = (int) DB::table('lead_pipelines')->where('name', 'Tarija')->value('id');
+
+    $todas = test()->getJson(route('admin.dashboard.stats', ['type' => 'tiempo-respuesta-whatsapp']))
+        ->json('statistics.agente.respuestas');
+
+    $sola = test()->getJson(route('admin.dashboard.stats', [
+        'type' => 'tiempo-respuesta-whatsapp', 'pipeline_id' => $tarija,
+    ]))->json('statistics.agente.respuestas');
+
+    expect($sola)->toBeLessThan($todas);
+});

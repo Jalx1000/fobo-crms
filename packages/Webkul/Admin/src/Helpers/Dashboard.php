@@ -196,7 +196,10 @@ class Dashboard
         return (new \Webkul\Whatsapp\Services\ResponseTimeReport(
             $this->getStartDate(),
             $this->getEndDate(),
-        ))->build();
+        ))
+            // Mismo filtro global de ciudad que las demás tarjetas.
+            ->enPipeline(is_numeric(request('pipeline_id')) ? (int) request('pipeline_id') : null)
+            ->build();
     }
 
     /**

@@ -1106,17 +1106,25 @@ class Lead extends AbstractReporting
 
         $dwell = $this->stageDwellSeconds($leads->pluck('lead_id')->all(), $groups);
 
-        $rows = $leads->map(function ($lead) use ($dwell, $groups) {
+        $actores = $this->stageActorsByLead($leads->pluck('lead_id')->all(), $groups);
+
+        $rows = $leads->map(function ($lead) use ($dwell, $actores, $groups) {
             $stages = [];
 
             $total = 0;
 
             foreach ($groups as $code => $group) {
                 $seconds = $dwell[$lead->lead_id][$code] ?? null;
+                $actor = $actores[$lead->lead_id][$code] ?? null;
 
                 $stages[$code] = [
                     'seconds' => $seconds,
                     'human'   => $this->humanizeSeconds($seconds),
+
+                    // Cuándo entró a esta etapa y quién la movió.
+                    'at'       => $actor['at'] ?? null,
+                    'by'       => $actor['por'] ?? null,
+                    'by_agent' => $actor['es_agente'] ?? false,
 
                     /**
                      * En una etapa terminal el reloj mide antigüedad, no demora del
@@ -1171,8 +1179,87 @@ class Lead extends AbstractReporting
      * (los de la página). Ver `getStageDwellTimeByLead()` para las reglas.
      *
      * @param  array<int>  $leadIds
-     * @return array<int, array<string, int>>  [lead_id => [stage_code => seconds]]
+     * @return array<int, array<string, int>> [lead_id => [stage_code => seconds]]
      */
+    /**
+     * Cuándo entró cada lead a cada etapa, y quién lo movió.
+     *
+     * Va en una consulta aparte y NO dentro de stageDwellSeconds(), que suma la
+     * permanencia con window functions y tres UNION: agregarle el autor habría
+     * obligado a reescribir esa lógica, que ya resuelve casos finos como un
+     * lead que cambia de ciudad a mitad de camino.
+     *
+     * Se toma la ÚLTIMA entrada a cada etapa, no la primera: un lead que volvió
+     * a "No atendido" después de haber avanzado está ahí por la decisión más
+     * reciente, que es la que explica dónde está hoy.
+     *
+     * Las transiciones sin usuario son el alta del pedido —medido: los 683
+     * casos de los últimos 30 días son todos `null -> No atendido`—, así que se
+     * muestran como "alta" y no como un autor desconocido.
+     *
+     * @param  array<int, int>  $leadIds
+     * @param  array<string, array{ids: array<int, int>, terminal: bool}>  $groups
+     * @return array<int, array<string, array{at: string, por: string, es_agente: bool}>>
+     */
+    protected function stageActorsByLead(array $leadIds, array $groups): array
+    {
+        if (! $leadIds) {
+            return [];
+        }
+
+        $porEtapa = [];
+
+        foreach ($groups as $code => $group) {
+            foreach ($group['ids'] as $id) {
+                $porEtapa[(int) $id] = $code;
+            }
+        }
+
+        /*
+         * El prefijo se escribe a mano en los fragmentos crudos: el query
+         * builder prefija también el ALIAS, así que `a` se convierte en `kl_a`
+         * y un JSON_EXTRACT(a.additional, …) no encuentra la columna.
+         */
+        $p = DB::getTablePrefix();
+
+        $filas = DB::table('activities as a')
+            ->join('lead_activities as la', 'la.activity_id', '=', 'a.id')
+            ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
+            ->leftJoin('roles as r', 'r.id', '=', 'u.role_id')
+            ->whereIn('la.lead_id', $leadIds)
+            ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT({$p}a.additional, '$.attribute')) = 'Etapa'")
+            ->orderBy('a.id')
+            ->get([
+                'la.lead_id',
+                'a.created_at',
+                'u.name as autor',
+                'r.name as rol',
+                DB::raw("CAST(JSON_UNQUOTE(JSON_EXTRACT({$p}a.additional, '$.new.value')) AS UNSIGNED) as stage_id"),
+            ]);
+
+        $salida = [];
+
+        foreach ($filas as $fila) {
+            $code = $porEtapa[(int) $fila->stage_id] ?? null;
+
+            if (! $code) {
+                continue;
+            }
+
+            /*
+             * El bot es un usuario con rol "Sistema". Se mira el ROL y no el
+             * nombre: renombrar la cuenta no debe romper la distinción.
+             */
+            $salida[(int) $fila->lead_id][$code] = [
+                'at'        => Carbon::parse($fila->created_at)->format('d/m/Y H:i'),
+                'por'       => $fila->autor ?: 'alta',
+                'es_agente' => $fila->rol === 'Sistema',
+            ];
+        }
+
+        return $salida;
+    }
+
     protected function stageDwellSeconds(array $leadIds, array $groups): array
     {
         if (! $leadIds) {

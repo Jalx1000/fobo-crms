@@ -159,10 +159,30 @@
                                     <span
                                         class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold"
                                         :style="chipStyle(row.stages[column.code].light)"
+                                        :title="quienYCuando(row.stages[column.code])"
                                     >
                                         <span class="h-1.5 w-1.5 rounded-full" :style="dotStyle(row.stages[column.code].light)" aria-hidden="true"></span>
                                         @{{ row.stages[column.code].human || 'No pasó' }}
                                     </span>
+
+                                    {{--
+                                        Quién movió el pedido a esta etapa y cuándo.
+                                        El agente va marcado: de los movimientos de
+                                        etapa del último mes, 702 los hizo el bot y
+                                        1.158 personas, y hasta ahora la tarjeta no
+                                        distinguía unos de otros.
+                                    --}}
+                                    <div
+                                        v-if="row.stages[column.code].at"
+                                        class="mt-1 whitespace-nowrap text-[11px] leading-tight"
+                                        :class="row.stages[column.code].by_agent
+                                            ? 'text-emerald-700 dark:text-emerald-400'
+                                            : 'text-gray-500 dark:text-gray-400'"
+                                    >
+                                        <span class="font-medium">@{{ row.stages[column.code].by }}</span>
+                                        <br />
+                                        @{{ row.stages[column.code].at }}
+                                    </div>
                                 </td>
 
                                 <!-- Total: suma de las columnas de etapa -->
@@ -409,6 +429,22 @@
                 syncTheme() {
                     this.isDark = document.documentElement.classList.contains('dark');
                 },
+
+                /**
+
+                 * Texto del tooltip: quién movió el pedido a esta etapa y cuándo.
+
+                 */
+
+                quienYCuando(etapa) {
+
+                    if (! etapa || ! etapa.at) return '';
+
+
+                    return (etapa.by_agent ? 'Agente IA' : etapa.by) + ' · ' + etapa.at;
+
+                },
+
 
                 chipStyle(light) {
                     const entry = this.lights[light] || this.lights.gray;

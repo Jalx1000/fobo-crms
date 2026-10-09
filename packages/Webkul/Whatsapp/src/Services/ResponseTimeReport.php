@@ -4,6 +4,7 @@ namespace Webkul\Whatsapp\Services;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Webkul\Whatsapp\Support\ConversationCity;
 
 /**
  * Cuánto tarda en contestarse un mensaje de WhatsApp, separando al agente IA de
@@ -33,6 +34,8 @@ class ResponseTimeReport
     /** @var array<int, int>|null */
     private ?array $soloConversaciones = null;
 
+    private ?int $pipelineId = null;
+
     public function __construct(
         private Carbon $desde,
         private Carbon $hasta,
@@ -50,6 +53,22 @@ class ResponseTimeReport
     public function soloConversaciones(array $ids): self
     {
         $this->soloConversaciones = $ids;
+
+        return $this;
+    }
+
+    /**
+     * Acota a una ciudad, que en este CRM es el pipeline.
+     *
+     * Se resuelve con la misma cascada que usa el módulo de WhatsApp para su
+     * propio filtro —ConversationCity: derivación, ficha del cliente, pipeline
+     * del pedido—, y no con un join directo a `leads`. Si no, una conversación
+     * sin pedido enlazado quedaría fuera de toda ciudad y desaparecería del
+     * reporte al filtrar, aunque el equipo sepa de dónde es el cliente.
+     */
+    public function enPipeline(?int $pipelineId): self
+    {
+        $this->pipelineId = $pipelineId;
 
         return $this;
     }
@@ -93,6 +112,12 @@ class ResponseTimeReport
             ->where('m.status', '<>', 'failed')
             ->whereBetween('m.created_at', [$this->desde, $this->hasta])
             ->when($this->soloConversaciones, fn ($q, $ids) => $q->whereIn('m.conversation_id', $ids))
+            ->when($this->pipelineId, fn ($q, $id) => $q->whereIn(
+                'm.conversation_id',
+                DB::table('whatsapp_conversations')
+                    ->selectRaw('id')
+                    ->whereRaw(ConversationCity::sql().' = ?', [$id])
+            ))
             ->select('m.sender', 'm.created_at', 'u.id as user_id', 'u.name as user_name')
             ->selectSub(
                 DB::table('whatsapp_messages as i')
