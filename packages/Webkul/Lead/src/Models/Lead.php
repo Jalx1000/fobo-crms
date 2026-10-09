@@ -20,62 +20,6 @@ use Webkul\User\Models\UserProxy;
 
 class Lead extends Model implements LeadContract
 {
-    /**
-     * Avisa al asesor cuando el pedido PASA a "Cliente confirmado".
-     *
-     * El disparo va en el modelo y mira `wasChanged`, no el estado final, por
-     * dos razones:
-     *
-     *   1. El listener anterior colgaba de `lead.update.after` y sólo
-     *      preguntaba "¿está en confirmado?". Cada edición posterior de un
-     *      pedido ya confirmado —cambiar el monto, agregar un producto, mover
-     *      otra cosa— volvía a mandar el correo. El asesor recibía el mismo
-     *      aviso varias veces por el mismo pedido.
-     *   2. `updated` corre en el save exacto que cambió la etapa. Para cuando
-     *      se dispara `lead.update.after`, CitySyncService y applyLeadValueRule
-     *      ya volvieron a guardar el modelo y `wasChanged` quedó limpio.
-     *
-     * Cubre todos los caminos por igual: el formulario, arrastrar en el kanban
-     * y el PUT de la API.
-     */
-    protected static function booted(): void
-    {
-        static::updated(function (self $lead) {
-            if (! $lead->wasChanged('lead_pipeline_stage_id')) {
-                return;
-            }
-
-            if (! core()->getConfigData('leads.notifications.confirmed_order.enabled')) {
-                return;
-            }
-
-            /*
-             * La etapa se lee de la base y no por $lead->stage: la relación
-             * queda cacheada en la instancia, así que un pedido que ya había
-             * cargado su etapa antes del cambio devolvía la VIEJA y el aviso no
-             * se disparaba. Se notó en el caso de volver a confirmado después
-             * de haber salido.
-             */
-            $code = \Illuminate\Support\Facades\DB::table('lead_pipeline_stages')
-                ->where('id', $lead->lead_pipeline_stage_id)
-                ->value('code');
-
-            if ($code !== 'cliente-confirmado') {
-                return;
-            }
-
-            // Nunca puede costar el guardado del pedido.
-            try {
-                \Webkul\Admin\Jobs\NotifyAdvisorConfirmedLead::dispatch($lead->id);
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('No se pudo encolar el aviso de pedido confirmado', [
-                    'lead_id' => $lead->id,
-                    'error'   => $e->getMessage(),
-                ]);
-            }
-        });
-    }
-
     use CustomAttribute, LogsActivity;
 
     /**

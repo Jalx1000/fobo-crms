@@ -191,3 +191,36 @@ it('no se cae si el pedido no tiene productos', function () {
 
     Mail::assertSent(ConfirmedLeadForAdvisor::class, fn ($mail) => str_contains($mail->render(), 'sin productos cargados'));
 });
+
+// ---------------------------------------------------------------------------
+// Que el aviso no se coma el log de actividades
+// ---------------------------------------------------------------------------
+
+it('crear un pedido sigue dejando su actividad en el historial', function () {
+    $lead = pedidoDeUnAsesor();
+
+    /*
+     * Regresión de un bug propio: el aviso se registraba con un booted() en el
+     * modelo Lead, que usa el trait LogsActivity — y éste define su propio
+     * booted(). Un método en la clase gana sobre el del trait sin que PHP
+     * avise, así que el log de actividades dejó de escribirse: crear un pedido
+     * pasó a generar 0 actividades `system`, que es el historial del que
+     * dependen el tablero y la vista del pedido.
+     *
+     * El listener vive ahora en AdminServiceProvider y el trait quedó intacto.
+     */
+    expect(DB::table('lead_activities')->where('lead_id', $lead->id)->count())
+        ->toBeGreaterThan(0, 'El trait LogsActivity dejó de registrar la creación del pedido.');
+});
+
+it('el booted() de Lead sigue siendo el del trait', function () {
+    $metodo = new ReflectionMethod(Webkul\Lead\Models\Lead::class, 'booted');
+
+    /*
+     * Se compara el ARCHIVO y no getDeclaringClass(): para un método que viene
+     * de un trait, PHP reporta como clase declarante a la que lo usa, así que
+     * ese dato no distingue el caso roto del sano. El archivo sí.
+     */
+    expect(basename($metodo->getFileName()))
+        ->toBe('LogsActivity.php', 'Alguien declaró booted() en Lead y anuló el log de actividades del trait.');
+});

@@ -18,8 +18,64 @@ class AdminServiceProvider extends ServiceProvider
     /**
      * Bootstrap services.
      */
+    /**
+     * Aviso al asesor cuando su pedido PASA a "Cliente confirmado".
+     *
+     * El listener se registra acá y NO con un booted() en el modelo Lead, que
+     * fue el primer intento: `Lead` usa el trait LogsActivity, que define su
+     * propio booted(), y un método en la clase gana sobre el del trait sin que
+     * PHP avise. Resultado medido: el log de actividades de los pedidos dejó de
+     * escribirse — crear un lead pasó a generar 0 actividades `system`, que es
+     * el historial del que dependen el tablero y la vista del pedido.
+     *
+     * Se mira el CAMBIO de etapa y no el estado: colgado de lead.update.after,
+     * cada edición posterior de un pedido ya confirmado reenviaba el correo.
+     * `updated` corre en el save exacto que cambió la etapa, antes de que
+     * CitySyncService y applyLeadValueRule vuelvan a guardar y dejen
+     * wasChanged() limpio.
+     */
+    protected function avisarPedidosConfirmados(): void
+    {
+        $modelo = \Webkul\Lead\Models\LeadProxy::modelClass();
+
+        $modelo::updated(function ($lead) {
+            if (! $lead->wasChanged('lead_pipeline_stage_id')) {
+                return;
+            }
+
+            if (! core()->getConfigData('leads.notifications.confirmed_order.enabled')) {
+                return;
+            }
+
+            /*
+             * La etapa se lee de la base y no por $lead->stage: la relación
+             * queda cacheada en la instancia y devolvía la VIEJA cuando el
+             * pedido ya la había cargado antes del cambio.
+             */
+            $code = \Illuminate\Support\Facades\DB::table('lead_pipeline_stages')
+                ->where('id', $lead->lead_pipeline_stage_id)
+                ->value('code');
+
+            if ($code !== 'cliente-confirmado') {
+                return;
+            }
+
+            // Nunca puede costar el guardado del pedido.
+            try {
+                \Webkul\Admin\Jobs\NotifyAdvisorConfirmedLead::dispatch($lead->id);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('No se pudo encolar el aviso de pedido confirmado', [
+                    'lead_id' => $lead->id,
+                    'error'   => $e->getMessage(),
+                ]);
+            }
+        });
+    }
+
     public function boot(Router $router): void
     {
+        $this->avisarPedidosConfirmados();
+
         $router->aliasMiddleware('user', BouncerMiddleware::class);
 
         $router->aliasMiddleware('admin_locale', Locale::class);
