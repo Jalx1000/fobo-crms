@@ -121,9 +121,15 @@
             },
 
             mounted() {
-                this.$emitter.on('reporting-filter-updated', this.get);
+                this.get({});
 
-                this.get();
+                /*
+                 * El filtro global del tablero manda los valores por este
+                 * evento. Antes acá se leía this.$route.query, pero el tablero
+                 * no monta vue-router: $route venía undefined y la tarjeta
+                 * moría con "Cannot read properties of undefined".
+                 */
+                this.$emitter.on('reporting-filter-updated', this.get);
             },
 
             methods: {
@@ -143,11 +149,11 @@
                     return (minutos / 1440).toFixed(1) + ' d';
                 },
 
-                get() {
+                get(filtros) {
                     this.isLoading = true;
 
                     this.$axios.get("{{ route('admin.dashboard.stats') }}", {
-                            params: { ...this.$route.query, type: 'tiempo-respuesta-whatsapp' },
+                            params: Object.assign({}, filtros || {}, { type: 'tiempo-respuesta-whatsapp' }),
                         })
                         .then(res => { this.datos = res.data.statistics; })
                         .catch(() => {})
