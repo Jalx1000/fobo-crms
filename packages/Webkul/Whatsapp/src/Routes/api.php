@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Webkul\Whatsapp\Http\Controllers\Api\AgentController;
+use Webkul\Whatsapp\Http\Controllers\Api\Mobile\MeController;
 use Webkul\Whatsapp\Http\Controllers\MediaController;
 use Webkul\Whatsapp\Http\Controllers\WebhookController;
 
@@ -58,4 +59,26 @@ Route::prefix('api/v1/whatsapp')
 
         // El agente suelta la conversación y se la pasa a una persona.
         Route::post('conversations/{id}/handoff', [AgentController::class, 'handoff']);
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Mobile API (token / Sanctum)
+|--------------------------------------------------------------------------
+| La bandeja del CRM para la app mobile. El token es de una PERSONA (un
+| asesor), no del bot: whatsapp_mobile_user lo pone en el guard "user" para
+| que el permiso, "asignadas a mí" y el autor de cada acción salgan de él.
+| Spec: tasks/spec-api-mobile-whatsapp.md
+*/
+Route::prefix('api/v1/mobile/whatsapp')
+    ->middleware(['api', 'throttle:mobile-api', 'auth:sanctum', 'whatsapp_mobile_user'])
+    ->name('whatsapp.mobile.')
+    ->group(function () {
+        // Fuera de whatsapp_access a propósito: la app lo llama al iniciar
+        // sesión para saber si mostrar la bandeja o "no tenés acceso".
+        Route::get('me', [MeController::class, 'show'])->name('me');
+
+        Route::middleware('whatsapp_access')->group(function () {
+            //
+        });
     });

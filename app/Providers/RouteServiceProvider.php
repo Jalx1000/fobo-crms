@@ -53,6 +53,19 @@ class RouteServiceProvider extends ServiceProvider
                 ->by($request->ip());
         });
 
+        /**
+         * The mobile app: a person, not a machine. Polls the inbox every few
+         * seconds, so it needs more than the browser default, but far less
+         * than the agent — and each adviser gets their own bucket, so one
+         * phone left open cannot starve the others.
+         */
+        RateLimiter::for('mobile-api', function (Request $request) {
+            $user = $request->user('sanctum');
+
+            return Limit::perMinute(config('agent_api.mobile_rate_limit'))
+                ->by($user ? 'mobile-api:'.$user->id : $request->ip());
+        });
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')

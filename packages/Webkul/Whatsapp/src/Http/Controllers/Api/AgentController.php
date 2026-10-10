@@ -56,29 +56,6 @@ class AgentController extends Controller
     }
 
     /**
-     * @OA\Post(
-     *     path="/api/v1/whatsapp/conversations/{id}/messages",
-     *     operationId="whatsappAgentReply",
-     *     tags={"WhatsApp"},
-     *     summary="Send a WhatsApp reply as the AI agent",
-     *     security={ {"sanctum_admin": {} }},
-     *
-     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
-     *
-     *     @OA\RequestBody(required=true, @OA\JsonContent(
-     *         required={"text"},
-     *
-     *         @OA\Property(property="text", type="string", example="Hola, ¿en qué te ayudo?"),
-     *         @OA\Property(property="reply_to_id", type="integer", nullable=true)
-     *     )),
-     *
-     *     @OA\Response(response=200, description="Message queued for delivery"),
-     *     @OA\Response(response=401, description="Unauthenticated"),
-     *     @OA\Response(response=404, description="Conversation not found"),
-     *     @OA\Response(response=422, description="Outside the 24h messaging window")
-     * )
-     */
-    /**
      * Derivar la conversación a un asesor humano.
      *
      * Idempotente: si ya hay una derivación abierta devuelve 200 con el mismo
@@ -243,6 +220,29 @@ class AgentController extends Controller
         );
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/whatsapp/conversations/{id}/messages",
+     *     operationId="whatsappAgentReply",
+     *     tags={"WhatsApp"},
+     *     summary="Send a WhatsApp reply as the AI agent",
+     *     security={ {"sanctum_admin": {} }},
+     *
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *
+     *     @OA\RequestBody(required=true, @OA\JsonContent(
+     *         required={"text"},
+     *
+     *         @OA\Property(property="text", type="string", example="Hola, ¿en qué te ayudo?"),
+     *         @OA\Property(property="reply_to_id", type="integer", nullable=true)
+     *     )),
+     *
+     *     @OA\Response(response=200, description="Message queued for delivery"),
+     *     @OA\Response(response=401, description="Unauthenticated"),
+     *     @OA\Response(response=404, description="Conversation not found"),
+     *     @OA\Response(response=422, description="Outside the 24h messaging window")
+     * )
+     */
     public function send(Request $request, string $id, InteractiveParser $parser): JsonResponse
     {
         $data = $request->validate([

@@ -18,6 +18,7 @@ use Webkul\Whatsapp\Console\Commands\ReopenWindow;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
 use Webkul\Whatsapp\Console\Commands\ResendFailedMessages;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
+use Webkul\Whatsapp\Http\Middleware\AuthenticateMobileUser;
 use Webkul\Whatsapp\Http\Middleware\EnsureWhatsappAccess;
 use Webkul\Whatsapp\Listeners\DiscardEmptyWhatsappLead;
 use Webkul\Whatsapp\Listeners\LinkLeadToConversation;
@@ -34,6 +35,7 @@ class WhatsappServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 
         $this->app['router']->aliasMiddleware('whatsapp_access', EnsureWhatsappAccess::class);
+        $this->app['router']->aliasMiddleware('whatsapp_mobile_user', AuthenticateMobileUser::class);
 
         /*
          * Cuando se crea un pedido con contenido, se descarta el vacío que el

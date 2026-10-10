@@ -6,16 +6,19 @@ Tests: `docker exec -w /code heaven_kolberg_laravel.1.<id> php artisan test test
 
 ## 1. Base de autenticación
 
-- [ ] **1.1 Middleware y grupo de rutas**
+- [x] **1.1 Middleware y grupo de rutas**
   - Acceptance: `AuthenticateMobileUser` carga el usuario del token en el guard `user`; el grupo `api/v1/mobile/whatsapp` lleva `api, throttle:mobile-api, auth:sanctum, whatsapp.mobile-user, whatsapp.access`.
   - Verify: test → sin token 401; token de un rol sin `whatsapp` 403 JSON; la request siguiente sin token sigue dando 401 (no quedó sesión).
+  - Hecho: el 403 se prueba en 3.1, el primer endpoint detrás de `whatsapp_access` (`/me` queda fuera a propósito).
   - Files: `Http/Middleware/AuthenticateMobileUser.php`, `Providers/WhatsappServiceProvider.php`, `Routes/api.php`, `tests/Feature/WhatsappMobileApiTest.php`
-- [ ] **1.2 Limiter `mobile-api`**
+- [x] **1.2 Limiter `mobile-api`**
   - Acceptance: bucket por usuario, `MOBILE_API_RATE_LIMIT` (default 120); `agent-api` sin cambios.
   - Verify: test → dos usuarios distintos no comparten contador; `WhatsappContratoAgenteTest` en verde.
   - Files: `app/Providers/RouteServiceProvider.php`, `config/agent_api.php`
-- [ ] **1.3 `GET /me`** + `@OA\Tag("WhatsApp Mobile")` + documentación de `/api/v1/login` y `/logout`
+- [x] **1.3 `GET /me`** + `@OA\Tag("WhatsApp Mobile")` + documentación de `/api/v1/login` y `/logout`
   - Acceptance: devuelve `{id, name, email, role, view_permission, can_whatsapp}`.
+  - Hecho: `/me` va fuera de `whatsapp_access`, si no `can_whatsapp` nunca podría ser false. Login/logout ya los documenta rest-api (tag Authentication, esquema `sanctum_admin`).
+  - Hallazgo: el `@OA\Post` de `AgentController@send` estaba huérfano (separado del método por `handoff()`) y regenerar Swagger lo borraba. Corregido.
   - Verify: test 200 con la forma esperada.
   - Files: `Http/Controllers/Api/Mobile/MeController.php`, `Routes/api.php`
 

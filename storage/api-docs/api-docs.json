@@ -311,6 +311,72 @@
                 ]
             }
         },
+        "/api/v1/mobile/whatsapp/me": {
+            "get": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Usuario del token y si puede usar WhatsApp",
+                "description": "Llamarlo al iniciar sesión. Responde 200 aunque el usuario no tenga el permiso `whatsapp`: en ese caso `can_whatsapp` es false y el resto de los endpoints del tag responden 403.",
+                "operationId": "mobileWhatsappMe",
+                "responses": {
+                    "200": {
+                        "description": "Usuario autenticado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer",
+                                                    "example": 7
+                                                },
+                                                "name": {
+                                                    "type": "string",
+                                                    "example": "Nancy Delgado"
+                                                },
+                                                "email": {
+                                                    "type": "string",
+                                                    "example": "nancy@example.com"
+                                                },
+                                                "role": {
+                                                    "type": "string",
+                                                    "example": "Encargado"
+                                                },
+                                                "view_permission": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "global",
+                                                        "group",
+                                                        "individual"
+                                                    ],
+                                                    "example": "individual"
+                                                },
+                                                "can_whatsapp": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Sin token o token inválido"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
         "/api/v1/activities": {
             "get": {
                 "tags": [
@@ -15241,6 +15307,10 @@
         }
     },
     "tags": [
+        {
+            "name": "WhatsApp Mobile",
+            "description": "Bandeja de WhatsApp para la app mobile. Autenticación: token Sanctum de un usuario del CRM, obtenido con POST /api/v1/login (tag Authentication) y enviado como `Authorization: Bearer {token}`. Cada acción queda a nombre de ese usuario, y sólo ve las conversaciones que su `view_permission` le permite."
+        },
         {
             "name": "Authentication",
             "description": "API Endpoints for Authentication."

@@ -27,6 +27,12 @@ return [
     'default_rate_limit' => (int) env('API_RATE_LIMIT', 60),
 
     /*
+    | Requests/minute per adviser on the mobile WhatsApp API
+    | (api/v1/mobile/whatsapp). Polling every 3 s is ~20/min plus actions.
+    */
+    'mobile_rate_limit' => (int) env('MOBILE_API_RATE_LIMIT', 120),
+
+    /*
     | Restrict the generous bucket to specific users, by id or by email:
     |
     |     AGENT_API_USERS=13
