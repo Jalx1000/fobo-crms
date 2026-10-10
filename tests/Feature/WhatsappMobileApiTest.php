@@ -22,36 +22,6 @@ beforeEach(fn () => DB::beginTransaction());
 
 afterEach(fn () => DB::rollBack());
 
-/**
- * Un usuario con un rol a medida, para no depender de cómo estén hoy los
- * roles reales. Nombre propio: las funciones de un test son globales a la
- * suite y `usuarioConPermisos` ya existe en WhatsappAccesoPorRolTest.
- */
-function usuarioMobile(array $permisos, string $viewPermission = 'global'): User
-{
-    $roleId = (int) DB::table('roles')->insertGetId([
-        'name'            => 'Rol mobile '.uniqid(),
-        'description'     => 'Temporal, sólo para tests',
-        'permission_type' => 'custom',
-        'permissions'     => json_encode($permisos),
-        'created_at'      => now(),
-        'updated_at'      => now(),
-    ]);
-
-    $userId = (int) DB::table('users')->insertGetId([
-        'name'            => 'Asesor mobile '.uniqid(),
-        'email'           => 'mobile-'.uniqid().'@test.local',
-        'password'        => bcrypt('password'),
-        'status'          => 1,
-        'role_id'         => $roleId,
-        'view_permission' => $viewPermission,
-        'created_at'      => now(),
-        'updated_at'      => now(),
-    ]);
-
-    return User::find($userId);
-}
-
 function tokenMobile(User $user): array
 {
     return ['Authorization' => 'Bearer '.$user->createToken('test-mobile')->plainTextToken];

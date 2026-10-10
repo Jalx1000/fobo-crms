@@ -26,14 +26,15 @@ Tests: `docker exec -w /code heaven_kolberg_laravel.1.<id> php artisan test test
 
 ## 2. Visibilidad (web y mobile)
 
-- [ ] **2.1 `scopeVisibleTo($ids)` en `Conversation`**
+- [x] **2.1 `scopeVisibleTo($ids)` en `Conversation`**
   - Acceptance: con `null` no filtra; con una lista aplica las reglas (a) asignada, (b) lead propio por `lead_id` o `person_id`, (c) bolsa.
   - Verify: tests de unidad del scope con 4 conversaciones (propia, ajena, asignada, bolsa) y un usuario `individual`.
   - Files: `Models/Conversation.php`, `tests/Feature/WhatsappVisibilidadTest.php`
-- [ ] **2.2 Aplicar el scope al listado y a la resolución por id**
+- [x] **2.2 Aplicar el scope al listado y a la resolución por id**
   - Acceptance: `ChatController@conversations` filtra; todo método que resuelve por id o por `conversation_id`, `person_id` o `lead_id` devuelve 404 si la conversación no es visible.
   - Verify: test de 404 en hilo, envío, claim y nota con una conversación ajena; suite de WhatsApp completa en verde.
-  - Files: `ChatController.php`, `InboxController.php`, `Support/VisibleConversation.php` (nuevo)
+  - Files: `ChatController.php`, `InboxController.php`
+  - Hecho: (b) cuenta leads abiertos y cerrados, como `LeadDataGrid`. Sin usuario en el guard, el scope no devuelve nada (falla cerrado). `existingConversation()` da 404 en vez de null para no abrir un hilo paralelo. También se acotan los conteos de `cities()`. Sin clase `VisibleConversation`: alcanzó con `visibleToCurrentUser()->findOrFail()`.
 
 **Checkpoint:** suite completa de WhatsApp en verde → commit aislado.
 

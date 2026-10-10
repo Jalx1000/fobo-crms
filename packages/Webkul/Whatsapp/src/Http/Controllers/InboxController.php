@@ -106,7 +106,7 @@ class InboxController extends Controller
     {
         $data = $request->validate(['enabled' => 'required|boolean']);
 
-        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        $conversation = ConversationProxy::modelClass()::visibleToCurrentUser()->findOrFail($id);
 
         $conversation->update(['ai_enabled' => $data['enabled']]);
 
@@ -382,7 +382,7 @@ class InboxController extends Controller
             'ciudad' => 'nullable',
         ]);
 
-        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        $conversation = ConversationProxy::modelClass()::visibleToCurrentUser()->findOrFail($id);
 
         $resultado = $handoff->request(
             conversation: $conversation,
@@ -406,7 +406,7 @@ class InboxController extends Controller
      */
     public function claimHandoff(string $id, HandoffService $handoff): JsonResponse
     {
-        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        $conversation = ConversationProxy::modelClass()::visibleToCurrentUser()->findOrFail($id);
 
         try {
             $conversation = $handoff->claim($conversation, (int) auth()->guard('user')->id());
@@ -427,7 +427,7 @@ class InboxController extends Controller
     {
         $data = $request->validate(['reactivate_ai' => 'nullable|boolean']);
 
-        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        $conversation = ConversationProxy::modelClass()::visibleToCurrentUser()->findOrFail($id);
 
         try {
             $conversation = $handoff->resolve(
@@ -582,7 +582,7 @@ class InboxController extends Controller
     {
         $data = $request->validate(['comment' => 'required|string']);
 
-        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        $conversation = ConversationProxy::modelClass()::visibleToCurrentUser()->findOrFail($id);
 
         if (! $conversation->person_id && ! $conversation->lead_id) {
             return response()->json([
@@ -674,6 +674,23 @@ class InboxController extends Controller
      * different format than Meta's "from".
      */
     protected function existingConversation(Request $request)
+    {
+        $conversation = $this->findExistingConversation($request);
+
+        /*
+         * Fuera del alcance del usuario es 404, nunca null: los envíos tratan
+         * null como "no hay conversación" y crean una nueva por teléfono, así
+         * que el asesor terminaría abriendo un hilo paralelo con el cliente
+         * de otro. 404 y no 403, para no confirmar que existe.
+         */
+        if ($conversation && ! $conversation->isVisibleToCurrentUser()) {
+            abort(404);
+        }
+
+        return $conversation;
+    }
+
+    protected function findExistingConversation(Request $request)
     {
         $model = ConversationProxy::modelClass();
 

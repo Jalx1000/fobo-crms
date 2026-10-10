@@ -164,3 +164,33 @@ function createPersonWithoutCity(string $name, $createdAt): int
  * Resolves the "Sin ciudad" pipeline id, creating it if the environment
  * doesn't already have it.
  */
+
+/**
+ * Un usuario con un rol a medida y un view_permission dado, para no depender
+ * de cómo estén hoy los roles reales. Lo usan los tests de la API mobile y de
+ * visibilidad de WhatsApp. Crearlo dentro de una transacción.
+ */
+function usuarioMobile(array $permisos, string $viewPermission = 'global'): \Webkul\User\Models\User
+{
+    $roleId = (int) DB::table('roles')->insertGetId([
+        'name'            => 'Rol mobile '.uniqid(),
+        'description'     => 'Temporal, sólo para tests',
+        'permission_type' => 'custom',
+        'permissions'     => json_encode($permisos),
+        'created_at'      => now(),
+        'updated_at'      => now(),
+    ]);
+
+    $userId = (int) DB::table('users')->insertGetId([
+        'name'            => 'Asesor mobile '.uniqid(),
+        'email'           => 'mobile-'.uniqid().'@test.local',
+        'password'        => bcrypt('password'),
+        'status'          => 1,
+        'role_id'         => $roleId,
+        'view_permission' => $viewPermission,
+        'created_at'      => now(),
+        'updated_at'      => now(),
+    ]);
+
+    return \Webkul\User\Models\User::find($userId);
+}

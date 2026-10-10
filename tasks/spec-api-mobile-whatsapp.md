@@ -78,6 +78,10 @@ Regla, con `$ids = bouncer()->getAuthorizedUserIds()`:
 | `null` (global) | Todas, como hoy |
 | lista (group / individual) | Las que cumplan **alguna**: (a) `assigned_user_id ∈ $ids`; (b) tiene un lead (por `lead_id` o por `person_id`) con `leads.user_id ∈ $ids`; (c) está en la bolsa: `handoff_state = requested` y sin asignado, para poder tomarla |
 
+(b) cuenta leads abiertos **y cerrados**, igual que `LeadDataGrid` (decidido
+2026-10-10): el asesor ve en WhatsApp los mismos clientes que en su listado.
+Sin usuario autenticado el scope no devuelve nada.
+
 Lo que no entra en (a)–(c) —p. ej. un contacto nuevo sin lead ni derivación—
 no lo ve un usuario restringido. Es la misma postura que con los leads: sin
 dueño autorizado, no se muestra.

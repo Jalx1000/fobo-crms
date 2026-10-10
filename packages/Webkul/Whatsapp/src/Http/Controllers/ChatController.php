@@ -44,6 +44,7 @@ class ChatController extends Controller
         $messageModel = MessageProxy::modelClass();
 
         $query = ConversationProxy::modelClass()::query()
+            ->visibleToCurrentUser()
             ->with('person:id,name')
             ->select('whatsapp_conversations.*')
             // One row per real contact. Old conversations from a decommissioned
@@ -248,7 +249,11 @@ class ChatController extends Controller
             [(string) config('whatsapp.gateway')]
         );
 
-        $conteos = DB::table('whatsapp_conversations')
+        // Con el mismo alcance que el listado: si no, un asesor restringido
+        // vería cuántas conversaciones de otros hay en cada ciudad.
+        $conteos = ConversationProxy::modelClass()::query()
+            ->visibleToCurrentUser()
+            ->toBase()
             ->joinSub($rankeadas, 'ranked', fn ($join) => $join->on('ranked.ranked_id', '=', 'whatsapp_conversations.id'))
             ->where('ranked.rn', 1)
             ->selectRaw(ConversationCity::sql().' as city_id, count(*) as total')
@@ -536,7 +541,7 @@ class ChatController extends Controller
      */
     public function linkPerson(Request $request, string $id, PersonRepository $persons): JsonResponse
     {
-        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        $conversation = ConversationProxy::modelClass()::visibleToCurrentUser()->findOrFail($id);
 
         if ($conversation->person_id) {
             return response()->json(['message' => 'La conversación ya tiene un contacto asignado.'], 422);

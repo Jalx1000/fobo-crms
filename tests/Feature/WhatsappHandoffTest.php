@@ -240,6 +240,10 @@ it('el filtro "Sin asesor" muestra solo lo que nadie tomó', function () {
     app(Handoff::class)->request($pool, 'sin ciudad');
     app(Handoff::class)->request($asignada, 'con ciudad');
 
+    // Como admin (global): el listado respeta la visibilidad del usuario y
+    // sin sesión no muestra nada.
+    auth()->guard('user')->setUser(getDefaultAdmin());
+
     $respuesta = app(\Webkul\Whatsapp\Http\Controllers\ChatController::class)
         ->conversations(\Illuminate\Http\Request::create('/', 'GET', ['filter' => 'pool']));
 
@@ -256,6 +260,10 @@ it('las derivaciones suben al tope de la lista', function () {
     $conv->forceFill(['last_message_at' => now()->subMonths(6)])->save();
 
     app(Handoff::class)->request($conv, 'espera hace rato');
+
+    // Como admin (global): el listado respeta la visibilidad del usuario y
+    // sin sesión no muestra nada.
+    auth()->guard('user')->setUser(getDefaultAdmin());
 
     $respuesta = app(\Webkul\Whatsapp\Http\Controllers\ChatController::class)
         ->conversations(\Illuminate\Http\Request::create('/', 'GET', ['filter' => 'all']));
