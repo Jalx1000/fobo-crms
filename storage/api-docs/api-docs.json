@@ -311,6 +311,1019 @@
                 ]
             }
         },
+        "/api/v1/mobile/whatsapp/conversations": {
+            "get": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Listado de conversaciones (bandeja)",
+                "description": "Paginado, una fila por contacto (las conversaciones duplicadas de un mismo número se unifican). Orden: primero las derivadas sin asesor, luego las derivadas, luego por último mensaje. Sólo incluye las conversaciones que el usuario puede ver según su `view_permission`.",
+                "operationId": "mobileWhatsappConversations",
+                "parameters": [
+                    {
+                        "name": "filter",
+                        "in": "query",
+                        "description": "unassigned = sin contacto ni lead · unread = con no leídos · handoff = derivadas · pool = derivadas sin asesor · mine = derivadas a mí",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "unassigned",
+                                "unread",
+                                "handoff",
+                                "pool",
+                                "mine"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "description": "Nombre de WhatsApp, teléfono o nombre del contacto",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "city",
+                        "in": "query",
+                        "description": "Id de ciudad (de /cities) o `none` para sin ciudad",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "example": "3"
+                        }
+                    },
+                    {
+                        "name": "stage",
+                        "in": "query",
+                        "description": "Nombre de etapa (de /stages)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "example": "No atendido"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Entre 30 y 300",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 30
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Página de conversaciones",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MobileConversationPage"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/conversations/{id}/messages": {
+            "get": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Hilo de la conversación (carga inicial o incremental)",
+                "description": "Sin `since`: los últimos 200 mensajes en orden cronológico, y marca la conversación como leída. Con `since`: sólo los mensajes nuevos o que cambiaron de estado desde ese momento (enviado → entregado → leído). Para refrescar, guardar `server_time` de cada respuesta y mandarlo como `since` en la siguiente; mezclar por `id` (es idempotente). Incluye las notas internas (`kind: note`).",
+                "operationId": "mobileWhatsappThread",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "since",
+                        "in": "query",
+                        "description": "`server_time` de la respuesta anterior",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "example": "2026-10-10 14:03:22"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Hilo",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MobileThread"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/MobileNotFound"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Enviar texto",
+                "description": "Sólo dentro de la ventana de 24 h desde el último mensaje del cliente (`window.open` en el hilo). Fuera de la ventana, usar una plantilla.",
+                "operationId": "mobileWhatsappSendText",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "text"
+                                ],
+                                "properties": {
+                                    "text": {
+                                        "type": "string",
+                                        "example": "Hola, ¿en qué te ayudo?"
+                                    },
+                                    "reply_to_id": {
+                                        "description": "Id de un mensaje del hilo, para citarlo",
+                                        "type": "integer",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Mensaje encolado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MobileSentMessage"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/MobileNotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/MobileUnprocessable"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/unread-count": {
+            "get": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Contadores para el badge de la app",
+                "description": "Sobre las conversaciones que el usuario puede ver. Liviano: pensado para consultarse seguido.",
+                "operationId": "mobileWhatsappUnreadCount",
+                "responses": {
+                    "200": {
+                        "description": "Contadores",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "properties": {
+                                                "conversations": {
+                                                    "description": "Conversaciones con al menos un mensaje sin leer",
+                                                    "type": "integer",
+                                                    "example": 4
+                                                },
+                                                "messages": {
+                                                    "description": "Total de mensajes sin leer",
+                                                    "type": "integer",
+                                                    "example": 11
+                                                },
+                                                "pool": {
+                                                    "description": "Derivadas sin asesor: alguien espera y nadie la tomó",
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "mine": {
+                                                    "description": "Derivaciones abiertas asignadas a mí",
+                                                    "type": "integer",
+                                                    "example": 2
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/conversations/{id}/link-person": {
+            "post": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Crear el contacto del chat y vincularlo",
+                "description": "Para un número que todavía no es contacto del CRM. 422 si la conversación ya tiene contacto.",
+                "operationId": "mobileWhatsappLinkPerson",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "description": "Por defecto, el nombre de WhatsApp",
+                                        "type": "string",
+                                        "maxLength": 120,
+                                        "example": "María Pérez",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Contacto creado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Contacto creado y vinculado."
+                                        },
+                                        "person_id": {
+                                            "type": "integer",
+                                            "example": 812
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/MobileNotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/MobileUnprocessable"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/persons/{id}": {
+            "get": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Ficha del contacto",
+                "description": "Datos, pedido activo, próxima actividad, archivos compartidos y huella en WhatsApp. 404 si el contacto está fuera del alcance del usuario.",
+                "operationId": "mobileWhatsappPerson",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Ficha",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "person": {
+                                            "$ref": "#/components/schemas/MobilePerson"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/MobileNotFound"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/persons/{id}/leads": {
+            "post": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Abrir un pedido (lead) para el contacto",
+                "description": "Igual que el pedido automático: en el pipeline de la ciudad del contacto, en su etapa inicial, y con el Encargado de esa ciudad como dueño (no necesariamente el usuario del token).",
+                "operationId": "mobileWhatsappStoreLead",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "title"
+                                ],
+                                "properties": {
+                                    "title": {
+                                        "type": "string",
+                                        "maxLength": 191,
+                                        "example": "Colchón 2 plazas"
+                                    },
+                                    "lead_value": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "example": 2500,
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Pedido creado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Lead creado y vinculado al cliente."
+                                        },
+                                        "lead": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer",
+                                                    "example": 5120
+                                                },
+                                                "title": {
+                                                    "type": "string",
+                                                    "example": "Colchón 2 plazas"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/MobileNotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/MobileUnprocessable"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/stages": {
+            "get": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Etapas, para el filtro `stage` del listado",
+                "operationId": "mobileWhatsappStages",
+                "responses": {
+                    "200": {
+                        "description": "Nombres de etapa",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "stages": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "example": [
+                                                "No atendido",
+                                                "En seguimiento",
+                                                "Confirmado"
+                                            ]
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/cities": {
+            "get": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Ciudades con conversaciones, para el filtro `city`",
+                "description": "Con cuántas conversaciones visibles tiene cada una. Sólo las que tienen al menos una.",
+                "operationId": "mobileWhatsappCities",
+                "responses": {
+                    "200": {
+                        "description": "Ciudades",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "cities": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer",
+                                                        "example": 3
+                                                    },
+                                                    "name": {
+                                                        "type": "string",
+                                                        "example": "Santa Cruz"
+                                                    },
+                                                    "count": {
+                                                        "type": "integer",
+                                                        "example": 42
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        },
+                                        "none": {
+                                            "properties": {
+                                                "value": {
+                                                    "type": "string",
+                                                    "example": "none"
+                                                },
+                                                "name": {
+                                                    "type": "string",
+                                                    "example": "Sin ciudad"
+                                                },
+                                                "count": {
+                                                    "type": "integer",
+                                                    "example": 5
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "total": {
+                                            "type": "integer",
+                                            "example": 47
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/products": {
+            "get": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Buscar productos (máximo 20)",
+                "operationId": "mobileWhatsappProducts",
+                "parameters": [
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "description": "Nombre o SKU",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Productos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "products": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer",
+                                                        "example": 15
+                                                    },
+                                                    "name": {
+                                                        "type": "string",
+                                                        "example": "Colchón Kohlberg 2 plazas"
+                                                    },
+                                                    "sku": {
+                                                        "type": "string",
+                                                        "example": "COL-2P"
+                                                    },
+                                                    "price": {
+                                                        "type": "string",
+                                                        "example": "2500.0000"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/quick-replies": {
+            "get": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Respuestas rápidas (sólo lectura)",
+                "description": "Las compartidas y las propias del usuario. Se crean y editan desde el CRM web.",
+                "operationId": "mobileWhatsappQuickReplies",
+                "responses": {
+                    "200": {
+                        "description": "Respuestas rápidas",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "quick_replies": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/MobileQuickReply"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/conversations/{id}/agent": {
+            "patch": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Encender o apagar el agente IA en la conversación",
+                "description": "Apagado, el agente deja de responder y el asesor puede escribir. `effective` es lo que rige: con una derivación abierta el agente calla aunque `enabled` sea true.",
+                "operationId": "mobileWhatsappToggleAgent",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "enabled"
+                                ],
+                                "properties": {
+                                    "enabled": {
+                                        "type": "boolean",
+                                        "example": false
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Estado del agente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "agent": {
+                                            "$ref": "#/components/schemas/MobileAgentState"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/MobileNotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/MobileUnprocessable"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/conversations/{id}/handoff/claim": {
+            "post": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Tomar la conversación",
+                "description": "Se asigna al usuario del token y apaga el agente. 409 si otro asesor ya la tomó.",
+                "operationId": "mobileWhatsappClaimHandoff",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Derivación tomada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "handoff": {
+                                            "$ref": "#/components/schemas/MobileHandoff"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/MobileNotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/MobileConflict"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/conversations/{id}/handoff/resolve": {
+            "post": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Soltar la conversación (cerrar la derivación)",
+                "description": "Con `reactivate_ai: true` el agente IA vuelve a atender.",
+                "operationId": "mobileWhatsappResolveHandoff",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "reactivate_ai": {
+                                        "type": "boolean",
+                                        "example": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Derivación cerrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "handoff": {
+                                            "$ref": "#/components/schemas/MobileHandoff"
+                                        },
+                                        "agent": {
+                                            "$ref": "#/components/schemas/MobileAgentState"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/MobileNotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/MobileConflict"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/conversations/{id}/notes": {
+            "post": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Dejar una nota interna",
+                "description": "No se le envía al cliente. Queda en la línea de tiempo del contacto y del lead en el CRM, y aparece en el hilo con `kind: note`. 422 si la conversación no tiene contacto ni lead vinculado.",
+                "operationId": "mobileWhatsappStoreNote",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "comment"
+                                ],
+                                "properties": {
+                                    "comment": {
+                                        "type": "string",
+                                        "example": "Pidió que lo llamen después de las 18 h"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Nota creada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "note": {
+                                            "$ref": "#/components/schemas/MobileNote"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/MobileNotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/MobileUnprocessable"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
         "/api/v1/mobile/whatsapp/me": {
             "get": {
                 "tags": [
@@ -368,6 +1381,320 @@
                     },
                     "401": {
                         "description": "Sin token o token inválido"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/conversations/{id}/media": {
+            "post": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Enviar imagen, audio, video o documento",
+                "description": "multipart/form-data. Máximo 16 MB. Las notas de voz se mandan como `kind=audio`. 501 si el canal activo no envía ese tipo.",
+                "operationId": "mobileWhatsappSendMedia",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "kind",
+                                    "file"
+                                ],
+                                "properties": {
+                                    "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                            "image",
+                                            "document",
+                                            "audio",
+                                            "video"
+                                        ]
+                                    },
+                                    "file": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "caption": {
+                                        "description": "No aplica a audio",
+                                        "type": "string",
+                                        "maxLength": 1024,
+                                        "nullable": true
+                                    },
+                                    "reply_to_id": {
+                                        "type": "integer",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Mensaje encolado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MobileSentMessage"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/MobileNotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/MobileUnprocessable"
+                    },
+                    "501": {
+                        "$ref": "#/components/responses/MobileNotSupported"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/conversations/{id}/location": {
+            "post": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Enviar una ubicación",
+                "description": "Las sucursales guardadas vienen en `locations` del hilo, listas para mandar.",
+                "operationId": "mobileWhatsappSendLocation",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "latitude",
+                                    "longitude"
+                                ],
+                                "properties": {
+                                    "latitude": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": -17.7833
+                                    },
+                                    "longitude": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": -63.1821
+                                    },
+                                    "label": {
+                                        "type": "string",
+                                        "example": "Sucursal Centro",
+                                        "nullable": true
+                                    },
+                                    "address": {
+                                        "type": "string",
+                                        "example": "Av. Monseñor Rivero 123",
+                                        "nullable": true
+                                    },
+                                    "reply_to_id": {
+                                        "type": "integer",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Mensaje encolado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MobileSentMessage"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/MobileNotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/MobileUnprocessable"
+                    },
+                    "501": {
+                        "$ref": "#/components/responses/MobileNotSupported"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/templates": {
+            "get": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Plantillas aprobadas por Meta",
+                "description": "Si el canal no las soporta o Meta no responde, `templates` llega vacío y `reason` dice por qué (siempre 200).",
+                "operationId": "mobileWhatsappTemplates",
+                "responses": {
+                    "200": {
+                        "description": "Plantillas",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "templates": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/MobileTemplate"
+                                            }
+                                        },
+                                        "reason": {
+                                            "type": "string",
+                                            "example": null,
+                                            "nullable": true
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum_admin": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mobile/whatsapp/conversations/{id}/template": {
+            "post": {
+                "tags": [
+                    "WhatsApp Mobile"
+                ],
+                "summary": "Enviar una plantilla",
+                "description": "La única forma de escribir fuera de la ventana de 24 h. `variables` en orden: {{1}}, {{2}}…; tienen que ser exactamente las que pide la plantilla (`variables` en /templates).",
+                "operationId": "mobileWhatsappSendTemplate",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "template",
+                                    "language"
+                                ],
+                                "properties": {
+                                    "template": {
+                                        "type": "string",
+                                        "example": "seguimiento_pedido"
+                                    },
+                                    "language": {
+                                        "type": "string",
+                                        "example": "es"
+                                    },
+                                    "variables": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "example": [
+                                            "María"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Mensaje encolado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MobileSentMessage"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/MobileUnauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/MobileForbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/MobileNotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/MobileUnprocessable"
+                    },
+                    "501": {
+                        "$ref": "#/components/responses/MobileNotSupported"
                     }
                 },
                 "security": [
@@ -13209,6 +14536,741 @@
     },
     "components": {
         "schemas": {
+            "MobileConversation": {
+                "description": "Una fila de la bandeja",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 323
+                    },
+                    "name": {
+                        "description": "Contacto del CRM, o nombre de WhatsApp, o teléfono",
+                        "type": "string",
+                        "example": "María Pérez"
+                    },
+                    "phone": {
+                        "type": "string",
+                        "example": "+59171234567"
+                    },
+                    "gateway": {
+                        "type": "string",
+                        "example": "cloud_api"
+                    },
+                    "person_id": {
+                        "type": "integer",
+                        "example": 812,
+                        "nullable": true
+                    },
+                    "lead_id": {
+                        "type": "integer",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "unread_count": {
+                        "type": "integer",
+                        "example": 2
+                    },
+                    "ai_enabled": {
+                        "description": "Si el agente IA responde ahora (ya considera las derivaciones)",
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "handoff": {
+                        "description": "null si no hay derivación abierta",
+                        "properties": {
+                            "pooled": {
+                                "description": "Sin asesor: cualquiera la puede tomar",
+                                "type": "boolean",
+                                "example": false
+                            },
+                            "city": {
+                                "type": "string",
+                                "example": "Santa Cruz",
+                                "nullable": true
+                            },
+                            "advisor": {
+                                "type": "string",
+                                "example": "Nancy Delgado",
+                                "nullable": true
+                            },
+                            "is_mine": {
+                                "type": "boolean",
+                                "example": true
+                            },
+                            "since": {
+                                "type": "string",
+                                "format": "date-time",
+                                "example": "2026-10-10T13:40:00-04:00",
+                                "nullable": true
+                            }
+                        },
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "stage": {
+                        "description": "Etapa del lead activo (o el último)",
+                        "type": "string",
+                        "example": "No atendido",
+                        "nullable": true
+                    },
+                    "city": {
+                        "type": "string",
+                        "example": "Santa Cruz",
+                        "nullable": true
+                    },
+                    "preview": {
+                        "description": "Último mensaje, hasta 60 caracteres. Empieza con ↩ si lo mandamos nosotros.",
+                        "type": "string",
+                        "example": "↩ Te paso los precios",
+                        "nullable": true
+                    },
+                    "last_message_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-10-10T14:02:11-04:00",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "MobileConversationPage": {
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/MobileConversation"
+                        }
+                    },
+                    "current_page": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "last_page": {
+                        "type": "integer",
+                        "example": 3
+                    },
+                    "total": {
+                        "description": "Usar éste para saber si quedan más (scroll infinito)",
+                        "type": "integer",
+                        "example": 74
+                    },
+                    "max_pages": {
+                        "type": "integer",
+                        "example": 10
+                    }
+                },
+                "type": "object"
+            },
+            "MobileMessage": {
+                "description": "Un mensaje del hilo",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 10422
+                    },
+                    "direction": {
+                        "description": "inbound = lo escribió el cliente",
+                        "type": "string",
+                        "enum": [
+                            "inbound",
+                            "outbound"
+                        ],
+                        "example": "inbound"
+                    },
+                    "type": {
+                        "description": "text, image, audio, video, document, sticker, location, template, interactive, reaction… Mostrar `text` como fallback para un tipo desconocido.",
+                        "type": "string",
+                        "example": "text"
+                    },
+                    "text": {
+                        "type": "string",
+                        "example": "Hola, quería el precio del colchón",
+                        "nullable": true
+                    },
+                    "sender": {
+                        "description": "Quién lo escribió: el cliente, el agente IA o un asesor",
+                        "type": "string",
+                        "enum": [
+                            "contact",
+                            "ia",
+                            "human"
+                        ],
+                        "example": "contact",
+                        "nullable": true
+                    },
+                    "status": {
+                        "description": "Salientes: queued → sent → delivered → read, o failed. Entrantes llegan como delivered.",
+                        "type": "string",
+                        "enum": [
+                            "queued",
+                            "sent",
+                            "delivered",
+                            "read",
+                            "failed"
+                        ],
+                        "example": "delivered"
+                    },
+                    "error": {
+                        "description": "Motivo, si status = failed",
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "time": {
+                        "type": "string",
+                        "example": "14:02"
+                    },
+                    "date": {
+                        "description": "Para separar por día",
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-10-10"
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-10-10T14:02:11-04:00"
+                    },
+                    "media": {
+                        "properties": {
+                            "url": {
+                                "description": "URL absoluta, pública (nombre aleatorio). Descargar sin token.",
+                                "type": "string",
+                                "example": "https://crm.example.com/whatsapp/media/aB3dE5.jpg"
+                            },
+                            "filename": {
+                                "type": "string",
+                                "example": "cotizacion.pdf",
+                                "nullable": true
+                            },
+                            "meta": {
+                                "description": "MIME type",
+                                "type": "string",
+                                "example": "image/jpeg",
+                                "nullable": true
+                            }
+                        },
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "location": {
+                        "properties": {
+                            "lat": {
+                                "type": "number",
+                                "example": -17.7833
+                            },
+                            "lng": {
+                                "type": "number",
+                                "example": -63.1821
+                            },
+                            "name": {
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "address": {
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "url": {
+                                "description": "Link a Google Maps",
+                                "type": "string"
+                            }
+                        },
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "interactive": {
+                        "description": "Menú de botones o lista que enviamos (con sus opciones)",
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "selection": {
+                        "description": "La opción que el cliente tocó en un menú",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "example": "ciudad_scz",
+                                "nullable": true
+                            },
+                            "title": {
+                                "type": "string",
+                                "example": "Santa Cruz"
+                            },
+                            "kind": {
+                                "type": "string",
+                                "example": "list_reply",
+                                "nullable": true
+                            }
+                        },
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "reaction": {
+                        "description": "Si el mensaje es una reacción (emoji) a otro",
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "replyTo": {
+                        "description": "El mensaje citado",
+                        "properties": {
+                            "author": {
+                                "type": "string",
+                                "enum": [
+                                    "Cliente",
+                                    "Agente"
+                                ],
+                                "example": "Cliente"
+                            },
+                            "preview": {
+                                "type": "string",
+                                "example": "Hola, quería el precio"
+                            }
+                        },
+                        "type": "object",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "MobileNote": {
+                "description": "Nota interna. Llega mezclada con los mensajes del hilo; se distingue por `kind`.",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "example": "note-29811"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "note"
+                        ],
+                        "example": "note"
+                    },
+                    "text": {
+                        "type": "string",
+                        "example": "Pidió que lo llamen después de las 18 h"
+                    },
+                    "author": {
+                        "type": "string",
+                        "example": "Nancy Delgado",
+                        "nullable": true
+                    },
+                    "time": {
+                        "type": "string",
+                        "example": "14:05"
+                    },
+                    "date": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-10-10"
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-10-10T14:05:00-04:00"
+                    }
+                },
+                "type": "object"
+            },
+            "MobileHandoff": {
+                "description": "Derivación: un humano debe atender",
+                "properties": {
+                    "state": {
+                        "type": "string",
+                        "enum": [
+                            "requested",
+                            "assigned",
+                            "resolved"
+                        ],
+                        "example": "assigned",
+                        "nullable": true
+                    },
+                    "open": {
+                        "description": "requested o assigned",
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "pooled": {
+                        "description": "Pedida y sin asesor",
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "reason": {
+                        "type": "string",
+                        "example": "Quiere hablar con una persona",
+                        "nullable": true
+                    },
+                    "source": {
+                        "type": "string",
+                        "enum": [
+                            "ai",
+                            "human"
+                        ],
+                        "example": "ai",
+                        "nullable": true
+                    },
+                    "requested_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "city": {
+                        "type": "string",
+                        "example": "Santa Cruz",
+                        "nullable": true
+                    },
+                    "assigned_user": {
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "example": 7
+                            },
+                            "name": {
+                                "type": "string",
+                                "example": "Nancy Delgado"
+                            }
+                        },
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "assigned_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "is_mine": {
+                        "type": "boolean",
+                        "example": true
+                    }
+                },
+                "type": "object"
+            },
+            "MobileAgentState": {
+                "properties": {
+                    "enabled": {
+                        "description": "Lo configurado en esta conversación. null = hereda el valor global",
+                        "type": "boolean",
+                        "example": false,
+                        "nullable": true
+                    },
+                    "effective": {
+                        "description": "Lo que rige ahora. Si es true, no se puede escribir a mano.",
+                        "type": "boolean",
+                        "example": false
+                    }
+                },
+                "type": "object"
+            },
+            "MobileThread": {
+                "properties": {
+                    "conversation": {
+                        "description": "La conversación (columnas crudas: id, wa_phone, wa_name, person_id, lead_id, unread_count, last_message_at, last_inbound_at, handoff_state…)",
+                        "type": "object"
+                    },
+                    "messages": {
+                        "description": "Mensajes y notas, en orden cronológico",
+                        "type": "array",
+                        "items": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/MobileMessage"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/MobileNote"
+                                }
+                            ]
+                        }
+                    },
+                    "server_time": {
+                        "description": "Mandarlo como `since` en el próximo refresco",
+                        "type": "string",
+                        "example": "2026-10-10 14:03:22"
+                    },
+                    "capabilities": {
+                        "description": "Qué tipos puede enviar y recibir el canal",
+                        "properties": {
+                            "send": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "example": [
+                                    "text",
+                                    "reply",
+                                    "emoji",
+                                    "template",
+                                    "image",
+                                    "document",
+                                    "audio",
+                                    "video",
+                                    "location",
+                                    "buttons",
+                                    "list"
+                                ]
+                            },
+                            "receive": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "example": [
+                                    "text",
+                                    "image",
+                                    "audio",
+                                    "document",
+                                    "video",
+                                    "sticker",
+                                    "location",
+                                    "contact",
+                                    "interactive",
+                                    "button"
+                                ]
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "locations": {
+                        "description": "Sucursales guardadas, listas para enviar",
+                        "type": "array",
+                        "items": {
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "example": "Sucursal Centro"
+                                },
+                                "address": {
+                                    "type": "string",
+                                    "nullable": true
+                                },
+                                "latitude": {
+                                    "type": "number",
+                                    "example": -17.7833
+                                },
+                                "longitude": {
+                                    "type": "number",
+                                    "example": -63.1821
+                                }
+                            },
+                            "type": "object"
+                        }
+                    },
+                    "handoff": {
+                        "$ref": "#/components/schemas/MobileHandoff"
+                    },
+                    "window": {
+                        "description": "Ventana de 24 h de WhatsApp. Cerrada: sólo plantillas.",
+                        "properties": {
+                            "applies": {
+                                "description": "Si el canal tiene ventana",
+                                "type": "boolean",
+                                "example": true
+                            },
+                            "open": {
+                                "type": "boolean",
+                                "example": true
+                            },
+                            "expires_at": {
+                                "type": "string",
+                                "format": "date-time",
+                                "nullable": true
+                            },
+                            "seconds_left": {
+                                "type": "integer",
+                                "example": 73800,
+                                "nullable": true
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "agent": {
+                        "$ref": "#/components/schemas/MobileAgentState"
+                    }
+                },
+                "type": "object"
+            },
+            "MobileSentMessage": {
+                "properties": {
+                    "message": {
+                        "$ref": "#/components/schemas/MobileMessage"
+                    }
+                },
+                "type": "object"
+            },
+            "MobileTemplate": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "example": "seguimiento_pedido"
+                    },
+                    "language": {
+                        "type": "string",
+                        "example": "es"
+                    },
+                    "body": {
+                        "type": "string",
+                        "example": "Hola {{1}}, ¿pudiste ver la cotización?"
+                    },
+                    "variables": {
+                        "description": "Cuántas variables hay que mandar",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "category": {
+                        "type": "string",
+                        "example": "MARKETING",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "MobileQuickReply": {
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 4
+                    },
+                    "shortcut": {
+                        "type": "string",
+                        "example": "/precios"
+                    },
+                    "title": {
+                        "type": "string",
+                        "example": "Lista de precios"
+                    },
+                    "content": {
+                        "description": "Puede traer {{producto}} y {{precio}}: completarlos con /products",
+                        "type": "string",
+                        "example": "El {{producto}} está a {{precio}} Bs."
+                    },
+                    "is_global": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "is_mine": {
+                        "type": "boolean",
+                        "example": false
+                    }
+                },
+                "type": "object"
+            },
+            "MobilePerson": {
+                "description": "Ficha del contacto. Fechas formateadas para mostrar (d/m/Y).",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 812
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "María Pérez"
+                    },
+                    "job_title": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "organization": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "owner": {
+                        "description": "Asesor dueño del contacto",
+                        "type": "string",
+                        "example": "Nancy Delgado",
+                        "nullable": true
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "color": {
+                                    "type": "string",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    },
+                    "emails": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "contact_numbers": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "example": [
+                            "59171234567"
+                        ]
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "example": "03/08/2026"
+                    },
+                    "view_url": {
+                        "description": "Ficha en el CRM web",
+                        "type": "string"
+                    },
+                    "whatsapp": {
+                        "description": "Huella en WhatsApp: messages, first_contact, last_inbound",
+                        "type": "object"
+                    },
+                    "followup": {
+                        "description": "awaiting_reply (el cliente escribió último), last_message_human, last_sender",
+                        "type": "object"
+                    },
+                    "active_lead": {
+                        "properties": {
+                            "title": {
+                                "type": "string"
+                            },
+                            "stage": {
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "value": {
+                                "type": "string",
+                                "example": "2,500.00",
+                                "nullable": true
+                            },
+                            "days_open": {
+                                "type": "integer",
+                                "example": 3
+                            },
+                            "url": {
+                                "type": "string"
+                            }
+                        },
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "next_activity": {
+                        "description": "title, type, date",
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "images": {
+                        "description": "Fotos y videos del chat: url, type, date, mine",
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "documents": {
+                        "description": "Documentos y audios del chat: url, type, name…",
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "type": "object"
+            },
             "Activity": {
                 "title": "Activity",
                 "description": "Activity Model",
@@ -15289,6 +17351,115 @@
                     }
                 },
                 "type": "object"
+            }
+        },
+        "responses": {
+            "MobileUnauthenticated": {
+                "description": "Sin token, o token inválido o revocado",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "description": "Schemas y respuestas compartidas de la API mobile, sólo para Swagger.\n\nDescriben lo que ya devuelve la bandeja del CRM (los controladores mobile\ndelegan en ella): si cambia una respuesta allá, se actualiza acá.\n\n---------------------------------------------------------------------------\nRespuestas de error\n---------------------------------------------------------------------------",
+                                    "type": "string",
+                                    "example": "Unauthenticated."
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "MobileForbidden": {
+                "description": "El rol del usuario no tiene el permiso `whatsapp`",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "example": "No tenés acceso al módulo de WhatsApp."
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "MobileNotFound": {
+                "description": "No existe, o está fuera del alcance del usuario (su `view_permission`). Las dos se responden igual a propósito.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "example": "Not Found"
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "MobileUnprocessable": {
+                "description": "Validación, o una regla de negocio: el agente IA está encendido, la plantilla no existe, faltan variables, etc. Mostrar `message` al usuario.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "example": "El agente está activo en esta conversación. Desactivalo para escribir a mano."
+                                },
+                                "errors": {
+                                    "description": "Sólo en errores de validación: campo → mensajes",
+                                    "type": "object",
+                                    "example": {
+                                        "text": [
+                                            "El campo text es obligatorio."
+                                        ]
+                                    },
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "MobileConflict": {
+                "description": "Otro asesor ya tomó la conversación, o la derivación ya no está abierta",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "example": "Otro asesor tomó esta conversación primero."
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "MobileNotSupported": {
+                "description": "El canal de WhatsApp activo no soporta ese tipo de envío",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "example": "El canal actual no envía ubicaciones."
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
             }
         },
         "securitySchemes": {

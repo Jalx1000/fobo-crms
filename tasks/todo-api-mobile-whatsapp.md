@@ -40,9 +40,9 @@ Tests: `docker exec -w /code heaven_kolberg_laravel.1.<id> php artisan test test
 
 ## 3. Lectura
 
-- [ ] **3.1 `GET /conversations`** (filtros: `filter`, `city`, `stage`, `search`, `page`)
-- [ ] **3.2 `GET /conversations/{id}/messages?since=`**: carga inicial y modo incremental; marca como leída.
-- [ ] **3.3 `GET /unread-count`**: `{conversations, messages, pool, mine}` con el scope aplicado.
+- [x] **3.1 `GET /conversations`** (filtros: `filter`, `city`, `stage`, `search`, `page`)
+- [x] **3.2 `GET /conversations/{id}/messages?since=`**: carga inicial y modo incremental; marca como leída.
+- [x] **3.3 `GET /unread-count`**: `{conversations, messages, pool, mine}` con el scope aplicado.
   - Verify (las tres): 200 feliz, 404 si es ajena, `since` sólo devuelve lo nuevo, el contador excluye las no visibles.
   - Files: `Api/Mobile/ConversationController.php`, `Routes/api.php`, test
 
@@ -50,32 +50,41 @@ Tests: `docker exec -w /code heaven_kolberg_laravel.1.<id> php artisan test test
 
 ## 4. Envío (gateway fake en todos los tests)
 
-- [ ] **4.1 `POST /conversations/{id}/messages`**: texto, con `reply_to` opcional.
-- [ ] **4.2 `POST /conversations/{id}/media`**: multipart; documentar los MIME y el tamaño máximo que acepta hoy `sendMedia`.
-- [ ] **4.3 `POST /conversations/{id}/location`**
-- [ ] **4.4 `GET /templates`** + **`POST /conversations/{id}/template`**
+- [x] **4.1 `POST /conversations/{id}/messages`**: texto, con `reply_to` opcional.
+- [x] **4.2 `POST /conversations/{id}/media`**: multipart; documentar los MIME y el tamaño máximo que acepta hoy `sendMedia`.
+- [x] **4.3 `POST /conversations/{id}/location`**
+- [x] **4.4 `GET /templates`** + **`POST /conversations/{id}/template`**
   - Verify: el mensaje queda con `user_id` = usuario del token; 422 con input inválido; 404 si es ajena.
   - Files: `Api/Mobile/MessageController.php`, `Routes/api.php`, test
 
 ## 5. Control de la conversación
 
-- [ ] **5.1 `PATCH /conversations/{id}/agent`**
-- [ ] **5.2 `POST .../handoff/claim`** y **`.../handoff/resolve`**: 409 si otro ya la tomó (`HandoffConflictException`).
-- [ ] **5.3 `POST .../notes`**
+- [x] **5.1 `PATCH /conversations/{id}/agent`**
+- [x] **5.2 `POST .../handoff/claim`** y **`.../handoff/resolve`**: 409 si otro ya la tomó (`HandoffConflictException`).
+- [x] **5.3 `POST .../notes`**
   - Verify: el actor de la auditoría es el usuario del token, no el bot; 404 si es ajena.
   - Files: `Api/Mobile/HandoffController.php`, `Routes/api.php`, test
 
 ## 6. Contexto CRM
 
-- [ ] **6.1 `POST /conversations/{id}/link-person`**, **`GET /persons/{id}`**, **`POST /persons/{id}/leads`**
+- [x] **6.1 `POST /conversations/{id}/link-person`**, **`GET /persons/{id}`**, **`POST /persons/{id}/leads`**
   - Nota: `persons/{id}` respeta la misma limitación (persona sin lead visible ni conversación visible → 404).
-- [ ] **6.2 `GET /stages`, `/cities`, `/products`, `/quick-replies`**
+- [x] **6.2 `GET /stages`, `/cities`, `/products`, `/quick-replies`**
   - Verify: 200 y forma; 404 en una persona fuera de alcance.
   - Files: `Api/Mobile/CrmController.php`, `Routes/api.php`, test
 
 ## 7. Swagger
 
-- [ ] **7.1 Schemas compartidos** (`MobileConversation`, `MobileMessage`, `MobileTemplate`, `ValidationError`, `Forbidden`, `NotFound`), con ejemplos tomados de las respuestas de los tests.
-- [ ] **7.2 Generar y revisar**
+- [x] **7.1 Schemas compartidos** (`MobileConversation`, `MobileMessage`, `MobileTemplate`, `ValidationError`, `Forbidden`, `NotFound`), con ejemplos tomados de las respuestas de los tests.
+- [x] **7.2 Generar y revisar**
   - Verify: `php artisan l5-swagger:generate` sin warnings; `/api/documentation` muestra el tag con los 18 endpoints y Authorize funciona; `php artisan test` completo en verde.
   - Files: `Api/Mobile/Schemas.php`
+
+## Notas de implementación (2026-10-10)
+
+- Los controladores mobile (`Api/Mobile/*`) no tienen lógica: resuelven la conversación visible (404) y delegan en la bandeja con `app()->call()`. `MobileController` concentra eso.
+- `thread()` con un id inexistente respondía 200 con `conversation: null`; la ruta mobile da 404.
+- `persons/{id}` y `persons/{id}/leads` respetan la visibilidad (`ChatController::visiblePersonId`), también en la web.
+- `storeLead` usa `LeadOpener`: el dueño del pedido es el Encargado de la ciudad, no el usuario del token.
+- `since` es inclusivo y con resolución de segundos: la app debe mezclar por id.
+- Pendiente fuera de alcance: en la web, un asesor restringido que le escribe a un número sin conversación ni lead crea un chat que después no ve.

@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Webkul\Whatsapp\Http\Controllers\Api\AgentController;
+use Webkul\Whatsapp\Http\Controllers\Api\Mobile;
 use Webkul\Whatsapp\Http\Controllers\Api\Mobile\MeController;
 use Webkul\Whatsapp\Http\Controllers\MediaController;
 use Webkul\Whatsapp\Http\Controllers\WebhookController;
@@ -79,6 +80,31 @@ Route::prefix('api/v1/mobile/whatsapp')
         Route::get('me', [MeController::class, 'show'])->name('me');
 
         Route::middleware('whatsapp_access')->group(function () {
-            //
+            // Bandeja
+            Route::get('conversations', [Mobile\ConversationController::class, 'index'])->name('conversations');
+            Route::get('conversations/{id}/messages', [Mobile\ConversationController::class, 'messages'])->name('messages');
+            Route::get('unread-count', [Mobile\ConversationController::class, 'unreadCount'])->name('unread-count');
+
+            // Envío
+            Route::post('conversations/{id}/messages', [Mobile\MessageController::class, 'text'])->name('send');
+            Route::post('conversations/{id}/media', [Mobile\MessageController::class, 'media'])->name('send-media');
+            Route::post('conversations/{id}/location', [Mobile\MessageController::class, 'location'])->name('send-location');
+            Route::get('templates', [Mobile\MessageController::class, 'templates'])->name('templates');
+            Route::post('conversations/{id}/template', [Mobile\MessageController::class, 'template'])->name('send-template');
+
+            // Quién atiende
+            Route::patch('conversations/{id}/agent', [Mobile\HandoffController::class, 'agent'])->name('agent');
+            Route::post('conversations/{id}/handoff/claim', [Mobile\HandoffController::class, 'claim'])->name('handoff.claim');
+            Route::post('conversations/{id}/handoff/resolve', [Mobile\HandoffController::class, 'resolve'])->name('handoff.resolve');
+            Route::post('conversations/{id}/notes', [Mobile\HandoffController::class, 'note'])->name('notes');
+
+            // Contexto CRM
+            Route::post('conversations/{id}/link-person', [Mobile\CrmController::class, 'linkPerson'])->name('link-person');
+            Route::get('persons/{id}', [Mobile\CrmController::class, 'person'])->name('person');
+            Route::post('persons/{id}/leads', [Mobile\CrmController::class, 'storeLead'])->name('person.leads');
+            Route::get('stages', [Mobile\CrmController::class, 'stages'])->name('stages');
+            Route::get('cities', [Mobile\CrmController::class, 'cities'])->name('cities');
+            Route::get('products', [Mobile\CrmController::class, 'products'])->name('products');
+            Route::get('quick-replies', [Mobile\CrmController::class, 'quickReplies'])->name('quick-replies');
         });
     });

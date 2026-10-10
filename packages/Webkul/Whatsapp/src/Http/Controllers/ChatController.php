@@ -320,7 +320,7 @@ class ChatController extends Controller
             'user',
             'tags',
             'leads' => fn ($q) => $q->with('stage')->orderByDesc('id')->limit(10),
-        ])->findOrFail($id);
+        ])->findOrFail($this->visiblePersonId($id));
 
         // WhatsApp footprint of this contact (across all their conversations).
         $conversationIds = ConversationProxy::modelClass()::where('person_id', $person->id)->pluck('id');
@@ -494,7 +494,7 @@ class ChatController extends Controller
             'lead_value' => 'nullable|numeric|min:0',
         ]);
 
-        $person = PersonProxy::modelClass()::findOrFail($personId);
+        $person = PersonProxy::modelClass()::findOrFail($this->visiblePersonId($personId));
 
         /*
          * Delega en LeadOpener para que este camino y el automático dejen
@@ -581,6 +581,34 @@ class ChatController extends Controller
      * porque el costo fijo es la window function que deduplica por teléfono—;
      * lo que no conviene dejar sin límite es el JSON.
      */
+    /**
+     * El contacto, si el usuario lo puede ver; si no, 404.
+     *
+     * Mismo criterio que las conversaciones (Conversation::scopeVisibleTo):
+     * global ve todo; restringido, un contacto con un lead suyo o con alguna
+     * conversación que él puede ver. Sin esto, la ficha —con sus leads y
+     * montos— quedaba a un id de distancia.
+     */
+    protected function visiblePersonId(string $id): string
+    {
+        if (! auth()->guard('user')->check()) {
+            abort(404);
+        }
+
+        $userIds = bouncer()->getAuthorizedUserIds();
+
+        if ($userIds === null) {
+            return $id;
+        }
+
+        $visible = DB::table('leads')->where('person_id', $id)->whereIn('user_id', $userIds)->exists()
+            || ConversationProxy::modelClass()::query()->visibleTo($userIds)->where('person_id', $id)->exists();
+
+        abort_unless($visible, 404);
+
+        return $id;
+    }
+
     protected function porPagina(Request $request): int
     {
         $pedido = (int) $request->input('per_page', self::POR_PAGINA);
