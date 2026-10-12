@@ -36,6 +36,8 @@ Conversaciones sin cotización: 3689, 3700, 3707, 4253, 4261, 4368, 4371, 4422, 
 
 **Aceptación.** Cada conversación con el texto "preparo su cotización" tiene una cotización creada en el CRM.
 
+> **No hace falta mover el pedido de etapa.** Cuando `crear_cotizacion` devuelve 201, el CRM pasa el pedido de NO ATENIDOS a SOLICITUD RECIBIDA por su cuenta (desde el 12/10). El agente no tiene que hacer nada más.
+
 ---
 
 ## P2 — Traducir lo que dice el cliente a los valores del catálogo
