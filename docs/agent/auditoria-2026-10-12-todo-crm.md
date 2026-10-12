@@ -1,7 +1,27 @@
 # TODO — CRM (auditoría del agente del 12/10/2026)
 
 > Datos: 303 conversaciones (02/10 al 12/10/2026). Las tareas del agente están en `auditoria-2026-10-12-todo-agente.md`.
-> Orden sugerido: CRM-1 → CRM-2 → CRM-3 → CRM-4. Las tareas CRM-1 y CRM-2 desbloquean P3 y P4 del agente.
+> Orden sugerido: **CRM-6** → CRM-1 → CRM-2 → CRM-3 → CRM-4. CRM-6 desbloquea P1 del agente; CRM-1 y CRM-2 desbloquean P3 y P4.
+>
+> **Destinatarios de todos los avisos de este documento (CRM-3 y CRM-4): solo dos correos, `jalejandromogro1@gmail.com` y `dcuellar@sofopolis.com`.** Van en `.env` (`WHATSAPP_ALERT_EMAILS`) y no se calculan a partir de roles ni de usuarios.
+>
+> **Decisión del 12/10:** el agente no menciona precios. El precio lo da la cotización que envía el asesor.
+
+---
+
+## CRM-6 — Crear la cotización aunque no haya precio cargado
+
+**Problema.** El agente llamó a `crear_cotizacion` 21 veces desde el 08/10 y **10 fueron rechazadas (422)**. Nueve fueron de **Stretch Film Manual**, que no tiene precio cargado (`filaParaCotizar` → "Esa combinación no tiene precio cargado"), en las conversaciones 5012, 5040, 5099, 5103, 5104 y 5133, entre otras. El cliente dio todos sus datos y no se creó nada.
+
+Además, en 33 conversaciones el agente prometió la cotización y no existe ninguna (ver P1 del agente).
+
+**Qué hacer.**
+- [ ] `AgenteController::cotizacion`: si la combinación existe pero no tiene precio (`precio` null o `cotiza()` false), **crear la cotización igual**, con precio 0 y una nota visible "Precio pendiente: completar antes de enviar" que incluya la `nota` de la fila. Responder 201 con `precio_pendiente: true`.
+- [ ] Seguir devolviendo 422 **solo** cuando faltan datos (`faltan`) o el producto no existe.
+- [ ] En el listado de cotizaciones, una marca "Precio pendiente" para que el asesor las vea primero, y que "Enviar cotización" no deje enviar una con precio pendiente.
+- [ ] El correo de cotización nueva ya existente sigue saliendo y dice "precio pendiente".
+- [ ] Tests: Stretch Film sin precio → 201 con precio pendiente; faltan datos → 422 como hoy; precio cargado → como hoy.
+- [ ] Recuperación: listar las 33 conversaciones con cotización prometida y no creada, para que los asesores las contacten.
 
 ---
 
@@ -40,7 +60,7 @@
 
 **Qué hacer.**
 - [ ] Al recibir del agente un mensaje con el texto de error, o cuando `NotifyAgent` agote sus reintentos, contar el evento.
-- [ ] Si hay N eventos en M minutos (por defecto 3 en 15), mandar **un** correo a los administradores y no repetirlo durante 1 hora.
+- [ ] Si hay N eventos en M minutos (por defecto 3 en 15), mandar **un** correo a `WHATSAPP_ALERT_EMAILS` (los dos de arriba) y no repetirlo durante 1 hora.
 - [ ] Opcional: un chip "Agente con errores" en la bandeja mientras dure.
 
 ---
@@ -52,7 +72,7 @@
 > **Confirmar primero con los asesores** si contestan desde la app de Kommo. Si es así, esas respuestas no entran al CRM, y entonces el arreglo es ingerirlas antes de medir o alertar.
 
 **Qué hacer.**
-- [ ] Si una conversación derivada pasa X minutos (por defecto 30, en horario laboral) sin respuesta humana, mandar un recordatorio al asesor del pedido y, si sigue sin respuesta, al supervisor.
+- [ ] Si una conversación derivada pasa X minutos (por defecto 30, en horario laboral) sin respuesta humana, mandar el aviso a `WHATSAPP_ALERT_EMAILS` (los dos de arriba), con el cliente, el último mensaje y el link a la conversación. Un correo por conversación.
 - [ ] Filtro "Derivadas sin respuesta" en la bandeja.
 - [ ] En el tablero, tiempo de respuesta separado: **agente** (entrante → 1ª respuesta de la IA) y **asesor** (derivación → 1ª respuesta humana).
 
@@ -68,6 +88,6 @@
 
 ## Datos (Comercial, no código)
 
-- [ ] **Stretch Film**: cargar el precio de las 2 presentaciones; hoy no tiene ninguno. Es el anuncio más común (102 conversaciones) y todas terminan derivadas.
+- [ ] **Stretch Film**: cargar el precio de las 2 presentaciones; hoy no tiene ninguno. Es el anuncio más común (102 conversaciones). Con CRM-6 la cotización se crea igual, pero el asesor tiene que completar el precio a mano.
 - [ ] **Bolsas Magia Verde**: completar las 20 de 50 combinaciones Tamaño × Canal × Zona que no tienen precio.
 - [ ] Definir a qué tamaño corresponde "XXL" (lo dice el anuncio y no existe en el catálogo).

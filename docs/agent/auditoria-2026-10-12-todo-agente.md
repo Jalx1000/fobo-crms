@@ -8,58 +8,59 @@ Los cambios del lado del CRM van en otro documento (`auditoria-2026-10-12-todo-c
 
 ---
 
-## P1 — Responder primero lo que pregunta el cliente
+## P0 — El agente NO menciona precios (decisión del negocio, 12/10)
 
-**Problema.** El 79 % de las conversaciones empieza con el texto prellenado de un anuncio:
-
-| Primer mensaje | Conversaciones |
-|---|---|
-| ¿Cuáles son los tamaños disponibles del Stretch Film? | 102 |
-| ¿Cuánto cuesta la bolsa XXL? | 81 |
-| ¿Cuánto cuesta la bolsa de 140L? | 54 |
-
-El agente no contesta esa pregunta: responde con la presentación ("Nuestras bolsas Magia Verde son de material reciclado…") y pide ciudad, uso y cantidad. De las 303 conversaciones, **101 terminan sin un segundo mensaje del cliente**.
-
-Ejemplo:
-```
-Cliente: Buenas noches, precio y medidas de las bolsas
-Agente:  ¡Hola! Gracias por escribirnos 👋 Nuestras bolsas Magia Verde son de material
-         reciclado, resistente y multiuso. ¿De qué ciudad nos escribe? [lista]
-Agente:  ¿Para qué uso la necesita? [lista]
-```
+**Regla.** El agente **nunca** dice un precio, un total, un monto en Bs ni un rango ("desde X Bs"), aunque el cliente insista. El precio lo da **la cotización**, que prepara y envía el asesor.
 
 **Qué hacer.**
-- [ ] Si el primer mensaje trae una pregunta concreta (tamaños, precio), la primera respuesta la contesta con datos reales de `ficha_producto` / `precio_producto`, aunque sea de forma parcial ("La de 140 L va desde X Bs el pack de 10, según la cantidad…"). Después se piden los datos que faltan.
-- [ ] La presentación de la marca va como máximo una vez por conversación y nunca reemplaza a la respuesta.
-- [ ] Pedir solo los datos que el precio necesita **para ese producto**: `faltan` en la respuesta de `precio_producto` dice exactamente cuáles son.
+- [ ] Quitar del system prompt la REGLA 1 y todo lo que indique decir precios (`precio_producto` → "decí el precio con su unidad", "usá el `total`").
+- [ ] `precio_producto` puede seguir usándose **solo internamente**, para saber qué datos faltan (`faltan` / `opciones`). Nunca para mostrarle al cliente ni `precio` ni `total`.
+- [ ] Respuesta ante "¿cuánto cuesta?" / "¿precio?": "Le preparo la cotización con el precio exacto para su pedido. Para eso necesito: …" (solo los datos que faltan).
+- [ ] Prueba: en 20 conversaciones de prueba que preguntan precio, ninguna respuesta contiene "Bs", un número seguido de moneda ni la palabra "precio" acompañada de un monto.
 
-**Aceptación.** Ante "¿Cuáles son los tamaños disponibles del Stretch Film?", la primera respuesta nombra las dos presentaciones (Manual 4,7 kg y Automático 15,7 kg).
+---
+
+## P1 — Toda promesa de cotización termina en `crear_cotizacion`
+
+**Problema.** En 50 conversaciones el agente dijo "Con estos datos preparo su cotización y en breve se la hacemos llegar", y en **33 no se creó ninguna cotización**. En muchas ni siquiera se llamó a `crear_cotizacion`. El cliente queda esperando algo que no existe.
+
+Conversaciones sin cotización: 3689, 3700, 3707, 4253, 4261, 4368, 4371, 4422, 4428, 4430, 4858, 4864, 4865, 4883, 4988, 4995, 4996, 5020, 5029, 5030, 5035, 5040, 5049, 5062, 5079, 5099, 5103, 5104, 5108, 5122, 5128, 5134, 5135.
+
+**Qué hacer.**
+- [ ] Con producto, variante, cantidad, ciudad y nombre o NIT, llamar **siempre** a `register_cotizacion` y después a `crear_cotizacion`, **antes** de decirle al cliente que se prepara la cotización.
+- [ ] Decir "preparo su cotización" **solo** si `crear_cotizacion` devolvió 201. Si devolvió 422, leer `message`:
+  - "Faltan datos para cotizar: …" → preguntar esos datos y volver a llamar.
+  - cualquier otro motivo → derivar con `handoff` (motivo `cotizacion_rechazada`) y decir "Un asesor le envía la cotización en breve".
+- [ ] Si el cliente pide **dos** cotizaciones (por ejemplo, la 5069: "una de 12 y otra de 50"), llamar a `crear_cotizacion` una vez por cada una.
+- [ ] Desde CRM-6, el CRM **ya no rechaza** por falta de precio: crea la cotización "con precio pendiente" para que la complete el asesor. Los únicos 422 que quedan son por datos faltantes.
+
+**Aceptación.** Cada conversación con el texto "preparo su cotización" tiene una cotización creada en el CRM.
 
 ---
 
 ## P2 — Traducir lo que dice el cliente a los valores del catálogo
 
-**Problema.** El agente llamó a `precio_producto` 93 veces y **ninguna respuesta suya incluye un precio en Bs**. Una parte se debe a que el agente manda valores que el catálogo no conoce:
+Hace falta para que `crear_cotizacion` reciba criterios válidos:
 
 | El cliente o el anuncio dice | El catálogo espera |
 |---|---|
-| "XXL" | `Tamaño`: `35 L`, `50 L`, `75 L`, `140 L`, `200 L` (XXL no existe; confirmar con Comercial si es 140 L o 200 L) |
+| "XXL" | `Tamaño`: `35 L`, `50 L`, `75 L`, `140 L`, `200 L` (XXL no existe; Comercial define a cuál corresponde) |
 | "140L", "140 litros" | `140 L` (con espacio) |
 | "Cochabamba", "La Paz"… | `Zona`: `Santa Cruz` o `Interior` |
 | "para mi casa" | `Canal`: `HOGAR` |
 
-Pruebas contra la API real:
-```
-{Tamaño: "140L", Canal: "Hogar", Zona: "Cochabamba"} → estado "sin_datos"
-{Tamaño: "140 L", Canal: "HOGAR", Zona: "Interior"}  → estado "resuelto"
-```
+- [ ] Normalizar cada criterio a uno de los valores de `opciones`. Cualquier ciudad que no sea Santa Cruz va como `Interior`.
+- [ ] Si un valor no se puede mapear con seguridad, preguntarlo con un menú cuyas opciones sean exactamente esos valores.
 
-**Qué hacer.**
-- [ ] Antes de llamar a `precio_producto`, normalizar cada criterio a uno de los valores de `opciones` que devuelve la respuesta `ambiguo`. Cualquier ciudad que no sea Santa Cruz va como `Interior`.
-- [ ] Si un valor no se puede mapear con seguridad (por ejemplo XXL), preguntar con un menú cuyas opciones sean exactamente los valores de `opciones`.
-- [ ] Ante `estado: "sin_datos"`, no reintentar con variantes al azar: derivar, tal como pide el `message`.
+---
 
-> ⚠️ Además faltan precios cargados en el CRM: el Stretch Film no tiene ninguno y Magia Verde tiene 20 de 50 combinaciones vacías. Mientras Comercial no los cargue, esas consultas **tienen** que derivarse. No es un bug del agente.
+## P1b — Responder primero lo que pregunta el anuncio (sin precios)
+
+El 79 % de las conversaciones empieza con el texto de un anuncio ("¿Cuáles son los tamaños disponibles del Stretch Film?" 102, "¿Cuánto cuesta la bolsa XXL?" 81, "¿Cuánto cuesta la bolsa de 140L?" 54), y 101 de 303 terminan sin un segundo mensaje.
+
+- [ ] Si preguntan por tamaños o presentaciones, la primera respuesta los nombra (Stretch Film: Manual 4,7 kg y Automático 15,7 kg).
+- [ ] Si preguntan precio, aplica P0: "Le preparo la cotización con el precio exacto…", y enseguida la primera pregunta que falta.
+- [ ] La presentación de la marca va como máximo una vez por conversación y nunca reemplaza a la respuesta.
 
 ---
 
@@ -101,7 +102,7 @@ La causa principal es que, por Kommo, **la opción elegida en un menú llega com
 
 **Qué hacer.**
 - [ ] Registrar la causa real (excepción, herramienta y status HTTP) de cada error con el `conversation_id`.
-- [ ] Ante un error, **derivar** en vez de pedirle al cliente que lo intente de nuevo: llamar al endpoint `handoff` con motivo `error_agente`. Así un asesor lo toma y el CRM lo ve (CRM-3 avisa por correo).
+- [ ] Ante un error, **derivar** en vez de pedirle al cliente que lo intente de nuevo: llamar al endpoint `handoff` con motivo `error_agente`. Así un asesor lo toma, y el CRM avisa por correo (CRM-3).
 - [ ] No mandar el mismo mensaje de error dos veces en la misma conversación (la 4870 lo recibió dos veces en 44 s).
 
 ---
