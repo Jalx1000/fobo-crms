@@ -413,6 +413,7 @@ return [
                 'whatsapp'     => 'Enviar por WhatsApp',
                 'messenger'    => 'Enviar por Messenger',
                 'send'         => 'Enviar cotización',
+                'price-pending' => 'Precio pendiente',
                 'whatsapp-status' => 'WhatsApp',
             ],
 
@@ -426,6 +427,7 @@ return [
                 'storage-failed'   => 'No se pudo guardar el PDF en el servidor. Avisá al equipo técnico (permisos de storage).',
                 'already-sent'     => 'La cotización #:id ya se envió a :phone :ago. No se reenvía para no duplicarla en el chat del cliente; si hace falta, se puede volver a enviar pasados :minutes minutos.',
                 'in-progress'      => 'La cotización #:id se está enviando en este momento. Esperá unos segundos.',
+                'price-pending'    => 'La cotización #:id tiene el precio pendiente. Completá el precio antes de enviarla.',
                 'activity'         => 'Cotización #:id enviada por :channel a :to (:user)',
                 'param-customer'   => 'cliente',
                 'param-no-expiry'  => 'sin fecha de vencimiento',

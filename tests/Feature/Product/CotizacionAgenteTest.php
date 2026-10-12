@@ -105,22 +105,81 @@ it('no cotiza cuando faltan ejes: dice cuáles', function () {
     expect($r->json('message'))->toContain('Canal');
 });
 
-it('no cotiza una combinación que no se cotiza por chat, y explica por qué', function () {
+/*
+| Sin precio cargado la cotización se crea igual, con precio pendiente.
+|
+| Caso real (08/10–12/10): 9 de 21 cotizaciones del agente rebotaban con 422
+| porque el Stretch Film no tiene precio. El cliente había dado todos sus datos
+| y no quedaba nada para el asesor. Ahora queda en 0, marcada como pendiente,
+| y no se puede enviar hasta que el asesor ponga el precio.
+*/
+it('una combinación que no se cotiza por chat se crea con precio pendiente y la nota del catálogo', function () {
+    Mail::fake();
+    Queue::fake();
+
     $r = test()->postJson("/api/v1/productos/conversations/{$this->conv->id}/cotizacion", [
         'sku'       => 'CM_00002',
         'criterios' => ['Tamaño' => '50 L', 'Canal' => 'DISTRIBUIDOR', 'Zona' => 'Santa Cruz'],
         'cantidad'  => 100,
-    ])->assertStatus(422);
+    ])->assertStatus(201)->assertJsonPath('precio_pendiente', true);
 
-    expect($r->json('message'))->toContain('distribuidores');
+    $this->quotes[] = $r->json('quote_id');
+
+    $quote = app(QuoteRepository::class)->find($r->json('quote_id'));
+
+    expect((float) $quote->grand_total)->toBe(0.0)
+        ->and($quote->description)->toContain('PRECIO PENDIENTE')
+        ->and($quote->description)->toContain('distribuidores')
+        ->and((float) $r->json('total'))->toBe(0.0);
 });
 
-it('no cotiza una combinación inexistente', function () {
-    test()->postJson("/api/v1/productos/conversations/{$this->conv->id}/cotizacion", [
+it('el Stretch Film sin precio cargado se cotiza con precio pendiente', function () {
+    Mail::fake();
+    Queue::fake();
+
+    $r = test()->postJson("/api/v1/productos/conversations/{$this->conv->id}/cotizacion", [
+        'sku'       => 'CM_00001',
+        'criterios' => ['Presentación' => 'Manual 4,7 kg'],
+        'cantidad'  => 4,
+        'empresa'   => 'Union Agronegocios',
+    ])->assertStatus(201)->assertJsonPath('precio_pendiente', true);
+
+    $this->quotes[] = $r->json('quote_id');
+
+    $item = DB::table('quote_items')->where('quote_id', $r->json('quote_id'))->first();
+
+    expect((int) $item->quantity)->toBe(4)
+        ->and((float) $item->price)->toBe(0.0);
+});
+
+it('una combinación que no está en la lista también queda, con lo que pidió el cliente', function () {
+    Mail::fake();
+    Queue::fake();
+
+    $r = test()->postJson("/api/v1/productos/conversations/{$this->conv->id}/cotizacion", [
         'sku'       => 'CM_00002',
         'criterios' => ['Tamaño' => '999 L', 'Canal' => 'HORECA', 'Zona' => 'Santa Cruz'],
         'cantidad'  => 25,
-    ])->assertStatus(422);
+    ])->assertStatus(201)->assertJsonPath('precio_pendiente', true);
+
+    $this->quotes[] = $r->json('quote_id');
+
+    expect(app(QuoteRepository::class)->find($r->json('quote_id'))->description)
+        ->toContain('PRECIO PENDIENTE')
+        ->toContain('999 L');
+});
+
+it('con precio cargado no queda pendiente', function () {
+    Mail::fake();
+    Queue::fake();
+
+    $r = test()->postJson("/api/v1/productos/conversations/{$this->conv->id}/cotizacion", [
+        'sku'       => 'CM_00002',
+        'criterios' => ['Tamaño' => '50 L', 'Canal' => 'HORECA', 'Zona' => 'Santa Cruz'],
+        'cantidad'  => 25,
+    ])->assertStatus(201)->assertJsonPath('precio_pendiente', false);
+
+    $this->quotes[] = $r->json('quote_id');
 });
 
 it('no crea una cotización huérfana sin contacto', function () {

@@ -16,11 +16,11 @@
 Además, en 33 conversaciones el agente prometió la cotización y no existe ninguna (ver P1 del agente).
 
 **Qué hacer.**
-- [ ] `AgenteController::cotizacion`: si la combinación existe pero no tiene precio (`precio` null o `cotiza()` false), **crear la cotización igual**, con precio 0 y una nota visible "Precio pendiente: completar antes de enviar" que incluya la `nota` de la fila. Responder 201 con `precio_pendiente: true`.
-- [ ] Seguir devolviendo 422 **solo** cuando faltan datos (`faltan`) o el producto no existe.
+- [x] `AgenteController::cotizacion`: si la combinación existe pero no tiene precio (`precio` null o `cotiza()` false), **crear la cotización igual**, con precio 0 y una nota visible "Precio pendiente: completar antes de enviar" que incluya la `nota` de la fila. Responder 201 con `precio_pendiente: true`.
+- [x] Seguir devolviendo 422 **solo** cuando faltan datos (`faltan`) o el producto no existe.
 - [ ] En el listado de cotizaciones, una marca "Precio pendiente" para que el asesor las vea primero, y que "Enviar cotización" no deje enviar una con precio pendiente.
 - [ ] El correo de cotización nueva ya existente sigue saliendo y dice "precio pendiente".
-- [ ] Tests: Stretch Film sin precio → 201 con precio pendiente; faltan datos → 422 como hoy; precio cargado → como hoy.
+- [x] Tests: Stretch Film sin precio → 201 con precio pendiente; faltan datos → 422 como hoy; precio cargado → como hoy.
 - [ ] Recuperación: listar las 33 conversaciones con cotización prometida y no creada, para que los asesores las contacten.
 
 ---

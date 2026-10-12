@@ -161,7 +161,11 @@ class QuoteDataGrid extends DataGrid
             'type'       => 'string',
             'sortable'   => true,
             'filterable' => true,
-            'closure'    => fn ($row) => core()->formatBasePrice($row->grand_total, 2),
+            // En 0 = la dejó el agente sin precio cargado: el asesor la completa antes de enviarla.
+            'closure'    => fn ($row) => (float) $row->grand_total > 0
+                ? core()->formatBasePrice($row->grand_total, 2)
+                : '<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:12px;font-weight:600;background:#fef3c7;color:#92400e;">'
+                    .e(trans('admin::app.quotes.index.datagrid.price-pending')).'</span>',
         ]);
 
         // Si ya se mandó por WhatsApp, cómo está y cuántas veces: evita que se

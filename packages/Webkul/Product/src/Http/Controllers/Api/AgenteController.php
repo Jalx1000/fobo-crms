@@ -255,13 +255,20 @@ class AgenteController extends Controller
             return response()->json(['message' => "No existe un producto con el SKU {$datos['sku']}."], 404);
         }
 
-        [$fila, $error] = $this->filaParaCotizar($product, (array) ($datos['criterios'] ?? []));
+        [$fila, $error, $pendiente] = $this->filaParaCotizar($product, (array) ($datos['criterios'] ?? []));
 
         if ($error) {
             return response()->json(['message' => $error], 422);
         }
 
-        $precio = $fila ? (float) $fila->precio : (float) $product->price;
+        /*
+        | Sin precio cargado la cotización se crea igual, en 0 y marcada como
+        | pendiente: el asesor pone el precio y recién ahí se puede enviar
+        | (QuoteController la bloquea mientras el total sea 0). Antes se
+        | rechazaba con 422 y, con el Stretch Film sin precios, el cliente daba
+        | todos sus datos y no quedaba nada.
+        */
+        $precio = $pendiente !== null ? 0.0 : ($fila ? (float) $fila->precio : (float) $product->price);
         $total = round($precio * $datos['cantidad'], 2);
 
         // Entrega y variante: lo mismo que propone la pantalla, para que las dos
@@ -293,13 +300,13 @@ class AgenteController extends Controller
 
         $asesor = $this->responsables->asignar($conversation, $product, $ciudad);
 
-        $quote = DB::transaction(function () use ($conversation, $product, $fila, $datos, $precio, $total, $entrega, $asesor, $ciudad) {
+        $quote = DB::transaction(function () use ($conversation, $product, $fila, $datos, $precio, $total, $entrega, $asesor, $ciudad, $pendiente) {
             $quote = app(\Webkul\Quote\Repositories\QuoteRepository::class)->create([
                 // El repositorio lo usa para saber qué atributos personalizados
                 // guardar; sin esto no llega el `nit`.
                 'entity_type' => 'quotes',
                 'subject'     => $this->asuntoDe($product, $fila),
-                'description' => $this->descripcionDe($product, $fila, $datos),
+                'description' => $this->descripcionDe($product, $fila, $datos, $pendiente),
                 'person_id'   => $conversation->person_id,
                 // La oportunidad NO se vincula acá: `quotes` no tiene columna
                 // `lead_id`, la relación es la tabla `lead_quotes`. Se engancha
@@ -386,15 +393,18 @@ class AgenteController extends Controller
         | lo estuviera. Devolverlas acá cierra el turno sin una segunda llamada.
         */
         return response()->json([
-            'message'  => 'Cotización pre-elaborada. Un asesor la revisa antes de enviarla.',
-            'quote_id' => $quote->id,
-            'asunto'   => $quote->subject,
-            'cantidad' => $datos['cantidad'],
-            'precio'   => $precio,
-            'total'    => $total,
-            'minimo'   => $fila?->minimo,
-            'entrega'  => $entrega,
-            'items'    => $this->itemsDe($quote),
+            'message'  => $pendiente !== null
+                ? 'Cotización pre-elaborada con precio pendiente. Un asesor completa el precio y la envía.'
+                : 'Cotización pre-elaborada. Un asesor la revisa antes de enviarla.',
+            'quote_id'         => $quote->id,
+            'precio_pendiente' => $pendiente !== null,
+            'asunto'           => $quote->subject,
+            'cantidad'         => $datos['cantidad'],
+            'precio'           => $precio,
+            'total'            => $total,
+            'minimo'           => $fila?->minimo,
+            'entrega'          => $entrega,
+            'items'            => $this->itemsDe($quote),
             // Para que el agente pueda decirle al cliente quién lo va a llamar.
             'asesor'   => $asesor ? $this->asesor($asesor) : null,
         ], 201);
@@ -570,16 +580,17 @@ class AgenteController extends Controller
     /**
      * La fila de precio con la que se cotiza, o por qué no se puede.
      *
-     * Se exige una sola combinación y que cotice: una cotización formal con el
-     * precio de «la más parecida» es peor que no tener cotización, porque nadie
-     * la revisa sabiendo que hay que dudar de ella.
+     * Se exige una sola combinación: una cotización formal con el precio de «la
+     * más parecida» es peor que no tener cotización. Si faltan ejes es error (el
+     * agente tiene que preguntarlos); si la combinación no tiene precio o no
+     * está en la lista, se cotiza igual con precio pendiente y el motivo.
      *
-     * @return array{0: ?object, 1: ?string}
+     * @return array{0: ?object, 1: ?string, 2: ?string} fila, error, motivo del precio pendiente
      */
     protected function filaParaCotizar($product, array $criterios): array
     {
         if ($product->precios->isEmpty()) {
-            return [null, null]; // precio fijo del producto
+            return [null, null, null]; // precio fijo del producto
         }
 
         $criterios = array_filter($criterios, fn ($v) => is_scalar($v) && trim((string) $v) !== '');
@@ -587,22 +598,22 @@ class AgenteController extends Controller
         $candidatas = ListaPrecios::filtrar($product->precios, $criterios);
 
         if ($candidatas->isEmpty()) {
-            return [null, 'Esa combinación no tiene precio cargado. No se puede cotizar: derivá a un asesor.'];
+            return [null, null, 'La combinación pedida no está en la lista de precios.'];
         }
 
         if ($candidatas->count() > 1) {
             $faltan = implode(', ', $this->ejesQueFaltan($product, $candidatas, $criterios));
 
-            return [null, "Faltan datos para cotizar: {$faltan}. Preguntaselos al cliente antes de cerrar."];
+            return [null, "Faltan datos para cotizar: {$faltan}. Preguntaselos al cliente antes de cerrar.", null];
         }
 
         $fila = $candidatas->first();
 
         if (! $fila->cotiza()) {
-            return [null, $fila->nota ?: 'Esa combinación no se cotiza por chat: derivá a un asesor.'];
+            return [$fila, null, $fila->nota ?: 'Sin precio cargado para esta combinación.'];
         }
 
-        return [$fila, null];
+        return [$fila, null, null];
     }
 
     /**
@@ -661,7 +672,7 @@ class AgenteController extends Controller
      * entera. El mínimo se repite acá a propósito: es lo que más se olvida al
      * revisar y lo que invalida el pedido.
      */
-    protected function descripcionDe($product, $fila, array $datos): string
+    protected function descripcionDe($product, $fila, array $datos, ?string $pendiente = null): string
     {
         /*
         | `quotes.description` es varchar(255) y la conexión no está en modo
@@ -673,7 +684,9 @@ class AgenteController extends Controller
         | dijo no se puede reconstruir; la nota del catálogo sí, mirando el
         | producto. Por eso las notas van antes.
         */
-        $lineas = ['Pre-elaborada por el agente de IA.'];
+        $lineas = $pendiente !== null
+            ? ['PRECIO PENDIENTE: completar antes de enviar. Pre-elaborada por el agente de IA.']
+            : ['Pre-elaborada por el agente de IA.'];
 
         if ($empresa = ($datos['empresa'] ?? null)) {
             $lineas[] = "Empresa: {$empresa}";
@@ -681,6 +694,9 @@ class AgenteController extends Controller
 
         if ($combo = $this->comboDe($product, $fila)) {
             $lineas[] = "Variante: {$combo}";
+        } elseif ($pedido = array_filter((array) ($datos['criterios'] ?? []), 'is_scalar')) {
+            // Sin fila no hay combinación del catálogo: queda lo que pidió el cliente.
+            $lineas[] = 'Pedido: '.implode(' · ', $pedido);
         }
 
         $lineas[] = 'Cantidad: '.$datos['cantidad'].($fila?->unidad ? " ({$fila->unidad})" : '');
@@ -695,6 +711,8 @@ class AgenteController extends Controller
 
         if ($fila?->nota) {
             $lineas[] = "Catálogo: {$fila->nota}";
+        } elseif ($pendiente !== null) {
+            $lineas[] = $pendiente;
         }
 
         return static::recortar($lineas, static::LARGO_DESCRIPCION);

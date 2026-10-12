@@ -311,6 +311,10 @@ class QuoteController extends Controller
     {
         $quote = $this->quoteRepository->findOrFail($id);
 
+        if ($pendiente = $this->precioPendiente($quote)) {
+            return $pendiente;
+        }
+
         if (! $person = $quote->person) {
             return response()->json([
                 'message' => trans('admin::app.quotes.index.whatsapp.no-person'),
@@ -339,6 +343,10 @@ class QuoteController extends Controller
     public function sendMessenger(int $id, DocumentDispatcher $dispatcher): JsonResponse
     {
         $quote = $this->quoteRepository->findOrFail($id);
+
+        if ($pendiente = $this->precioPendiente($quote)) {
+            return $pendiente;
+        }
 
         if (! $person = $quote->person) {
             return response()->json([
@@ -398,6 +406,21 @@ class QuoteController extends Controller
             ]),
             'message_id' => $message->id,
         ]);
+    }
+
+    /**
+     * Una cotización en 0 tiene el precio pendiente (la dejó así el agente
+     * porque no había precio cargado): no sale hasta que el asesor lo complete.
+     */
+    protected function precioPendiente($quote): ?JsonResponse
+    {
+        if ((float) $quote->grand_total > 0) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => trans('admin::app.quotes.index.whatsapp.price-pending', ['id' => $quote->id]),
+        ], 422);
     }
 
     /**

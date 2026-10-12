@@ -208,3 +208,15 @@ it('el listado tiene un solo botón de enviar', function () {
         ->not->toContain('whatsapp')
         ->not->toContain('messenger');
 });
+
+it('una cotización con precio pendiente no se envía por ningún canal', function () {
+    DB::table('quotes')->where('id', $this->quote->id)->update(['grand_total' => 0, 'sub_total' => 0]);
+    $messenger = msConversacion($this);
+    $whatsapp = msWhatsapp($this, now()->subMinutes(5));
+
+    msEnviarUnico($this)->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'precio'));
+    msEnviar($this)->assertStatus(422);
+    $this->withHeaders(['Accept' => 'application/json'])->post(route('admin.quotes.whatsapp', $this->quote->id))->assertStatus(422);
+
+    expect(msEnviados($messenger) + msEnviados($whatsapp))->toBe(0);
+});
