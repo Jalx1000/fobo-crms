@@ -10,6 +10,7 @@ use Throwable;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\User\Models\UserProxy;
 use Webkul\Whatsapp\Exceptions\HandoffConflictException;
+use Webkul\Whatsapp\Jobs\AvisarDerivacionSinRespuesta;
 use Webkul\Whatsapp\Jobs\NotifyHandoff;
 use Webkul\Whatsapp\Models\Conversation;
 
@@ -95,6 +96,8 @@ class Handoff
             // Dispatched outside the transaction on purpose: with a Redis queue
             // a worker can pick the job up before the commit and read stale state.
             $this->notify($result['conversation'], $result['owner']);
+
+            AvisarDerivacionSinRespuesta::agendar($result['conversation']);
         }
 
         return ['conversation' => $result['conversation'], 'changed' => $result['changed']];

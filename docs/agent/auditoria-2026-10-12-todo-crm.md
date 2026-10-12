@@ -73,7 +73,7 @@ Además, en 33 conversaciones el agente prometió la cotización y no existe nin
 > **Confirmar primero con los asesores** si contestan desde la app de Kommo. Si es así, esas respuestas no entran al CRM, y entonces el arreglo es ingerirlas antes de medir o alertar.
 
 **Qué hacer.**
-- [ ] Si una conversación derivada pasa X minutos (por defecto 30, en horario laboral) sin respuesta humana, mandar el aviso a `WHATSAPP_ALERT_EMAILS` (los dos de arriba), con el cliente, el último mensaje y el link a la conversación. Un correo por conversación.
+- [x] Si una conversación derivada pasa 30 minutos (en horario: lun–sáb 08:00–19:00) sin respuesta humana, correo al **asesor asignado** con copia a `jalejandromogro1@gmail.com` (decisión del 12/10). Fuera de horario se avisa a la apertura + 30 min.
 - [ ] Filtro "Derivadas sin respuesta" en la bandeja.
 - [ ] En el tablero, tiempo de respuesta separado: **agente** (entrante → 1ª respuesta de la IA) y **asesor** (derivación → 1ª respuesta humana).
 

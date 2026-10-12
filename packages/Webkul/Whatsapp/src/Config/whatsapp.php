@@ -287,6 +287,21 @@ return [
     'handoff' => [
         'notify' => env('WHATSAPP_HANDOFF_NOTIFY', true),
 
+        /*
+        | Derivación sin respuesta: si a los N minutos (en horario) ningún
+        | asesor contestó, correo al asesor asignado con copia fija. Fuera de
+        | horario el control se corre a la apertura + N minutos.
+        */
+        'sin_respuesta_minutos' => (int) env('WHATSAPP_HANDOFF_SIN_RESPUESTA_MINUTOS', 30),
+        'sin_respuesta_copia'   => array_values(array_filter(array_map('trim', explode(',', (string) env(
+            'WHATSAPP_HANDOFF_SIN_RESPUESTA_COPIA',
+            'jalejandromogro1@gmail.com'
+        ))))),
+        'horario_inicio' => env('WHATSAPP_HORARIO_INICIO', '08:00'),
+        'horario_fin'    => env('WHATSAPP_HORARIO_FIN', '19:00'),
+        // ISO: 1 = lunes … 7 = domingo.
+        'horario_dias' => array_map('intval', explode(',', (string) env('WHATSAPP_HORARIO_DIAS', '1,2,3,4,5,6'))),
+
         // Krayin user group that covers the pool. Null = every active user.
         'pool_group_id' => env('WHATSAPP_HANDOFF_POOL_GROUP_ID'),
 
