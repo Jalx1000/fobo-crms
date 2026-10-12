@@ -25,6 +25,7 @@ class AgentPayload
     {
         $conversation = $message->conversation;
         $window = $this->window($conversation);
+        $parts = $this->parts($message);
 
         return [
             'event'           => 'message.received',
@@ -40,7 +41,14 @@ class AgentPayload
             'message'         => [
                 'id'        => $message->id,
                 'type'      => $message->type,
-                'text'      => $message->body,
+                /*
+                | Con una ráfaga, `text` trae todos los mensajes unidos en el
+                | orden en que llegaron, y `parts` cada uno por separado.
+                */
+                'text'      => count($parts) > 1
+                    ? implode("\n", array_filter(array_column($parts, 'text'), fn ($t) => trim((string) $t) !== ''))
+                    : $message->body,
+                'parts'     => $parts,
                 /*
                 | Presente solo cuando el cliente tocó un botón o eligió de una
                 | lista. `text` ya trae el título —lo que el cliente ve—, pero el
@@ -90,6 +98,28 @@ class AgentPayload
             'id'    => (string) $respuesta['id'],
             'title' => (string) ($respuesta['title'] ?? ''),
         ];
+    }
+
+    /**
+     * Los mensajes del cliente desde la última respuesta, hasta este inclusive.
+     *
+     * @return array<int, array{id: int, type: string, text: ?string}>
+     */
+    protected function parts(Message $message): array
+    {
+        $ultimaRespuesta = $message->conversation->messages()
+            ->where('direction', 'outbound')
+            ->where('id', '<', $message->id)
+            ->max('id') ?? 0;
+
+        return $message->conversation->messages()
+            ->where('direction', 'inbound')
+            ->where('id', '>', $ultimaRespuesta)
+            ->where('id', '<=', $message->id)
+            ->orderBy('id')
+            ->get(['id', 'type', 'body'])
+            ->map(fn ($m) => ['id' => (int) $m->id, 'type' => (string) $m->type, 'text' => $m->body])
+            ->all();
     }
 
     /**

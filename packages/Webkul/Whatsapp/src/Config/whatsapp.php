@@ -252,6 +252,11 @@ return [
         'webhook_url'  => env('WHATSAPP_AGENT_WEBHOOK_URL'),
         'token'        => env('WHATSAPP_AGENT_TOKEN'), // Bearer the CRM sends so the agent knows it's us
         'history_size' => env('WHATSAPP_AGENT_HISTORY_SIZE', 15),
+
+        // Segundos que se espera antes de avisar al agente. Si en ese lapso el
+        // cliente manda otro mensaje, se avisa una sola vez con todos juntos
+        // (`message.parts`). 0 = un aviso por mensaje, como antes.
+        'debounce_seconds' => (int) env('WHATSAPP_AGENT_DEBOUNCE_SECONDS', 8),
     ],
 
     /*

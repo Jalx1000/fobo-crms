@@ -36,6 +36,19 @@ class NotifyAgent implements ShouldQueue
 
     public function __construct(public int $messageId) {}
 
+    /**
+     * Encola el aviso con la espera de `whatsapp.ai.debounce_seconds`, para que
+     * los mensajes que el cliente manda seguidos lleguen juntos al agente.
+     */
+    public static function despachar(int $messageId): void
+    {
+        $pendiente = static::dispatch($messageId)->onQueue(config('whatsapp.queue'));
+
+        if (($segundos = (int) config('whatsapp.ai.debounce_seconds', 0)) > 0) {
+            $pendiente->delay(now()->addSeconds($segundos));
+        }
+    }
+
     public function handle(AgentPayload $payloads): void
     {
         $url = (string) config('whatsapp.ai.webhook_url');
@@ -54,6 +67,19 @@ class NotifyAgent implements ShouldQueue
 
         // Re-check at run time: the human may have taken over since enqueue.
         if (! $message->conversation->agenteDebeResponder()) {
+            return;
+        }
+
+        /*
+        | Ráfaga: si el cliente ya mandó otro mensaje, este aviso sobra. El del
+        | último mensaje lleva todos en `message.parts` (auditoría del 12/10:
+        | el agente contestaba cada mensaje de una ráfaga por separado).
+        */
+        if ((int) config('whatsapp.ai.debounce_seconds', 0) > 0
+            && $message->conversation->messages()
+                ->where('direction', 'inbound')
+                ->where('id', '>', $message->id)
+                ->exists()) {
             return;
         }
 

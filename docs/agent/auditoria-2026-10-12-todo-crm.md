@@ -44,11 +44,11 @@ Además, en 33 conversaciones el agente prometió la cotización y no existe nin
 **Problema.** `IngestInboundPayload` despacha un `NotifyAgent` por cada mensaje. Hubo 156 ráfagas (2 o más mensajes en menos de 60 s) y el agente respondió cada mensaje por separado (conversación 3686: contestó el saludo con la presentación e ignoró la pregunta que llegó 2 s después).
 
 **Qué hacer.**
-- [ ] Despachar `NotifyAgent` con un retardo configurable (`WHATSAPP_AGENT_DEBOUNCE_SECONDS`, por defecto 8).
-- [ ] Al ejecutarse, si el mensaje ya no es el último entrante de la conversación, terminar sin llamar al agente: el job del mensaje más nuevo lo va a cubrir.
-- [ ] El job que sí llama manda en `message.parts` todos los entrantes consecutivos desde la última respuesta saliente, y en `message.text` sus textos unidos con salto de línea.
-- [ ] Con 0 segundos se mantiene el comportamiento actual.
-- [ ] Tests: 3 mensajes en ráfaga → un solo POST al agente con 3 `parts`; un mensaje aislado → igual que hoy.
+- [x] Despachar `NotifyAgent` con un retardo configurable (`WHATSAPP_AGENT_DEBOUNCE_SECONDS`, por defecto 8).
+- [x] Al ejecutarse, si el mensaje ya no es el último entrante de la conversación, terminar sin llamar al agente: el job del mensaje más nuevo lo va a cubrir.
+- [x] El job que sí llama manda en `message.parts` todos los entrantes consecutivos desde la última respuesta saliente, y en `message.text` sus textos unidos con salto de línea.
+- [x] Con 0 segundos se mantiene el comportamiento actual.
+- [x] Tests: 3 mensajes en ráfaga → un solo POST al agente con 3 `parts`; un mensaje aislado → igual que hoy.
 - [ ] Recordar que hay que reiniciar el worker (`supervisorctl restart whatsapp`) al desplegar.
 
 **Archivos.** `Jobs/IngestInboundPayload.php`, `Jobs/NotifyAgent.php`, `Services/AgentPayload.php`, `Config/whatsapp.php`
