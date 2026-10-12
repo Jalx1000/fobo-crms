@@ -21,6 +21,7 @@ use Webkul\Admin\Http\Resources\ActivityResource;
 use Webkul\Admin\Services\ShareMeDataService;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Contact\Support\BusquedaContacto;
 use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Lead\Repositories\PipelineRepository;
 
@@ -225,6 +226,82 @@ class ActivityController extends Controller
 
         return response()->json([
             'activities' => $activities,
+        ]);
+    }
+
+    /**
+     * Buscador de pacientes del calendario: por nombre, teléfono o carnet
+     * (CI/NIT), con sus citas —las próximas primero, después las pasadas—
+     * para saltar al día de una sin recorrer el calendario.
+     */
+    public function buscarPaciente(): JsonResponse
+    {
+        $termino = trim((string) request('q', ''));
+
+        if (mb_strlen($termino) < 3) {
+            return response()->json(['pacientes' => []]);
+        }
+
+        $ids = array_slice(BusquedaContacto::personIds($termino), 0, 50);
+
+        if (! $ids) {
+            return response()->json(['pacientes' => []]);
+        }
+
+        $personas = DB::table('persons')
+            ->whereIn('id', $ids)
+            ->select(['id', 'name', 'contact_numbers', BusquedaContacto::nitSelect('persons.id', 'ci')])
+            ->orderBy('name')
+            ->limit(10)
+            ->get();
+
+        $citas = DB::table('activities')
+            ->join('activity_participants', 'activities.id', '=', 'activity_participants.activity_id')
+            ->leftJoin('doctor_activities', 'activities.id', '=', 'doctor_activities.activity_id')
+            ->leftJoin('doctors', 'doctor_activities.doctor_id', '=', 'doctors.id')
+            ->whereIn('activity_participants.person_id', $personas->pluck('id'))
+            ->whereIn('activities.type', ['call', 'meeting', 'lunch'])
+            ->select([
+                'activities.id',
+                'activities.title',
+                'activities.is_done',
+                'activities.schedule_from as start',
+                'activities.schedule_to as end',
+                'activity_participants.person_id',
+                'doctor_activities.doctor_id',
+                'doctors.name as doctor_name',
+            ])
+            ->get()
+            ->groupBy('person_id');
+
+        $ahora = now();
+
+        return response()->json([
+            'pacientes' => $personas->map(function ($p) use ($citas, $ahora) {
+                $suyas = collect($citas->get($p->id, []))->unique('id');
+
+                // Próximas de la más cercana a la más lejana; después las pasadas,
+                // de la más reciente a la más vieja.
+                $proximas = $suyas->filter(fn ($c) => Carbon::parse($c->start)->gte($ahora))->sortBy('start');
+                $pasadas = $suyas->reject(fn ($c) => Carbon::parse($c->start)->gte($ahora))->sortByDesc('start');
+
+                return [
+                    'id'       => (int) $p->id,
+                    'name'     => $p->name,
+                    'telefono' => collect(json_decode((string) $p->contact_numbers, true) ?: [])->pluck('value')->filter()->first(),
+                    'ci'       => $p->ci,
+                    'citas'    => $proximas->concat($pasadas)->take(10)->map(fn ($c) => [
+                        'id'          => (int) $c->id,
+                        'title'       => $c->title,
+                        'start'       => $c->start,
+                        'end'         => $c->end,
+                        'is_done'     => (bool) $c->is_done,
+                        'doctor_id'   => $c->doctor_id ? (int) $c->doctor_id : null,
+                        'doctor_name' => $c->doctor_name,
+                        'proxima'     => Carbon::parse($c->start)->gte($ahora),
+                    ])->values()->all(),
+                ];
+            })->values(),
         ]);
     }
 

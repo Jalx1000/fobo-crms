@@ -68,6 +68,52 @@
             </div>
 
             <div class="dwc-filters">
+                <!-- Buscador de pacientes: nombre, teléfono o CI, con sus citas -->
+                <div v-if="busqueda.abierto" class="ddc-buscador-overlay" @click="busqueda.abierto = false"></div>
+
+                <div class="ddc-buscador">
+                    <input
+                        type="text"
+                        class="ddc-buscador-input"
+                        v-model="busqueda.q"
+                        @input="buscarPacienteDiferido"
+                        @focus="busqueda.abierto = busqueda.q.trim().length >= 3"
+                        @keydown.esc="busqueda.abierto = false"
+                        placeholder="Buscar paciente: nombre, teléfono o CI"
+                    />
+
+                    <div v-if="busqueda.abierto" class="ddc-buscador-panel">
+                        <div v-if="busqueda.cargando" class="ddc-buscador-vacio">Buscando…</div>
+
+                        <div v-else-if="! busqueda.resultados.length" class="ddc-buscador-vacio">
+                            No hay pacientes para «@{{ busqueda.q }}»
+                        </div>
+
+                        <div v-else v-for="p in busqueda.resultados" :key="'bp-' + p.id" class="ddc-buscador-paciente">
+                            <div class="ddc-buscador-nombre">@{{ p.name }}</div>
+
+                            <div class="ddc-buscador-datos">
+                                @{{ [p.telefono, p.ci ? 'CI ' + p.ci : null].filter(Boolean).join(' · ') }}
+                            </div>
+
+                            <div v-if="! p.citas.length" class="ddc-buscador-vacio">Sin citas</div>
+
+                            <button
+                                v-for="c in p.citas"
+                                :key="'bc-' + c.id"
+                                type="button"
+                                class="ddc-buscador-cita"
+                                :class="{ 'is-pasada': ! c.proxima }"
+                                @click="irACita(c)"
+                            >
+                                <span>@{{ formatDate(new Date(c.start.replace(' ', 'T'))) }} · @{{ formatTime(c.start.replace(' ', 'T')) }}</span>
+                                <span class="ddc-buscador-doctor">@{{ c.doctor_name || 'Sin doctor' }}</span>
+                                <span v-if="c.proxima" class="ddc-buscador-tag">Próxima</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <span class="text-xs dark:text-gray-300">Filtrar doctores:</span>
                 <button type="button" class="px-2 py-1 rounded border text-xs dark:border-gray-800" @click="selectAllDoctors">Todos</button>
                 <button type="button" class="px-2 py-1 rounded border text-xs dark:border-gray-800" @click="clearDoctors">Ninguno</button>
@@ -1050,6 +1096,13 @@
                 nowTimer: null,
                 datePickerOpen: false,
                 datePickerMonthISO: '',
+                busqueda: {
+                    q: '',
+                    resultados: [],
+                    abierto: false,
+                    cargando: false,
+                    timer: null,
+                },
                 weekdays: ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'],
                 quickMenu: {
                     visible: false,
@@ -1124,6 +1177,7 @@
                 storeUrl: "{{ route('admin.activities.store') }}",
                 appointmentStoreUrl: "{{ route('admin.activities.appointments.store') }}",
                 personSearchUrl: "{{ route('admin.contacts.persons.search') }}",
+                buscarPacienteUrl: "{{ route('admin.activities.buscar-paciente') }}",
                 productSearchUrl: "{{ route('admin.products.search') }}",
                 editUrlTemplate: "{{ route('admin.activities.edit', 'replaceId') }}",
                 deleteUrlTemplate: "{{ route('admin.activities.delete', 'replaceId') }}",
@@ -1405,7 +1459,8 @@
             fetch() {
                 this.isLoading = true;
 
-                this.$axios.get(this.endpoint, {
+                // Devuelve la promesa: irACita() abre la cita cuando termina de cargar el día.
+                return this.$axios.get(this.endpoint, {
                         params: {
                             view_type: 'calendar',
                             calendar_mode: 'doctor',
@@ -1428,6 +1483,53 @@
                         this.isLoading = false;
                     })
                     .catch(() => this.isLoading = false);
+            },
+            buscarPacienteDiferido() {
+                clearTimeout(this.busqueda.timer);
+
+                const q = this.busqueda.q.trim();
+
+                if (q.length < 3) {
+                    this.busqueda.resultados = [];
+                    this.busqueda.abierto = false;
+
+                    return;
+                }
+
+                this.busqueda.timer = setTimeout(() => this.buscarPaciente(q), 300);
+            },
+            buscarPaciente(q) {
+                this.busqueda.cargando = true;
+                this.busqueda.abierto = true;
+
+                this.$axios.get(this.buscarPacienteUrl, { params: { q } })
+                    .then(r => {
+                        // Si mientras tanto se siguió escribiendo, esta respuesta ya no vale.
+                        if (q === this.busqueda.q.trim()) {
+                            this.busqueda.resultados = r.data.pacientes || [];
+                        }
+                    })
+                    .catch(() => this.busqueda.resultados = [])
+                    .finally(() => this.busqueda.cargando = false);
+            },
+            irACita(cita) {
+                this.busqueda.abierto = false;
+
+                // Que el doctor de la cita esté visible aunque se lo haya filtrado.
+                if (cita.doctor_id && ! this.selectedDoctorIds.includes(String(cita.doctor_id))) {
+                    this.selectedDoctorIds = [...this.selectedDoctorIds, String(cita.doctor_id)];
+                }
+
+                this.startISO = cita.start.substring(0, 10);
+                this.viewType = 'day';
+
+                this.fetch().then(() => {
+                    const ev = this.appointments.find(a => String(a.id) === String(cita.id));
+
+                    if (ev) {
+                        this.openViewModal(ev);
+                    }
+                });
             },
             selectAllDoctors() {
                 this.selectedDoctorIds = this.doctors.map(d => String(d.id));
@@ -2392,6 +2494,112 @@
         align-items: center;
         gap: 8px;
         flex-wrap: wrap
+    }
+
+    /* Buscador de pacientes */
+    .ddc-buscador {
+        position: relative;
+        z-index: 41;
+    }
+
+    .ddc-buscador-input {
+        width: 280px;
+        max-width: 100%;
+        padding: 6px 10px;
+        font-size: 13px;
+        border: 1px solid var(--border-color, #e5e7eb);
+        border-radius: 6px;
+        background: var(--controls-bg, #fff);
+        color: inherit;
+    }
+
+    .ddc-buscador-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+    }
+
+    .ddc-buscador-panel {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        width: 360px;
+        max-width: 90vw;
+        max-height: 420px;
+        overflow-y: auto;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, .12);
+        padding: 6px;
+    }
+
+    .dark .ddc-buscador-panel {
+        background: #111827;
+        border-color: #374151;
+    }
+
+    .ddc-buscador-paciente {
+        padding: 8px;
+        border-bottom: 1px solid #f3f4f6;
+    }
+
+    .dark .ddc-buscador-paciente {
+        border-color: #1f2937;
+    }
+
+    .ddc-buscador-paciente:last-child {
+        border-bottom: 0;
+    }
+
+    .ddc-buscador-nombre {
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .ddc-buscador-datos,
+    .ddc-buscador-vacio {
+        font-size: 12px;
+        color: #6b7280;
+        padding: 2px 0;
+    }
+
+    .ddc-buscador-cita {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        gap: 8px;
+        margin-top: 4px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        text-align: left;
+        background: #eff6ff;
+        color: #1e3a8a;
+    }
+
+    .ddc-buscador-cita:hover {
+        background: #dbeafe;
+    }
+
+    .ddc-buscador-cita.is-pasada {
+        background: #f9fafb;
+        color: #4b5563;
+    }
+
+    .ddc-buscador-doctor {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .ddc-buscador-tag {
+        padding: 1px 6px;
+        border-radius: 9999px;
+        background: #2563eb;
+        color: #fff;
+        font-size: 11px;
     }
 
     .dwc-grid {

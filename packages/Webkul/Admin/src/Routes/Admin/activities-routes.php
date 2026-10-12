@@ -8,6 +8,8 @@ Route::controller(ActivityController::class)->prefix('activities')->group(functi
 
     Route::get('get', 'get')->name('admin.activities.get');
 
+    Route::get('buscar-paciente', 'buscarPaciente')->name('admin.activities.buscar-paciente');
+
     Route::post('create', 'store')->name('admin.activities.store');
 
     Route::post('appointments/create', 'storeAppointment')->name('admin.activities.appointments.store');

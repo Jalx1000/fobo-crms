@@ -114,7 +114,7 @@ return [
     ], [
         'key'   => 'activities',
         'name'  => 'admin::app.acl.activities',
-        'route' => 'admin.activities.index',
+        'route' => ['admin.activities.index', 'admin.activities.buscar-paciente'],
         'sort'  => 5,
     ], [
         'key'   => 'activities.create',
