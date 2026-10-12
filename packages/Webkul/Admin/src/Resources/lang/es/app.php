@@ -568,6 +568,7 @@ return [
                 'delete-failed'          => 'No se pudieron eliminar las clientes seleccionadas.',
                 'datagrid'               => [
                     'contact-numbers'   => 'Números de Contacto',
+                    'nit'               => 'CI / NIT',
                     'delete'            => 'Eliminar',
                     'edit'              => 'Editar',
                     'emails'            => 'Correos Electrónicos',
@@ -1965,6 +1966,7 @@ return [
                 'lead-type'      => 'Tipo de pedido',
                 'tag-name'       => 'Nombre de la etiqueta',
                 'phone'          => 'Teléfono',
+                'nit'            => 'CI / NIT',
                 'contact-person' => 'Contacto del Prospecto',
                 'stage'          => 'Etapa',
                 'city'           => 'Ciudad',

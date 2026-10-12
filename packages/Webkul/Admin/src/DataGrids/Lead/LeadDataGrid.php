@@ -6,6 +6,7 @@ use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Webkul\Admin\Helpers\CustomAttributeValueResolver;
 use Webkul\Attribute\Repositories\AttributeRepository;
+use Webkul\Contact\Support\BusquedaContacto;
 use Webkul\DataGrid\DataGrid;
 use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Lead\Repositories\PipelineRepository;
@@ -95,6 +96,7 @@ class LeadDataGrid extends DataGrid
                 'persons.id as person_id',
                 'persons.name as person_name',
                 'persons.contact_numbers',
+                BusquedaContacto::nitSelect('persons.id'),
                 'tags.name as tag_name',
                 'lead_pipelines.rotten_days as pipeline_rotten_days',
                 'lead_pipelines.name as pipeline_name',
@@ -170,6 +172,7 @@ class LeadDataGrid extends DataGrid
         // $this->addFilter('lead_type_name', 'lead_types.id');
         $this->addFilter('person_name', 'persons.name');
         $this->addFilter('contact_numbers', 'persons.contact_numbers');
+        $this->addFilter('nit', BusquedaContacto::nitSql('persons.id'));
         $this->addFilter('platform', ContactChannel::column());
         // $this->addFilter('type', 'lead_pipeline_stages.code');
         $this->addFilter('stage', 'lead_pipeline_stages.id');
@@ -280,6 +283,16 @@ class LeadDataGrid extends DataGrid
             'filterable' => true,
             'searchable' => true,
             'closure'    => fn ($row) => collect(json_decode($row->contact_numbers, true) ?? [])->pluck('value')->join(', '),
+        ]);
+
+        // El carnet o NIT del contacto (atributo `nit`): se puede buscar desde la caja.
+        $this->addColumn([
+            'index'      => 'nit',
+            'label'      => trans('admin::app.leads.index.datagrid.nit'),
+            'type'       => 'string',
+            'sortable'   => false,
+            'filterable' => true,
+            'searchable' => true,
         ]);
 
         $this->addColumn([

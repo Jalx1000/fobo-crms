@@ -9,6 +9,7 @@ use Webkul\Admin\Helpers\CustomAttributeValueResolver;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Contact\Repositories\OrganizationRepository;
 use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Contact\Support\BusquedaContacto;
 use Webkul\DataGrid\DataGrid;
 use Webkul\Whatsapp\Support\ContactChannel;
 
@@ -91,7 +92,8 @@ class PersonDataGrid extends DataGrid
                 'persons.contact_numbers',
                 'persons.created_at',
                 'organizations.name as organization',
-                'organizations.id as organization_id'
+                'organizations.id as organization_id',
+                BusquedaContacto::nitSelect('persons.id')
             )
             ->leftJoin('organizations', 'persons.organization_id', '=', 'organizations.id');
 
@@ -167,6 +169,7 @@ class PersonDataGrid extends DataGrid
         $this->addFilter('person_name', 'persons.name');
         $this->addFilter('platform', ContactChannel::column());
         $this->addFilter('organization', 'organizations.name');
+        $this->addFilter('nit', BusquedaContacto::nitSql('persons.id'));
 
         return $queryBuilder;
     }
@@ -212,6 +215,16 @@ class PersonDataGrid extends DataGrid
             'filterable' => true,
             'searchable' => true,
             'closure'    => fn ($row) => collect(json_decode($row->contact_numbers, true) ?? [])->pluck('value')->join(', '),
+        ]);
+
+        // El carnet o NIT del contacto (atributo `nit`): se puede buscar desde la caja.
+        $this->addColumn([
+            'index'      => 'nit',
+            'label'      => trans('admin::app.contacts.persons.index.datagrid.nit'),
+            'type'       => 'string',
+            'sortable'   => false,
+            'filterable' => true,
+            'searchable' => true,
         ]);
 
         $this->addColumn([

@@ -20,6 +20,7 @@ use Webkul\Admin\Http\Resources\LeadResource;
 use Webkul\Admin\Http\Resources\StageResource;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Contact\Support\BusquedaContacto;
 use Webkul\Lead\Helpers\MagicAI;
 use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Lead\Repositories\PipelineRepository;
@@ -288,6 +289,14 @@ class LeadController extends Controller
             }
         }
 
+        /*
+        | La caja de búsqueda del tablero (`q`): título del pedido, o nombre,
+        | teléfono, email o carnet (CI/NIT) del contacto. Los contactos que
+        | coinciden se resuelven una sola vez, no por columna.
+        */
+        $busqueda = trim((string) request()->query('q', ''));
+        $personasBuscadas = $busqueda !== '' ? BusquedaContacto::personIds($busqueda) : [];
+
         foreach ($stages as $stage) {
             /**
              * We have to create a new instance of the lead repository every time, which is
@@ -330,6 +339,16 @@ class LeadController extends Controller
              * the grid.
              */
             ContactChannel::applyFilter($query, request()->query('platform'), 'leads.person_id');
+
+            if ($busqueda !== '') {
+                $query->where(function ($w) use ($busqueda, $personasBuscadas) {
+                    $w->where('leads.title', 'like', '%'.$busqueda.'%');
+
+                    if ($personasBuscadas) {
+                        $w->orWhereIn('leads.person_id', $personasBuscadas);
+                    }
+                });
+            }
 
             if ($dateRange) {
                 /**

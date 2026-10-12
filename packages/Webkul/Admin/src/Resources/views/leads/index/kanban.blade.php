@@ -451,23 +451,13 @@
                             }
 
                             /**
-                             * La caja libre busca en los tres lugares donde
-                             * alguien buscaria un lead: el titulo, el nombre del
-                             * contacto y su telefono. Antes miraba SOLO el
-                             * titulo, asi que escribir un numero o un nombre no
-                             * devolvia nada y parecia que el filtro no andaba.
-                             *
-                             * RequestCriteria combina los campos con OR (el
-                             * primero va con `where` y el resto con `orWhere`),
-                             * que es justo lo que una caja de busqueda tiene que
-                             * hacer.
+                             * La caja libre busca por titulo del pedido o por
+                             * nombre, telefono, email o carnet (CI/NIT) del
+                             * contacto. Va en `q` y la resuelve LeadController:
+                             * el carnet es un atributo y RequestCriteria no lo
+                             * alcanza, y el telefono se busca tambien en digitos.
                              */
-                            const term = column.value.join(',');
-
-                            ['title', 'person.name', 'person.contact_numbers'].forEach((field) => {
-                                params['search'] += `${field}:${term};`;
-                                params['searchFields'] += `${field}:like;`;
-                            });
+                            params['q'] = column.value.join(' ');
 
                             return;
                         }

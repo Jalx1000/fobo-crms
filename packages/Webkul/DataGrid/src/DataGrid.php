@@ -330,7 +330,7 @@ abstract class DataGrid
         foreach ($requestedFilters as $requestedColumn => $requestedValues) {
             if ($requestedColumn === 'all') {
                 $this->queryBuilder->where(function ($scopeQueryBuilder) use ($requestedValues) {
-                    foreach ($requestedValues as $value) {
+                    foreach ($this->terminosDeBusqueda($requestedValues) as $value) {
                         collect($this->columns)
                             ->filter(fn ($column) => $column->getSearchable() && ! in_array($column->getType(), [
                                 ColumnTypeEnum::BOOLEAN->value,
@@ -347,6 +347,28 @@ abstract class DataGrid
         }
 
         return $this->queryBuilder;
+    }
+
+    /**
+     * Los términos de la caja de búsqueda, más su versión en dígitos cuando
+     * parecen un teléfono o un carnet: «+591 707-60650» también se busca como
+     * «59170760650», que es como está guardado.
+     */
+    protected function terminosDeBusqueda(array $valores): array
+    {
+        $terminos = [];
+
+        foreach ($valores as $valor) {
+            $terminos[] = $valor;
+
+            if (is_string($valor)
+                && preg_match('/^[\d\s+\-().]+$/', trim($valor))
+                && strlen($digitos = preg_replace('/\D/', '', $valor)) >= 5) {
+                $terminos[] = $digitos;
+            }
+        }
+
+        return array_values(array_unique($terminos, SORT_REGULAR));
     }
 
     /**
