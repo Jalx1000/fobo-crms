@@ -54,13 +54,31 @@ class IngestInboundPayload implements ShouldQueue
             return;
         }
 
-        foreach ($batch->messages as $message) {
+        foreach ($this->soloEstados($gateways) ? [] : $batch->messages as $message) {
             $this->persistMessage($message, $resolver, $gateway);
         }
 
         foreach ($batch->statuses as $status) {
             $this->applyStatus($status);
         }
+    }
+
+    /**
+     * ¿De este canal solo se toman los estados de entrega?
+     *
+     * En el modo mixto Kommo recibe los mensajes de los clientes y Cloud API
+     * solo envía. Meta, además de los estados, manda los mismos mensajes
+     * entrantes a la entrada de Cloud API: registrarlos los duplicaría. Vale
+     * para cualquier canal de la familia del activo que no sea el activo.
+     */
+    protected function soloEstados(GatewayManager $gateways): bool
+    {
+        $activo = (string) config('whatsapp.gateway');
+
+        return $activo !== ''
+            && $this->gatewayKey !== $activo
+            && $gateways->has($activo)
+            && $gateways->family($this->gatewayKey) === $gateways->family($activo);
     }
 
     /**

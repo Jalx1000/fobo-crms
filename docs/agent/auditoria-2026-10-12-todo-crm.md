@@ -83,7 +83,8 @@ Además, en 33 conversaciones el agente prometió la cotización y no existe nin
 
 **Problema.** Solo 13 de las 1.251 respuestas del agente figuran como `delivered`. En el modo mixto (Kommo recibe y Cloud API envía) no llegan los estados de entrega de Meta, así que un envío fallido no se ve.
 
-- [ ] Suscribir el webhook de estados de Cloud API para el número que envía y actualizar `status` por `wa_message_id`.
+- [x] Entrada `/api/v1/webhooks/cloud-api` (solo estados en modo mixto) que actualiza `status` por `wa_message_id`.
+- [ ] Configurar esa URL en la app de Meta del número que envía y suscribir la app a la WABA.
 
 ---
 

@@ -22,6 +22,23 @@ Route::prefix('api/v1/whatsapp')->group(function () {
 });
 
 /*
+| Entrada propia de Cloud API, fijada a ese canal sea cual sea el activo.
+|
+| En el modo mixto (Kommo recibe, Cloud API envía) Meta no tenía a dónde
+| mandar los estados de entrega de lo que sale por Cloud API: el webhook de
+| arriba lo atiende Kommo. Esta URL va en la app de Meta del número que envía.
+*/
+Route::prefix('api/v1/webhooks')->group(function () {
+    Route::get('cloud-api', [WebhookController::class, 'verify'])
+        ->defaults('channel', 'cloud_api')
+        ->name('whatsapp.cloud-api.webhook.verify');
+
+    Route::post('cloud-api', [WebhookController::class, 'receive'])
+        ->defaults('channel', 'cloud_api')
+        ->name('whatsapp.cloud-api.webhook.receive');
+});
+
+/*
 |--------------------------------------------------------------------------
 | Agent API (token / Sanctum)
 |--------------------------------------------------------------------------
