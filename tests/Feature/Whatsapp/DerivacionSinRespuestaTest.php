@@ -107,6 +107,7 @@ it('si la derivación ya se cerró, no avisa', function () {
 it('sin asesor asignado, el aviso va igual a la copia', function () {
     $conv = derivar($this, null);
     $conv->forceFill(['assigned_user_id' => null])->save();
+    Carbon::setTestNow(now()->addMinutes(31));
 
     correrControl($conv->fresh());
 
@@ -127,6 +128,15 @@ it('fuera de horario no avisa: reagenda para la apertura', function () {
 
         return $hora->format('Y-m-d H:i') === '2026-10-13 08:30';
     });
+});
+
+it('si corre antes de los 30 minutos no avisa', function () {
+    $conv = derivar($this, $this->asesor->id);
+    Carbon::setTestNow(now()->addMinutes(5));
+
+    correrControl($conv);
+
+    Mail::assertNothingSent();
 });
 
 it('una derivación nueva deja sin efecto el control de la anterior', function () {
