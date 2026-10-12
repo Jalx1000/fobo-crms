@@ -16,6 +16,7 @@ use Webkul\Admin\Http\Requests\AttributeForm;
 use Webkul\Admin\Http\Requests\MassDestroyRequest;
 use Webkul\Admin\Http\Resources\PersonResource;
 use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Contact\Support\BusquedaContacto;
 use Webkul\Lead\Repositories\PipelineRepository;
 
 class PersonController extends Controller
@@ -200,6 +201,19 @@ class PersonController extends Controller
      */
     public function search(): JsonResource
     {
+        /*
+        | `q` (barra de búsqueda) o `query` (selectores de contacto): nombre,
+        | teléfono, email o carnet (CI/NIT). Antes el selector mandaba `query`,
+        | el servidor lo ignoraba y el navegador filtraba solo por nombre.
+        */
+        $termino = trim((string) (request('q') ?? request('query') ?? ''));
+
+        if ($termino !== '') {
+            $ids = BusquedaContacto::personIds($termino);
+
+            $this->personRepository->scopeQuery(fn ($query) => $query->whereIn('persons.id', $ids ?: [0]));
+        }
+
         if ($userIds = bouncer()->getAuthorizedUserIds()) {
             $persons = $this->personRepository
                 ->pushCriteria(app(RequestCriteria::class))

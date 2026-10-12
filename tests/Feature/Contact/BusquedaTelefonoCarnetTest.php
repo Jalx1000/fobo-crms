@@ -107,3 +107,40 @@ it('pedidos (kanban): sigue encontrando por título y nombre', function () {
 it('un CI que no existe no trae nada', function () {
     expect(buscarEnKanban('99999999999'))->not->toContain($this->lead);
 });
+
+/*
+| La barra de búsqueda de arriba (mega search) y los selectores de contacto
+| (calendario, cotizaciones, pedidos) usan los endpoints de búsqueda. Antes
+| buscaban solo por nombre: el selector mandaba el texto en `query`, el
+| servidor lo ignoraba y el navegador filtraba por nombre.
+*/
+function buscarEndpoint(string $ruta, array $params): array
+{
+    return collect(test()->withHeaders(['Accept' => 'application/json'])
+        ->get(route($ruta, $params))
+        ->assertOk()
+        ->json('data'))->pluck('id')->all();
+}
+
+it('barra de búsqueda, contactos: encuentra por CI y por teléfono', function () {
+    expect(buscarEndpoint('admin.contacts.persons.search', ['q' => $this->ci]))->toContain($this->person->id)
+        ->and(buscarEndpoint('admin.contacts.persons.search', ['q' => substr($this->tel, 4, 3).' '.substr($this->tel, 7)]))->toContain($this->person->id);
+});
+
+it('barra de búsqueda, pedidos: encuentra por CI y por teléfono del contacto', function () {
+    expect(buscarEndpoint('admin.leads.search', ['q' => $this->ci]))->toContain($this->lead)
+        ->and(buscarEndpoint('admin.leads.search', ['q' => substr($this->tel, 4)]))->toContain($this->lead);
+});
+
+it('barra de búsqueda: un término que no existe no trae ese contacto', function () {
+    expect(buscarEndpoint('admin.contacts.persons.search', ['q' => '99999999999']))->not->toContain($this->person->id);
+});
+
+it('selector de contacto (calendario, cotizaciones): busca por CI con el parámetro query', function () {
+    expect(buscarEndpoint('admin.contacts.persons.search', ['query' => $this->ci, 'limit' => 200]))->toContain($this->person->id);
+});
+
+it('la búsqueda clásica por campos sigue funcionando', function () {
+    expect(buscarEndpoint('admin.contacts.persons.search', ['search' => 'name:'.$this->person->name, 'searchFields' => 'name:like']))
+        ->toContain($this->person->id);
+});

@@ -629,6 +629,20 @@ class LeadController extends Controller
      */
     public function search(): AnonymousResourceCollection
     {
+        // `q` (barra de búsqueda): título del pedido, o nombre, teléfono,
+        // email o carnet (CI/NIT) del contacto.
+        if (($termino = trim((string) request('q', ''))) !== '') {
+            $personas = BusquedaContacto::personIds($termino);
+
+            $this->leadRepository->scopeQuery(fn ($query) => $query->where(function ($w) use ($termino, $personas) {
+                $w->where('leads.title', 'like', '%'.$termino.'%');
+
+                if ($personas) {
+                    $w->orWhereIn('leads.person_id', $personas);
+                }
+            }));
+        }
+
         if ($userIds = bouncer()->getAuthorizedUserIds()) {
             $results = $this->leadRepository
                 ->pushCriteria(app(RequestCriteria::class))

@@ -581,6 +581,15 @@
                         return;
                     }
 
+                    // Pedidos y Contactos: nombre, teléfono, email o carnet (ver desktop).
+                    if (tab.key === 'leads' || tab.key === 'persons') {
+                        this.params = { q: newTerm };
+
+                        this.search(tab.endpoint);
+
+                        return;
+                    }
+
                     this.params.search += tab.query_params.map((param) => `${param.search}:${newTerm};`).join('');
 
                     this.params.searchFields += tab.query_params.map((param) => `${param.searchFields};`).join('');

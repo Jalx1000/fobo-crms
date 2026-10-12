@@ -211,6 +211,12 @@
                 filteredResults() {
                     const term = (this.searchTerm || '').toLowerCase();
 
+                    // Un número (teléfono o carnet) ya lo filtró el servidor: el
+                    // resultado no lo tiene en el nombre y acá se perdería.
+                    if (/^[\d\s+\-().]+$/.test(term.trim())) {
+                        return this.searchedResults;
+                    }
+
                     return this.searchedResults.filter(item =>
                         (item.name || '').toLowerCase().includes(term)
                     );
