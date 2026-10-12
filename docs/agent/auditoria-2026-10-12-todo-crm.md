@@ -1,0 +1,73 @@
+# TODO — CRM (auditoría del agente del 12/10/2026)
+
+> Datos: 303 conversaciones (02/10 al 12/10/2026). Las tareas del agente están en `auditoria-2026-10-12-todo-agente.md`.
+> Orden sugerido: CRM-1 → CRM-2 → CRM-3 → CRM-4. Las tareas CRM-1 y CRM-2 desbloquean P3 y P4 del agente.
+
+---
+
+## CRM-1 — Recuperar la opción elegida en menús que llegan por Kommo
+
+**Problema.** Por Kommo, la elección de un menú interactivo llega como texto común: 357 de 1.256 mensajes del cliente eran el título exacto de una opción. `AgentPayload::selection()` lee `payload.interactive` y devuelve `null`, así que el agente no sabe qué se eligió y repite el menú (54 repeticiones en 46 conversaciones; la conversación 5107 recibió 4 veces la misma presentación).
+
+**Qué hacer.**
+- [ ] Al armar el evento para un mensaje entrante de **texto**, buscar el último mensaje `interactive` saliente de la conversación. Si el texto coincide con el título de una de sus opciones (filas o botones; sin distinguir mayúsculas y comparando sin espacios en los extremos), devolver `selection = {id, title}`.
+- [ ] Solo contra **el último** menú enviado, para no confundir títulos que se repiten entre menús.
+- [ ] Tests: título exacto → selection con su id; texto libre → null; título de un menú anterior → null; payload `interactive` nativo (Cloud API) → sigue funcionando.
+
+**Archivos.** `packages/Webkul/Whatsapp/src/Services/AgentPayload.php`
+
+---
+
+## CRM-2 — Agrupar ráfagas antes de avisar al agente
+
+**Problema.** `IngestInboundPayload` despacha un `NotifyAgent` por cada mensaje. Hubo 156 ráfagas (2 o más mensajes en menos de 60 s) y el agente respondió cada mensaje por separado (conversación 3686: contestó el saludo con la presentación e ignoró la pregunta que llegó 2 s después).
+
+**Qué hacer.**
+- [ ] Despachar `NotifyAgent` con un retardo configurable (`WHATSAPP_AGENT_DEBOUNCE_SECONDS`, por defecto 8).
+- [ ] Al ejecutarse, si el mensaje ya no es el último entrante de la conversación, terminar sin llamar al agente: el job del mensaje más nuevo lo va a cubrir.
+- [ ] El job que sí llama manda en `message.parts` todos los entrantes consecutivos desde la última respuesta saliente, y en `message.text` sus textos unidos con salto de línea.
+- [ ] Con 0 segundos se mantiene el comportamiento actual.
+- [ ] Tests: 3 mensajes en ráfaga → un solo POST al agente con 3 `parts`; un mensaje aislado → igual que hoy.
+- [ ] Recordar que hay que reiniciar el worker (`supervisorctl restart whatsapp`) al desplegar.
+
+**Archivos.** `Jobs/IngestInboundPayload.php`, `Jobs/NotifyAgent.php`, `Services/AgentPayload.php`, `Config/whatsapp.php`
+
+---
+
+## CRM-3 — Avisar cuando el agente falla
+
+**Problema.** El 07/10 de 21:08 al 08/10 a las 08:48 el agente contestó 23 veces "ocurrió un error" y nadie se enteró durante unas 12 horas. Los fallos de `NotifyAgent::failed()` solo quedan en el log.
+
+**Qué hacer.**
+- [ ] Al recibir del agente un mensaje con el texto de error, o cuando `NotifyAgent` agote sus reintentos, contar el evento.
+- [ ] Si hay N eventos en M minutos (por defecto 3 en 15), mandar **un** correo a los administradores y no repetirlo durante 1 hora.
+- [ ] Opcional: un chip "Agente con errores" en la bandeja mientras dure.
+
+---
+
+## CRM-4 — Derivaciones que nadie atiende
+
+**Problema.** De 52 derivaciones, 28 no tienen ninguna respuesta humana registrada en el CRM. Las demás tardaron unas 18 horas de mediana. Hay 18 conversaciones que terminan con el cliente esperando, varias con pedidos concretos (5016 "Cuánto me sale 50 unidades?", 5060 "Me cotiza el manual", 4433 "100uni", 5019 "Y dirección", 4260 con su NIT).
+
+> **Confirmar primero con los asesores** si contestan desde la app de Kommo. Si es así, esas respuestas no entran al CRM, y entonces el arreglo es ingerirlas antes de medir o alertar.
+
+**Qué hacer.**
+- [ ] Si una conversación derivada pasa X minutos (por defecto 30, en horario laboral) sin respuesta humana, mandar un recordatorio al asesor del pedido y, si sigue sin respuesta, al supervisor.
+- [ ] Filtro "Derivadas sin respuesta" en la bandeja.
+- [ ] En el tablero, tiempo de respuesta separado: **agente** (entrante → 1ª respuesta de la IA) y **asesor** (derivación → 1ª respuesta humana).
+
+---
+
+## CRM-5 — Estados de entrega
+
+**Problema.** Solo 13 de las 1.251 respuestas del agente figuran como `delivered`. En el modo mixto (Kommo recibe y Cloud API envía) no llegan los estados de entrega de Meta, así que un envío fallido no se ve.
+
+- [ ] Suscribir el webhook de estados de Cloud API para el número que envía y actualizar `status` por `wa_message_id`.
+
+---
+
+## Datos (Comercial, no código)
+
+- [ ] **Stretch Film**: cargar el precio de las 2 presentaciones; hoy no tiene ninguno. Es el anuncio más común (102 conversaciones) y todas terminan derivadas.
+- [ ] **Bolsas Magia Verde**: completar las 20 de 50 combinaciones Tamaño × Canal × Zona que no tienen precio.
+- [ ] Definir a qué tamaño corresponde "XXL" (lo dice el anuncio y no existe en el catálogo).
