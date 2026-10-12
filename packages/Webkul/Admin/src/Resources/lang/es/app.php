@@ -413,7 +413,6 @@ return [
                 'whatsapp'     => 'Enviar por WhatsApp',
                 'messenger'    => 'Enviar por Messenger',
                 'send'         => 'Enviar cotización',
-                'price-pending' => 'Precio pendiente',
                 'whatsapp-status' => 'WhatsApp',
             ],
 
