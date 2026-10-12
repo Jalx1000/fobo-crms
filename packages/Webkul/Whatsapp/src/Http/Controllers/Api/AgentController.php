@@ -13,6 +13,7 @@ use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\AgentPayload;
+use Webkul\Whatsapp\Services\AlertaAgente;
 use Webkul\Whatsapp\Services\Handoff;
 
 /**
@@ -200,6 +201,13 @@ class AgentController extends Controller
         $conversation->forceFill(['last_message_at' => now()])->save();
 
         SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
+
+        // CRM-3: el «ocurrió un error» del agente cuenta para el aviso por correo.
+        $alertas = app(AlertaAgente::class);
+
+        if ($alertas->esRespuestaDeError($data['text'])) {
+            $alertas->registrar('respuesta_error', $conversation->id);
+        }
 
         return response()->json([
             'message' => ['id' => $message->id, 'status' => $message->status, 'sender' => $message->sender],

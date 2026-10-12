@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\AgentPayload;
+use Webkul\Whatsapp\Services\AlertaAgente;
 
 /**
  * Notifies the external AI agent that an inbound message arrived, so it can
@@ -115,5 +116,10 @@ class NotifyAgent implements ShouldQueue
             'tries'   => $this->tries,
             'error'   => $e->getMessage(),
         ]);
+
+        app(AlertaAgente::class)->registrar(
+            'agente_no_responde',
+            MessageProxy::modelClass()::whereKey($this->messageId)->value('conversation_id'),
+        );
     }
 }

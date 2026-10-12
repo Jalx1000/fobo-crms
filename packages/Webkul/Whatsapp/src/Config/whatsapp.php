@@ -335,4 +335,24 @@ return [
     */
     'antiduplicado_segundos' => env('WHATSAPP_ANTIDUPLICADO_SEGUNDOS', 120),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Avisos por correo cuando el agente falla
+    |--------------------------------------------------------------------------
+    | Con `umbral` fallas en `ventana_minutos` sale UN correo a `emails` y no se
+    | repite durante `silencio_minutos`. Cuenta como falla: una respuesta del
+    | agente que contiene `texto_error`, o un aviso al agente que se quedó sin
+    | reintentos. Destinatarios fijos por decisión del 12/10/2026, no por rol.
+    */
+    'alertas' => [
+        'emails' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+            'WHATSAPP_ALERT_EMAILS',
+            'jalejandromogro1@gmail.com,dcuellar@sofopolis.com'
+        ))))),
+        'umbral'           => (int) env('WHATSAPP_ALERT_UMBRAL', 3),
+        'ventana_minutos'  => (int) env('WHATSAPP_ALERT_VENTANA_MINUTOS', 15),
+        'silencio_minutos' => (int) env('WHATSAPP_ALERT_SILENCIO_MINUTOS', 60),
+        'texto_error'      => env('WHATSAPP_ALERT_TEXTO_ERROR', 'ocurrió un error'),
+    ],
+
 ];

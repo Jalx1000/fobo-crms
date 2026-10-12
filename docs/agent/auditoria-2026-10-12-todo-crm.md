@@ -60,8 +60,8 @@ Además, en 33 conversaciones el agente prometió la cotización y no existe nin
 **Problema.** El 07/10 de 21:08 al 08/10 a las 08:48 el agente contestó 23 veces "ocurrió un error" y nadie se enteró durante unas 12 horas. Los fallos de `NotifyAgent::failed()` solo quedan en el log.
 
 **Qué hacer.**
-- [ ] Al recibir del agente un mensaje con el texto de error, o cuando `NotifyAgent` agote sus reintentos, contar el evento.
-- [ ] Si hay N eventos en M minutos (por defecto 3 en 15), mandar **un** correo a `WHATSAPP_ALERT_EMAILS` (los dos de arriba) y no repetirlo durante 1 hora.
+- [x] Al recibir del agente un mensaje con el texto de error, o cuando `NotifyAgent` agote sus reintentos, contar el evento.
+- [x] Si hay N eventos en M minutos (por defecto 3 en 15), mandar **un** correo a `WHATSAPP_ALERT_EMAILS` (los dos de arriba) y no repetirlo durante 1 hora.
 - [ ] Opcional: un chip "Agente con errores" en la bandeja mientras dure.
 
 ---
