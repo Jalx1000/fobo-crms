@@ -15,7 +15,7 @@ Los cambios del lado del CRM van en otro documento (`auditoria-2026-10-12-todo-c
 **Qué hacer.**
 - [ ] Quitar del system prompt la REGLA 1 y todo lo que indique decir precios (`precio_producto` → "decí el precio con su unidad", "usá el `total`").
 - [ ] `precio_producto` puede seguir usándose **solo internamente**, para saber qué datos faltan (`faltan` / `opciones`). Nunca para mostrarle al cliente ni `precio` ni `total`.
-- [ ] Respuesta ante "¿cuánto cuesta?" / "¿precio?": "Le preparo la cotización con el precio exacto para su pedido. Para eso necesito: …" (solo los datos que faltan).
+- [ ] Ante "¿cuánto cuesta?" o "¿precio?" no se dice nada sobre el precio ni sobre la cotización: el agente sigue con la siguiente pregunta que falta (solo los datos que faltan).
 - [ ] Prueba: en 20 conversaciones de prueba que preguntan precio, ninguna respuesta contiene "Bs", un número seguido de moneda ni la palabra "precio" acompañada de un monto.
 
 ---
@@ -59,7 +59,7 @@ Hace falta para que `crear_cotizacion` reciba criterios válidos:
 El 79 % de las conversaciones empieza con el texto de un anuncio ("¿Cuáles son los tamaños disponibles del Stretch Film?" 102, "¿Cuánto cuesta la bolsa XXL?" 81, "¿Cuánto cuesta la bolsa de 140L?" 54), y 101 de 303 terminan sin un segundo mensaje.
 
 - [ ] Si preguntan por tamaños o presentaciones, la primera respuesta los nombra (Stretch Film: Manual 4,7 kg y Automático 15,7 kg).
-- [ ] Si preguntan precio, aplica P0: "Le preparo la cotización con el precio exacto…", y enseguida la primera pregunta que falta.
+- [ ] Si preguntan precio, aplica P0: sin mencionar el precio ni la cotización, seguir con la primera pregunta que falta.
 - [ ] La presentación de la marca va como máximo una vez por conversación y nunca reemplaza a la respuesta.
 
 ---
