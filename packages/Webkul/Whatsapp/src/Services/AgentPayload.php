@@ -77,7 +77,7 @@ class AgentPayload
         $interactive = $message->payload['interactive'] ?? null;
 
         if (! is_array($interactive)) {
-            return null;
+            return $this->seleccionPorTexto($message);
         }
 
         $respuesta = $interactive['button_reply'] ?? $interactive['list_reply'] ?? null;
@@ -90,6 +90,49 @@ class AgentPayload
             'id'    => (string) $respuesta['id'],
             'title' => (string) ($respuesta['title'] ?? ''),
         ];
+    }
+
+    /**
+     * La opción elegida cuando llegó como texto (Kommo).
+     *
+     * Kommo entrega el toque de un botón o fila como un mensaje de texto con el
+     * título, sin el `interactive` de Meta, y el agente repetía el menú porque
+     * no sabía qué se había elegido. Se compara el texto con las opciones del
+     * ÚLTIMO menú enviado —solo ese: los títulos pueden repetirse entre menús—
+     * sin distinguir mayúsculas ni espacios en los extremos.
+     *
+     * @return array{id: string, title: string}|null
+     */
+    protected function seleccionPorTexto(Message $message): ?array
+    {
+        $texto = mb_strtolower(trim((string) $message->body));
+
+        if ($message->direction !== 'inbound' || $message->type !== 'text' || $texto === '') {
+            return null;
+        }
+
+        $menu = $message->conversation->messages()
+            ->where('direction', 'outbound')
+            ->where('id', '<', $message->id)
+            ->where('type', 'interactive')
+            ->latest('id')
+            ->value('payload');
+
+        $menu = is_array($menu) ? $menu : json_decode((string) $menu, true);
+        $interactive = $menu['interactive'] ?? [];
+
+        $opciones = array_merge(
+            (array) ($interactive['buttons'] ?? []),
+            ...array_map(fn ($s) => (array) ($s['rows'] ?? []), (array) ($interactive['sections'] ?? []))
+        );
+
+        foreach ($opciones as $opcion) {
+            if (isset($opcion['id'], $opcion['title']) && mb_strtolower(trim((string) $opcion['title'])) === $texto) {
+                return ['id' => (string) $opcion['id'], 'title' => (string) $opcion['title']];
+            }
+        }
+
+        return null;
     }
 
     public function contact(Conversation $conversation): array

@@ -31,9 +31,9 @@ Además, en 33 conversaciones el agente prometió la cotización y no existe nin
 **Problema.** Por Kommo, la elección de un menú interactivo llega como texto común: 357 de 1.256 mensajes del cliente eran el título exacto de una opción. `AgentPayload::selection()` lee `payload.interactive` y devuelve `null`, así que el agente no sabe qué se eligió y repite el menú (54 repeticiones en 46 conversaciones; la conversación 5107 recibió 4 veces la misma presentación).
 
 **Qué hacer.**
-- [ ] Al armar el evento para un mensaje entrante de **texto**, buscar el último mensaje `interactive` saliente de la conversación. Si el texto coincide con el título de una de sus opciones (filas o botones; sin distinguir mayúsculas y comparando sin espacios en los extremos), devolver `selection = {id, title}`.
-- [ ] Solo contra **el último** menú enviado, para no confundir títulos que se repiten entre menús.
-- [ ] Tests: título exacto → selection con su id; texto libre → null; título de un menú anterior → null; payload `interactive` nativo (Cloud API) → sigue funcionando.
+- [x] Al armar el evento para un mensaje entrante de **texto**, buscar el último mensaje `interactive` saliente de la conversación. Si el texto coincide con el título de una de sus opciones (filas o botones; sin distinguir mayúsculas y comparando sin espacios en los extremos), devolver `selection = {id, title}`.
+- [x] Solo contra **el último** menú enviado, para no confundir títulos que se repiten entre menús.
+- [x] Tests: título exacto → selection con su id; texto libre → null; título de un menú anterior → null; payload `interactive` nativo (Cloud API) → sigue funcionando.
 
 **Archivos.** `packages/Webkul/Whatsapp/src/Services/AgentPayload.php`
 
