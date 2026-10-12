@@ -32,6 +32,11 @@ beforeEach(function () {
 });
 
 afterEach(function () {
+    foreach ($this->leadsCreados ?? [] as $lead) {
+        DB::table('lead_quotes')->where('lead_id', $lead)->delete();
+        DB::table('leads')->where('id', $lead)->delete();
+    }
+
     foreach ($this->quotes ?? [] as $id) {
         DB::table('quote_items')->where('quote_id', $id)->delete();
         DB::table('attribute_values')->where('entity_type', 'quotes')->where('entity_id', $id)->delete();
@@ -411,4 +416,73 @@ it('la cotización del agente queda vinculada a la oportunidad de la conversaci�
 
     DB::table('lead_quotes')->where('lead_id', $lead)->delete();
     DB::table('leads')->where('id', $lead)->delete();
+});
+
+/*
+| Al crear la cotización, el pedido pasa a SOLICITUD RECIBIDA de SU pipeline
+| (cada ciudad tiene el suyo). Solo desde NO ATENIDOS: un pedido que ya está
+| más adelante no retrocede.
+*/
+function pedidoEnEtapa($test, int $pipeline, string $codigo): int
+{
+    $lead = DB::table('leads')->insertGetId([
+        'title'                  => 'Etapa test '.uniqid(),
+        'person_id'              => $test->persona->id,
+        'user_id'                => 1,
+        'lead_pipeline_id'       => $pipeline,
+        'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')->where('lead_pipeline_id', $pipeline)->where('code', $codigo)->value('id'),
+        'created_at'             => now(),
+        'updated_at'             => now(),
+    ]);
+
+    Conversation::whereKey($test->conv->id)->update(['lead_id' => $lead]);
+
+    return $lead;
+}
+
+function codigoEtapa(int $lead): string
+{
+    return DB::table('lead_pipeline_stages')->where('id', DB::table('leads')->where('id', $lead)->value('lead_pipeline_stage_id'))->value('code');
+}
+
+function cotizarYLimpiar($test, int $lead): void
+{
+    Mail::fake();
+    Queue::fake();
+
+    $r = test()->postJson('/api/v1/productos/conversations/'.$test->conv->id.'/cotizacion', [
+        'sku' => 'CM_00002', 'criterios' => ['Tamaño' => '50 L', 'Canal' => 'HORECA', 'Zona' => 'Santa Cruz'], 'cantidad' => 10,
+    ])->assertStatus(201);
+
+    $test->quotes[] = $r->json('quote_id');
+    $test->leadsCreados[] = $lead;
+}
+
+it('al crear la cotización el pedido pasa de NO ATENIDOS a SOLICITUD RECIBIDA', function () {
+    $lead = pedidoEnEtapa($this, 1, 'no-atenidos');
+
+    cotizarYLimpiar($this, $lead);
+
+    expect(codigoEtapa($lead))->toBe('solicitud-recibida');
+});
+
+it('usa la SOLICITUD RECIBIDA del pipeline del pedido, no la de Santa Cruz', function () {
+    $pipeline = (int) DB::table('lead_pipelines')->where('id', '!=', 1)->value('id');
+    $lead = pedidoEnEtapa($this, $pipeline, 'no-atenidos');
+
+    cotizarYLimpiar($this, $lead);
+
+    $lead = DB::table('leads')->find($lead);
+
+    expect((int) $lead->lead_pipeline_id)->toBe($pipeline)
+        ->and(DB::table('lead_pipeline_stages')->where('id', $lead->lead_pipeline_stage_id)->value('lead_pipeline_id'))->toBe($pipeline)
+        ->and(codigoEtapa($lead->id))->toBe('solicitud-recibida');
+});
+
+it('un pedido que ya está más adelante no retrocede', function () {
+    $lead = pedidoEnEtapa($this, 1, 'cotizacion-enviada');
+
+    cotizarYLimpiar($this, $lead);
+
+    expect(codigoEtapa($lead))->toBe('cotizacion-enviada');
 });

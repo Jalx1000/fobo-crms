@@ -384,6 +384,10 @@ class AgenteController extends Controller
             return $quote;
         });
 
+        if ($conversation->lead_id) {
+            $this->aSolicitudRecibida((int) $conversation->lead_id);
+        }
+
         /*
         | Se devuelven las LÍNEAS creadas, no solo el id.
         |
@@ -408,6 +412,39 @@ class AgenteController extends Controller
             // Para que el agente pueda decirle al cliente quién lo va a llamar.
             'asesor'   => $asesor ? $this->asesor($asesor) : null,
         ], 201);
+    }
+
+    /**
+     * Con la cotización creada, el pedido pasa a SOLICITUD RECIBIDA.
+     *
+     * La etapa se busca por código dentro del pipeline del propio pedido (cada
+     * ciudad tiene el suyo, con ids distintos). Solo avanza desde NO ATENIDOS:
+     * un pedido que ya está más adelante no retrocede por una cotización nueva.
+     * Va por el repositorio y con los mismos eventos que el arrastre en el
+     * kanban, así se registran las fechas de cambio de etapa.
+     */
+    protected function aSolicitudRecibida(int $leadId): void
+    {
+        $lead = \Webkul\Lead\Models\LeadProxy::modelClass()::find($leadId);
+
+        if (! $lead || $lead->stage?->code !== 'no-atenidos') {
+            return;
+        }
+
+        $destino = $lead->pipeline?->stages()->where('code', 'solicitud-recibida')->first();
+
+        if (! $destino) {
+            return;
+        }
+
+        \Illuminate\Support\Facades\Event::dispatch('lead.update.before', $lead->id);
+
+        $lead = app(\Webkul\Lead\Repositories\LeadRepository::class)->update([
+            'entity_type'            => 'leads',
+            'lead_pipeline_stage_id' => $destino->id,
+        ], $lead->id, ['lead_pipeline_stage_id']);
+
+        \Illuminate\Support\Facades\Event::dispatch('lead.update.after', $lead);
     }
 
     /**
