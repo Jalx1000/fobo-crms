@@ -32,13 +32,16 @@ beforeEach(function () {
 });
 
 afterEach(function () {
-    if (! isset($this->producto)) {
-        return;
+    // Se limpia acá y no al final del test: si el test falla, igual se borra.
+    foreach (['producto', 'stretch'] as $prop) {
+        if (! isset($this->{$prop})) {
+            continue;
+        }
+
+        ProductPrice::where('product_id', $this->{$prop}->id)->delete();
+
+        $this->{$prop}->newQuery()->whereKey($this->{$prop}->id)->delete();
     }
-
-    ProductPrice::where('product_id', $this->producto->id)->delete();
-
-    $this->producto->newQuery()->whereKey($this->producto->id)->delete();
 });
 
 it('resuelve el precio cuando el agente manda todos los ejes', function () {
@@ -206,7 +209,7 @@ it('no ofrece opciones de un eje que el cliente ya contestó', function () {
 });
 
 it('elige el tramo por volumen según la cantidad pedida', function () {
-    $stretch = app(ProductRepository::class)->create([
+    $stretch = $this->stretch = app(ProductRepository::class)->create([
         'entity_type' => 'products',
         'name'        => 'Stretch de prueba '.uniqid(),
         'sku'         => 'TEST-VOL-'.uniqid(),
@@ -237,6 +240,4 @@ it('elige el tramo por volumen según la cantidad pedida', function () {
 
     expect($r->json('estado'))->toBe('ambiguo');
 
-    ProductPrice::where('product_id', $stretch->id)->delete();
-    $stretch->newQuery()->whereKey($stretch->id)->delete();
 });

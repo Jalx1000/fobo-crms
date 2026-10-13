@@ -50,7 +50,7 @@ it('las dos variantes de stretch film tienen su medida y su propia ficha', funct
     );
 
     $manual = $por('Manual 4,7 kg');
-    $automatico = $por('Automático 15,7 kg');
+    $automatico = $por('Automático 15,8 kg');
 
     expect($manual->medida)->toBe('500 mm × 370 m')
         ->and($automatico->medida)->toBe('500 mm');
