@@ -110,9 +110,8 @@ function oportunidadCiudad(array $extra)
 }
 
 /*
-| Contacto y pedido tienen todas las ciudades del cliente; la cotización, todas
-| menos `ciudades_sin_cotizacion` (El Alto, Exterior). Puede tener alguna más
-| de antes (Beni, Pando), por eso ahí se pide que estén, no que sean iguales.
+| Contacto y pedido tienen todas las ciudades del cliente; la cotización, las
+| mismas menos `ciudades_sin_cotizacion` (El Alto, Exterior).
 */
 it('contacto, pedido y cotización tienen las ciudades del cliente', function () {
     $opciones = fn ($entidad) => app(AttributeRepository::class)
@@ -124,8 +123,7 @@ it('contacto, pedido y cotización tienen las ciudades del cliente', function ()
 
     $deCotizacion = array_values(array_diff(config('cotizacion.ciudades_cliente'), config('cotizacion.ciudades_sin_cotizacion')));
 
-    expect($opciones('quotes'))->toContain(...$deCotizacion)
-        ->not->toContain(...config('cotizacion.ciudades_sin_cotizacion'));
+    expect($opciones('quotes'))->toBe($deCotizacion);
 });
 
 it('la sucursal de la cotización son los almacenes, no una lista de ciudades', function () {
@@ -226,11 +224,11 @@ it('la oportunidad también se concilia con su contacto, en los dos sentidos', f
     $lead2 = oportunidadCiudad([
         'person'    => ['id' => $otra->id],
         'person_id' => $otra->id,
-        'ciudad'    => opcionCiudad('leads', 'Trinidad'),
+        'ciudad'    => opcionCiudad('leads', 'Beni'),
     ]);
 
-    expect(ciudadDe('persons', $otra->id))->toBe('Trinidad')
-        ->and(ciudadDe('leads', $lead2->id))->toBe('Trinidad');
+    expect(ciudadDe('persons', $otra->id))->toBe('Beni')
+        ->and(ciudadDe('leads', $lead2->id))->toBe('Beni');
 });
 
 it('la sucursal se propone desde la planta del producto, y no se pisa si ya vino', function () {

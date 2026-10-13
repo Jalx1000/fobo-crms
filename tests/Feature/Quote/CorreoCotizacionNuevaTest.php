@@ -22,7 +22,7 @@ use Webkul\Quote\Repositories\QuoteRepository;
  * Contra la base del contenedor (decisión 2026-10-01) con transacciones: todo se
  * deshace. Mail, Http y la cola falseados; caché `array` para no tocar Redis.
  * Hay asesores reales en la base, así que se afirma que los de prueba estén (o
- * no) en la lista, nunca una lista exacta. Cobija: ningún asesor real la atiende.
+ * no) en la lista, nunca una lista exacta. Pando: ningún asesor real la atiende.
  */
 uses(DatabaseTransactions::class);
 
@@ -105,16 +105,16 @@ function cqEmails($equipo): array
 it('avisa al asesor de la cotización', function () {
     $asesor = cqAsesor('Dueño');
 
-    expect(cqEmails(app(DestinatariosAviso::class)->equipo($asesor->id, 'Cobija')))->toBe([$asesor->email]);
+    expect(cqEmails(app(DestinatariosAviso::class)->equipo($asesor->id, 'Pando')))->toBe([$asesor->email]);
 });
 
 it('sin asesor avisa a quienes atienden la ciudad, no a los de Bolivia', function () {
     $local = cqAsesor('Local');
     $nacional = cqAsesor('Nacional');
-    cqAtiende($this->producto, 'Cobija', $local);
+    cqAtiende($this->producto, 'Pando', $local);
     cqAtiende($this->producto, 'Bolivia', $nacional);
 
-    expect(cqEmails(app(DestinatariosAviso::class)->equipo(null, 'Cobija')))
+    expect(cqEmails(app(DestinatariosAviso::class)->equipo(null, 'Pando')))
         ->toContain($local->email)->not->toContain($nacional->email);
 });
 
@@ -122,7 +122,7 @@ it('sin asesor y sin nadie en la ciudad cae en los de Bolivia', function () {
     $nacional = cqAsesor('Nacional');
     cqAtiende($this->producto, 'Bolivia', $nacional);
 
-    expect(cqEmails(app(DestinatariosAviso::class)->equipo(null, 'Cobija')))->toContain($nacional->email)
+    expect(cqEmails(app(DestinatariosAviso::class)->equipo(null, 'Pando')))->toContain($nacional->email)
         ->and(cqEmails(app(DestinatariosAviso::class)->equipo(null, null)))->toContain($nacional->email);
 });
 
@@ -132,7 +132,7 @@ it('un asesor inactivo no recibe avisos', function () {
     $inactivo = cqAsesor('Inactivo');
     DB::table('users')->where('id', $inactivo->id)->update(['status' => 0]);
 
-    expect(app(DestinatariosAviso::class)->equipo($inactivo->id, 'Cobija')->pluck('id'))->not->toContain($inactivo->id);
+    expect(app(DestinatariosAviso::class)->equipo($inactivo->id, 'Pando')->pluck('id'))->not->toContain($inactivo->id);
 });
 
 it('el job manda el detalle al asesor y la copia, una sola vez', function () {

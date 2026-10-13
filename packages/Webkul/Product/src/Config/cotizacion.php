@@ -84,8 +84,8 @@ return [
         'Oruro',
         'Potosí',
         'Tarija',
-        'Trinidad',
-        'Cobija',
+        'Beni',
+        'Pando',
         'Exterior',
     ],
 

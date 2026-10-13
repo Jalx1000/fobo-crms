@@ -32,9 +32,11 @@ class CiudadCliente
         'lp'                      => 'La Paz',
         'ea'                      => 'El Alto',
         'tja'                     => 'Tarija',
-        'trinidad beni'           => 'Trinidad',
-        'beni'                    => 'Trinidad',
-        'pando'                   => 'Cobija',
+        // Beni y Pando van por departamento (13/10): la capital también vale.
+        'trinidad'                => 'Beni',
+        'trinidad beni'           => 'Beni',
+        'cobija'                  => 'Pando',
+        'cobija pando'            => 'Pando',
     ];
 
     public function __construct(
@@ -143,14 +145,12 @@ class CiudadCliente
     }
 
     /**
-     * La misma ciudad con otro nombre según la entidad: la cotización dice
-     * «Beni» y «Pando» donde el contacto y el pedido dicen «Trinidad» y «Cobija».
+     * La misma ciudad con otro nombre: Beni y Pando se guardan por
+     * departamento, pero un pedido o el agente pueden traer la capital.
      */
     protected const EQUIVALENTES = [
         'trinidad' => 'Beni',
-        'beni'     => 'Trinidad',
         'cobija'   => 'Pando',
-        'pando'    => 'Cobija',
     ];
 
     protected function opcion(string $entidad, mixed $valor)

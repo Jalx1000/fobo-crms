@@ -93,11 +93,20 @@ it('un pedido sin ciudad toma la del contacto', function () {
         ->and(ciudadDe('quotes', $this->quote))->toBe('Sucre');
 });
 
-it('Trinidad en el contacto es Beni en la cotización (y Cobija, Pando)', function () {
-    ponerCiudad('persons', $this->persona->id, 'Trinidad');
+it('Beni se llama igual en contacto, pedido y cotización', function () {
+    ponerCiudad('persons', $this->persona->id, 'Beni');
 
     Event::dispatch('contacts.person.update.after', app(PersonRepository::class)->find($this->persona->id));
 
     expect(ciudadDe('quotes', $this->quote))->toBe('Beni')
-        ->and(ciudadDe('leads', $this->lead))->toBe('Trinidad');
+        ->and(ciudadDe('leads', $this->lead))->toBe('Beni');
+});
+
+it('Beni y Pando van por departamento: la capital escrita en el chat también vale', function () {
+    $ciudades = app(\Webkul\Admin\Services\CiudadCliente::class);
+
+    expect($ciudades->desdeTexto('Trinidad'))->toBe('Beni')
+        ->and($ciudades->desdeTexto('de Cobija'))->toBe('Pando')
+        ->and($ciudades->desdeTexto('Beni'))->toBe('Beni')
+        ->and($ciudades->desdeTexto('Pando'))->toBe('Pando');
 });
