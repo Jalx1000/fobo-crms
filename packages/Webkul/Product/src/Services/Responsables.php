@@ -140,9 +140,32 @@ class Responsables
             $conversation->lead()->getQuery()->whereKey($conversation->lead_id)
                 ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', '!=', $asesor->id))
                 ->update(['user_id' => $asesor->id]);
+
+            self::cotizacionesConElPedido((int) $conversation->lead_id);
         }
 
         return $asesor;
+    }
+
+    /**
+     * Las cotizaciones de un pedido pasan al asesor del pedido.
+     *
+     * Cuando el reparto cambiaba de dueño un pedido, sus cotizaciones quedaban
+     * con el anterior y el reporte por asesor daba distinto según se mirara
+     * pedidos o cotizaciones (37 casos el 13/10).
+     */
+    public static function cotizacionesConElPedido(int $leadId): void
+    {
+        $userId = DB::table('leads')->where('id', $leadId)->value('user_id');
+
+        if (! $userId) {
+            return;
+        }
+
+        DB::table('quotes')
+            ->whereIn('id', DB::table('lead_quotes')->where('lead_id', $leadId)->select('quote_id'))
+            ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', '!=', $userId))
+            ->update(['user_id' => $userId]);
     }
 
     /**

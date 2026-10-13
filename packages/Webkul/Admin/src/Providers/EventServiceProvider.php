@@ -36,6 +36,7 @@ class EventServiceProvider extends ServiceProvider
             'Webkul\Admin\Listeners\Lead@handleLeadUpdate',
             'Webkul\Admin\Listeners\Ciudad@deOportunidad',
             'Webkul\Admin\Listeners\ValorPedido@deOportunidad',
+            'Webkul\Admin\Listeners\AsesorCotizaciones@dePedido',
         ],
 
         /*
