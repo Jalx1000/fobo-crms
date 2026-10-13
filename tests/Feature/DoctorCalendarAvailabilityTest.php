@@ -1,7 +1,11 @@
 <?php
 
 use Carbon\Carbon;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+
+// Corre contra la base real: todo lo que crea se deshace al terminar.
+uses(DatabaseTransactions::class);
 
 it('retorna disponibilidad de doctores en el calendario', function () {
     $admin = getDefaultAdmin();
@@ -9,10 +13,10 @@ it('retorna disponibilidad de doctores en el calendario', function () {
 
     // Crear doctor mínimo
     $doctorId = DB::table('doctors')->insertGetId([
-        'name'       => 'Dr. Prueba '.rand(100, 999),
-        'number'     => null,
-        'title'      => null,
-        'unique_id'  => null,
+        'name' => 'Dr. Prueba '.rand(100, 999),
+        'number' => null,
+        'title' => null,
+        'unique_id' => null,
         'created_at' => now(),
         'updated_at' => now(),
     ]);
@@ -22,30 +26,30 @@ it('retorna disponibilidad de doctores en el calendario', function () {
 
     // Crear disponibilidad (shifts) para el doctor
     DB::table('doctor_shifts')->insert([
-        'doctor_id'  => $doctorId,
-        'date'       => $date,
+        'doctor_id' => $doctorId,
+        'date' => $date,
         'start_time' => '09:00',
-        'end_time'   => '12:00',
-        'notes'      => 'Mañana',
+        'end_time' => '12:00',
+        'notes' => 'Mañana',
         'created_at' => now(),
         'updated_at' => now(),
     ]);
 
     DB::table('doctor_shifts')->insert([
-        'doctor_id'  => $doctorId,
-        'date'       => $date,
+        'doctor_id' => $doctorId,
+        'date' => $date,
         'start_time' => '15:00',
-        'end_time'   => '18:00',
-        'notes'      => 'Tarde',
+        'end_time' => '18:00',
+        'notes' => 'Tarde',
         'created_at' => now(),
         'updated_at' => now(),
     ]);
 
     // Llamar endpoint del calendario
     $response = test()->get(route('admin.activities.get', [
-        'view_type'      => 'calendar',
-        'calendar_mode'  => 'doctor',
-        'start'          => $start,
+        'view_type' => 'calendar',
+        'calendar_mode' => 'doctor',
+        'start' => $start,
     ]));
 
     $response->assertStatus(200);
@@ -61,6 +65,7 @@ it('retorna disponibilidad de doctores en el calendario', function () {
 
     expect(count($availForDoctorDay))->toBeGreaterThanOrEqual(2);
     $first = $availForDoctorDay[0];
-    expect($first['start_time'] ?? null)->toBe('09:00');
-    expect($first['end_time'] ?? null)->toBe('12:00');
+    // La columna es TIME: MySQL la devuelve con segundos (09:00:00).
+    expect(substr((string) ($first['start_time'] ?? ''), 0, 5))->toBe('09:00');
+    expect(substr((string) ($first['end_time'] ?? ''), 0, 5))->toBe('12:00');
 });

@@ -19,10 +19,10 @@ return [
     | en la cabecera de cada PDF. Se toma tal cual de la propuesta real.
     */
     'documento' => [
-        'codigo'  => 'RG-VCO-005',
+        'codigo' => 'RG-VCO-005',
         'version' => '00',
         'edicion' => '19/4/2024',
-        'titulo'  => 'PROPUESTA COMERCIAL MASIVOS',
+        'titulo' => 'PROPUESTA COMERCIAL MASIVOS',
     ],
 
     /*
@@ -88,6 +88,12 @@ return [
         'Cobija',
         'Exterior',
     ],
+
+    /*
+    | Ciudades del cliente que NO van en la cotización (pedido del 13/10): el
+    | contacto y el pedido las tienen, la cotización no.
+    */
+    'ciudades_sin_cotizacion' => ['El Alto', 'Exterior'],
 
     /*
     | Horario en el que el equipo atiende. Fuera de él las consultas se asignan

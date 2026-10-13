@@ -1,8 +1,12 @@
 <?php
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Webkul\Attribute\Models\Attribute;
 use Webkul\DataGrid\Exports\DataGridExport;
+
+// Corre contra la base real: todo lo que crea se deshace al terminar.
+uses(DatabaseTransactions::class);
 
 /**
  * These tests exercise the prospect (persons) export and require a database
@@ -31,7 +35,7 @@ function pipelineIdByName(string $name): int
 
     if (! $id) {
         $id = DB::table('lead_pipelines')->insertGetId([
-            'name'       => $name,
+            'name' => $name,
             'is_default' => 0,
             'created_at' => now(),
             'updated_at' => now(),
@@ -66,8 +70,8 @@ it('carries the active date/city filter in the prospect export link', function (
     test()->actingAs(getDefaultAdmin());
 
     $response = test()->get(route('admin.contacts.persons.index', [
-        'start'       => '2026-07-01',
-        'end'         => '2026-07-07',
+        'start' => '2026-07-01',
+        'end' => '2026-07-07',
         'pipeline_id' => 7,
     ]));
 

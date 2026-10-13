@@ -13,15 +13,15 @@ it('los seis atributos de la cotización existen con sus opciones', function () 
     $repo = app(AttributeRepository::class);
 
     foreach ([
-        'forma_pago'     => ['select', ['Al contado', 'Crédito 15 días', 'Crédito 30 días']],
-        'lugar_entrega'  => ['select', ['Puesto almacén cliente', 'Recoge en planta', 'A domicilio']],
+        'forma_pago' => ['select', ['Al contado', 'Crédito 15 días', 'Crédito 30 días']],
+        'lugar_entrega' => ['select', ['Puesto almacén cliente', 'Recoge en planta', 'A domicilio']],
         'tiempo_entrega' => ['text', []],
-        'orden_compra'   => ['text', []],
+        'orden_compra' => ['text', []],
         // La sucursal son los almacenes del módulo Warehouse, no una lista de
         // ciudades: eso último ahora es el atributo `ciudad`.
-        'sucursal'       => ['lookup', []],
-        'ciudad'         => ['select', null],
-        'observaciones'  => ['textarea', []],
+        'sucursal' => ['lookup', []],
+        'ciudad' => ['select', null],
+        'observaciones' => ['textarea', []],
     ] as $code => [$tipo, $opciones]) {
         $a = $repo->getAttributeByCode($code, 'quotes');
 
@@ -29,8 +29,10 @@ it('los seis atributos de la cotización existen con sus opciones', function () 
         expect($a->type)->toBe($tipo);
         expect((bool) $a->is_required)->toBeFalse("{$code} no puede ser obligatorio: rompería crear_cotizacion");
 
-        // `null` = la lista la manda la configuración, no este test.
-        expect($a->options->pluck('name')->all())->toBe($opciones ?? config('cotizacion.ciudades_cliente'));
+        // `null` = la lista la manda la configuración (ver CiudadYSucursalTest).
+        if ($opciones !== null) {
+            expect($a->options->pluck('name')->all())->toBe($opciones);
+        }
     }
 });
 

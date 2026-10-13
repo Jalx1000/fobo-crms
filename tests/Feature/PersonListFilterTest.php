@@ -1,7 +1,11 @@
 <?php
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Webkul\Attribute\Models\Attribute;
+
+// Corre contra la base real: todo lo que crea se deshace al terminar.
+uses(DatabaseTransactions::class);
 
 /**
  * Ensures the "cliente_ciudad" select attribute (lookup to lead_pipelines)
@@ -15,15 +19,15 @@ function ensureCityAttribute(): int
 
     if (! $attribute) {
         $attribute = Attribute::create([
-            'code'            => 'cliente_ciudad',
-            'name'            => 'Ciudad',
-            'type'            => 'select',
-            'entity_type'     => 'persons',
-            'lookup_type'     => 'lead_pipelines',
-            'is_required'     => 0,
-            'is_unique'       => 0,
-            'validation'      => '',
-            'sort_order'      => 1,
+            'code' => 'cliente_ciudad',
+            'name' => 'Ciudad',
+            'type' => 'select',
+            'entity_type' => 'persons',
+            'lookup_type' => 'lead_pipelines',
+            'is_required' => 0,
+            'is_unique' => 0,
+            'validation' => '',
+            'sort_order' => 1,
             'is_user_defined' => 1,
         ]);
     }
@@ -36,9 +40,9 @@ function createPerson(string $name, $createdAt, int $attributeId, int $pipelineI
     $personId = createPersonWithoutCity($name, $createdAt);
 
     DB::table('attribute_values')->insert([
-        'entity_type'   => 'persons',
-        'attribute_id'  => $attributeId,
-        'entity_id'     => $personId,
+        'entity_type' => 'persons',
+        'attribute_id' => $attributeId,
+        'entity_id' => $personId,
         'integer_value' => $pipelineId,
     ]);
 
@@ -48,8 +52,8 @@ function createPerson(string $name, $createdAt, int $attributeId, int $pipelineI
 function createPersonWithoutCity(string $name, $createdAt): int
 {
     return DB::table('persons')->insertGetId([
-        'name'       => $name,
-        'emails'     => json_encode([]),
+        'name' => $name,
+        'emails' => json_encode([]),
         'created_at' => $createdAt,
         'updated_at' => $createdAt,
     ]);
@@ -65,7 +69,7 @@ function noCityPipelineId(): int
 
     if (! $id) {
         $id = DB::table('lead_pipelines')->insertGetId([
-            'name'       => 'Sin ciudad',
+            'name' => 'Sin ciudad',
             'is_default' => 0,
             'created_at' => now(),
             'updated_at' => now(),
@@ -83,7 +87,7 @@ function noCityPipelineId(): int
 function fetchPersonIds(array $query): array
 {
     $query = array_merge([
-        'sort'       => ['column' => 'id', 'order' => 'desc'],
+        'sort' => ['column' => 'id', 'order' => 'desc'],
         'pagination' => ['per_page' => 100],
     ], $query);
 
@@ -106,7 +110,7 @@ it('filters the prospect list by created_at date range', function () {
 
     $ids = fetchPersonIds([
         'start' => now()->toDateString(),
-        'end'   => now()->toDateString(),
+        'end' => now()->toDateString(),
     ]);
 
     expect($ids)->toContain($recent);
@@ -123,8 +127,8 @@ it('filters the prospect list by city (cliente_ciudad attribute)', function () {
 
     $ids = fetchPersonIds([
         'pipeline_id' => 7,
-        'start'       => now()->toDateString(),
-        'end'         => now()->toDateString(),
+        'start' => now()->toDateString(),
+        'end' => now()->toDateString(),
     ]);
 
     expect($ids)->toContain($inCity);
@@ -143,8 +147,8 @@ it('treats prospects with no city as "Sin ciudad" when filtering', function () {
 
     $ids = fetchPersonIds([
         'pipeline_id' => $noCityId,
-        'start'       => now()->toDateString(),
-        'end'         => now()->toDateString(),
+        'start' => now()->toDateString(),
+        'end' => now()->toDateString(),
     ]);
 
     // Both the empty-city and the explicit "Sin ciudad" prospects show up.
@@ -157,8 +161,8 @@ it('treats prospects with no city as "Sin ciudad" when filtering', function () {
     // And an empty-city prospect must NOT leak into another city's filter.
     $city7Ids = fetchPersonIds([
         'pipeline_id' => 7,
-        'start'       => now()->toDateString(),
-        'end'         => now()->toDateString(),
+        'start' => now()->toDateString(),
+        'end' => now()->toDateString(),
     ]);
 
     expect($city7Ids)->not->toContain($withoutCity);

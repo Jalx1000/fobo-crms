@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 use Webkul\Admin\Helpers\Reporting\Lead as LeadReporting;
@@ -11,8 +12,19 @@ use Webkul\Lead\Models\Lead;
 
 class PersonSucursalReportingTest extends TestCase
 {
+    // Corre contra la base real: todo lo que crea se deshace al terminar.
+    use DatabaseTransactions;
+
     public function test_leads_count_by_branches_uses_person_attribute()
     {
+        // El reporte filtra por los usuarios que puede ver quien lo pide.
+        $this->actingAs(\Webkul\User\Models\User::findOrFail(1), 'user');
+
+        // Los pedidos de administradores y supervisores no cuentan: el pedido
+        // va a nombre de un asesor.
+        $asesor = \Webkul\User\Models\User::whereHas('role', fn ($q) => $q->whereNotIn('name', ['Administrador', 'Supervisores']))
+            ->where('status', 1)->firstOrFail();
+
         // Ensure the attribute exists (mimic migration)
         $attribute = Attribute::where('code', 'sucursal')
             ->where('entity_type', 'persons')
@@ -20,15 +32,15 @@ class PersonSucursalReportingTest extends TestCase
 
         if (! $attribute) {
             $attribute = Attribute::create([
-                'code'            => 'sucursal',
-                'name'            => 'Sucursal',
-                'type'            => 'text',
-                'entity_type'     => 'persons',
-                'admin_name'      => 'Sucursal',
-                'is_required'     => 0,
-                'is_unique'       => 0,
-                'validation'      => '',
-                'sort_order'      => 1,
+                'code' => 'sucursal',
+                'name' => 'Sucursal',
+                'type' => 'text',
+                'entity_type' => 'persons',
+                'admin_name' => 'Sucursal',
+                'is_required' => 0,
+                'is_unique' => 0,
+                'validation' => '',
+                'sort_order' => 1,
                 'is_user_defined' => 1,
             ]);
         }
@@ -36,7 +48,7 @@ class PersonSucursalReportingTest extends TestCase
         // Create a Person
         // Note: Using DB insert for simplicity if factories are not set up perfectly
         $personId = DB::table('persons')->insertGetId([
-            'name'       => 'Test Person',
+            'name' => 'Test Person',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -44,16 +56,17 @@ class PersonSucursalReportingTest extends TestCase
         // Add Sucursal Attribute Value
         $sucursalValue = 'Test Branch '.rand(1000, 9999);
         DB::table('attribute_values')->insert([
-            'entity_type'  => 'persons',
+            'entity_type' => 'persons',
             'attribute_id' => $attribute->id,
-            'entity_id'    => $personId,
-            'text_value'   => $sucursalValue,
+            'entity_id' => $personId,
+            'text_value' => $sucursalValue,
         ]);
 
         // Create a Lead linked to this Person
         $leadId = DB::table('leads')->insertGetId([
-            'title'      => 'Test Lead',
-            'person_id'  => $personId,
+            'title' => 'Test Lead',
+            'person_id' => $personId,
+            'user_id' => $asesor->id,
             'created_at' => now(),
             'updated_at' => now(),
             // Add other required fields if necessary, assuming defaults or nullable
