@@ -82,53 +82,54 @@ class Product extends AbstractReporting
     }
 
     /**
-     * Gets top-selling products by quantity.
+     * Productos más solicitados: en cuántas cotizaciones aparece cada uno.
      *
-     * @param  int  $limit
+     * Antes contaba los productos cargados en el pedido (lead_products), que
+     * casi nunca tiene ninguno: los productos están en las cotizaciones (en
+     * octubre de 2026, 4 Stretch Film contra 65 cotizaciones). Se ordena por
+     * cantidad de cotizaciones —sumar unidades mezclaría packs con rollos— y se
+     * informa también la cantidad pedida. Las cotizaciones de pedidos «Sin
+     * ciudad» no cuentan.
      */
     public function getTopSellingProductsByQuantity($limit = null): Collection
     {
-        $tablePrefix = DB::getTablePrefix();
+        $p = DB::getTablePrefix();
+        $sinCiudad = $this->sinCiudadPipelineIds();
+        $pipelineId = is_numeric(request('pipeline_id')) ? (int) request('pipeline_id') : null;
 
-        $items = $this->productRepository
-            ->resetModel()
-            ->with('product')
-            ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
-            ->leftJoin('products', 'lead_products.product_id', '=', 'products.id')
-            ->when(request('user_id'), function ($q) {
-                $q->where('leads.user_id', request('user_id'));
-            })
-            ->when(request('organization_id'), function ($q) {
-                $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
-                    ->where('persons.organization_id', request('organization_id'));
-            })
-            ->when(is_numeric(request('pipeline_id')) ? request('pipeline_id') : null, function ($q, $pipelineId) {
-                $q->where('leads.lead_pipeline_id', $pipelineId);
-            })
-            ->select(
-                'products.id as product_id',
-                'products.name',
-                'products.price'
-            )
-            ->addSelect(DB::raw('SUM('.$tablePrefix.'lead_products.quantity) as total_qty_ordered'))
-            ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
-            ->having(DB::raw('SUM('.$tablePrefix.'lead_products.quantity)'), '>', 0)
+        return DB::table('quote_items')
+            ->join('quotes', 'quotes.id', '=', 'quote_items.quote_id')
+            ->join('products', 'products.id', '=', 'quote_items.product_id')
+            ->whereBetween('quotes.created_at', [$this->startDate, $this->endDate])
+            ->when(request('user_id'), fn ($q, $userId) => $q->where('quotes.user_id', $userId))
+            ->when(request('organization_id'), fn ($q, $orgId) => $q->whereIn('quotes.person_id',
+                DB::table('persons')->where('organization_id', $orgId)->select('id')
+            ))
+            // Con una ciudad elegida, solo las cotizaciones de pedidos de esa ciudad.
+            ->when($pipelineId, fn ($q) => $q->whereIn('quotes.id',
+                DB::table('lead_quotes')->join('leads', 'leads.id', '=', 'lead_quotes.lead_id')
+                    ->where('leads.lead_pipeline_id', $pipelineId)->select('lead_quotes.quote_id')
+            ))
+            ->when($sinCiudad, fn ($q) => $q->whereNotIn('quotes.id',
+                DB::table('lead_quotes')->join('leads', 'leads.id', '=', 'lead_quotes.lead_id')
+                    ->whereIn('leads.lead_pipeline_id', $sinCiudad)->select('lead_quotes.quote_id')
+            ))
             ->groupBy('products.id', 'products.name', 'products.price')
-            ->orderBy('total_qty_ordered', 'DESC')
+            ->select('products.id', 'products.name', 'products.price')
+            ->selectRaw("COUNT(DISTINCT {$p}quotes.id) as solicitudes")
+            ->selectRaw("SUM({$p}quote_items.quantity) as total_qty_ordered")
+            ->orderByDesc('solicitudes')
+            ->orderByDesc('total_qty_ordered')
             ->limit($limit)
-            ->get();
-
-        $items = $items->map(function ($item) {
-            return [
-                'id'                => $item->product_id,
+            ->get()
+            ->map(fn ($item) => [
+                'id'                => (int) $item->id,
                 'name'              => $item->name,
-                'price'             => $item->product?->price,
+                'price'             => $item->price,
                 'formatted_price'   => core()->formatBasePrice($item->price),
-                'total_qty_ordered' => $item->total_qty_ordered,
-            ];
-        });
-
-        return $items;
+                'solicitudes'       => (int) $item->solicitudes,
+                'total_qty_ordered' => (float) $item->total_qty_ordered,
+            ]);
     }
 
     /**

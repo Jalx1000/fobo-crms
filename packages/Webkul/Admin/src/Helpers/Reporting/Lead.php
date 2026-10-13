@@ -109,10 +109,17 @@ class Lead extends AbstractReporting
             ->pluck('id')
             ->toArray();
 
+        /*
+        | En el CRM la etapa se llama «NO ATENIDOS» (código `no-atenidos`, sin la
+        | d). Buscando solo «no atendido» no coincidía con ninguna y la tarjeta
+        | de atendidos vs no atendidos mostraba siempre 0 no atendidos.
+        */
         $this->notAttendedStageIds = $this->stageRepository
             ->resetModel()
             ->where('code', 'like', '%no-atendido%')
+            ->orWhere('code', 'like', '%no-atenido%')
             ->orWhereRaw("LOWER(name) LIKE '%no atendido%'")
+            ->orWhereRaw("LOWER(name) LIKE '%no atenido%'")
             ->pluck('id')
             ->toArray();
 
@@ -596,6 +603,8 @@ class Lead extends AbstractReporting
             ->when($pipelineId, function ($q) use ($pipelineId) {
                 $q->where('leads.lead_pipeline_id', $pipelineId);
             })
+            // Los pedidos «Sin ciudad» no cuentan en esta tarjeta.
+            ->when($this->sinCiudadPipelineIds(), fn ($q, $ids) => $q->whereNotIn('leads.lead_pipeline_id', $ids))
             ->groupBy('users.id', 'users.name');
 
         $query = $this->excludeIgnoredRoles($query, 'users.id');
@@ -1047,6 +1056,8 @@ class Lead extends AbstractReporting
             ->when($pipelineId, function ($q) use ($pipelineId) {
                 $q->where('leads.lead_pipeline_id', $pipelineId);
             })
+            // «Sin ciudad» no es una ciudad: no aparece en esta tarjeta.
+            ->when($this->sinCiudadPipelineIds(), fn ($q, $ids) => $q->whereNotIn('leads.lead_pipeline_id', $ids))
             ->groupBy('leads.lead_pipeline_id');
 
         $query = $this->excludeIgnoredRoles($query, 'users.id');

@@ -350,4 +350,19 @@ abstract class AbstractReporting
 
         return $intervals;
     }
+
+    /**
+     * Pipelines «Sin ciudad»: pedidos que todavía no tienen ciudad. Algunas
+     * tarjetas del tablero no los cuentan (decisión del 13/10/2026).
+     *
+     * @return array<int, int>
+     */
+    protected function sinCiudadPipelineIds(): array
+    {
+        return \Illuminate\Support\Facades\DB::table('lead_pipelines')
+            ->whereRaw("LOWER(TRIM(name)) = 'sin ciudad'")
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
 }

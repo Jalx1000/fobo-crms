@@ -30,7 +30,7 @@
                         <div class="flex flex-wrap justify-center gap-5">
                             <div class="flex items-start gap-2 max-w-[260px]" v-for="(stat, index) in report.statistics" :key="stat.id">
                                 <span class="h-3.5 w-3.5 rounded-sm" :style="{ backgroundColor: colors[index] }"></span>
-                                <p class="text-xs dark:text-gray-300 break-words">@{{ stat.name }} — @{{ stat.total_qty_ordered }}</p>
+                                <p class="text-xs dark:text-gray-300 break-words">@{{ stat.name }} — @{{ stat.solicitudes }} @{{ stat.solicitudes === 1 ? 'cotización' : 'cotizaciones' }} (@{{ Number(stat.total_qty_ordered) }} u.)</p>
                             </div>
                         </div>
                     </div>
@@ -60,6 +60,8 @@
                         '#8979FF',
                         '#FF928A',
                         '#3CC3DF',
+                        '#FFAE4C',
+                        '#6FD195',
                     ],
                     isLoading: true,
                 }
@@ -76,8 +78,8 @@
                     // this.colors = this.chartLabels.map((l) => this.$admin.getLabelColor(l));
                     return [{
                         data: this.report.statistics.map(({
-                            total_qty_ordered
-                        }) => total_qty_ordered),
+                            solicitudes
+                        }) => solicitudes),
                         backgroundColor: this.colors,
                     }];
                 }
