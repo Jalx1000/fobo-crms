@@ -18,10 +18,11 @@
                 <form @submit="handleSubmit($event, () => {})">
                     {!! view_render_event('admin.leads.view.person.attributes.view.before', ['warehouse' => $warehouse]) !!}
 
+                    <!-- Línea y Maps son de cada planta (pestaña Ubicación), no del almacén. -->
                     <x-admin::attributes.view
                         :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
                             'entity_type' => 'warehouses',
-                            ['code', 'NOTIN', ['contact_name', 'contact_emails', 'contact_numbers', 'contact_address']]
+                            ['code', 'NOTIN', ['contact_name', 'contact_emails', 'contact_numbers', 'contact_address', 'linea', 'maps_url']]
                         ])"
                         :entity="$warehouse"
                         :url="route('admin.settings.warehouses.update', $warehouse->id)"        
