@@ -95,6 +95,14 @@ class AgentPayload
      *
      * @return array{id: string, title: string}|null
      */
+    /**
+     * La opción elegida, para quien no arma el payload (el ingreso del mensaje).
+     */
+    public function seleccion(Message $message): ?array
+    {
+        return $this->selection($message);
+    }
+
     protected function selection(Message $message): ?array
     {
         $interactive = $message->payload['interactive'] ?? null;

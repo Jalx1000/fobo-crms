@@ -50,6 +50,7 @@ class EventServiceProvider extends ServiceProvider
             'Webkul\Admin\Listeners\Ciudad@deCotizacion',
             'Webkul\Admin\Listeners\Sucursal@desdeElProducto',
             'Webkul\Admin\Listeners\ValorPedido@deCotizacion',
+            'Webkul\Admin\Listeners\ProductoPedido@deCotizacion',
             // Correo con el detalle al asesor (MAIL_COTIZACION_NUEVA). Último:
             // los de arriba completan ciudad y sucursal antes de que se lea.
             'Webkul\Admin\Listeners\CotizacionNueva@handle',
@@ -68,6 +69,7 @@ class EventServiceProvider extends ServiceProvider
             'Webkul\Admin\Listeners\Nit@sincronizar',
             'Webkul\Admin\Listeners\Ciudad@deCotizacion',
             'Webkul\Admin\Listeners\ValorPedido@deCotizacion',
+            'Webkul\Admin\Listeners\ProductoPedido@deCotizacion',
         ],
 
         'activity.create.after' => [

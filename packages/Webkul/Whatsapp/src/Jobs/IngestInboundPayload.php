@@ -47,7 +47,7 @@ class IngestInboundPayload implements ShouldQueue
             // (e.g. WHATSAPP_GATEWAY=kommo while Meta posts here). Dropping it
             // silently loses real customer messages, so say so loudly.
             Log::warning('WhatsApp: webhook payload produced no events — is WHATSAPP_GATEWAY correct for this traffic?', [
-                'gateway' => $this->gatewayKey,
+                'gateway'      => $this->gatewayKey,
                 'payload_keys' => array_keys($this->payload),
             ]);
 
@@ -112,23 +112,23 @@ class IngestInboundPayload implements ShouldQueue
 
         $created = $model::create([
             'conversation_id' => $conversation->id,
-            'direction' => $isEcho ? 'outbound' : 'inbound',
-            'type' => $inbound->type,
-            'body' => $inbound->body,
-            'media_path' => $media['path'] ?? null,
-            'media_mime' => $media['mime'] ?? $inbound->mediaMime,
-            'media_name' => $media['name'] ?? $inbound->mediaFilename,
-            'wa_message_id' => $inbound->providerMessageId,
-            'reply_to_id' => $this->resolveReplyTo($inbound->replyToProviderId),
-            'status' => $isEcho ? 'sent' : 'delivered',
-            'sender' => $isEcho ? 'human' : 'contact',
-            'payload' => $inbound->raw,
+            'direction'       => $isEcho ? 'outbound' : 'inbound',
+            'type'            => $inbound->type,
+            'body'            => $inbound->body,
+            'media_path'      => $media['path'] ?? null,
+            'media_mime'      => $media['mime'] ?? $inbound->mediaMime,
+            'media_name'      => $media['name'] ?? $inbound->mediaFilename,
+            'wa_message_id'   => $inbound->providerMessageId,
+            'reply_to_id'     => $this->resolveReplyTo($inbound->replyToProviderId),
+            'status'          => $isEcho ? 'sent' : 'delivered',
+            'sender'          => $isEcho ? 'human' : 'contact',
+            'payload'         => $inbound->raw,
         ]);
 
         $conversation->forceFill(array_filter([
             'last_message_at' => now(),
             'last_inbound_at' => $isEcho ? null : now(), // reopens the 24h messaging window
-            'unread_count' => $isEcho ? null : $conversation->unread_count + 1,
+            'unread_count'    => $isEcho ? null : $conversation->unread_count + 1,
         ], fn ($value) => $value !== null))->save();
 
         if ($isEcho) {
@@ -137,6 +137,17 @@ class IngestInboundPayload implements ShouldQueue
 
         // Si contestó la pregunta por su ciudad: se guarda y decide el asesor.
         app(\Webkul\Whatsapp\Services\CiudadDesdeChat::class)->revisar($created);
+
+        // Si eligió un producto del menú (el id de la opción es el SKU), queda en el pedido.
+        try {
+            $eleccion = app(\Webkul\Whatsapp\Services\AgentPayload::class)->seleccion($created);
+
+            if ($eleccion && $conversation->lead_id) {
+                app(\Webkul\Lead\Services\ProductoDelPedido::class)->registrarSku($conversation->lead_id, $eleccion['id']);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         // Si no contesta lo que le respondamos, recontactarlo antes de que cierre la ventana.
         Recontactar::agendar($conversation);
@@ -199,7 +210,7 @@ class IngestInboundPayload implements ShouldQueue
             if (! $file || ($file['contents'] ?? '') === '') {
                 Log::warning('WhatsApp: media download returned nothing', [
                     'media_id' => $inbound->mediaId,
-                    'type' => $inbound->type,
+                    'type'     => $inbound->type,
                 ]);
 
                 return [];
@@ -219,7 +230,7 @@ class IngestInboundPayload implements ShouldQueue
         } catch (Throwable $e) {
             Log::warning('WhatsApp: media download failed', [
                 'media_id' => $inbound->mediaId,
-                'error' => $e->getMessage(),
+                'error'    => $e->getMessage(),
             ]);
 
             return [];
@@ -240,19 +251,19 @@ class IngestInboundPayload implements ShouldQueue
 
         return match ($mime) {
             'image/jpeg' => 'jpg',
-            'image/png' => 'png',
+            'image/png'  => 'png',
             'image/webp' => 'webp',
-            'image/gif' => 'gif',
-            'audio/ogg' => 'ogg',
+            'image/gif'  => 'gif',
+            'audio/ogg'  => 'ogg',
             'audio/mpeg' => 'mp3',
             'audio/mp4', 'audio/aac' => 'm4a',
-            'audio/amr' => 'amr',
-            'video/mp4' => 'mp4',
-            'video/3gpp' => '3gp',
-            'application/pdf' => 'pdf',
-            'application/msword' => 'doc',
+            'audio/amr'                => 'amr',
+            'video/mp4'                => 'mp4',
+            'video/3gpp'               => '3gp',
+            'application/pdf'          => 'pdf',
+            'application/msword'       => 'doc',
             'application/vnd.ms-excel' => 'xls',
-            default => null,
+            default                    => null,
         };
     }
 }

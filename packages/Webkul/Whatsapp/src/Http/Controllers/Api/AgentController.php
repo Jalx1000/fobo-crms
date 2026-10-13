@@ -105,6 +105,9 @@ class AgentController extends Controller
             $product = app(\Webkul\Product\Repositories\ProductRepository::class)->findOneByField('sku', $data['sku']);
 
             if ($product) {
+                // El producto que el agente derivó queda en el pedido.
+                app(\Webkul\Lead\Services\ProductoDelPedido::class)->registrar($conversation->lead_id, (int) $product->id);
+
                 $asignarA = app(\Webkul\Product\Services\Responsables::class)
                     ->asignar($conversation, $product, \Webkul\Admin\Services\CiudadCliente::canonica($data['ciudad'] ?? null))?->id;
             }
