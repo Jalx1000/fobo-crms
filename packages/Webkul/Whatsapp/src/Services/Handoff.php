@@ -11,6 +11,7 @@ use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\User\Models\UserProxy;
 use Webkul\Whatsapp\Exceptions\HandoffConflictException;
 use Webkul\Whatsapp\Jobs\AvisarDerivacionSinRespuesta;
+use Webkul\Whatsapp\Jobs\CerrarDerivacion;
 use Webkul\Whatsapp\Jobs\NotifyHandoff;
 use Webkul\Whatsapp\Models\Conversation;
 
@@ -98,6 +99,8 @@ class Handoff
             $this->notify($result['conversation'], $result['owner']);
 
             AvisarDerivacionSinRespuesta::agendar($result['conversation']);
+
+            CerrarDerivacion::agendar($result['conversation']);
         }
 
         return ['conversation' => $result['conversation'], 'changed' => $result['changed']];
@@ -183,7 +186,7 @@ class Handoff
      *
      * @throws HandoffConflictException
      */
-    public function resolve(Conversation $conversation, ?int $actorUserId = null, bool $reactivateAi = true): Conversation
+    public function resolve(Conversation $conversation, ?int $actorUserId = null, bool $reactivateAi = true, ?string $motivo = null): Conversation
     {
         if (! $conversation->handoffOpen()) {
             throw HandoffConflictException::notOpen();
@@ -196,7 +199,7 @@ class Handoff
 
         $this->audit(
             $conversation,
-            'Derivación cerrada'.($actorUserId ? ' por '.$this->userName($actorUserId) : '').'.'
+            'Derivación cerrada'.($actorUserId ? ' por '.$this->userName($actorUserId) : '').($motivo ? ' '.$motivo : '').'.'
                 .($reactivateAi ? ' El agente IA vuelve a atender.' : ' El agente IA queda desactivado.'),
             $actorUserId,
         );
