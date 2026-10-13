@@ -105,5 +105,16 @@ return [
     | Lo que el agente dice cuando el cliente no está en la ciudad de las
     | plantas: no hace falta que venga, se le envía.
     */
+    /*
+    | Seguimiento de la cotización enviada que el cliente no contesta: a los
+    | `recordatorio_dias` un correo al asesor; a los `sin_interes_dias` el
+    | pedido pasa a SIN INTERÉS. 0 desactiva cada paso.
+    */
+    'seguimiento' => [
+        'enabled'           => env('COTIZACION_SEGUIMIENTO', true),
+        'recordatorio_dias' => (int) env('COTIZACION_RECORDATORIO_DIAS', 3),
+        'sin_interes_dias'  => (int) env('COTIZACION_SIN_INTERES_DIAS', 7),
+    ],
+
     'envios_fuera_de_ciudad' => 'Las plantas están en Santa Cruz. Si el cliente está en otra ciudad, se le hacen envíos.',
 ];

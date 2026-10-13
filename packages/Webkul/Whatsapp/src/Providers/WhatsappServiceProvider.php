@@ -6,6 +6,7 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Webkul\Whatsapp\Console\Commands\AgendarRecontactos;
+use Webkul\Whatsapp\Console\Commands\AgendarSeguimientoCotizaciones;
 use Webkul\Whatsapp\Console\Commands\CerrarDerivaciones;
 use Webkul\Whatsapp\Console\Commands\KommoCheck;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
@@ -35,6 +36,7 @@ class WhatsappServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 AgendarRecontactos::class,
+                AgendarSeguimientoCotizaciones::class,
                 CerrarDerivaciones::class,
                 KommoCheck::class,
                 NormalizePhones::class,

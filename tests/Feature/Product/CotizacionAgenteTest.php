@@ -138,13 +138,14 @@ it('una combinación que no se cotiza por chat se crea con precio pendiente y la
         ->and((float) $r->json('total'))->toBe(0.0);
 });
 
-it('el Stretch Film sin precio cargado se cotiza con precio pendiente', function () {
+it('una combinación sin precio cargado se cotiza con precio pendiente', function () {
+    // El Stretch Film ya tiene precio; Bolsas HOGAR sigue sin precio en la lista.
     Mail::fake();
     Queue::fake();
 
     $r = test()->postJson("/api/v1/productos/conversations/{$this->conv->id}/cotizacion", [
-        'sku'       => 'CM_00001',
-        'criterios' => ['Presentación' => 'Manual 4,7 kg'],
+        'sku'       => 'CM_00002',
+        'criterios' => ['Tamaño' => '50 L', 'Canal' => 'HOGAR', 'Zona' => 'Santa Cruz'],
         'cantidad'  => 4,
         'empresa'   => 'Union Agronegocios',
     ])->assertStatus(201)->assertJsonPath('precio_pendiente', true);

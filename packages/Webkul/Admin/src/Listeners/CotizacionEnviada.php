@@ -59,6 +59,16 @@ class CotizacionEnviada
 
         foreach (LeadProxy::modelClass()::whereIn('id', $leadIds)->get() as $lead) {
             $lead->activities()->attach($activity->id);
+
+            /*
+            | Enviada la cotización, el pedido pasa a COTIZACION ENVIADA (si no
+            | estaba ya más adelante) y queda agendado su seguimiento: aviso al
+            | asesor y, si el cliente no contesta, SIN INTERÉS.
+            */
+            app(\Webkul\Lead\Services\EtapaPedido::class)
+                ->mover((int) $lead->id, 'cotizacion-enviada', ['no-atenidos', 'solicitud-recibida']);
+
+            \Webkul\Whatsapp\Jobs\SeguimientoCotizacion::agendar((int) $lead->id, (int) $quote->id, $mensaje?->created_at ?? now());
         }
 
         if ($quote->person_id && $person = PersonProxy::modelClass()::find($quote->person_id)) {
