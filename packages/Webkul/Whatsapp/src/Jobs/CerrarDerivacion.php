@@ -12,7 +12,7 @@ use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Services\Handoff;
 
 /**
- * Cierra una derivación tras `whatsapp.handoff.cierre_horas` sin mensajes.
+ * Cierra una derivación tras `whatsapp.handoff.cierre_horas` (8) sin mensajes.
  *
  * Solo se cerraban a mano y casi nunca se cerraban (12/10: 48 abiertas, 8
  * cerradas); mientras siguen abiertas la IA no le contesta a ese cliente, ni

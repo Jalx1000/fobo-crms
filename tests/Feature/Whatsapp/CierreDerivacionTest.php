@@ -10,11 +10,11 @@ use Webkul\Whatsapp\Models\Message;
 use Webkul\Whatsapp\Services\Handoff;
 
 /**
- * Cierre automático de derivaciones: a las 6 horas sin actividad.
+ * Cierre automático de derivaciones: a las 8 horas sin actividad.
  *
  * Una derivación solo se cerraba a mano y casi nunca se cerraba (12/10: 48
  * abiertas, 8 cerradas). Mientras está abierta la IA no le contesta a ese
- * cliente, ni siquiera si vuelve días después. Ahora se cierra sola a las 6 h
+ * cliente, ni siquiera si vuelve días después. Ahora se cierra sola a las 8 h
  * del último mensaje (del cliente o del asesor) y la IA vuelve a atender.
  */
 uses(DatabaseTransactions::class);
@@ -24,7 +24,7 @@ beforeEach(function () {
     Queue::fake();
     Carbon::setTestNow(Carbon::parse('2026-10-13 10:00:00', config('app.timezone')));
 
-    config(['whatsapp.handoff.notify' => false, 'whatsapp.handoff.cierre_horas' => 6]);
+    config(['whatsapp.handoff.notify' => false, 'whatsapp.handoff.cierre_horas' => 8]);
 
     $this->conv = Conversation::create([
         'gateway'    => 'kommo', 'wa_phone' => '+5917'.random_int(1000000, 9999999), 'wa_name' => 'Cierre',
@@ -54,8 +54,8 @@ it('al derivar agenda el cierre', function () {
     Queue::assertPushed(CerrarDerivacion::class, fn ($job) => $job->delay !== null);
 });
 
-it('a las 6 horas sin actividad la cierra y la IA vuelve a atender', function () {
-    Carbon::setTestNow(now()->addHours(6)->addMinute());
+it('a las 8 horas sin actividad la cierra y la IA vuelve a atender', function () {
+    Carbon::setTestNow(now()->addHours(8)->addMinute());
 
     correrCierre($this->conv);
 
@@ -65,7 +65,7 @@ it('a las 6 horas sin actividad la cierra y la IA vuelve a atender', function ()
         ->and((bool) $conv->ai_enabled)->toBeTrue();
 });
 
-it('si hubo mensajes, cuenta las 6 horas desde el último y reagenda', function () {
+it('si hubo mensajes, cuenta las 8 horas desde el último y reagenda', function () {
     Carbon::setTestNow(now()->addHours(4));
     cierreMensaje($this->conv, 'outbound');
 
@@ -79,13 +79,13 @@ it('si hubo mensajes, cuenta las 6 horas desde el último y reagenda', function 
     expect($this->conv->fresh()->handoffOpen())->toBeTrue();
 
     Queue::assertPushed(CerrarDerivacion::class, function ($job) {
-        return Carbon::parse($job->delay)->setTimezone(config('app.timezone'))->format('Y-m-d H:i') === '2026-10-13 20:00';
+        return Carbon::parse($job->delay)->setTimezone(config('app.timezone'))->format('Y-m-d H:i') === '2026-10-13 22:00';
     });
 });
 
 it('una derivación ya cerrada no se toca', function () {
     app(Handoff::class)->resolve($this->conv, 1, false);
-    Carbon::setTestNow(now()->addHours(7));
+    Carbon::setTestNow(now()->addHours(9));
 
     correrCierre($this->conv);
 
@@ -99,13 +99,13 @@ it('una derivación nueva deja sin efecto el cierre agendado para la anterior', 
     Carbon::setTestNow(now()->addHour());
     app(Handoff::class)->request($this->conv->fresh(), 'Otra vez', 'ai', null, 1);
 
-    Carbon::setTestNow(now()->addHours(6)->addMinute());
+    Carbon::setTestNow(now()->addHours(8)->addMinute());
     (new CerrarDerivacion($this->conv->id, $vieja))->handle(app(Handoff::class));
 
     expect($this->conv->fresh()->handoffOpen())->toBeTrue();
 });
 
-it('el comando cierra las derivaciones abiertas que llevan 6 horas sin actividad', function () {
+it('el comando cierra las derivaciones abiertas que llevan 8 horas sin actividad', function () {
     $vieja = Conversation::create([
         'gateway'              => 'kommo', 'wa_phone' => '+5917'.random_int(1000000, 9999999), 'wa_name' => 'Vieja',
         'ai_enabled'           => false, 'status' => 'open', 'handoff_state' => Conversation::HANDOFF_ASSIGNED,

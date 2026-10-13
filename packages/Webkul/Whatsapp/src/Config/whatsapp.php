@@ -296,7 +296,7 @@ return [
 
         // Horas sin mensajes (del cliente o del asesor) tras las que la
         // derivación se cierra sola y la IA vuelve a atender. 0 = nunca.
-        'cierre_horas' => (int) env('WHATSAPP_HANDOFF_CIERRE_HORAS', 6),
+        'cierre_horas' => (int) env('WHATSAPP_HANDOFF_CIERRE_HORAS', 8),
         'sin_respuesta_copia' => array_values(array_filter(array_map('trim', explode(',', (string) env(
             'WHATSAPP_HANDOFF_SIN_RESPUESTA_COPIA',
             'jalejandromogro1@gmail.com'
