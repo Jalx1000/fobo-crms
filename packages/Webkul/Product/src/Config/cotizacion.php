@@ -67,6 +67,14 @@ return [
     'asesor_por_defecto' => env('ASESOR_POR_DEFECTO'),
 
     /*
+    | Ejecutivos que NO entran en el turno de los clientes sin ciudad (emails,
+    | separados por coma). Siguen atendiendo lo que la matriz les asigna.
+    */
+    'turno_sin_ciudad' => (bool) env('TURNO_SIN_CIUDAD', true),
+
+    'fuera_del_turno' => array_filter(explode(',', (string) env('ASESORES_FUERA_DEL_TURNO', ''))),
+
+    /*
     | Las ciudades que puede tener un CLIENTE, que son más que aquellas donde
     | Imprimir tiene gente: se vende a todo el país. Son las opciones del
     | atributo `ciudad` de contactos, oportunidades y cotizaciones.

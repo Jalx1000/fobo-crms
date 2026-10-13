@@ -18,10 +18,10 @@ uses(DatabaseTransactions::class);
 
 /*
 | Estos tests cubren el pozo y el ruteo por dueño SIN asesor por defecto. Con
-| ASESOR_POR_DEFECTO configurado (producción: Mariano) nada cae al pozo; ese
+| asesor por defecto ni turno sin ciudad (en producción nada cae al pozo); ese
 | caso lo cubre tests/Feature/Product/DerivacionAsesorTest.php.
 */
-beforeEach(fn () => config(['cotizacion.asesor_por_defecto' => null]));
+beforeEach(fn () => config(['cotizacion.asesor_por_defecto' => null, 'cotizacion.turno_sin_ciudad' => false]));
 
 function handoffService(): Handoff
 {

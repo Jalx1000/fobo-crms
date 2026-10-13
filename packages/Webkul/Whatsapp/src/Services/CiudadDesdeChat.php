@@ -66,10 +66,14 @@ class CiudadDesdeChat
             return;
         }
 
+        // Asignado sin saber la ciudad: se decidió por turno, es provisorio.
+        $sinCiudadAntes = ! ($conversation->lead_id ? $this->ciudades->de('leads', $conversation->lead_id) : null)
+            && ! $this->ciudades->de('persons', $conversation->person_id);
+
         $this->ciudades->escribir('persons', $conversation->person_id, $ciudad);
         $this->ciudades->propagar($conversation->person_id, $ciudad);
 
-        $this->reasignar($conversation, $ciudad);
+        $this->reasignar($conversation, $ciudad, $sinCiudadAntes);
         $this->moverDePipeline($conversation, $ciudad);
     }
 
@@ -78,12 +82,12 @@ class CiudadDesdeChat
      * venda), pasa a quien atiende la ciudad. Un pedido que ya es de otro
      * asesor no se toca.
      */
-    protected function reasignar(Conversation $conversation, string $ciudad): void
+    protected function reasignar(Conversation $conversation, string $ciudad, bool $sinCiudadAntes = false): void
     {
-        $defecto = $this->responsables->asesorPorDefecto()?->id;
-
+        // Provisorio: sin dueño, de alguien que no vende, o asignado por turno
+        // cuando todavía no se sabía la ciudad.
         $provisorio = fn ($userId) => ! $userId
-            || (int) $userId === (int) $defecto
+            || ($sinCiudadAntes && $this->responsables->esSinCiudad((int) $userId))
             || ! $this->responsables->esAsesor((int) $userId);
 
         $lead = $conversation->lead_id ? DB::table('leads')->find($conversation->lead_id) : null;

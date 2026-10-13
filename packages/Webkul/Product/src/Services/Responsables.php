@@ -318,22 +318,72 @@ class Responsables
     }
 
     /**
-     * El asesor para quien no dijo ciudad, o cuya ciudad no atiende nadie:
-     * cotizacion.asesor_por_defecto (por email), si sigue siendo asesor.
-     * Sin configurar, null: cada llamador conserva su comportamiento de antes
-     * (el handoff, el pozo).
+     * El asesor para quien no dijo ciudad, o cuya ciudad no atiende nadie.
+     *
+     * Ya no es una persona fija (era Mariano hasta el 13/10): es el turno
+     * entre los ejecutivos «sin ciudad» —los que cubren «Bolivia» en la
+     * matriz—, menos los de `cotizacion.fuera_del_turno`. Si
+     * `cotizacion.asesor_por_defecto` está configurado, manda ese.
      */
     public function asesorPorDefecto()
     {
         $email = trim((string) config('cotizacion.asesor_por_defecto'));
 
-        if ($email === '') {
+        if ($email !== '') {
+            $user = UserProxy::modelClass()::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
+
+            if ($user && $this->esAsesor($user->id)) {
+                return $user;
+            }
+        }
+
+        return $this->turnoSinCiudad();
+    }
+
+    /**
+     * El que sigue entre los ejecutivos de cobertura nacional: el que hace más
+     * tiempo no recibe nada en esas casillas. Marca su turno.
+     */
+    /**
+     * Si la persona es un ejecutivo «sin ciudad»: tiene casillas de cobertura
+     * nacional. A ellos les toca lo que llega sin ciudad, por turno.
+     */
+    public function esSinCiudad(?int $userId): bool
+    {
+        return $userId && ProductoResponsableProxy::modelClass()::where('user_id', $userId)->get()->contains->esNacional();
+    }
+
+    protected function turnoSinCiudad()
+    {
+        if (! config('cotizacion.turno_sin_ciudad', true)) {
             return null;
         }
 
-        $user = UserProxy::modelClass()::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
+        $fuera = array_map('strtolower', array_filter(array_map('trim', (array) config('cotizacion.fuera_del_turno', []))));
 
-        return $user && $this->esAsesor($user->id) ? $user : null;
+        return DB::transaction(function () use ($fuera) {
+            $filas = ProductoResponsableProxy::modelClass()::query()
+                ->whereHas('user', fn ($q) => $q->where('status', 1))
+                ->with('user')
+                ->get()
+                ->filter(fn ($r) => $r->esNacional() && ! in_array(strtolower((string) $r->user->email), $fuera, true));
+
+            if ($filas->isEmpty()) {
+                return null;
+            }
+
+            $userId = $filas->groupBy('user_id')
+                ->map(fn ($suyas) => optional($suyas->max('ultimo_asignado_at'))->timestamp ?? 0)
+                ->sortBy(fn ($ultimo, $id) => [$ultimo, $id])
+                ->keys()
+                ->first();
+
+            ProductoResponsableProxy::modelClass()::query()
+                ->whereIn('id', $filas->where('user_id', $userId)->pluck('id'))
+                ->update(['ultimo_asignado_at' => now()]);
+
+            return $filas->firstWhere('user_id', $userId)->user;
+        });
     }
 
     /**
