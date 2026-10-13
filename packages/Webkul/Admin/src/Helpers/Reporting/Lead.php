@@ -102,13 +102,6 @@ class Lead extends AbstractReporting
             ->pluck('id')
             ->toArray();
 
-        $this->prospectoStageIds = $this->stageRepository
-            ->resetModel()
-            ->where('code', 'prospectos')
-            ->orWhereRaw("LOWER(name) LIKE '%prospecto%'")
-            ->pluck('id')
-            ->toArray();
-
         /*
         | En el CRM la etapa se llama «NO ATENIDOS» (código `no-atenidos`, sin la
         | d). Buscando solo «no atendido» no coincidía con ninguna y la tarjeta
@@ -122,6 +115,13 @@ class Lead extends AbstractReporting
             ->orWhereRaw("LOWER(name) LIKE '%no atenido%'")
             ->pluck('id')
             ->toArray();
+
+        /*
+        | No hay etapa «Prospectos»: el pedido que todavía no se trabajó está en
+        | NO ATENIDOS. Buscando `prospectos` no coincidía ninguna y las tarjetas
+        | de prospectos (y las que suman los pedidos abiertos) daban siempre 0.
+        */
+        $this->prospectoStageIds = $this->notAttendedStageIds;
 
         parent::__construct();
     }
@@ -337,22 +337,22 @@ class Lead extends AbstractReporting
             : (string) (round($value) == $value ? (int) $value : round($value, 1));
 
         return [
-            'labels'                     => $labels,
-            'data'                       => $data,
-            'previous_data'              => $previousData,
-            'period'                     => $period,
-            'current_total'              => round($currentTotal, 2),
-            'previous_total'             => round($previousTotal, 2),
-            'current_total_formatted'    => $formatNumber($currentTotal),
-            'previous_total_formatted'   => $formatNumber($previousTotal),
-            'current_average'            => round($currentAverage, 2),
-            'previous_average'           => round($previousAverage, 2),
-            'current_average_formatted'  => $format === 'currency' ? core()->formatBasePrice($currentAverage) : (string) round($currentAverage, 1),
+            'labels' => $labels,
+            'data' => $data,
+            'previous_data' => $previousData,
+            'period' => $period,
+            'current_total' => round($currentTotal, 2),
+            'previous_total' => round($previousTotal, 2),
+            'current_total_formatted' => $formatNumber($currentTotal),
+            'previous_total_formatted' => $formatNumber($previousTotal),
+            'current_average' => round($currentAverage, 2),
+            'previous_average' => round($previousAverage, 2),
+            'current_average_formatted' => $format === 'currency' ? core()->formatBasePrice($currentAverage) : (string) round($currentAverage, 1),
             'previous_average_formatted' => $format === 'currency' ? core()->formatBasePrice($previousAverage) : (string) round($previousAverage, 1),
-            'current_range'              => $this->startDate->format('d M').' – '.$this->endDate->format('d M'),
-            'previous_range'             => $this->lastStartDate->format('d M').' – '.$this->lastEndDate->format('d M'),
-            'progress'                   => $this->getPercentageChange($previousTotal, $currentTotal),
-            'format'                     => $format,
+            'current_range' => $this->startDate->format('d M').' – '.$this->endDate->format('d M'),
+            'previous_range' => $this->lastStartDate->format('d M').' – '.$this->lastEndDate->format('d M'),
+            'progress' => $this->getPercentageChange($previousTotal, $currentTotal),
+            'format' => $format,
         ];
     }
 
@@ -411,15 +411,15 @@ class Lead extends AbstractReporting
             $prevSalesAmount = $prev ? (float) $prev->total_sales_amount : 0;
 
             return [
-                'user_id'                       => $item->user_id,
-                'name'                          => $item->vendedor_name,
-                'total_leads'                   => (int) $item->total_leads,
-                'sales_count'                   => (int) $item->sales_count,
-                'total_sales_amount'            => (float) $item->total_sales_amount,
-                'formatted_total_sales_amount'  => core()->formatBasePrice($item->total_sales_amount),
+                'user_id' => $item->user_id,
+                'name' => $item->vendedor_name,
+                'total_leads' => (int) $item->total_leads,
+                'sales_count' => (int) $item->sales_count,
+                'total_sales_amount' => (float) $item->total_sales_amount,
+                'formatted_total_sales_amount' => core()->formatBasePrice($item->total_sales_amount),
                 'average_response_time_seconds' => $item->average_response_time_seconds ? (int) $item->average_response_time_seconds : null,
-                'previous_total_sales_amount'   => $prevSalesAmount,
-                'progress'                      => $this->getPercentageChange($prevSalesAmount, (float) $item->total_sales_amount),
+                'previous_total_sales_amount' => $prevSalesAmount,
+                'progress' => $this->getPercentageChange($prevSalesAmount, (float) $item->total_sales_amount),
             ];
         })->sortByDesc('total_sales_amount')->values();
 
@@ -491,7 +491,7 @@ class Lead extends AbstractReporting
             $usersCounts = [];
             foreach ($users as $u) {
                 $usersCounts[] = [
-                    'name'  => $u,
+                    'name' => $u,
                     'count' => (int) ($byDate[$dateKey][$u] ?? 0),
                 ];
             }
@@ -504,7 +504,7 @@ class Lead extends AbstractReporting
 
         return [
             'over_time' => $stats,
-            'users'     => $users,
+            'users' => $users,
         ];
     }
 
@@ -565,10 +565,10 @@ class Lead extends AbstractReporting
         }
 
         return [
-            'labels'        => $users,
-            'data'          => $data,
+            'labels' => $users,
+            'data' => $data,
             'previous_data' => $previousData,
-            'users'         => $users,
+            'users' => $users,
         ];
     }
 
@@ -657,10 +657,10 @@ class Lead extends AbstractReporting
         }
 
         return [
-            'labels'       => $labels,
-            'attended'     => $attended,
+            'labels' => $labels,
+            'attended' => $attended,
             'not_attended' => $notAttended,
-            'users'        => $labels,
+            'users' => $labels,
         ];
     }
 
@@ -670,7 +670,7 @@ class Lead extends AbstractReporting
         $pipelineId = is_numeric(request('pipeline_id')) ? request('pipeline_id') : null;
 
         $attribute = $this->attributeRepository->findWhere([
-            'code'        => 'sucursal',
+            'code' => 'sucursal',
             'entity_type' => 'persons',
         ])->first();
 
@@ -734,8 +734,8 @@ class Lead extends AbstractReporting
         }
 
         return [
-            'labels'        => $labels,
-            'data'          => $data,
+            'labels' => $labels,
+            'data' => $data,
             'previous_data' => $previousData,
         ];
     }
@@ -795,10 +795,10 @@ class Lead extends AbstractReporting
         }
 
         return [
-            'labels'        => $users,
-            'data'          => $data,
+            'labels' => $users,
+            'data' => $data,
             'previous_data' => $previousData,
-            'users'         => $users,
+            'users' => $users,
         ];
     }
 
@@ -901,10 +901,10 @@ class Lead extends AbstractReporting
         }
 
         return [
-            'labels'        => $users,
-            'data'          => $data,
+            'labels' => $users,
+            'data' => $data,
             'previous_data' => $previousData,
-            'users'         => $users,
+            'users' => $users,
         ];
     }
 
@@ -914,7 +914,7 @@ class Lead extends AbstractReporting
         $pipelineId = is_numeric(request('pipeline_id')) ? request('pipeline_id') : null;
 
         $attribute = $this->attributeRepository->findWhere([
-            'code'        => 'sucursal',
+            'code' => 'sucursal',
             'entity_type' => 'persons',
         ])->first();
 
@@ -977,8 +977,8 @@ class Lead extends AbstractReporting
         }
 
         return [
-            'labels'        => $labels,
-            'data'          => $data,
+            'labels' => $labels,
+            'data' => $data,
             'previous_data' => $previousData,
         ];
     }
@@ -1029,8 +1029,8 @@ class Lead extends AbstractReporting
         }
 
         return [
-            'labels'        => $labels,
-            'data'          => $data,
+            'labels' => $labels,
+            'data' => $data,
             'previous_data' => $previousData,
         ];
     }
@@ -1089,7 +1089,7 @@ class Lead extends AbstractReporting
 
         return [
             'labels' => $labels,
-            'data'   => $data,
+            'data' => $data,
         ];
     }
 
@@ -1137,8 +1137,8 @@ class Lead extends AbstractReporting
         }
 
         return [
-            'labels'        => $labels,
-            'data'          => $data,
+            'labels' => $labels,
+            'data' => $data,
             'previous_data' => $previousData,
         ];
     }
@@ -1176,7 +1176,7 @@ class Lead extends AbstractReporting
     {
         return [
             'previous' => $previous = $this->getTotalLeads($this->lastStartDate, $this->lastEndDate),
-            'current'  => $current = $this->getTotalLeads($this->startDate, $this->endDate),
+            'current' => $current = $this->getTotalLeads($this->startDate, $this->endDate),
             'progress' => $this->getPercentageChange($previous, $current),
         ];
     }
@@ -1207,7 +1207,7 @@ class Lead extends AbstractReporting
     {
         return [
             'previous' => $previous = $this->getAverageLeadsPerDay($this->lastStartDate, $this->lastEndDate),
-            'current'  => $current = $this->getAverageLeadsPerDay($this->startDate, $this->endDate),
+            'current' => $current = $this->getAverageLeadsPerDay($this->startDate, $this->endDate),
             'progress' => $this->getPercentageChange($previous, $current),
         ];
     }
@@ -1237,10 +1237,10 @@ class Lead extends AbstractReporting
     public function getTotalLeadValueProgress(): array
     {
         return [
-            'previous'        => $previous = $this->getTotalLeadValue($this->lastStartDate, $this->lastEndDate),
-            'current'         => $current = $this->getTotalLeadValue($this->startDate, $this->endDate),
+            'previous' => $previous = $this->getTotalLeadValue($this->lastStartDate, $this->lastEndDate),
+            'current' => $current = $this->getTotalLeadValue($this->startDate, $this->endDate),
             'formatted_total' => core()->formatBasePrice($current),
-            'progress'        => $this->getPercentageChange($previous, $current),
+            'progress' => $this->getPercentageChange($previous, $current),
         ];
     }
 
@@ -1267,10 +1267,10 @@ class Lead extends AbstractReporting
     public function getAverageLeadValueProgress(): array
     {
         return [
-            'previous'        => $previous = $this->getAverageLeadValue($this->lastStartDate, $this->lastEndDate),
-            'current'         => $current = $this->getAverageLeadValue($this->startDate, $this->endDate),
+            'previous' => $previous = $this->getAverageLeadValue($this->lastStartDate, $this->lastEndDate),
+            'current' => $current = $this->getAverageLeadValue($this->startDate, $this->endDate),
             'formatted_total' => core()->formatBasePrice($current),
-            'progress'        => $this->getPercentageChange($previous, $current),
+            'progress' => $this->getPercentageChange($previous, $current),
         ];
     }
 
@@ -1297,10 +1297,10 @@ class Lead extends AbstractReporting
     public function getTotalWonLeadValueProgress(): array
     {
         return [
-            'previous'        => $previous = $this->getTotalWonLeadValue($this->lastStartDate, $this->lastEndDate),
-            'current'         => $current = $this->getTotalWonLeadValue($this->startDate, $this->endDate),
+            'previous' => $previous = $this->getTotalWonLeadValue($this->lastStartDate, $this->lastEndDate),
+            'current' => $current = $this->getTotalWonLeadValue($this->startDate, $this->endDate),
             'formatted_total' => core()->formatBasePrice($current),
-            'progress'        => $this->getPercentageChange($previous, $current),
+            'progress' => $this->getPercentageChange($previous, $current),
         ];
     }
 
@@ -1329,10 +1329,10 @@ class Lead extends AbstractReporting
     public function getTotalLostLeadValueProgress(): array
     {
         return [
-            'previous'        => $previous = $this->getTotalLostLeadValue($this->lastStartDate, $this->lastEndDate),
-            'current'         => $current = $this->getTotalLostLeadValue($this->startDate, $this->endDate),
+            'previous' => $previous = $this->getTotalLostLeadValue($this->lastStartDate, $this->lastEndDate),
+            'current' => $current = $this->getTotalLostLeadValue($this->startDate, $this->endDate),
             'formatted_total' => core()->formatBasePrice($current),
-            'progress'        => $this->getPercentageChange($previous, $current),
+            'progress' => $this->getPercentageChange($previous, $current),
         ];
     }
 
@@ -1340,7 +1340,7 @@ class Lead extends AbstractReporting
     {
         return [
             'previous' => $previous = $this->getVentasCount($this->lastStartDate, $this->lastEndDate),
-            'current'  => $current = $this->getVentasCount($this->startDate, $this->endDate),
+            'current' => $current = $this->getVentasCount($this->startDate, $this->endDate),
             'progress' => $this->getPercentageChange($previous, $current),
         ];
     }
@@ -1512,7 +1512,7 @@ class Lead extends AbstractReporting
             $stat = $results->get($stage->name);
 
             return (object) [
-                'name'  => $stage->name,
+                'name' => $stage->name,
                 'total' => $stat ? (int) $stat->total : 0,
             ];
         });
@@ -1569,7 +1569,7 @@ class Lead extends AbstractReporting
             $stat = $counts->get($stage->id);
 
             return [
-                'name'  => $stage->name,
+                'name' => $stage->name,
                 'total' => $stat ? (int) $stat->total : 0,
             ];
         })->toArray();
@@ -1646,7 +1646,7 @@ class Lead extends AbstractReporting
 
             $datasets[] = [
                 'label' => $stage->name,
-                'data'  => $data,
+                'data' => $data,
             ];
         }
 
@@ -1658,9 +1658,9 @@ class Lead extends AbstractReporting
         }
 
         return [
-            'labels'   => $labels,
+            'labels' => $labels,
             'datasets' => $datasets,
-            'total'    => $total,
+            'total' => $total,
         ];
     }
 
@@ -1727,15 +1727,15 @@ class Lead extends AbstractReporting
         // with the SQL grouping AND the bucket containing the end date is never
         // dropped (a mid-period start date used to skip the last week/month).
         $current = match ($period) {
-            'week'  => $startDate->copy()->startOfWeek(),
+            'week' => $startDate->copy()->startOfWeek(),
             'month' => $startDate->copy()->startOfMonth(),
-            'year'  => $startDate->copy()->startOfYear(),
+            'year' => $startDate->copy()->startOfYear(),
             default => $startDate->copy()->startOfDay(),
         };
 
         while ($current <= $endDate) {
             $interval = [
-                'key'   => $this->formatDateForGrouping($current, $period),
+                'key' => $this->formatDateForGrouping($current, $period),
                 'label' => $this->formatDateForLabel($current, $period),
             ];
 
@@ -1889,7 +1889,7 @@ class Lead extends AbstractReporting
 
         if (empty($timeDifferences)) {
             return [
-                'average_time'   => 0,
+                'average_time' => 0,
                 'formatted_time' => '00:00',
             ];
         }
@@ -1897,7 +1897,7 @@ class Lead extends AbstractReporting
         $averageTimeInSeconds = array_sum($timeDifferences) / count($timeDifferences);
 
         return [
-            'average_time'   => $averageTimeInSeconds,
+            'average_time' => $averageTimeInSeconds,
             'formatted_time' => $this->formatTime($averageTimeInSeconds),
         ];
     }

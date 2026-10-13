@@ -35,17 +35,17 @@ beforeEach(function () {
 function tarjetaPedido($test, int $pipeline, string $etapa): int
 {
     return DB::table('leads')->insertGetId([
-        'title'                  => 'Tarjeta '.uniqid(), 'user_id' => $test->asesor->id, 'status' => 1,
-        'lead_pipeline_id'       => $pipeline,
+        'title' => 'Tarjeta '.uniqid(), 'user_id' => $test->asesor->id, 'status' => 1,
+        'lead_pipeline_id' => $pipeline,
         'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')->where('lead_pipeline_id', $pipeline)->where('code', $etapa)->value('id'),
-        'created_at'             => $test->fecha, 'updated_at' => $test->fecha,
+        'created_at' => $test->fecha, 'updated_at' => $test->fecha,
     ]);
 }
 
 function tarjetaCotizacion($test, int $lead, string $sku, int $cantidad): void
 {
     $quote = DB::table('quotes')->insertGetId([
-        'subject'    => 'Tarjeta', 'user_id' => $test->asesor->id, 'person_id' => $test->persona, 'sub_total' => 0, 'grand_total' => 0,
+        'subject' => 'Tarjeta', 'user_id' => $test->asesor->id, 'person_id' => $test->persona, 'sub_total' => 0, 'grand_total' => 0,
         'created_at' => $test->fecha, 'updated_at' => $test->fecha,
     ]);
 
@@ -132,4 +132,15 @@ it('no atendidos por ciudad no muestra la porción Sin ciudad', function () {
 it('atendidos vs no atendidos no trae la barra del usuario del agente', function () {
     expect(tarjeta('leads-attention-by-users')['labels'])->not->toContain('Agente')
         ->not->toContain('Sin ciudad');
+});
+
+it('los prospectos son los pedidos en NO ATENIDOS', function () {
+    tarjetaPedido($this, 1, 'no-atenidos');
+    tarjetaPedido($this, 1, 'no-atenidos');
+    tarjetaPedido($this, 1, 'solicitud-recibida');
+
+    $total = app(\Webkul\Admin\Helpers\Reporting\Lead::class)
+        ->getTotalLeads(\Carbon\Carbon::parse('2020-01-01'), \Carbon\Carbon::parse('2020-01-31 23:59:59'));
+
+    expect($total)->toBe(2);
 });
