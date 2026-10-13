@@ -211,6 +211,12 @@ class LeadRepository extends Repository
 
             $comparable = fn ($texto) => \Webkul\Product\Support\ListaPrecios::comparable((string) $texto);
 
+            // «Trinidad» es Beni, «Cobija» es Pando: el agente no tiene por
+            // qué saber cómo nombra el CRM cada ciudad.
+            if ($attribute->code === 'ciudad' && ! is_numeric($valor)) {
+                $valor = \Webkul\Admin\Services\CiudadCliente::canonica((string) $valor);
+            }
+
             $opcion = (is_numeric($valor) ? $attribute->options->firstWhere('id', (int) $valor) : null)
                 ?? $attribute->options->first(fn ($o) => $comparable($o->name) === $comparable($valor));
 

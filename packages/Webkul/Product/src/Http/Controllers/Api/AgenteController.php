@@ -482,7 +482,7 @@ class AgenteController extends Controller
             return response()->json(['message' => "No existe un producto con el SKU {$datos['sku']}."], 404);
         }
 
-        $ciudad = $datos['ciudad'] ?? null;
+        $ciudad = \Webkul\Admin\Services\CiudadCliente::canonica($datos['ciudad'] ?? null);
 
         $candidatos = $this->responsables->candidatos($product, $ciudad);
 
@@ -505,7 +505,7 @@ class AgenteController extends Controller
     protected function ciudadDe(array $datos): ?string
     {
         if (! empty($datos['ciudad'])) {
-            return trim($datos['ciudad']);
+            return \Webkul\Admin\Services\CiudadCliente::canonica($datos['ciudad']);
         }
 
         $zona = collect((array) ($datos['criterios'] ?? []))

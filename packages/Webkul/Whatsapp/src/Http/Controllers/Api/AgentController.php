@@ -106,7 +106,7 @@ class AgentController extends Controller
 
             if ($product) {
                 $asignarA = app(\Webkul\Product\Services\Responsables::class)
-                    ->asignar($conversation, $product, $data['ciudad'] ?? null)?->id;
+                    ->asignar($conversation, $product, \Webkul\Admin\Services\CiudadCliente::canonica($data['ciudad'] ?? null))?->id;
             }
         }
 

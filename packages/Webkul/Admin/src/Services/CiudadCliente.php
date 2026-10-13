@@ -153,6 +153,29 @@ class CiudadCliente
         'cobija'   => 'Pando',
     ];
 
+    /**
+     * El nombre con que se guarda una ciudad que llega escrita de otra forma:
+     * «Trinidad» → Beni, «Cobija» → Pando, «cbba» → Cochabamba. Lo demás
+     * vuelve tal cual. Es lo que se aplica a todo lo que manda el agente, para
+     * que no tenga que saber cómo nombra el CRM cada ciudad.
+     */
+    public static function canonica(?string $ciudad): ?string
+    {
+        if ($ciudad === null || trim($ciudad) === '') {
+            return $ciudad;
+        }
+
+        $clave = ListaPrecios::comparable($ciudad);
+
+        foreach (self::EQUIVALENTES + self::ALIAS as $forma => $nombre) {
+            if (ListaPrecios::comparable($forma) === $clave) {
+                return $nombre;
+            }
+        }
+
+        return trim($ciudad);
+    }
+
     protected function opcion(string $entidad, mixed $valor)
     {
         $valor = trim((string) ($valor ?? ''));

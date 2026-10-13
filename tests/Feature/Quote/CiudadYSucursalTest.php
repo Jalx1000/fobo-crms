@@ -301,3 +301,37 @@ it('la cotización del agente guarda ciudad y la planta del producto', function 
     DB::table('attribute_values')->where('entity_type', 'quotes')->where('entity_id', $quoteId)->delete();
     DB::table('quotes')->where('id', $quoteId)->delete();
 });
+
+it('si el agente cotiza con la capital, la cotización y el contacto quedan con el departamento', function () {
+    \Illuminate\Support\Facades\Mail::fake();
+    \Illuminate\Support\Facades\Queue::fake();
+
+    actingAsSanctumAuthenticatedAdmin();
+
+    $persona = personaCiudad();
+
+    $conv = Conversation::create([
+        'gateway' => 'cloud_api', 'wa_phone' => '+5917'.random_int(1000000, 9999999),
+        'wa_name' => 'Ciudad', 'ai_enabled' => true, 'status' => 'open', 'person_id' => $persona->id,
+    ]);
+
+    $r = test()->postJson("/api/v1/productos/conversations/{$conv->id}/cotizacion", [
+        'sku'       => 'CM_00004',
+        'criterios' => ['Impresión' => 'Con impresión'],
+        'cantidad'  => 30,
+        'ciudad'    => 'Cobija',
+    ])->assertStatus(201);
+
+    expect(ciudadDe('quotes', $r->json('quote_id')))->toBe('Pando')
+        ->and(ciudadDe('persons', $persona->id))->toBe('Pando');
+});
+
+it('la ciudad canónica: capitales y abreviaturas al nombre del CRM', function () {
+    $c = fn ($t) => \Webkul\Admin\Services\CiudadCliente::canonica($t);
+
+    expect($c('Trinidad'))->toBe('Beni')
+        ->and($c('COBIJA'))->toBe('Pando')
+        ->and($c('cbba'))->toBe('Cochabamba')
+        ->and($c('Santa Cruz'))->toBe('Santa Cruz')
+        ->and($c(null))->toBeNull();
+});

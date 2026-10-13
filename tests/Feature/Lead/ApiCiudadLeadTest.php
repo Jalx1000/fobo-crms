@@ -106,3 +106,11 @@ it('una ciudad que no existe no se guarda ni rompe el PUT', function () {
 
     expect(ciudadGuardada($this))->toBeNull();
 });
+
+it('si el agente manda la capital, se guarda el departamento: Trinidad es Beni, Cobija es Pando', function () {
+    putLead($this, ['ciudad' => 'Trinidad'])->assertOk();
+    expect(ciudadGuardada($this))->toBe(($this->opcion)('Beni'));
+
+    putLead($this, ['ciudad' => 'cobija'])->assertOk();
+    expect(ciudadGuardada($this))->toBe(($this->opcion)('Pando'));
+});

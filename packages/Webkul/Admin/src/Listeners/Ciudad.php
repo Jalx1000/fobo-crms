@@ -90,6 +90,11 @@ class Ciudad
 
         // Puede venir ya como nombre (la API del agente manda texto): si no es
         // un id de opción, se toma tal cual si existe entre las opciones.
+        // «Trinidad» y «Cobija» se guardan como Beni y Pando.
+        if (! ctype_digit($valor)) {
+            $valor = \Webkul\Admin\Services\CiudadCliente::canonica($valor);
+        }
+
         $opcion = $attribute->options->firstWhere('id', (int) $valor)
             ?? $attribute->options->first(fn ($o) => ListaPrecios::comparable((string) $o->name) === ListaPrecios::comparable($valor));
 
@@ -107,6 +112,8 @@ class Ciudad
     protected function guardar(string $entityType, int $entityId, string $ciudad): void
     {
         $attribute = $this->atributo($entityType);
+
+        $ciudad = \Webkul\Admin\Services\CiudadCliente::canonica($ciudad);
 
         $opcion = $attribute?->options->first(
             fn ($o) => ListaPrecios::comparable((string) $o->name) === ListaPrecios::comparable($ciudad)
