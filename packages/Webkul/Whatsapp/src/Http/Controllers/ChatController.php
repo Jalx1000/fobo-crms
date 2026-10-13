@@ -137,6 +137,31 @@ class ChatController extends Controller
         // the joinSub, where a bare column name would be ambiguous.
         $openStates = ConversationProxy::modelClass()::HANDOFF_OPEN_STATES;
 
+        /*
+        | El asesor de una conversación, en orden: el de la derivación abierta,
+        | el dueño del pedido, el dueño del contacto (el reparto producto ×
+        | ciudad escribe esos dueños). Antes «Míos» miraba solo derivaciones
+        | abiertas y los clientes repartidos a un asesor no le aparecían.
+        */
+        $deAsesor = function ($q, int $userId) use ($openStates) {
+            $q->where(function ($w) use ($userId, $openStates) {
+                $w->where(fn ($h) => $h->whereIn('whatsapp_conversations.handoff_state', $openStates)
+                    ->where('whatsapp_conversations.assigned_user_id', $userId))
+                    ->orWhere(fn ($o) => $o
+                        ->where(fn ($sinDerivar) => $sinDerivar->whereNull('whatsapp_conversations.handoff_state')
+                            ->orWhereNotIn('whatsapp_conversations.handoff_state', $openStates)
+                            ->orWhereNull('whatsapp_conversations.assigned_user_id'))
+                        ->where(fn ($duenio) => $duenio
+                            ->whereIn('whatsapp_conversations.lead_id', DB::table('leads')->where('user_id', $userId)->select('id'))
+                            ->orWhere(fn ($p) => $p->whereNull('whatsapp_conversations.lead_id')
+                                ->whereIn('whatsapp_conversations.person_id', DB::table('persons')->where('user_id', $userId)->select('id')))));
+            });
+        };
+
+        if ($asesorId = $request->integer('asesor')) {
+            $deAsesor($query, $asesorId);
+        }
+
         match ($request->input('filter')) {
             'unassigned' => $query->whereNull('person_id')->whereNull('lead_id'),
             'unread'     => $query->where('unread_count', '>', 0),
@@ -146,8 +171,7 @@ class ChatController extends Controller
             // Derived and unclaimed: the team pool.
             'pool'       => $query->where('whatsapp_conversations.handoff_state', ConversationProxy::modelClass()::HANDOFF_REQUESTED)
                 ->whereNull('whatsapp_conversations.assigned_user_id'),
-            'mine'       => $query->where('whatsapp_conversations.assigned_user_id', auth()->guard('user')->id())
-                ->whereIn('whatsapp_conversations.handoff_state', $openStates),
+            'mine'       => $deAsesor($query, (int) auth()->guard('user')->id()),
             default      => null,
         };
 
@@ -171,8 +195,12 @@ class ChatController extends Controller
             // tope 300.
             ->paginate(min(300, max(30, (int) $request->integer('per_page', 30))));
 
+        $asesores = $this->asesoresDe(collect($conversations->items()), $openStates);
+
         return response()->json([
             'data' => collect($conversations->items())->map(fn ($c) => [
+                'asesor'       => $asesores[$c->id]['name'] ?? null,
+                'asesor_id'    => $asesores[$c->id]['id'] ?? null,
                 'id'           => $c->id,
                 'name'         => $c->person->name ?? $c->wa_name ?? $c->wa_phone ?? 'Sin nombre',
                 'phone'        => $c->wa_phone,
@@ -208,7 +236,35 @@ class ChatController extends Controller
             // Drives the channel filter. Sent with the list so the UI never
             // hardcodes a channel the installation may not have.
             'channels'     => $this->gateways->channels(),
+            // Para el filtro por asesor: quienes figuran en el reparto.
+            'asesores'     => DB::table('users')
+                ->whereIn('id', DB::table('producto_responsables')->select('user_id'))
+                ->where('status', 1)
+                ->orderBy('name')
+                ->get(['id', 'name']),
         ]);
+    }
+
+    /**
+     * El asesor de cada conversación de la página: derivación abierta, si no
+     * dueño del pedido, si no dueño del contacto. En lote, no por fila.
+     *
+     * @return array<int, array{id: int, name: string}>
+     */
+    protected function asesoresDe($conversaciones, array $openStates): array
+    {
+        $deLeads = DB::table('leads')->whereIn('id', $conversaciones->pluck('lead_id')->filter())->pluck('user_id', 'id');
+        $dePersonas = DB::table('persons')->whereIn('id', $conversaciones->pluck('person_id')->filter())->pluck('user_id', 'id');
+
+        $ids = $conversaciones->mapWithKeys(fn ($c) => [$c->id => (in_array($c->handoff_state, $openStates, true) ? $c->assigned_user_id : null)
+            ?: ($c->lead_id ? ($deLeads[$c->lead_id] ?? null) : null)
+            ?: ($c->person_id && ! $c->lead_id ? ($dePersonas[$c->person_id] ?? null) : null)]);
+
+        $nombres = DB::table('users')->whereIn('id', $ids->filter()->unique())->pluck('name', 'id');
+
+        return $ids->filter()->map(fn ($id) => ['id' => (int) $id, 'name' => $nombres[$id] ?? null])
+            ->filter(fn ($a) => $a['name'])
+            ->all();
     }
 
     /**

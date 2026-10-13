@@ -81,6 +81,26 @@
                             </button>
                         </div>
 
+                        <!-- asesor: según el reparto (derivación abierta, dueño del pedido o del contacto) -->
+                        <div v-if="asesores.length" class="wa-scroll flex gap-1.5 overflow-x-auto pb-0.5">
+                            <button type="button"
+                                    class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
+                                    :class="!asesorFilter
+                                        ? 'bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-900'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'"
+                                    @click="asesorFilter = null; load()">
+                                Todos los asesores
+                            </button>
+                            <button v-for="a in asesores" :key="'as-' + a.id" type="button"
+                                    class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
+                                    :class="asesorFilter === a.id
+                                        ? 'bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-900'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'"
+                                    @click="asesorFilter = a.id; load()">
+                                @{{ a.name }}
+                            </button>
+                        </div>
+
                         <!-- stage filter: chips from the default pipeline -->
                         <div v-if="stages.length" class="wa-scroll flex gap-1.5 overflow-x-auto pb-0.5">
                             <button type="button"
@@ -166,7 +186,7 @@
                                         </span>
                                     </div>
 
-                                    <div v-if="c.stage || c.handoff || (!c.person_id && !c.lead_id)" class="mt-1 flex items-center gap-1.5">
+                                    <div v-if="c.stage || c.handoff || c.asesor || (!c.person_id && !c.lead_id)" class="mt-1 flex items-center gap-1.5">
                                         <!-- With nothing sent to the customer and no
                                              in-app notifications in Krayin, this badge
                                              is the team's real-time signal. -->
@@ -180,6 +200,7 @@
                                               title="Derivada a un asesor">
                                             @{{ c.handoff_mine ? 'Mía' : 'Derivada' }}
                                         </span>
+                                        <span v-if="c.asesor" class="shrink-0 truncate rounded-full bg-gray-100 px-1.5 py-px text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300" :title="'Asesor: ' + c.asesor">@{{ c.asesor }}</span>
                                         <span v-if="c.stage" class="truncate rounded-full bg-sky-100 px-1.5 py-px text-[10px] font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">@{{ c.stage }}</span>
                                         <span v-if="!c.person_id && !c.lead_id" class="rounded bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Sin contacto</span>
                                         <button v-if="!c.person_id && !c.lead_id" type="button"
@@ -286,6 +307,8 @@
                         // never assumes which ones this install has connected.
                         channels: [],
                         channelFilter: null,
+                        asesores: [],
+                        asesorFilter: null,
                         page: 1,
                         lastPage: 1,
                         listLoading: false,
@@ -346,6 +369,7 @@
                             filter: this.filter,
                             stage: this.stageFilter,
                             channel: this.channelFilter,
+                            asesor: this.asesorFilter,
                             page,
                         };
                     },
@@ -394,6 +418,7 @@
                             .then(res => {
                                 this.conversations = res.data?.data ?? [];
                                 this.channels = res.data?.channels ?? [];
+                                this.asesores = res.data?.asesores ?? [];
 
                                 if (background && this.page > 1) {
                                     // Se conserva la página: "Cargar más" sigue
