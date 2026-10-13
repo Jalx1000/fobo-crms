@@ -79,14 +79,14 @@
 
                 chartDatasets() {
                     return [{
-                        // Prospecto (puro) -> segmento inferior de la barra apilada
+                        // No atendidos -> segmento inferior de la barra apilada
                         type: 'bar',
                         order: 3,
                         stack: 'pipeline',
                         data: this.report.statistics.prospecto.over_time.map(({ count }) => count),
                         backgroundColor: '#8979FF',
                     },{
-                        // Pedido confirmado -> segmento superior de la barra apilada
+                        // Cotización enviada -> segmento superior de la barra apilada
                         type: 'bar',
                         order: 2,
                         stack: 'pipeline',

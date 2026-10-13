@@ -2273,9 +2273,9 @@ return [
                 'lost'  => 'Pedidos cancelados',
             ],
             'leads-vs-entregados' => [
-                'title'     => 'Prospectos | Pedidos confirmados | Pedidos entregados',
-                'prospects' => 'Prospecto',
-                'confirmed' => 'Pedido confirmado',
+                'title'     => 'No atendidos | Cotizaciones enviadas | Pedidos entregados',
+                'prospects' => 'No atendidos',
+                'confirmed' => 'Cotización enviada',
                 'delivered' => 'Pedidos entregados',
             ],
             'revenue-by-sources' => [

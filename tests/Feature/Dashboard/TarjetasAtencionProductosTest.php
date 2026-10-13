@@ -35,17 +35,17 @@ beforeEach(function () {
 function tarjetaPedido($test, int $pipeline, string $etapa): int
 {
     return DB::table('leads')->insertGetId([
-        'title' => 'Tarjeta '.uniqid(), 'user_id' => $test->asesor->id, 'status' => 1,
-        'lead_pipeline_id' => $pipeline,
+        'title'                  => 'Tarjeta '.uniqid(), 'user_id' => $test->asesor->id, 'status' => 1,
+        'lead_pipeline_id'       => $pipeline,
         'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')->where('lead_pipeline_id', $pipeline)->where('code', $etapa)->value('id'),
-        'created_at' => $test->fecha, 'updated_at' => $test->fecha,
+        'created_at'             => $test->fecha, 'updated_at' => $test->fecha,
     ]);
 }
 
 function tarjetaCotizacion($test, int $lead, string $sku, int $cantidad): void
 {
     $quote = DB::table('quotes')->insertGetId([
-        'subject' => 'Tarjeta', 'user_id' => $test->asesor->id, 'person_id' => $test->persona, 'sub_total' => 0, 'grand_total' => 0,
+        'subject'    => 'Tarjeta', 'user_id' => $test->asesor->id, 'person_id' => $test->persona, 'sub_total' => 0, 'grand_total' => 0,
         'created_at' => $test->fecha, 'updated_at' => $test->fecha,
     ]);
 
@@ -143,4 +143,17 @@ it('los prospectos son los pedidos en NO ATENIDOS', function () {
         ->getTotalLeads(\Carbon\Carbon::parse('2020-01-01'), \Carbon\Carbon::parse('2020-01-31 23:59:59'));
 
     expect($total)->toBe(2);
+});
+
+it('el segmento que sigue a los no atendidos son las cotizaciones enviadas', function () {
+    tarjetaPedido($this, 1, 'cotizacion-enviada');
+    tarjetaPedido($this, 1, 'cotizacion-enviada');
+    tarjetaPedido($this, 1, 'solicitud-recibida');
+
+    $serie = app(\Webkul\Admin\Helpers\Reporting\Lead::class)
+        ->setStartDate(\Illuminate\Support\Carbon::parse('2020-01-01'))
+        ->setEndDate(\Illuminate\Support\Carbon::parse('2020-01-31 23:59:59'))
+        ->getTotalConfirmedLeadsOverTime('day');
+
+    expect(collect($serie)->sum('count'))->toBe(2);
 });
