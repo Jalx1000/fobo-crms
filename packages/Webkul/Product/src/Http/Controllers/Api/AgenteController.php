@@ -171,6 +171,9 @@ class AgenteController extends Controller
             fn ($v) => is_scalar($v) && trim((string) $v) !== ''
         );
 
+        // Precio por volumen (Stretch): el tramo sale de la cantidad pedida.
+        $criterios = ListaPrecios::conCantidad($criterios, $datos['cantidad'] ?? null);
+
         $ejes = array_values((array) ($product->ejes_precio ?? []));
 
         $candidatas = ListaPrecios::filtrar($product->precios, $criterios);
@@ -255,7 +258,10 @@ class AgenteController extends Controller
             return response()->json(['message' => "No existe un producto con el SKU {$datos['sku']}."], 404);
         }
 
-        [$fila, $error, $pendiente] = $this->filaParaCotizar($product, (array) ($datos['criterios'] ?? []));
+        [$fila, $error, $pendiente] = $this->filaParaCotizar(
+            $product,
+            ListaPrecios::conCantidad((array) ($datos['criterios'] ?? []), $datos['cantidad'])
+        );
 
         if ($error) {
             return response()->json(['message' => $error], 422);

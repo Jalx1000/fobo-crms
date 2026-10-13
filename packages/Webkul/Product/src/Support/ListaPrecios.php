@@ -109,12 +109,54 @@ class ListaPrecios
             }
 
             $filas = $filas->filter(
-                fn ($fila) => static::comparable((string) ($fila->valores[$ejeReal] ?? ''))
-                    === static::comparable((string) $buscado)
+                fn ($fila) => static::coincide((string) ($fila->valores[$ejeReal] ?? ''), (string) $buscado)
             );
         }
 
         return $filas->values();
+    }
+
+    /**
+     * Suma la cantidad pedida a los criterios, para los productos con precio
+     * por volumen (eje «Cantidad» con tramos «1-10», «11-30», «51+»).
+     *
+     * En los demás productos no cambia nada: `filtrar` ignora los criterios que
+     * no son ejes del producto. Si el criterio ya vino, manda el que vino.
+     */
+    public static function conCantidad(array $criterios, mixed $cantidad): array
+    {
+        if (! is_numeric($cantidad)) {
+            return $criterios;
+        }
+
+        foreach (array_keys($criterios) as $eje) {
+            if (static::comparable((string) $eje) === 'cantidad') {
+                return $criterios;
+            }
+        }
+
+        return $criterios + ['Cantidad' => (string) (int) $cantidad];
+    }
+
+    /**
+     * Si el valor de la fila es un tramo («1-10», «51+») y lo buscado es un
+     * número, se compara por rango; si no, por escritura, como siempre.
+     */
+    protected static function coincide(string $valor, string $buscado): bool
+    {
+        if (is_numeric(trim($buscado))) {
+            $n = (float) trim($buscado);
+
+            if (preg_match('/^\s*(\d+)\s*[-–a]\s*(\d+)\s*$/u', $valor, $m)) {
+                return $n >= (int) $m[1] && $n <= (int) $m[2];
+            }
+
+            if (preg_match('/^\s*(\d+)\s*(\+|o\s+m[aá]s)\s*$/iu', $valor, $m)) {
+                return $n >= (int) $m[1];
+            }
+        }
+
+        return static::comparable($valor) === static::comparable($buscado);
     }
 
     /**

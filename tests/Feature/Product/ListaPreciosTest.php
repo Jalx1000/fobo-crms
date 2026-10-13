@@ -204,3 +204,39 @@ it('no ofrece opciones de un eje que el cliente ya contestó', function () {
     expect($r->json('opciones'))->toHaveKey('Canal');
     expect($r->json('opciones'))->not->toHaveKey('Tamaño');
 });
+
+it('elige el tramo por volumen según la cantidad pedida', function () {
+    $stretch = app(ProductRepository::class)->create([
+        'entity_type' => 'products',
+        'name'        => 'Stretch de prueba '.uniqid(),
+        'sku'         => 'TEST-VOL-'.uniqid(),
+        'price'       => 0,
+        'ejes_precio' => ['Presentación', 'Cantidad'],
+    ]);
+
+    app(ProductPriceRepository::class)->reemplazar($stretch->id, [
+        ['valores' => ['Presentación' => 'Manual', 'Cantidad' => '1-10'],  'precio' => 145, 'unidad' => null, 'minimo' => null, 'nota' => null, 'orden' => 0],
+        ['valores' => ['Presentación' => 'Manual', 'Cantidad' => '11-30'], 'precio' => 135, 'unidad' => null, 'minimo' => null, 'nota' => null, 'orden' => 1],
+        ['valores' => ['Presentación' => 'Manual', 'Cantidad' => '51+'],   'precio' => 120, 'unidad' => null, 'minimo' => null, 'nota' => null, 'orden' => 2],
+    ]);
+
+    foreach ([1 => 145.0, 10 => 145.0, 11 => 135.0, 51 => 120.0, 400 => 120.0] as $cantidad => $esperado) {
+        $r = test()->postJson("/api/v1/productos/catalogo/{$stretch->sku}/precio", [
+            'criterios' => ['Presentación' => 'Manual'],
+            'cantidad'  => $cantidad,
+        ])->assertOk();
+
+        expect($r->json('estado'))->toBe('resuelto');
+        expect((float) $r->json('precio.precio'))->toBe($esperado);
+    }
+
+    // Sin cantidad no elige tramo: la tiene que preguntar.
+    $r = test()->postJson("/api/v1/productos/catalogo/{$stretch->sku}/precio", [
+        'criterios' => ['Presentación' => 'Manual'],
+    ])->assertOk();
+
+    expect($r->json('estado'))->toBe('ambiguo');
+
+    ProductPrice::where('product_id', $stretch->id)->delete();
+    $stretch->newQuery()->whereKey($stretch->id)->delete();
+});
