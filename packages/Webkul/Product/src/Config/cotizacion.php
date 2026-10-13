@@ -19,10 +19,10 @@ return [
     | en la cabecera de cada PDF. Se toma tal cual de la propuesta real.
     */
     'documento' => [
-        'codigo' => 'RG-VCO-005',
+        'codigo'  => 'RG-VCO-005',
         'version' => '00',
         'edicion' => '19/4/2024',
-        'titulo' => 'PROPUESTA COMERCIAL MASIVOS',
+        'titulo'  => 'PROPUESTA COMERCIAL MASIVOS',
     ],
 
     /*
@@ -100,4 +100,10 @@ return [
     | igual —el asesor las ve al día siguiente— y el agente le avisa al cliente.
     */
     'horario_atencion' => ['desde' => '08:00', 'hasta' => '19:00'],
+
+    /*
+    | Lo que el agente dice cuando el cliente no está en la ciudad de las
+    | plantas: no hace falta que venga, se le envía.
+    */
+    'envios_fuera_de_ciudad' => 'Las plantas están en Santa Cruz. Si el cliente está en otra ciudad, se le hacen envíos.',
 ];

@@ -1479,6 +1479,7 @@ return [
                 'locations' => [
                     'action'         => 'Action',
                     'add-location'   => 'Add Location',
+                    'maps'           => 'Location (Google Maps)',
                     'create-success' => 'Location created successfully.',
                     'delete'         => 'Delete',
                     'delete-failed'  => 'Location can not be deleted.',

@@ -64,8 +64,8 @@ function personaCiudad(?string $ciudad = null)
 {
     return app(PersonRepository::class)->create(array_filter([
         'entity_type' => 'persons',
-        'name' => 'Ciudad test '.uniqid(),
-        'ciudad' => $ciudad ? opcionCiudad('persons', $ciudad) : null,
+        'name'        => 'Ciudad test '.uniqid(),
+        'ciudad'      => $ciudad ? opcionCiudad('persons', $ciudad) : null,
     ]));
 }
 
@@ -78,12 +78,12 @@ function cotizacionCiudad(array $extra)
 {
     $quote = app(QuoteRepository::class)->create(array_merge([
         'entity_type' => 'quotes',
-        'subject' => 'Ciudad test '.uniqid(),
-        'expired_at' => now()->addDays(10)->toDateString(),
-        'user_id' => 1,
-        'sub_total' => 0,
+        'subject'     => 'Ciudad test '.uniqid(),
+        'expired_at'  => now()->addDays(10)->toDateString(),
+        'user_id'     => 1,
+        'sub_total'   => 0,
         'grand_total' => 0,
-        'items' => [],
+        'items'       => [],
     ], $extra));
 
     Event::dispatch('quote.create.after', $quote);
@@ -97,11 +97,11 @@ function cotizacionCiudad(array $extra)
 function oportunidadCiudad(array $extra)
 {
     $lead = app(LeadRepository::class)->create(array_merge([
-        'entity_type' => 'leads',
-        'title' => 'Ciudad lead '.uniqid(),
-        'lead_pipeline_id' => 1,
+        'entity_type'            => 'leads',
+        'title'                  => 'Ciudad lead '.uniqid(),
+        'lead_pipeline_id'       => 1,
         'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')->where('lead_pipeline_id', 1)->value('id'),
-        'user_id' => 1,
+        'user_id'                => 1,
     ], $extra));
 
     Event::dispatch('lead.create.after', $lead);
@@ -150,7 +150,7 @@ it('el formulario pide la sucursal con un select simple de las plantas', functio
 
     $quote = cotizacionCiudad([
         'person_id' => personaCiudad()->id,
-        'sucursal' => $planta->id,
+        'sucursal'  => $planta->id,
     ]);
 
     foreach ([route('admin.quotes.create'), route('admin.quotes.edit', $quote->id)] as $url) {
@@ -189,7 +189,7 @@ it('el contacto aprende la ciudad que trae la cotización', function () {
 
     $quote = cotizacionCiudad([
         'person_id' => $persona->id,
-        'ciudad' => opcionCiudad('quotes', 'Tarija'),
+        'ciudad'    => opcionCiudad('quotes', 'Tarija'),
     ]);
 
     expect(ciudadDe('persons', $persona->id))->toBe('Tarija')
@@ -206,7 +206,7 @@ it('con dos ciudades distintas, manda la última que se guardó', function () {
 
     $quote = cotizacionCiudad([
         'person_id' => $persona->id,
-        'ciudad' => opcionCiudad('quotes', 'Oruro'),
+        'ciudad'    => opcionCiudad('quotes', 'Oruro'),
     ]);
 
     expect(ciudadDe('persons', $persona->id))->toBe('Oruro')
@@ -224,9 +224,9 @@ it('la oportunidad también se concilia con su contacto, en los dos sentidos', f
     $otra = personaCiudad();
 
     $lead2 = oportunidadCiudad([
-        'person' => ['id' => $otra->id],
+        'person'    => ['id' => $otra->id],
         'person_id' => $otra->id,
-        'ciudad' => opcionCiudad('leads', 'Trinidad'),
+        'ciudad'    => opcionCiudad('leads', 'Trinidad'),
     ]);
 
     expect(ciudadDe('persons', $otra->id))->toBe('Trinidad')
@@ -238,23 +238,24 @@ it('la sucursal se propone desde la planta del producto, y no se pisa si ya vino
 
     $quote = cotizacionCiudad([
         'person_id' => personaCiudad()->id,
-        'items' => [[
+        'items'     => [[
             'product_id' => $tapas->id, 'sku' => $tapas->sku, 'name' => $tapas->name,
-            'quantity' => 1, 'price' => 1, 'total' => 1,
+            'quantity'   => 1, 'price' => 1, 'total' => 1,
         ]],
     ]);
 
     expect(sucursalDe($quote->id))->toBe($tapas->warehouse_id);
 
-    // Con sucursal elegida a mano, se respeta: puede haberse acordado otra planta.
-    $otra = DB::table('warehouses')->where('id', '!=', $tapas->warehouse_id)->value('id');
+    // Con sucursal elegida a mano, se respeta. Hay un solo almacén (Santa
+    // Cruz): para probarlo hace falta otro, que se crea solo para este test.
+    $otra = DB::table('warehouses')->insertGetId(['name' => 'Otra '.uniqid(), 'created_at' => now(), 'updated_at' => now()]);
 
     $quote2 = cotizacionCiudad([
         'person_id' => personaCiudad()->id,
-        'sucursal' => $otra,
-        'items' => [[
+        'sucursal'  => $otra,
+        'items'     => [[
             'product_id' => $tapas->id, 'sku' => $tapas->sku, 'name' => $tapas->name,
-            'quantity' => 1, 'price' => 1, 'total' => 1,
+            'quantity'   => 1, 'price' => 1, 'total' => 1,
         ]],
     ]);
 
@@ -263,6 +264,8 @@ it('la sucursal se propone desde la planta del producto, y no se pisa si ya vino
     foreach ([$quote->id, $quote2->id] as $id) {
         DB::table('quote_items')->where('quote_id', $id)->delete();
     }
+
+    DB::table('warehouses')->where('id', $otra)->delete();
 });
 
 it('la cotización del agente guarda ciudad y la planta del producto', function () {
@@ -279,10 +282,10 @@ it('la cotización del agente guarda ciudad y la planta del producto', function 
     $tapas = Product::where('sku', 'CM_00004')->first();
 
     $r = test()->postJson("/api/v1/productos/conversations/{$conv->id}/cotizacion", [
-        'sku' => 'CM_00004',
+        'sku'       => 'CM_00004',
         'criterios' => ['Impresión' => 'Con impresión'],
-        'cantidad' => 30,
-        'ciudad' => 'la paz',   // como lo escribe el agente: sin acentos ni mayúsculas
+        'cantidad'  => 30,
+        'ciudad'    => 'la paz',   // como lo escribe el agente: sin acentos ni mayúsculas
     ])->assertStatus(201);
 
     $quoteId = $r->json('quote_id');

@@ -7,13 +7,13 @@
 --}}
 @php
     use Webkul\User\Models\User;
-    use Webkul\Warehouse\Models\Warehouse;
+    use Webkul\Warehouse\Models\Location;
 
     $producto = $product ?? null;
 
-    // Las sucursales son los almacenes del modulo Warehouse: se cargan y editan
-    // en Configuracion -> Almacenes, con su linea y su enlace de Maps.
-    $sucursales = Warehouse::orderBy('id')->get();
+    // Las plantas son las ubicaciones del almacén (Santa Cruz): se cargan y
+    // editan en Configuracion -> Almacenes -> Ubicación, con su enlace de Maps.
+    $sucursales = Location::with('warehouse')->orderBy('warehouse_id')->orderBy('id')->get();
 
     $asesores = User::where('status', 1)->orderBy('name')->get(['id', 'name']);
 
@@ -43,20 +43,20 @@
     <input type="hidden" name="sucursal_enviada" value="1" />
 
     <div class="mb-4 max-w-md">
-        <label for="warehouse_id" class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+        <label for="warehouse_location_id" class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
             @lang('admin::app.products.sucursal.planta')
         </label>
 
         <select
-            id="warehouse_id"
-            name="warehouse_id"
+            id="warehouse_location_id"
+            name="warehouse_location_id"
             class="h-9 w-full cursor-pointer rounded border border-gray-200 px-2.5 text-sm text-gray-800 transition-colors hover:border-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
         >
             <option value="">@lang('admin::app.products.sucursal.sin-planta')</option>
 
             @foreach ($sucursales as $s)
-                <option value="{{ $s->id }}" @selected((int) old('warehouse_id', $producto?->warehouse_id) === $s->id)>
-                    {{ $s->linea ? $s->name.' · '.$s->linea : $s->name }}
+                <option value="{{ $s->id }}" @selected((int) old('warehouse_location_id', $producto?->warehouse_location_id) === $s->id)>
+                    {{ $s->warehouse ? $s->warehouse->name.' · '.$s->name : $s->name }}
                 </option>
             @endforeach
         </select>

@@ -19,6 +19,7 @@ class Location extends Model implements LocationContract
      */
     protected $fillable = [
         'name',
+        'maps_url',
         'warehouse_id',
     ];
 
@@ -28,5 +29,13 @@ class Location extends Model implements LocationContract
     public function warehouse()
     {
         return $this->belongsTo(WarehouseProxy::modelClass());
+    }
+
+    /**
+     * Los productos que se fabrican en esta ubicación (planta).
+     */
+    public function productos()
+    {
+        return $this->hasMany(\Webkul\Product\Models\ProductProxy::modelClass(), 'warehouse_location_id');
     }
 }

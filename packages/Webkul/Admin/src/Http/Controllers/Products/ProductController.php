@@ -247,18 +247,24 @@ class ProductController extends Controller
      * ahí, no que haya que guardar una fila con usuario nulo. Varias personas
      * en la misma ciudad se turnan (ver `Responsables`).
      *
-     * `warehouse_id` viaja aparte porque SÍ es columna del producto; se limpia
-     * a null cuando el select vino vacío.
+     * La planta llega como ubicación (`warehouse_location_id`) y el almacén se
+     * toma de ella: hay uno solo, Santa Cruz, con una ubicación por planta. Las
+     * dos son columnas del producto y se limpian a null con el select vacío.
      */
     protected function responsables(AttributeForm $request, array &$data): ?array
     {
         if (! $request->boolean('sucursal_enviada')) {
-            unset($data['warehouse_id'], $data['responsables'], $data['sucursal_enviada']);
+            unset($data['warehouse_id'], $data['warehouse_location_id'], $data['responsables'], $data['sucursal_enviada']);
 
             return null;
         }
 
-        $data['warehouse_id'] = $request->input('warehouse_id') ?: null;
+        $ubicacion = $request->input('warehouse_location_id')
+            ? \Webkul\Warehouse\Models\LocationProxy::modelClass()::find($request->input('warehouse_location_id'))
+            : null;
+
+        $data['warehouse_location_id'] = $ubicacion?->id;
+        $data['warehouse_id'] = $ubicacion?->warehouse_id;
 
         $matriz = [];
 

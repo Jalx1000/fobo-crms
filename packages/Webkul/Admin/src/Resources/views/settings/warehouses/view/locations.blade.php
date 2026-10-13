@@ -16,6 +16,10 @@
                         </x-admin::table.th>
 
                         <x-admin::table.th>
+                            @lang('admin::app.settings.warehouses.view.locations.maps')
+                        </x-admin::table.th>
+
+                        <x-admin::table.th>
                             @lang('admin::app.settings.warehouses.view.locations.action')
                     </x-admin::table.th>
                     </x-admin::table.thead.tr>
@@ -28,6 +32,20 @@
                     >
                         <x-admin::table.td class="dark:text-white">
                             @{{ location.name }}
+                        </x-admin::table.td>
+
+                        <x-admin::table.td class="dark:text-white">
+                            <a
+                                v-if="location.maps_url"
+                                :href="location.maps_url"
+                                target="_blank"
+                                rel="noopener"
+                                class="text-brandColor hover:underline"
+                            >
+                                @{{ location.maps_url }}
+                            </a>
+
+                            <span v-else class="text-gray-400">—</span>
                         </x-admin::table.td>
 
                         <x-admin::table.td>
@@ -101,6 +119,24 @@
                                 />
 
                                 <x-admin::form.control-group.error control-name="name" />
+                            </x-admin::form.control-group>
+
+                            <!-- Lo que el agente manda cuando preguntan dónde queda. -->
+                            <x-admin::form.control-group>
+                                <x-admin::form.control-group.label>
+                                    @lang('admin::app.settings.warehouses.view.locations.maps')
+                                </x-admin::form.control-group.label>
+
+                                <x-admin::form.control-group.control
+                                    type="text"
+                                    id="maps_url"
+                                    name="maps_url"
+                                    rules="url"
+                                    :label="trans('admin::app.settings.warehouses.view.locations.maps')"
+                                    placeholder="https://maps.app.goo.gl/…"
+                                />
+
+                                <x-admin::form.control-group.error control-name="maps_url" />
                             </x-admin::form.control-group>
                         </x-slot>
 

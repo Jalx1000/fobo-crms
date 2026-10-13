@@ -1523,6 +1523,7 @@ return [
                 'locations'   => [
                     'action'         => 'Acción',
                     'add-location'   => 'Agregar Ubicación',
+                    'maps'           => 'Ubicación (Google Maps)',
                     'create-success' => 'Ubicación creada con éxito.',
                     'delete'         => 'Eliminar',
                     'delete-failed'  => 'No se puede eliminar la ubicación.',

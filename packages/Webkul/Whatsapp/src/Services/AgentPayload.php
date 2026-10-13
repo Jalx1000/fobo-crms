@@ -64,11 +64,26 @@ class AgentPayload
                 'open'       => $window->open,
                 'expires_at' => $window->expiresAt?->toIso8601String(),
             ],
-            'reply' => [
+            /*
+            | Dónde quedan las plantas y qué se dice si el cliente está en otra
+            | ciudad. Sale de Configuración → Almacenes.
+            */
+            'ubicaciones' => $this->ubicaciones(),
+            'reply'       => [
                 'method' => 'POST',
                 'url'    => url("api/v1/whatsapp/conversations/{$conversation->id}/messages"),
             ],
         ];
+    }
+
+    protected function ubicaciones(): ?array
+    {
+        try {
+            return app(\Webkul\Warehouse\Services\Ubicaciones::class)->paraAgente();
+        } catch (\Throwable) {
+            // Nunca frenar el mensaje al agente por esto.
+            return null;
+        }
     }
 
     /**

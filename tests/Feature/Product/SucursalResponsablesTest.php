@@ -4,6 +4,7 @@ use Webkul\Product\Models\Product;
 use Webkul\Product\Models\ProductoResponsable;
 use Webkul\Product\Repositories\ProductRepository;
 use Webkul\User\Models\User;
+use Webkul\Warehouse\Models\Location;
 use Webkul\Warehouse\Models\Warehouse;
 
 /**
@@ -46,14 +47,17 @@ function formSucursal($p, array $extra = []): array
 }
 
 /**
- * Las plantas se buscan por LÍNEA y no por nombre: el nombre lo edita el
- * negocio desde Configuración → Almacenes (ya pasó: «Imprimir 2» hoy se llama
- * «Sucursal Tapas - Santa Cruz») y lo que las identifica es qué fabrican.
+ * Un solo almacén, Santa Cruz, con una ubicación por planta (pedido del
+ * 13/10). La ubicación se llama como la línea que fabrica.
  */
-function plantaDe(string $linea): ?Warehouse
+function plantaDe(string $linea): ?Location
 {
-    return Warehouse::get()->first(fn ($w) => $w->linea === $linea);
+    return Location::with('warehouse')->where('name', $linea)->first();
 }
+
+it('hay un solo almacén, Santa Cruz', function () {
+    expect(Warehouse::pluck('name')->all())->toBe(['Santa Cruz']);
+});
 
 it('las tres plantas están cargadas con su línea y su enlace de Maps', function () {
     foreach ([
@@ -64,14 +68,15 @@ it('las tres plantas están cargadas con su línea y su enlace de Maps', functio
         $s = plantaDe($linea);
 
         expect($s)->not->toBeNull("falta la planta de {$linea}");
-        expect($s->maps_url)->toContain($maps);
+        expect($s->maps_url)->toContain($maps)
+            ->and($s->warehouse->name)->toBe('Santa Cruz');
     }
 });
 
 it('tapas se despacha desde la planta de tapas', function () {
     // Es el único producto con planta asignada a propósito: es el único que se
     // retira en planta.
-    expect(Product::where('sku', 'CM_00004')->first()->planta?->linea)->toBe('Tapas');
+    expect(Product::where('sku', 'CM_00004')->first()->ubicacion?->name)->toBe('Tapas');
 });
 
 it('guarda la sucursal y los responsables desde el formulario', function () {
@@ -79,8 +84,8 @@ it('guarda la sucursal y los responsables desde el formulario', function () {
     $asesores = User::where('status', 1)->limit(2)->get();
 
     test()->put(route('admin.products.update', $this->producto->id), formSucursal($this->producto, [
-        'warehouse_id' => $sucursal->id,
-        'responsables' => [
+        'warehouse_location_id' => $sucursal->id,
+        'responsables'          => [
             'Santa Cruz' => [$asesores[0]->id],
             'La Paz'     => [$asesores[1]->id],
             'Cochabamba' => [],   // sin asignar
@@ -89,7 +94,8 @@ it('guarda la sucursal y los responsables desde el formulario', function () {
 
     $this->producto->refresh()->load('responsables');
 
-    expect($this->producto->warehouse_id)->toBe($sucursal->id);
+    expect($this->producto->warehouse_location_id)->toBe($sucursal->id)
+        ->and($this->producto->warehouse_id)->toBe($sucursal->warehouse_id);
     expect($this->producto->responsables)->toHaveCount(2);
     expect($this->producto->responsableEn('Santa Cruz')?->id)->toBe($asesores[0]->id);
     expect($this->producto->responsableEn('La Paz')?->id)->toBe($asesores[1]->id);
@@ -121,7 +127,7 @@ it('un guardado parcial no borra la sucursal ni los responsables', function () {
     $sucursal = plantaDe('Envases Flexibles');
     $asesor = User::where('status', 1)->first();
 
-    $this->producto->forceFill(['warehouse_id' => $sucursal->id])->save();
+    $this->producto->forceFill(['warehouse_id' => $sucursal->warehouse_id, 'warehouse_location_id' => $sucursal->id])->save();
     ProductoResponsable::create(['product_id' => $this->producto->id, 'ciudad' => 'La Paz', 'user_id' => $asesor->id]);
 
     // El editor inline de atributos postea sin estos campos.
@@ -130,7 +136,7 @@ it('un guardado parcial no borra la sucursal ni los responsables', function () {
             'entity_type' => 'products', 'name' => $this->producto->name, 'sku' => $this->producto->sku, 'price' => 5, 'quantity' => 0,
         ])->assertOk();
 
-    expect($this->producto->refresh()->warehouse_id)->toBe($sucursal->id);
+    expect($this->producto->refresh()->warehouse_location_id)->toBe($sucursal->id);
     expect(ProductoResponsable::where('product_id', $this->producto->id)->count())->toBe(1);
 });
 
@@ -155,7 +161,7 @@ it('el agente recibe la sucursal solo cuando se retira en planta', function () {
         'criterios' => ['Impresión' => 'Con impresión'], 'cantidad' => 30,
     ])->assertOk();
 
-    expect($r->json('entrega.sucursal.nombre'))->toBe(plantaDe('Tapas')->name.' · Tapas');
+    expect($r->json('entrega.sucursal.nombre'))->toBe('Santa Cruz · Tapas');
     expect($r->json('entrega.sucursal.maps'))->toContain('maps.app.goo.gl');
 
     // Hules a domicilio: mandar la dirección de la fábrica confundiría.
@@ -167,8 +173,8 @@ it('el agente recibe la sucursal solo cuando se retira en planta', function () {
 it('el formulario del producto ofrece las sucursales, las tres ciudades y Bolivia', function () {
     $html = test()->get(route('admin.products.edit', $this->producto->id))->assertOk()->getContent();
 
-    expect($html)->toContain('name="warehouse_id"')
-        ->and($html)->toContain(plantaDe('Tapas')->name.' · Tapas');
+    expect($html)->toContain('name="warehouse_location_id"')
+        ->and($html)->toContain('Santa Cruz · Tapas');
 
     foreach (array_merge(config('cotizacion.ciudades'), [config('cotizacion.cobertura_nacional')]) as $ciudad) {
         expect($html)->toContain("name=\"responsables[{$ciudad}][]\"");

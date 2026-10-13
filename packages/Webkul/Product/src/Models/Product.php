@@ -35,6 +35,7 @@ class Product extends Model implements ProductContract
         'tiempo_entrega',
         'lugar_entrega',
         'warehouse_id',
+        'warehouse_location_id',
         'entrega_domicilio_desde',
     ];
 
@@ -83,6 +84,17 @@ class Product extends Model implements ProductContract
     public function planta(): BelongsTo
     {
         return $this->belongsTo(\Webkul\Warehouse\Models\WarehouseProxy::modelClass(), 'warehouse_id');
+    }
+
+    /**
+     * La ubicación de la planta dentro del almacén, con su enlace de Maps.
+     *
+     * Hay un solo almacén (Santa Cruz) y una ubicación por planta: el almacén
+     * dice la ciudad, la ubicación dónde se retira este producto.
+     */
+    public function ubicacion(): BelongsTo
+    {
+        return $this->belongsTo(\Webkul\Warehouse\Models\LocationProxy::modelClass(), 'warehouse_location_id');
     }
 
     /**

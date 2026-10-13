@@ -143,7 +143,7 @@ class AgenteController extends Controller
         ]);
 
         $product = $this->products->getModel()->newQuery()
-            ->with(['precios', 'variantes', 'planta'])
+            ->with(['precios', 'variantes', 'planta', 'ubicacion.warehouse'])
             ->where('sku', $sku)
             ->first();
 
@@ -1093,11 +1093,19 @@ class AgenteController extends Controller
     /**
      * La sucursal de un producto, como la necesita el agente.
      *
-     * `linea` y `maps_url` son atributos personalizados del almacén: se leen
-     * por el modelo, que los resuelve del sistema de atributos de Krayin.
+     * Primero la ubicación de la planta («Santa Cruz · Tapas», con su enlace
+     * de Maps). Sin ubicación cargada, el almacén con sus atributos `linea` y
+     * `maps_url`, que es como estaba antes de tener un solo almacén.
      */
     protected function sucursalDe($product): ?array
     {
+        if ($ubicacion = $product->ubicacion) {
+            return array_filter([
+                'nombre' => $ubicacion->warehouse ? $ubicacion->warehouse->name.' · '.$ubicacion->name : $ubicacion->name,
+                'maps'   => $ubicacion->maps_url,
+            ], fn ($v) => $v !== null && $v !== '');
+        }
+
         $planta = $product->planta;
 
         if (! $planta) {
