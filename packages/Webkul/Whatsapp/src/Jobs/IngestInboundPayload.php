@@ -135,6 +135,9 @@ class IngestInboundPayload implements ShouldQueue
             return;
         }
 
+        // Si contestó la pregunta por su ciudad: se guarda y decide el asesor.
+        app(\Webkul\Whatsapp\Services\CiudadDesdeChat::class)->revisar($created);
+
         // Hand the message to the AI agent — but only while it is enabled for
         // this conversation. Off = a human is handling it.
         if ($conversation->agenteDebeResponder()) {

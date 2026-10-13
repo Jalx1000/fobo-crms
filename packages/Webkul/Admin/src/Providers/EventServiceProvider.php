@@ -14,6 +14,7 @@ class EventServiceProvider extends ServiceProvider
     protected $listen = [
         'contacts.person.create.after' => [
             'Webkul\Admin\Listeners\Person@linkToEmail',
+            'Webkul\Admin\Listeners\Ciudad@dePersona',
         ],
 
         /*
@@ -21,6 +22,10 @@ class EventServiceProvider extends ServiceProvider
         | oportunidad y la cotización: decide la zona del precio y quién
         | atiende, así que tenerla distinta en cada lado es un error caro.
         */
+        'contacts.person.update.after' => [
+            'Webkul\Admin\Listeners\Ciudad@dePersona',
+        ],
+
         'lead.create.after' => [
             'Webkul\Admin\Listeners\Lead@linkToEmail',
             'Webkul\Admin\Listeners\Ciudad@deOportunidad',

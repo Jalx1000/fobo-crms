@@ -2,6 +2,7 @@
 
 namespace Webkul\Admin\Listeners;
 
+use Webkul\Admin\Services\CiudadCliente;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
 use Webkul\Contact\Repositories\PersonRepository;
@@ -16,15 +17,10 @@ use Webkul\Product\Support\ListaPrecios;
  * el round robin, QUIÉN atiende. Escribirla tres veces a mano garantizaba que
  * tarde o temprano las tres no coincidieran.
  *
- *   contacto TIENE · documento NO  → el documento la hereda
- *   contacto NO    · documento SÍ  → el contacto la aprende
- *   los dos, iguales               → nada que hacer
- *   los dos, distintos             → NO se toca nada
- *
- * Lo último es deliberado, igual que en [[Nit]]: pisar la del contacto
- * propagaría el error de una cotización a todas las futuras, y pisar la del
- * documento cambiaría algo que ya se emitió. Distintas es visible y corregible;
- * pisadas en silencio, no.
+ * La última que se guarda manda (decisión del 13/10/2026): se copia al
+ * contacto y a todos sus pedidos y cotizaciones (Services\CiudadCliente). Si
+ * la que se guarda no tiene ciudad, toma la del contacto. Antes, con dos
+ * distintas no se tocaba ninguna y quedaban distintas para siempre.
  *
  * La ciudad se copia POR NOMBRE, no por id: cada entidad tiene su propio juego
  * de opciones, así que el id 40 de `persons` y el 51 de `quotes` pueden ser la
@@ -40,58 +36,37 @@ class Ciudad
     ) {}
 
     /**
-     * Cotización: se concilia con su contacto y, si la tiene, con su
-     * oportunidad — las tres terminan con la misma ciudad.
+     * Cotización guardada: su ciudad pasa al contacto y a todo lo del cliente
+     * (si no tiene, toma la del contacto).
      */
     public function deCotizacion($quote): void
     {
-        if (! $quote?->person_id) {
-            return;
-        }
-
-        $this->conciliar('quotes', $quote, $quote->person_id);
-
-        foreach ($quote->leads ?? [] as $lead) {
-            $this->conciliar('leads', $lead, $lead->person_id);
+        if ($quote?->id) {
+            app(CiudadCliente::class)->sincronizarDesde('quotes', (int) $quote->id);
         }
     }
 
     /**
-     * Oportunidad: se concilia con su contacto.
+     * Pedido guardado: igual que la cotización.
      */
     public function deOportunidad($lead): void
     {
-        $lead = is_numeric($lead) ? $this->leads->find($lead) : $lead;
+        $id = is_numeric($lead) ? (int) $lead : (int) ($lead?->id ?? 0);
 
-        if (! $lead?->person_id) {
-            return;
+        if ($id) {
+            app(CiudadCliente::class)->sincronizarDesde('leads', $id);
         }
-
-        $this->conciliar('leads', $lead, $lead->person_id);
     }
 
     /**
-     * El grueso: documento contra contacto.
+     * Contacto guardado: su ciudad pasa a todos sus pedidos y cotizaciones.
      */
-    protected function conciliar(string $entityType, $documento, int $personId): void
+    public function dePersona($person): void
     {
-        $person = $this->persons->find($personId);
+        $id = is_numeric($person) ? (int) $person : (int) ($person?->id ?? 0);
 
-        if (! $person) {
-            return;
-        }
-
-        $delDocumento = $this->nombreDe($entityType, $documento->ciudad ?? null);
-        $delContacto = $this->nombreDe('persons', $person->ciudad ?? null);
-
-        if ($delDocumento === null && $delContacto !== null) {
-            $this->guardar($entityType, $documento->id, $delContacto);
-
-            return;
-        }
-
-        if ($delContacto === null && $delDocumento !== null) {
-            $this->guardar('persons', $person->id, $delDocumento);
+        if ($id) {
+            app(CiudadCliente::class)->sincronizarDesde('persons', $id);
         }
     }
 

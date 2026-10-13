@@ -188,11 +188,11 @@ it('el contacto aprende la ciudad que trae la cotización', function () {
         ->and(ciudadDe('quotes', $quote->id))->toBe('Tarija');
 });
 
-it('dos ciudades distintas no se pisan entre sí', function () {
+it('con dos ciudades distintas, manda la última que se guardó', function () {
     /*
-     * Misma regla que el NIT: pisar la del contacto propagaría el error de una
-     * cotización a todas las futuras, y pisar la de la cotización cambiaría un
-     * documento ya emitido.
+     * Hasta el 13/10 no se pisaban y quedaban distintas para siempre. Ahora la
+     * ciudad tiene que ser la misma en contacto, pedido y cotización: la que se
+     * acaba de guardar se copia a las demás.
      */
     $persona = personaCiudad('La Paz');
 
@@ -201,7 +201,7 @@ it('dos ciudades distintas no se pisan entre sí', function () {
         'ciudad'    => opcionCiudad('quotes', 'Oruro'),
     ]);
 
-    expect(ciudadDe('persons', $persona->id))->toBe('La Paz')
+    expect(ciudadDe('persons', $persona->id))->toBe('Oruro')
         ->and(ciudadDe('quotes', $quote->id))->toBe('Oruro');
 });
 
@@ -232,7 +232,7 @@ it('la sucursal se propone desde la planta del producto, y no se pisa si ya vino
         'person_id' => personaCiudad()->id,
         'items'     => [[
             'product_id' => $tapas->id, 'sku' => $tapas->sku, 'name' => $tapas->name,
-            'quantity' => 1, 'price' => 1, 'total' => 1,
+            'quantity'   => 1, 'price' => 1, 'total' => 1,
         ]],
     ]);
 
@@ -246,7 +246,7 @@ it('la sucursal se propone desde la planta del producto, y no se pisa si ya vino
         'sucursal'  => $otra,
         'items'     => [[
             'product_id' => $tapas->id, 'sku' => $tapas->sku, 'name' => $tapas->name,
-            'quantity' => 1, 'price' => 1, 'total' => 1,
+            'quantity'   => 1, 'price' => 1, 'total' => 1,
         ]],
     ]);
 
