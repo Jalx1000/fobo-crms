@@ -145,3 +145,61 @@ it('«Otra ciudad» no guarda nada', function () {
     expect(app(CiudadCliente::class)->de('persons', $this->persona->id))->toBeNull()
         ->and((int) leadCiudad($this->lead)->user_id)->toBe((int) $this->defecto->id);
 });
+
+/*
+| Reparto según la tabla del 13/10: Bulmaro (Stretch Film, Bolivia), Eduardo
+| (Magia Verde, Bolivia), Fabio (Hules, Santa Cruz), Mauricio (todo,
+| Cochabamba), Gabriela (todo, La Paz), Mariano (todo, Bolivia). El producto se
+| toma de lo que el cliente eligió o escribió en el chat.
+*/
+function eligeProducto($conv, string $titulo): void
+{
+    Message::create([
+        'conversation_id' => $conv->id, 'direction' => 'inbound', 'type' => 'text', 'sender' => 'contact',
+        'status'          => 'delivered', 'body' => $titulo,
+    ]);
+}
+
+function idDe(string $nombre): int
+{
+    return (int) DB::table('users')->where('name', $nombre)->value('id');
+}
+
+it('Santa Cruz + Hules va a Fabio', function () {
+    eligeProducto($this->conv, '🔵 Hules');
+    preguntaCiudad($this->conv);
+    contesta($this->conv, 'Santa Cruz');
+
+    expect((int) leadCiudad($this->lead)->user_id)->toBe(idDe('Fabio Sandoval'));
+});
+
+it('Santa Cruz + Stretch Film va a la cobertura nacional de Stretch (Bulmaro o Mariano), no a Fabio', function () {
+    eligeProducto($this->conv, '⚪ Stretch Film');
+    preguntaCiudad($this->conv);
+    contesta($this->conv, 'Santa Cruz');
+
+    expect((int) leadCiudad($this->lead)->user_id)->toBeIn([idDe('Bulmaro Vaca'), idDe('Mariano Pinell')]);
+});
+
+it('Santa Cruz + una bolsa del anuncio va a la cobertura nacional de Magia Verde (Eduardo o Mariano)', function () {
+    eligeProducto($this->conv, '¿Cuánto cuesta la bolsa XXL?');
+    preguntaCiudad($this->conv);
+    contesta($this->conv, 'Santa Cruz');
+
+    expect((int) leadCiudad($this->lead)->user_id)->toBeIn([idDe('Eduardo Lujan'), idDe('Mariano Pinell')]);
+});
+
+it('Santa Cruz sin producto conocido no va a Fabio (solo atiende Hules)', function () {
+    preguntaCiudad($this->conv);
+    contesta($this->conv, 'Santa Cruz');
+
+    expect((int) leadCiudad($this->lead)->user_id)->not->toBe(idDe('Fabio Sandoval'));
+});
+
+it('La Paz + Magia Verde va a Gabriela', function () {
+    eligeProducto($this->conv, '🟢 Bolsas Magia Verde');
+    preguntaCiudad($this->conv);
+    contesta($this->conv, 'La Paz');
+
+    expect((int) leadCiudad($this->lead)->user_id)->toBe(idDe('Gabriela Marconi'));
+});

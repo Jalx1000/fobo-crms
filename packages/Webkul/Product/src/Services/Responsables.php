@@ -343,6 +343,18 @@ class Responsables
                 ->get()
                 ->filter(fn ($r) => self::mismaCiudad((string) $r->ciudad, $ciudad));
 
+            /*
+            | Sin producto conocido, solo quien atiende TODOS los productos en
+            | esa ciudad (Mauricio en Cochabamba, Gabriela en La Paz). Fabio
+            | atiende solo Hules en Santa Cruz: mandarle a cualquier cliente de
+            | Santa Cruz le cargaba consultas de productos que no vende.
+            */
+            $productos = ProductoResponsableProxy::modelClass()::query()->distinct()->count('product_id');
+
+            $filas = $filas->groupBy('user_id')
+                ->filter(fn ($suyas) => $suyas->pluck('product_id')->unique()->count() >= $productos)
+                ->flatten(1);
+
             if ($filas->isEmpty()) {
                 return null;
             }

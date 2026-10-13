@@ -97,13 +97,27 @@ it('sin ciudad deriva al asesor por defecto', function () {
 });
 
 it('con ciudad deriva a quien la atiende, y si nadie la atiende al asesor por defecto', function () {
+    // Sin producto conocido, la ciudad la toma quien atiende TODOS los
+    // productos ahí (13/10: Fabio, solo Hules en Santa Cruz, recibía todo).
     $local = daUsuario('Local Cobija', 'Ejecutivo Comercial');
-    daAtiende($this->producto, 'Cobija', $local);
+
+    $productos = DB::table('producto_responsables')->distinct()->pluck('product_id')->push($this->producto->id)->unique();
+
+    foreach ($productos as $id) {
+        daAtiende(Webkul\Product\Models\Product::find($id), 'Cobija', $local);
+    }
 
     $r = app(Responsables::class);
 
     expect($r->porCiudad('Cobija')?->id)->toBe($local->id)
         ->and($r->porCiudad('Sucre')?->id)->toBe($this->porDefecto->id);
+});
+
+it('sin producto, quien atiende un solo producto en la ciudad no se lleva la ciudad entera', function () {
+    $parcial = daUsuario('Parcial Cobija', 'Ejecutivo Comercial');
+    daAtiende($this->producto, 'Cobija', $parcial);
+
+    expect(app(Responsables::class)->porCiudad('Cobija')?->id)->toBe($this->porDefecto->id);
 });
 
 it('un lead creado sin usuario (webhook) no queda a nombre de un administrador', function () {

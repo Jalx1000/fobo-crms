@@ -93,9 +93,15 @@ class CiudadDesdeChat
             return;
         }
 
-        $nuevo = $this->responsables->porCiudad($ciudad);
+        // Con el producto, la matriz producto × ciudad (local primero, si no
+        // la cobertura nacional); sin producto, quien atiende todo en la ciudad.
+        $producto = $this->producto($conversation);
 
-        if (! $nuevo || (int) $nuevo->id === (int) $defecto) {
+        $nuevo = $producto
+            ? $this->responsables->siguiente($producto, $ciudad)
+            : $this->responsables->porCiudad($ciudad);
+
+        if (! $nuevo || ($lead && (int) $nuevo->id === (int) $lead->user_id)) {
             return;
         }
 
@@ -114,6 +120,52 @@ class CiudadDesdeChat
                 'handoff_state'    => Conversation::HANDOFF_ASSIGNED,
             ])->save();
         }
+    }
+
+    /**
+     * Palabras con las que el cliente nombra cada producto (por SKU): los
+     * títulos del menú («🟢 Bolsas Magia Verde») y lo que traen los anuncios
+     * («¿Cuánto cuesta la bolsa XXL?»).
+     */
+    protected const PALABRAS_PRODUCTO = [
+        'CM_00001' => ['stretch', 'strech', 'film', 'rollo', 'manual', 'automatico'],
+        'CM_00002' => ['magiaverde', 'bolsa'],
+        'CM_00003' => ['hule'],
+        'CM_00004' => ['tapa'],
+    ];
+
+    /**
+     * El producto del que habla el cliente: el del pedido si lo tiene, si no
+     * el último que nombró en el chat.
+     */
+    public function producto(Conversation $conversation): ?\Webkul\Product\Models\Product
+    {
+        $modelo = \Webkul\Product\Models\ProductProxy::modelClass();
+
+        if ($conversation->lead_id
+            && $id = DB::table('lead_products')->where('lead_id', $conversation->lead_id)->orderByDesc('id')->value('product_id')) {
+            return $modelo::find($id);
+        }
+
+        $textos = $conversation->messages()
+            ->where('direction', 'inbound')
+            ->latest('id')
+            ->limit(30)
+            ->pluck('body');
+
+        foreach ($textos as $texto) {
+            $limpio = ListaPrecios::comparable((string) $texto);
+
+            foreach (self::PALABRAS_PRODUCTO as $sku => $palabras) {
+                foreach ($palabras as $palabra) {
+                    if ($limpio !== '' && str_contains($limpio, $palabra)) {
+                        return $modelo::where('sku', $sku)->first();
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
