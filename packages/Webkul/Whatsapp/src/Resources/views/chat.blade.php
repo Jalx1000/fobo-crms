@@ -98,6 +98,7 @@
                                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'"
                                     @click="asesorFilter = a.id; load()">
                                 @{{ a.name }}
+                                <span class="ml-0.5 opacity-70">(@{{ a.total }})</span>
                             </button>
                         </div>
 

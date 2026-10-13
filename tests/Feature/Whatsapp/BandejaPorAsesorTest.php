@@ -25,14 +25,14 @@ function bandejaConv(?int $leadOwner, ?int $personOwner = null, array $extra = [
     $person = DB::table('persons')->insertGetId(['name' => 'Bandeja '.uniqid(), 'user_id' => $personOwner, 'created_at' => now(), 'updated_at' => now()]);
 
     $lead = $leadOwner === null ? null : DB::table('leads')->insertGetId([
-        'title'            => 'Bandeja '.uniqid(), 'person_id' => $person, 'user_id' => $leadOwner, 'status' => 1,
+        'title' => 'Bandeja '.uniqid(), 'person_id' => $person, 'user_id' => $leadOwner, 'status' => 1,
         'lead_pipeline_id' => 1, 'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')->where('lead_pipeline_id', 1)->orderBy('sort_order')->value('id'),
-        'created_at'       => now(), 'updated_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
     ]);
 
     return Conversation::create(array_merge([
-        'gateway'         => 'kommo', 'wa_phone' => '+5917'.random_int(1000000, 9999999), 'wa_name' => 'Bandeja',
-        'ai_enabled'      => true, 'status' => 'open', 'person_id' => $person, 'lead_id' => $lead,
+        'gateway' => 'kommo', 'wa_phone' => '+5917'.random_int(1000000, 9999999), 'wa_name' => 'Bandeja',
+        'ai_enabled' => true, 'status' => 'open', 'person_id' => $person, 'lead_id' => $lead,
         'last_message_at' => now()->addMinute(),
     ], $extra));
 }
@@ -101,6 +101,39 @@ it('la bandeja trae la lista de asesores para el filtro', function () {
         ->json('asesores');
 
     expect(collect($asesores)->pluck('name'))->toContain('Fabio Sandoval', 'Gabriela Marconi', 'Mariano Pinell');
+});
+
+it('cada asesor trae cuántos clientes tiene en la bandeja', function () {
+    $asesores = fn () => collect(test()->actingAs(User::findOrFail(1), 'user')
+        ->withHeaders(['Accept' => 'application/json'])
+        ->get(route('admin.whatsapp.conversations'))
+        ->json('asesores'))->keyBy('name');
+
+    $antes = $asesores()['Fabio Sandoval']['total'];
+
+    bandejaConv($this->fabio->id);
+    bandejaConv($this->fabio->id);
+    bandejaConv($this->gabriela->id, null, [
+        'handoff_state' => Conversation::HANDOFF_ASSIGNED, 'handoff_requested_at' => now(), 'assigned_user_id' => $this->fabio->id,
+    ]);
+
+    expect($asesores()['Fabio Sandoval']['total'])->toBe($antes + 3);
+});
+
+it('el total de un asesor coincide con lo que trae su filtro', function () {
+    bandejaConv($this->gabriela->id);
+
+    $total = collect(test()->actingAs(User::findOrFail(1), 'user')
+        ->withHeaders(['Accept' => 'application/json'])
+        ->get(route('admin.whatsapp.conversations'))
+        ->json('asesores'))->firstWhere('name', 'Gabriela Marconi')['total'];
+
+    $filtrada = test()->actingAs(User::findOrFail(1), 'user')
+        ->withHeaders(['Accept' => 'application/json'])
+        ->get(route('admin.whatsapp.conversations', ['asesor' => $this->gabriela->id]))
+        ->json('total');
+
+    expect($total)->toBe($filtrada);
 });
 
 it('la bandeja carga con el filtro de asesores', function () {

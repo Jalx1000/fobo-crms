@@ -64,7 +64,7 @@ class ChatController extends Controller
             // is not a phone, and collapsing one against a number that happens
             // to share 8 digits made whole conversations vanish from the list.
             ->joinSub(
-                DB::table('whatsapp_conversations')->selectRaw(
+                $ranked = DB::table('whatsapp_conversations')->selectRaw(
                     "id as ranked_id, ROW_NUMBER() OVER (
                         PARTITION BY CASE
                             WHEN gateway IN ({$placeholders}) THEN COALESCE(
@@ -164,15 +164,15 @@ class ChatController extends Controller
 
         match ($request->input('filter')) {
             'unassigned' => $query->whereNull('person_id')->whereNull('lead_id'),
-            'unread'     => $query->where('unread_count', '>', 0),
+            'unread' => $query->where('unread_count', '>', 0),
             // Every conversation waiting on a human, mine or not — this is what
             // lets a supervisor spot one that has been sitting for hours.
-            'handoff'    => $query->whereIn('whatsapp_conversations.handoff_state', $openStates),
+            'handoff' => $query->whereIn('whatsapp_conversations.handoff_state', $openStates),
             // Derived and unclaimed: the team pool.
-            'pool'       => $query->where('whatsapp_conversations.handoff_state', ConversationProxy::modelClass()::HANDOFF_REQUESTED)
+            'pool' => $query->where('whatsapp_conversations.handoff_state', ConversationProxy::modelClass()::HANDOFF_REQUESTED)
                 ->whereNull('whatsapp_conversations.assigned_user_id'),
-            'mine'       => $deAsesor($query, (int) auth()->guard('user')->id()),
-            default      => null,
+            'mine' => $deAsesor($query, (int) auth()->guard('user')->id()),
+            default => null,
         };
 
         // Filter by lead stage (by NAME: stages repeat across pipelines).
@@ -199,50 +199,81 @@ class ChatController extends Controller
 
         return response()->json([
             'data' => collect($conversations->items())->map(fn ($c) => [
-                'asesor'       => $asesores[$c->id]['name'] ?? null,
-                'asesor_id'    => $asesores[$c->id]['id'] ?? null,
-                'id'           => $c->id,
-                'name'         => $c->person->name ?? $c->wa_name ?? $c->wa_phone ?? 'Sin nombre',
-                'phone'        => $c->wa_phone,
-                'gateway'      => $c->gateway,
+                'asesor' => $asesores[$c->id]['name'] ?? null,
+                'asesor_id' => $asesores[$c->id]['id'] ?? null,
+                'id' => $c->id,
+                'name' => $c->person->name ?? $c->wa_name ?? $c->wa_phone ?? 'Sin nombre',
+                'phone' => $c->wa_phone,
+                'gateway' => $c->gateway,
                 // What the row badge renders. Without it the list cannot say
                 // where a conversation came from, which is exactly how a
                 // Messenger thread ends up looking like a WhatsApp one.
-                'channel'       => $c->gateway,
+                'channel' => $c->gateway,
                 'channel_label' => $this->gateways->label($c->gateway),
-                'avatar_url'    => $c->avatar_url,
-                'person_id'     => $c->person_id,
-                'lead_id'       => $c->lead_id,
-                'unread_count'  => (int) $c->unread_count,
-                'ai_enabled'    => $c->aiEffective(),
-                'stage'         => $c->stage_name_bound ?? $c->stage_name,
+                'avatar_url' => $c->avatar_url,
+                'person_id' => $c->person_id,
+                'lead_id' => $c->lead_id,
+                'unread_count' => (int) $c->unread_count,
+                'ai_enabled' => $c->aiEffective(),
+                'stage' => $c->stage_name_bound ?? $c->stage_name,
                 // Free: already on the row. Drives the badge and, more
                 // importantly, the "Sin asesor" counter — with no notice sent to
                 // the customer and no in-app notifications in Krayin, this list
                 // is the only signal the team gets in real time.
-                'handoff'      => $c->handoff_state,
+                'handoff' => $c->handoff_state,
                 'handoff_mine' => $c->assigned_user_id !== null
                     && (int) $c->assigned_user_id === (int) auth()->guard('user')->id(),
                 'handoff_requested_at' => optional($c->handoff_requested_at)->toIso8601String(),
-                'preview'              => $c->last_direction
+                'preview' => $c->last_direction
                     ? ($c->last_direction === 'outbound' ? '↩ ' : '').Str::limit((string) $c->last_body, 60)
                     : null,
                 'last_message_at' => optional($c->last_message_at)->toIso8601String(),
             ]),
             'current_page' => $conversations->currentPage(),
-            'last_page'    => $conversations->lastPage(),
-            'per_page'     => $conversations->perPage(),
-            'total'        => $conversations->total(),
+            'last_page' => $conversations->lastPage(),
+            'per_page' => $conversations->perPage(),
+            'total' => $conversations->total(),
             // Drives the channel filter. Sent with the list so the UI never
             // hardcodes a channel the installation may not have.
-            'channels'     => $this->gateways->channels(),
-            // Para el filtro por asesor: quienes figuran en el reparto.
-            'asesores'     => DB::table('users')
-                ->whereIn('id', DB::table('producto_responsables')->select('user_id'))
-                ->where('status', 1)
-                ->orderBy('name')
-                ->get(['id', 'name']),
+            'channels' => $this->gateways->channels(),
+            // Para el filtro por asesor: quienes figuran en el reparto, con
+            // cuántos clientes tiene cada uno en la bandeja.
+            'asesores' => $this->asesoresConConteo($ranked, $openStates),
         ]);
+    }
+
+    /**
+     * Los asesores del reparto y cuántas conversaciones (clientes) tiene cada
+     * uno, con la misma regla que la lista: derivación abierta, si no dueño del
+     * pedido, si no dueño del contacto. Se cuenta sobre la bandeja entera (un
+     * cliente por fila, como la lista), sin los filtros aplicados.
+     */
+    protected function asesoresConConteo($ranked, array $openStates)
+    {
+        $p = DB::getTablePrefix();
+        $estados = implode(',', array_fill(0, count($openStates), '?'));
+
+        $conteo = DB::table('whatsapp_conversations')
+            ->joinSub($ranked, 'ranked', fn ($join) => $join->on('ranked.ranked_id', '=', 'whatsapp_conversations.id'))
+            ->where('ranked.rn', 1)
+            ->selectRaw(
+                "COALESCE(
+                    CASE WHEN {$p}whatsapp_conversations.handoff_state IN ({$estados}) THEN {$p}whatsapp_conversations.assigned_user_id END,
+                    (SELECT {$p}leads.user_id FROM {$p}leads WHERE {$p}leads.id = {$p}whatsapp_conversations.lead_id),
+                    CASE WHEN {$p}whatsapp_conversations.lead_id IS NULL
+                        THEN (SELECT {$p}persons.user_id FROM {$p}persons WHERE {$p}persons.id = {$p}whatsapp_conversations.person_id) END
+                ) as asesor_id, COUNT(*) as total",
+                $openStates
+            )
+            ->groupBy('asesor_id')
+            ->pluck('total', 'asesor_id');
+
+        return DB::table('users')
+            ->whereIn('id', DB::table('producto_responsables')->select('user_id'))
+            ->where('status', 1)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn ($u) => ['id' => (int) $u->id, 'name' => $u->name, 'total' => (int) ($conteo[$u->id] ?? 0)]);
     }
 
     /**
@@ -348,7 +379,7 @@ class ChatController extends Controller
                     preg_match_all('/https?:\/\/[^\s<>"\']+/i', (string) $message->body, $matches);
 
                     return collect($matches[0])->map(fn ($url) => [
-                        'url'  => $url,
+                        'url' => $url,
                         'date' => optional($message->created_at)->format('d/m/Y'),
                     ]);
                 })->unique('url')->take(30)->values()
@@ -371,78 +402,78 @@ class ChatController extends Controller
 
         return response()->json([
             'person' => [
-                'id'              => $person->id,
-                'name'            => $person->name,
-                'job_title'       => $person->job_title,
-                'organization'    => $person->organization->name ?? null,
-                'owner'           => $person->user->name ?? null,
-                'tags'            => $person->tags->map(fn ($tag) => [
-                    'name'  => $tag->name,
+                'id' => $person->id,
+                'name' => $person->name,
+                'job_title' => $person->job_title,
+                'organization' => $person->organization->name ?? null,
+                'owner' => $person->user->name ?? null,
+                'tags' => $person->tags->map(fn ($tag) => [
+                    'name' => $tag->name,
                     'color' => $tag->color ?? null,
                 ])->values(),
-                'emails'          => collect($person->emails ?? [])->pluck('value')->filter()->values(),
+                'emails' => collect($person->emails ?? [])->pluck('value')->filter()->values(),
                 'contact_numbers' => collect($person->contact_numbers ?? [])->pluck('value')->filter()->values(),
-                'created_at'      => optional($person->created_at)->format('d/m/Y'),
-                'view_url'        => route('admin.contacts.persons.view', $person->id),
-                'whatsapp'        => [
-                    'messages'      => $conversationIds->isNotEmpty()
+                'created_at' => optional($person->created_at)->format('d/m/Y'),
+                'view_url' => route('admin.contacts.persons.view', $person->id),
+                'whatsapp' => [
+                    'messages' => $conversationIds->isNotEmpty()
                         ? $messageModel::whereIn('conversation_id', $conversationIds)->count()
                         : 0,
                     'first_contact' => $firstMessageAt ? \Illuminate\Support\Carbon::parse($firstMessageAt)->format('d/m/Y') : null,
-                    'last_inbound'  => $lastInboundAt ? \Illuminate\Support\Carbon::parse($lastInboundAt)->format('d/m/Y H:i') : null,
+                    'last_inbound' => $lastInboundAt ? \Illuminate\Support\Carbon::parse($lastInboundAt)->format('d/m/Y H:i') : null,
                 ],
-                'followup'        => [
-                    'awaiting_reply'     => $lastMessage?->direction === 'inbound',
+                'followup' => [
+                    'awaiting_reply' => $lastMessage?->direction === 'inbound',
                     'last_message_human' => $lastMessage
                         ? \Illuminate\Support\Carbon::parse($lastMessage->created_at)->locale('es')->diffForHumans()
                         : null,
-                    'last_sender'        => $lastMessage
+                    'last_sender' => $lastMessage
                         ? ($lastMessage->direction === 'inbound' ? 'el cliente' : ($lastMessage->sender === 'ia' ? 'la IA' : 'El asesor'))
                         : null,
                 ],
-                'active_lead'     => $activeLead ? [
-                    'id'        => $activeLead->id,
-                    'title'     => $activeLead->title,
-                    'stage'     => $activeLead->stage->name ?? null,
-                    'value'     => $activeLead->lead_value ? number_format((float) $activeLead->lead_value, 2) : null,
+                'active_lead' => $activeLead ? [
+                    'id' => $activeLead->id,
+                    'title' => $activeLead->title,
+                    'stage' => $activeLead->stage->name ?? null,
+                    'value' => $activeLead->lead_value ? number_format((float) $activeLead->lead_value, 2) : null,
                     'days_open' => (int) $activeLead->created_at?->diffInDays(now()),
-                    'url'       => route('admin.leads.view', $activeLead->id),
+                    'url' => route('admin.leads.view', $activeLead->id),
                 ] : null,
-                'next_activity'   => $nextActivity ? [
+                'next_activity' => $nextActivity ? [
                     'title' => $nextActivity->title,
-                    'type'  => $nextActivity->type,
-                    'date'  => \Illuminate\Support\Carbon::parse($nextActivity->schedule_from)->format('d/m/Y H:i'),
+                    'type' => $nextActivity->type,
+                    'date' => \Illuminate\Support\Carbon::parse($nextActivity->schedule_from)->format('d/m/Y H:i'),
                 ] : null,
-                'images'          => $media->where('type', 'image')->map(fn ($m) => [
-                    'url'  => $m->media_path,
+                'images' => $media->where('type', 'image')->map(fn ($m) => [
+                    'url' => $m->media_path,
                     'date' => optional($m->created_at)->format('d/m/Y'),
                 ])->values(),
-                'documents'       => $media->where('type', 'document')->map(fn ($m) => [
-                    'url'  => $m->media_path,
+                'documents' => $media->where('type', 'document')->map(fn ($m) => [
+                    'url' => $m->media_path,
                     'name' => $m->media_name ?: 'Documento',
                     'date' => optional($m->created_at)->format('d/m/Y'),
                 ])->values(),
-                'links'           => $links,
-                'products'        => $products->map(fn ($p) => [
-                    'name'       => $p->name,
-                    'quantity'   => (int) $p->quantity,
-                    'price'      => $p->price !== null ? number_format((float) $p->price, 2) : null,
-                    'amount'     => $p->amount !== null ? number_format((float) $p->amount, 2) : null,
+                'links' => $links,
+                'products' => $products->map(fn ($p) => [
+                    'name' => $p->name,
+                    'quantity' => (int) $p->quantity,
+                    'price' => $p->price !== null ? number_format((float) $p->price, 2) : null,
+                    'amount' => $p->amount !== null ? number_format((float) $p->amount, 2) : null,
                     'lead_title' => $p->lead_title,
                 ])->values(),
-                'leads_total'     => number_format((float) $person->leads->sum('lead_value'), 2),
-                'leads'           => $person->leads->map(fn ($lead) => [
-                    'id'         => $lead->id,
-                    'title'      => $lead->title,
-                    'stage'      => $lead->stage->name ?? null,
-                    'stage_id'   => $lead->lead_pipeline_stage_id,
-                    'stages'     => collect($lead->pipeline?->stages ?? [])
+                'leads_total' => number_format((float) $person->leads->sum('lead_value'), 2),
+                'leads' => $person->leads->map(fn ($lead) => [
+                    'id' => $lead->id,
+                    'title' => $lead->title,
+                    'stage' => $lead->stage->name ?? null,
+                    'stage_id' => $lead->lead_pipeline_stage_id,
+                    'stages' => collect($lead->pipeline?->stages ?? [])
                         ->sortBy('sort_order')
                         ->map(fn ($stage) => ['id' => $stage->id, 'name' => $stage->name])
                         ->values(),
-                    'value'      => $lead->lead_value ? number_format((float) $lead->lead_value, 2) : null,
+                    'value' => $lead->lead_value ? number_format((float) $lead->lead_value, 2) : null,
                     'created_at' => optional($lead->created_at)->format('d/m/Y'),
-                    'url'        => route('admin.leads.view', $lead->id),
+                    'url' => route('admin.leads.view', $lead->id),
                 ])->values(),
             ],
         ]);
@@ -471,18 +502,18 @@ class ChatController extends Controller
 
         return response()->json([
             'leads' => $leads->map(fn ($lead) => [
-                'id'         => $lead->id,
-                'title'      => $lead->title,
-                'is_open'    => (int) $lead->status === 1,
-                'stage'      => $lead->stage->name ?? null,
-                'stage_id'   => $lead->lead_pipeline_stage_id,
-                'stages'     => collect($lead->pipeline?->stages ?? [])
+                'id' => $lead->id,
+                'title' => $lead->title,
+                'is_open' => (int) $lead->status === 1,
+                'stage' => $lead->stage->name ?? null,
+                'stage_id' => $lead->lead_pipeline_stage_id,
+                'stages' => collect($lead->pipeline?->stages ?? [])
                     ->sortBy('sort_order')
                     ->map(fn ($stage) => ['id' => $stage->id, 'name' => $stage->name])
                     ->values(),
-                'value'      => $lead->lead_value ? number_format((float) $lead->lead_value, 2) : null,
+                'value' => $lead->lead_value ? number_format((float) $lead->lead_value, 2) : null,
                 'created_at' => optional($lead->created_at)->format('d/m/Y'),
-                'url'        => route('admin.leads.view', $lead->id),
+                'url' => route('admin.leads.view', $lead->id),
             ])->values(),
         ]);
     }
@@ -494,7 +525,7 @@ class ChatController extends Controller
     public function storeLead(Request $request, string $personId, LeadRepository $leads): JsonResponse
     {
         $data = $request->validate([
-            'title'      => 'required|string|max:191',
+            'title' => 'required|string|max:191',
             'lead_value' => 'nullable|numeric|min:0',
         ]);
 
@@ -511,22 +542,22 @@ class ChatController extends Controller
         Event::dispatch('lead.create.before');
 
         $lead = $leads->create([
-            'entity_type'            => 'leads',
-            'title'                  => $data['title'],
-            'lead_value'             => $data['lead_value'] ?? 0,
-            'person'                 => ['id' => $person->id],
-            'lead_pipeline_id'       => $pipeline->id,
+            'entity_type' => 'leads',
+            'title' => $data['title'],
+            'lead_value' => $data['lead_value'] ?? 0,
+            'person' => ['id' => $person->id],
+            'lead_pipeline_id' => $pipeline->id,
             'lead_pipeline_stage_id' => $stage->id,
-            'lead_source_id'         => $source->id,
-            'lead_type_id'           => $type->id,
-            'status'                 => 1,
+            'lead_source_id' => $source->id,
+            'lead_type_id' => $type->id,
+            'status' => 1,
         ]);
 
         Event::dispatch('lead.create.after', $lead);
 
         return response()->json([
             'message' => 'Lead creado y vinculado al cliente.',
-            'lead'    => ['id' => $lead->id, 'title' => $lead->title],
+            'lead' => ['id' => $lead->id, 'title' => $lead->title],
         ]);
     }
 
@@ -561,7 +592,7 @@ class ChatController extends Controller
         Event::dispatch('lead.update.before', $lead->id);
 
         $lead = $leads->update([
-            'entity_type'            => 'leads',
+            'entity_type' => 'leads',
             'lead_pipeline_stage_id' => $stage->id,
         ], $lead->id, ['lead_pipeline_stage_id']);
 
@@ -569,7 +600,7 @@ class ChatController extends Controller
 
         return response()->json([
             'message' => 'Etapa actualizada.',
-            'stage'   => ['id' => $stage->id, 'name' => $stage->name],
+            'stage' => ['id' => $stage->id, 'name' => $stage->name],
         ]);
     }
 
@@ -607,16 +638,16 @@ class ChatController extends Controller
         $digits = preg_replace('/\D+/', '', (string) $conversation->wa_phone);
 
         $person = $persons->create([
-            'entity_type'     => 'persons',
-            'name'            => $name,
-            'emails'          => [],
+            'entity_type' => 'persons',
+            'name' => $name,
+            'emails' => [],
             'contact_numbers' => $digits ? [['label' => 'work', 'value' => $digits]] : [],
         ]);
 
         $conversation->update(['person_id' => $person->id]);
 
         return response()->json([
-            'message'   => 'Contacto creado y vinculado.',
+            'message' => 'Contacto creado y vinculado.',
             'person_id' => $person->id,
         ]);
     }
