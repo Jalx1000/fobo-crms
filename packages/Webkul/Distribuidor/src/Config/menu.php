@@ -3,7 +3,7 @@
 return [
     [
         'key'        => 'distribuidor',
-        'name'       => 'Punto',
+        'name'       => 'Distribuidor',
         'route'      => 'admin.distribuidor.index',
         'sort'       => 2,
         'icon-class' => 'icon-dashboard',

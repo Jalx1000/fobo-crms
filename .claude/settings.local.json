@@ -81,7 +81,9 @@
       "Bash(./vendor/bin/pint --test packages/Webkul/Admin/src/Helpers/GlobalDateFilter.php)",
       "Bash(grep -n 'public function \\\\|protected $table\\\\|namespace' packages/Webkul/Lead/src/Models/Lead.php)",
       "Bash(python3 -)",
-      "Bash(./vendor/bin/pint packages/Webkul/Distribuidor/src)"
+      "Bash(./vendor/bin/pint packages/Webkul/Distribuidor/src)",
+      "Bash(grep -n '! \\\\$conversation->person_id\\\\|!\\\\$' packages/Webkul/Whatsapp/src/Http/Controllers/Api/AgentController.php)",
+      "Bash(git reset *)"
     ]
   }
 }
