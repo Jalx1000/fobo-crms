@@ -18,6 +18,9 @@ use Webkul\Whatsapp\Models\Message;
 uses(DatabaseTransactions::class);
 
 beforeEach(function () {
+    // Nada sale a la red: ni al agente ni a Meta.
+    Illuminate\Support\Facades\Http::fake();
+
     config([
         'whatsapp.gateway'                         => 'kommo',
         'whatsapp.gateways.cloud_api.app_secret'   => 'secreto-app',

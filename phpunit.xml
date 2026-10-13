@@ -30,5 +30,10 @@
         <server name="QUEUE_CONNECTION" value="sync" />
         <server name="SESSION_DRIVER" value="array" />
         <server name="TELESCOPE_ENABLED" value="false" />
+        <!-- Ningún test debe llamar al agente de IA de producción: con la cola
+             sync, NotifyAgent salía de verdad y el agente contestaba a
+             conversaciones que el test ya había deshecho (404). Los tests que
+             prueban el aviso configuran su propia URL y falsean HTTP. -->
+        <server name="WHATSAPP_AGENT_WEBHOOK_URL" value="" />
     </php>
 </phpunit>
