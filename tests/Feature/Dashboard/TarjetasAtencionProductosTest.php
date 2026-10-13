@@ -128,3 +128,8 @@ it('no atendidos por ciudad no muestra la porción Sin ciudad', function () {
     expect($s['labels'])->not->toContain('Sin ciudad')
         ->and($s['labels'])->toContain(DB::table('lead_pipelines')->where('id', 1)->value('name'));
 });
+
+it('atendidos vs no atendidos no trae la barra del usuario del agente', function () {
+    expect(tarjeta('leads-attention-by-users')['labels'])->not->toContain('Agente')
+        ->not->toContain('Sin ciudad');
+});

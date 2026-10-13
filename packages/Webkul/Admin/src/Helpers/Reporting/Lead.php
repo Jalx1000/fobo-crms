@@ -626,6 +626,11 @@ class Lead extends AbstractReporting
         $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
         $usersQuery = $this->excludeIgnoredRoles($usersQuery, 'id');
 
+        // El usuario del agente («Agente») no es un encargado: no va en la tarjeta.
+        if ($this->ignoredUserNames) {
+            $usersQuery->whereNotIn('name', $this->ignoredUserNames);
+        }
+
         if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
             $usersQuery->whereIn('id', $userIds);
         }

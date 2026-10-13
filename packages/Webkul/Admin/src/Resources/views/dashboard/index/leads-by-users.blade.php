@@ -88,16 +88,9 @@
                     filters.type = 'leads-attention-by-users';
                     this.$axios.get("{{ route('admin.dashboard.stats') }}", { params: filters })
     .then(response => {
-        const data = response.data;
-
-        // Reemplazar "Agente" por "Sin ciudad" en labels y users
-        if (data.statistics) {
-            data.statistics.labels = data.statistics.labels.map(l => l === "Agente" ? "Sin ciudad" : l);
-            data.statistics.users = data.statistics.users.map(u => u === "Agente" ? "Sin ciudad" : u);
-        }
-
-        this.report = data;
-        console.log(data);
+        // El usuario del agente ya no viene del servidor (antes se mostraba
+        // renombrado a «Sin ciudad», que no es un encargado).
+        this.report = response.data;
         this.isLoading = false;
     })
                         .catch(error => {});
