@@ -36,9 +36,9 @@ RUN npm install -g npx
 RUN npm install -g laravel-echo-server
 
 # arguments
-ARG .
-ARG uid
-ARG user
+ARG /var/www/html/
+ARG 1000
+ARG sofopolis
 
 # setting work directory
 WORKDIR $container_project_path
