@@ -853,60 +853,45 @@ class Lead extends AbstractReporting
     }
 
     /**
-     * "Tiempo en responder" por asesor: tiempo desde la entrada a Prospecto
-     * (leads.created_at) hasta el PRIMER cambio de etapa (leads.first_stage_change_at),
-     * promediado por usuario. Si el lead sigue en Prospecto sin transición, el reloj
-     * corre hasta NOW(). Inmune a reaperturas/movimientos accidentales por ser la
-     * 1ª transición pegajosa. El front convierte segundos -> horas.
+     * "Tiempo en responder" por asesor: cuánto tiempo estuvo el pedido en las
+     * etapas que movió el PROPIO asesor del lead, sumadas.
+     *
+     * Sólo cuentan los tramos que abrió él. Si el agente lo dejó en "Cliente
+     * confirmado" y otra persona lo movió a "Cliente sin interés", esos tramos
+     * son de ellos, no suyos (el #4345 del 9-oct: los 22 s de Sofopolis no se
+     * le cargan a María Rene, sólo su propio paso a cancelados).
+     *
+     * Una etapa FINAL —entregados, cancelados, sin interés— cuenta, pero sólo
+     * hasta el fin del día en que se cerró. Corriendo hasta ahora, un pedido
+     * cancelado el 9-oct marcaba 31 m ese día y 120 h el 14-oct sin que nadie
+     * lo tocara: en septiembre era el 70 % del total de la tarjeta.
+     *
+     * Una etapa INTERMEDIA que sigue abierta —contactado, confirmado sin mover—
+     * no entra a la suma ni al promedio: un solo lead olvidado hace semanas
+     * tapaba todo lo demás (el 23 % de septiembre). Se informa aparte, como
+     * leads y horas "en curso".
+     *
+     * Por asesor se devuelven la SUMA de los tramos de todos sus leads (`data`)
+     * y el promedio por lead (`average`), sobre los leads que tocó (`leads`).
+     *
+     * No se usan `confirmed_at` / `closed_at`: son columnas sin dueño, las
+     * escriben tanto el bot como el asesor.
+     *
+     * El front convierte segundos -> horas.
      */
     public function getAverageResponseTimeByUsers(): array
     {
-        $tablePrefix = DB::getTablePrefix();
         $pipelineId = is_numeric(request('pipeline_id')) ? request('pipeline_id') : null;
 
-        /**
-         * "Ahora" en la zona de la app (America/La_Paz), no el NOW() de MySQL (UTC).
-         * created_at se guarda en hora local, así que usar el NOW() de SQL (4h
-         * adelantado) inflaba el tiempo de los leads abiertos. Se calcula una sola
-         * vez para que el período actual y el anterior usen el mismo instante.
-         */
-        $now = now()->toDateTimeString();
-
-        /**
-         * Regla "por etapa actual": el reloj se mide desde created_at hasta la fecha
-         * de la ETAPA donde el lead está HOY (no la 1ª transición):
-         *   - Prospecto            -> NOW (sigue abierto, el tiempo aumenta)
-         *   - Confirmado           -> confirmed_at
-         *   - Entregado/Cancelado  -> closed_at  (ej. #161: 22-jun -> 29-jun, no 11 min)
-         * Un lead confirmado por error y devuelto a Prospecto vuelve a contar como
-         * abierto (cae en la rama Prospecto -> NOW).
-         */
-        $prospectoIds = implode(',', $this->prospectoStageIds ?: [0]);
-        $confirmadoIds = implode(',', $this->confirmedStageIds ?: [0]);
-
-        $buildAverages = function ($startDate, $endDate) use ($tablePrefix, $pipelineId, $now, $prospectoIds, $confirmadoIds) {
+        $buildTotals = function ($startDate, $endDate) use ($pipelineId) {
             $query = $this->leadRepository
                 ->resetModel()
                 ->leftJoin('users', 'leads.user_id', '=', 'users.id')
-                ->select(
-                    'users.id as user_id',
-                    'users.name as user_name'
-                )
-                ->selectRaw(
-                    'AVG(TIMESTAMPDIFF(SECOND, '.$tablePrefix.'leads.created_at, '
-                    .'CASE '
-                    .'WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.$prospectoIds.') THEN ? '
-                    .'WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.$confirmadoIds.') THEN COALESCE('.$tablePrefix.'leads.confirmed_at, ?) '
-                    .'ELSE COALESCE('.$tablePrefix.'leads.closed_at, '.$tablePrefix.'leads.confirmed_at, ?) '
-                    .'END'
-                    .')) as avg_response_seconds',
-                    [$now, $now, $now]
-                )
+                ->select('leads.id as lead_id', 'users.name as user_name')
                 ->whereBetween('leads.created_at', [$startDate, $endDate])
                 ->when($pipelineId, function ($q) use ($pipelineId) {
                     $q->where('leads.lead_pipeline_id', $pipelineId);
-                })
-                ->groupBy('users.id', 'users.name');
+                });
 
             $query = $this->excludeIgnoredRoles($query, 'users.id');
 
@@ -918,17 +903,53 @@ class Lead extends AbstractReporting
                 $query->whereIn('users.id', $userIds);
             }
 
-            $avgByUser = [];
+            $porLead = [];
 
             foreach ($query->get() as $row) {
-                $avgByUser[$row->user_name ?? '-'] = $row->avg_response_seconds ? (int) $row->avg_response_seconds : 0;
+                $porLead[(int) $row->lead_id] = $row->user_name ?? '-';
             }
 
-            return $avgByUser;
+            $tenencia = $this->ownerHeldSeconds(array_keys($porLead));
+
+            $segundos = [];
+            $corriendo = [];
+            $enCurso = [];
+            $sinTocar = [];
+
+            foreach ($porLead as $leadId => $userName) {
+                if (! isset($tenencia[$leadId])) {
+                    /*
+                     * El asesor no movió ninguna etapa de este lead: no tiene
+                     * tiempo propio que medir. No entra al promedio —contarlo
+                     * como 0 premiaría al que ignora todo—, pero se cuenta
+                     * aparte para no perderlo de vista.
+                     */
+                    $sinTocar[$userName] = ($sinTocar[$userName] ?? 0) + 1;
+
+                    continue;
+                }
+
+                if ($tenencia[$leadId]['running']) {
+                    $corriendo[$userName] = ($corriendo[$userName] ?? 0) + 1;
+                    $enCurso[$userName] = ($enCurso[$userName] ?? 0) + $tenencia[$leadId]['open_seconds'];
+                }
+
+                // Sólo tiene una etapa intermedia abierta: nada medido todavía.
+                if (! $tenencia[$leadId]['measured']) {
+                    continue;
+                }
+
+                $segundos[$userName][] = $tenencia[$leadId]['seconds'];
+            }
+
+            $totales = array_map('array_sum', $segundos);
+            $contados = array_map('count', $segundos);
+
+            return [$totales, $contados, $corriendo, $sinTocar, $enCurso];
         };
 
-        $currentAverages = $buildAverages($this->startDate, $this->endDate);
-        $previousAverages = $buildAverages($this->lastStartDate, $this->lastEndDate);
+        [$currentTotals, $currentCounted, $currentRunning, $currentUntouched, $currentOpen] = $buildTotals($this->startDate, $this->endDate);
+        [$previousTotals] = $buildTotals($this->lastStartDate, $this->lastEndDate);
 
         $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
         $usersQuery = $this->excludeIgnoredRoles($usersQuery, 'id');
@@ -945,9 +966,20 @@ class Lead extends AbstractReporting
 
         $data = [];
         $previousData = [];
+        $average = [];
+        $counted = [];
+        $pending = [];
+        $pendingSeconds = [];
+        $untouched = [];
+
         foreach ($users as $u) {
-            $data[] = $currentAverages[$u] ?? 0;
-            $previousData[] = $previousAverages[$u] ?? 0;
+            $data[] = $currentTotals[$u] ?? 0;
+            $previousData[] = $previousTotals[$u] ?? 0;
+            $counted[] = $currentCounted[$u] ?? 0;
+            $average[] = isset($currentTotals[$u]) ? (int) round($currentTotals[$u] / $currentCounted[$u]) : 0;
+            $pending[] = $currentRunning[$u] ?? 0;
+            $pendingSeconds[] = $currentOpen[$u] ?? 0;
+            $untouched[] = $currentUntouched[$u] ?? 0;
         }
 
         return [
@@ -955,7 +987,107 @@ class Lead extends AbstractReporting
             'data'          => $data,
             'previous_data' => $previousData,
             'users'         => $users,
+            // Promedio por lead, y cuántos leads entraron a la suma.
+            'average'       => $average,
+            'leads'         => $counted,
+            'total_seconds' => array_sum($data),
+            'total_leads'   => array_sum($counted),
+            // Leads que el asesor tiene ahora mismo en una etapa no final, y las
+            // horas que llevan ahí. No están dentro de `data`.
+            'pending'               => $pending,
+            'pending_total'         => array_sum($pending),
+            'pending_seconds'       => $pendingSeconds,
+            'pending_seconds_total' => array_sum($pendingSeconds),
+            // Leads del período en los que el asesor no movió ninguna etapa.
+            'untouched'       => $untouched,
+            'untouched_total' => array_sum($untouched),
         ];
+    }
+
+    /**
+     * Segundos que cada lead pasó en las etapas que movió su propio asesor.
+     *
+     * Se resuelve en una consulta aparte sobre una lista fija de ids —y no como
+     * subconsulta correlacionada— porque MySQL no deja referenciar la fila de
+     * afuera dentro del FROM de una tabla derivada, y el tramo necesita LEAD()
+     * para saber cuándo terminó.
+     *
+     * @param  array<int>  $leadIds
+     * `seconds`: tramos cerrados + etapa final hasta el fin del día del cierre.
+     * `open_seconds`: etapa intermedia abierta, hasta ahora (no va en `seconds`).
+     * `measured`: si tiene al menos un tramo que entre en `seconds`.
+     *
+     * @return array<int, array{seconds: int, open_seconds: int, measured: bool, running: bool}>
+     */
+    protected function ownerHeldSeconds(array $leadIds): array
+    {
+        if (! $leadIds) {
+            return [];
+        }
+
+        $prefix = DB::getTablePrefix();
+        $ids = implode(',', array_map('intval', $leadIds));
+        $now = now()->toDateTimeString();
+
+        $terminalIds = implode(',', array_merge(
+            $this->wonStageIds,
+            $this->lostStageIds,
+            $this->noInterestStageIds
+        ) ?: [0]);
+
+        $sql = "
+            SELECT s.lead_id,
+                   SUM(CASE
+                         WHEN s.left_at IS NOT NULL
+                           THEN TIMESTAMPDIFF(SECOND, s.entered_at, s.left_at)
+                         WHEN s.stage_id IN ({$terminalIds})
+                           THEN TIMESTAMPDIFF(SECOND, s.entered_at, LEAST(?, TIMESTAMP(DATE(s.entered_at), '23:59:59')))
+                         ELSE 0
+                       END) AS seconds,
+                   SUM(CASE
+                         WHEN s.left_at IS NULL AND s.stage_id NOT IN ({$terminalIds})
+                           THEN TIMESTAMPDIFF(SECOND, s.entered_at, ?)
+                         ELSE 0
+                       END) AS open_seconds,
+                   MAX(CASE
+                         WHEN s.left_at IS NOT NULL OR s.stage_id IN ({$terminalIds}) THEN 1
+                         ELSE 0
+                       END) AS measured,
+                   MAX(CASE
+                         WHEN s.left_at IS NULL AND s.stage_id NOT IN ({$terminalIds}) THEN 1
+                         ELSE 0
+                       END) AS running
+            FROM (
+                SELECT la.lead_id,
+                       a.user_id AS autor_id,
+                       l.user_id AS owner_id,
+                       CAST(JSON_UNQUOTE(JSON_EXTRACT(a.additional, '$.new.value')) AS UNSIGNED) AS stage_id,
+                       a.created_at AS entered_at,
+                       LEAD(a.created_at) OVER (PARTITION BY la.lead_id ORDER BY a.created_at, a.id) AS left_at
+                FROM {$prefix}activities a
+                JOIN {$prefix}lead_activities la ON la.activity_id = a.id
+                JOIN {$prefix}leads l ON l.id = la.lead_id
+                WHERE JSON_UNQUOTE(JSON_EXTRACT(a.additional, '$.attribute')) = 'Etapa'
+                  AND la.lead_id IN ({$ids})
+            ) s
+            WHERE s.autor_id IS NOT NULL
+              AND s.autor_id = s.owner_id
+              AND s.stage_id IS NOT NULL
+            GROUP BY s.lead_id
+        ";
+
+        $salida = [];
+
+        foreach (DB::select($sql, [$now, $now]) as $row) {
+            $salida[(int) $row->lead_id] = [
+                'seconds'      => (int) $row->seconds,
+                'open_seconds' => (int) $row->open_seconds,
+                'measured'     => (bool) $row->measured,
+                'running'      => (bool) $row->running,
+            ];
+        }
+
+        return $salida;
     }
 
     /**
