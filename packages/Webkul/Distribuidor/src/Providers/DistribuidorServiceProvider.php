@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Webkul\Distribuidor\Http\Middleware\EnsureDistribuidorAccess;
+use Webkul\Distribuidor\Listeners\AsignarDistribuidorDeZona;
 use Webkul\Distribuidor\Listeners\BidonesEnContacto;
 
 class DistribuidorServiceProvider extends ServiceProvider
@@ -25,6 +26,17 @@ class DistribuidorServiceProvider extends ServiceProvider
          * necesita saber de bidones—.
          */
         Event::listen('admin.contact.persons.view.left.after', BidonesEnContacto::class);
+
+        /*
+         * Cada pedido queda a nombre del distribuidor de su ciudad.
+         *
+         * Se escucha `lead.city.synced` y no `lead.create.after`: el segundo lo
+         * disparan los CONTROLADORES, así que un pedido creado por la API del agente
+         * —que entra directo por el repositorio— no lo dispara nunca. El primero sale
+         * del sincronizador de ciudad, que es el único punto por el que pasan todos
+         * los caminos: la API, el formulario web, el kanban y el Punto.
+         */
+        Event::listen('lead.city.synced', AsignarDistribuidorDeZona::class);
 
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 
@@ -80,5 +92,12 @@ class DistribuidorServiceProvider extends ServiceProvider
          * apagar quien maneja el negocio, no quien tiene acceso al servidor.
          */
         $this->mergeConfigFrom(dirname(__DIR__).'/Config/core_config.php', 'core_config');
+
+        /*
+         * El lookup `distribuidores`, para que "Asesor Asignado" ofrezca sólo a quien
+         * reparte. Se agrega desde acá y no editando la config del core: el rol
+         * Distribuidor es un concepto de este módulo.
+         */
+        $this->mergeConfigFrom(dirname(__DIR__).'/Config/attribute_lookups.php', 'attribute_lookups');
     }
 }

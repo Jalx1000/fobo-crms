@@ -2,6 +2,7 @@
 
 namespace Webkul\Whatsapp\Services;
 
+use Illuminate\Support\Facades\DB;
 use Webkul\Lead\Models\LeadProxy;
 use Webkul\Lead\Services\CitySyncService;
 use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
@@ -39,6 +40,11 @@ class AgentPayload
                 'open'       => $window->open,
                 'expires_at' => $window->expiresAt?->toIso8601String(),
             ],
+            // Lo que YA sabemos de este cliente, para no volver a preguntárselo.
+            'cliente'            => $this->cliente($conversation),
+            'pedidos_pendientes' => $this->pedidosPendientes($conversation),
+            // A quién se le asigna un pedido según la ciudad.
+            'asignacion' => $this->asignacion(),
             // Si venimos de un recordatorio de recompra: qué le preguntamos, qué sabemos
             // ya de él y dónde avisar qué contestó.
             'recompra' => $this->recompra($conversation),
@@ -178,8 +184,8 @@ class AgentPayload
             'ultima_entrega'      => $estado->ultimo_envio_at->toIso8601String(),
             // Con domicilio guardado no hay nada que preguntar: se confirma y se toma
             // el pedido. Sin domicilio sí hay que pedirlo, aunque sea un cliente viejo.
-            'datos_completos' => (bool) $domicilio,
-            'domicilio'       => $domicilio,
+            'datos_completos'    => (bool) $domicilio,
+            'domicilio'          => $domicilio,
             /*
              * Dónde avisar qué contestó. Va en el payload y no en la documentación
              * para que el agente no tenga que construir la URL: las tres respuestas
@@ -195,6 +201,172 @@ class AgentPayload
                 ],
             ],
         ];
+    }
+
+    /**
+     * Lo que ya sabemos de este cliente.
+     *
+     * 🔴 Es lo que resuelve "el agente vuelve a preguntar todo el flujo". El agente no
+     * se olvidaba de los datos: NUNCA LOS RECIBÍA. El evento le mandaba teléfono,
+     * nombre y dos ids, y nada más — así que la única conducta posible era volver a
+     * preguntar.
+     *
+     * Devuelve null si la conversación todavía no está ligada a una persona: ahí no hay
+     * nada que saber y el bloque sobraría.
+     *
+     * @return array{es_conocido:bool, ciudad:?string, distribuidor:?string, domicilio:?array, datos_completos:bool, bidones_en_su_casa:int, ultimo_pedido:?array}|null
+     */
+    public function cliente(Conversation $conversation): ?array
+    {
+        $personId = $conversation->person_id ? (int) $conversation->person_id : null;
+
+        if (! $personId) {
+            return null;
+        }
+
+        $ultimo = LeadProxy::modelClass()::with(['products', 'stage'])
+            ->where('person_id', $personId)
+            ->orderByDesc('id')
+            ->first();
+
+        $domicilio = $this->siExiste(
+            \Webkul\Distribuidor\Services\Ubicacion::class,
+            fn ($s) => $s->deCliente($personId),
+        );
+
+        $ciudadId = $ultimo?->lead_pipeline_id ? (int) $ultimo->lead_pipeline_id : null;
+
+        return [
+            /*
+             * "Conocido" es haber comprado antes, no estar en la agenda. Alguien a quien
+             * se le abrió la ficha porque escribió una vez no tiene datos que reusar, y
+             * tratarlo como conocido haría que el agente dé por confirmado un domicilio
+             * que nadie cargó.
+             */
+            'es_conocido'  => (bool) $ultimo,
+            'ciudad'       => $ciudadId ? $this->nombreDeCiudad($ciudadId) : null,
+            'distribuidor' => $ciudadId ? $this->distribuidorDe($ciudadId) : null,
+            'domicilio'    => $domicilio,
+            // Con domicilio guardado no hay nada que preguntar: se confirma y se toma el
+            // pedido. Sin domicilio sí hay que pedirlo, aunque sea un cliente viejo.
+            'datos_completos'    => (bool) $domicilio,
+            'bidones_en_su_casa' => (int) $this->siExiste(
+                \Webkul\Distribuidor\Services\Bidones::class,
+                fn ($s) => $s->saldoDe($personId),
+            ),
+            'ultimo_pedido' => $ultimo ? [
+                'id'        => (int) $ultimo->id,
+                'fecha'     => $ultimo->created_at?->toDateString(),
+                'etapa'     => optional($ultimo->stage)->name,
+                'productos' => $this->lineasDe($ultimo),
+            ] : null,
+        ];
+    }
+
+    /**
+     * Los pedidos de esta persona que todavía no se entregaron.
+     *
+     * Existe para que el agente no abra un duplicado. Hoy sólo ve el pedido de ESTA
+     * conversación (`lead`), así que a un cliente que ya tenía un pedido abierto le
+     * creaba otro sin enterarse.
+     *
+     * 🔴 "Pendiente" se decide por la etapa, y las etapas cerradas son las de
+     * `CLOSED_STAGE_CODES` — que hasta esta versión no coincidían con ninguna etapa
+     * real, así que un pedido entregado habría entrado acá como pendiente.
+     *
+     * @return array<int, array{id:int, etapa:?string, fecha:?string, total:float, productos:array}>
+     */
+    public function pedidosPendientes(Conversation $conversation): array
+    {
+        $personId = $conversation->person_id ? (int) $conversation->person_id : null;
+
+        if (! $personId) {
+            return [];
+        }
+
+        return LeadProxy::modelClass()::with(['products', 'stage'])
+            ->where('person_id', $personId)
+            ->whereHas('stage', fn ($q) => $q->whereNotIn('code', CitySyncService::CLOSED_STAGE_CODES))
+            ->orderByDesc('id')
+            // Un tope por si una ficha acumuló pedidos viejos sin cerrar: lo que el
+            // agente necesita decidir es si suma a uno reciente, no leer el historial.
+            ->limit(10)
+            ->get()
+            ->map(fn ($lead) => [
+                'id'        => (int) $lead->id,
+                'etapa'     => optional($lead->stage)->name,
+                'fecha'     => $lead->created_at?->toDateString(),
+                'total'     => (float) $lead->lead_value,
+                'productos' => $this->lineasDe($lead),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Qué distribuidor reparte en cada ciudad.
+     *
+     * Va en el payload y no en el prompt del agente a propósito: si los ids viven en el
+     * prompt, el día que entra un distribuidor nuevo hay que editar el prompt, y hasta
+     * que alguien lo haga el agente sigue mandando el id del anterior. Acá sale de la
+     * base, que es donde se mantiene.
+     *
+     * @return array{nota:string, zonas:array}
+     */
+    public function asignacion(): array
+    {
+        return [
+            'nota' => 'Mandá el `user_id` del distribuidor de la ciudad del pedido. '
+                .'El CRM valida que corresponda a esa ciudad y lo corrige si no.',
+            'zonas' => $this->siExiste(
+                \Webkul\Distribuidor\Services\AsignacionDeZona::class,
+                fn ($s) => $s->zonas(),
+            ) ?: [],
+        ];
+    }
+
+    /** Las líneas de un pedido, en la forma que el agente ya conoce. */
+    protected function lineasDe($lead): array
+    {
+        return $lead->products->map(fn ($p) => [
+            'product_id' => (int) $p->product_id,
+            'name'       => $p->name,
+            'quantity'   => (float) $p->quantity,
+            'price'      => (float) $p->price,
+        ])->values()->all();
+    }
+
+    protected function nombreDeCiudad(int $pipelineId): ?string
+    {
+        static $nombres = [];
+
+        return $nombres[$pipelineId] ??= DB::table('lead_pipelines')
+            ->where('id', $pipelineId)
+            ->value('name');
+    }
+
+    protected function distribuidorDe(int $pipelineId): ?string
+    {
+        $zonas = $this->asignacion()['zonas'];
+
+        foreach ($zonas as $z) {
+            if ($z['pipeline_id'] === $pipelineId) {
+                return $z['distribuidor'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Llama a un servicio del módulo Distribuidor sólo si está instalado.
+     *
+     * El módulo de WhatsApp tiene que poder funcionar sin él: son dos módulos que se
+     * instalan por separado, y el inbox no puede dejar de andar porque falte el otro.
+     */
+    protected function siExiste(string $clase, callable $fn)
+    {
+        return class_exists($clase) ? $fn(app($clase)) : null;
     }
 
     public function contact(Conversation $conversation): array

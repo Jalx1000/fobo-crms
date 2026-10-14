@@ -7,8 +7,8 @@ Dos problemas a resolver entre el CRM y el agente:
 
 Este documento tiene las cuatro tareas del agente y el prompt listo para pegar.
 
-> **Estado:** las tareas A1 y A2 se pueden aplicar ya. Las A3 y A4 dependen de un
-> cambio del CRM que todavía no está desplegado (ver *Orden de aplicación* al final).
+> **Estado:** el lado del CRM ya está hecho. Las cuatro tareas del agente se pueden
+> aplicar juntas.
 
 ---
 
@@ -34,12 +34,16 @@ tiene que mandárselo.
 
 ## Las cuatro tareas
 
-### A1 · Nunca mandar `user_id` al crear un pedido
+### A1 · Mandar el `user_id` del distribuidor de la ciudad
 
-Si el agente manda ese campo, **pisa la asignación por zona** y vuelve el problema.
-El asesor lo decide el CRM a partir de la ciudad.
+El agente asigna. Para no hardcodear ids en el prompt, el evento trae el mapa de
+zonas en `asignacion.zonas`: de ahí sale el `user_id` que corresponde a la ciudad
+del pedido.
 
-Es el cambio más importante de los cuatro y no depende de nada: se aplica ya.
+El CRM **valida** lo que llegue. Si el `user_id` no es el distribuidor de esa ciudad,
+lo corrige y lo deja en el log. No es desconfianza: el agente elige un id numérico, y
+si se equivoca el pedido igual existe, igual tiene dueño, y le aparece a la persona
+equivocada sin que nadie se entere.
 
 ### A2 · Mandar siempre la ciudad
 
@@ -52,14 +56,14 @@ opcional: es el que decide si va Chaile o Marcelo.
 
 ### A3 · Si el cliente ya es conocido, no rehacer el alta
 
-Requiere el cambio del CRM. Cuando llegue, el evento va a traer un bloque `cliente`
-con el domicilio, la ciudad, el saldo de envases y el último pedido. Con eso el
-agente confirma en una línea y pregunta sólo la cantidad.
+El evento trae un bloque `cliente` con el domicilio, la ciudad, el saldo de envases y
+el último pedido. Con eso el agente confirma en una línea y pregunta sólo la cantidad.
 
 ### A4 · Mirar los pedidos pendientes antes de abrir otro
 
-Requiere el mismo cambio. Hoy el agente ve un solo pedido —el de la conversación— y
-no sabe si la persona tiene otros sin entregar, así que abre duplicados.
+El evento trae `pedidos_pendientes`. Sin eso el agente veía un solo pedido —el de la
+conversación— y no sabía si la persona tenía otros sin entregar, así que abría
+duplicados.
 
 ---
 
@@ -72,18 +76,21 @@ ASIGNACIÓN Y CLIENTES CONOCIDOS
 
 === 1. AL CREAR UN PEDIDO ===
 
-NUNCA mandes el campo `user_id` (Asesor Asignado). Ni vacío, ni con un valor.
-El CRM asigna solo al distribuidor que reparte en esa ciudad. Si vos lo mandás,
-pisás esa asignación y el pedido queda a nombre de quien no corresponde.
+SIEMPRE mandá la ciudad del pedido (`lead_pipeline_id`) y el `user_id` del
+distribuidor que reparte en esa ciudad.
 
-SIEMPRE mandá la ciudad del pedido (`lead_pipeline_id`). Es lo que decide quién
-sale a repartir:
-    Palpalá                → Chaile
-    San Salvador de Jujuy  → Marcelo Aramayo
-    Barrio Alto Comedero   → Distribuidor Comedero
+NUNCA escribas los ids de memoria. El evento trae el mapa actualizado en
+`asignacion.zonas`:
 
-No uses esa tabla para asignar vos: es para que entiendas por qué la ciudad es
-obligatoria. Vos mandás la ciudad, el CRM elige la persona.
+    [ { "pipeline_id": 1, "ciudad": "Palpalá",
+        "user_id": 1817, "distribuidor": "Chaile" }, ... ]
+
+Buscá ahí la ciudad del pedido y usá SU `user_id`. Si mañana entra un
+distribuidor nuevo, el mapa cambia solo y vos no tenés que tocar nada.
+
+El CRM valida lo que mandes: si el user_id no es el distribuidor de esa ciudad,
+lo corrige. Igual mandalo bien — la corrección existe por si acaso, no para
+que te apoyes en ella.
 
 Si es un cliente nuevo y no sabés de qué zona es, PREGUNTALE. Un pedido sin
 ciudad queda sin distribuidor y no lo ve nadie.
@@ -143,15 +150,12 @@ ubicación, y el recordatorio de recompra.
 
 ## Orden de aplicación
 
-**Ahora:** la sección 1 del prompt (tareas A1 y A2). No depende del CRM y es la que
-arregla la asignación de pedidos.
+El lado del CRM ya está desplegado, así que el prompt se puede aplicar entero.
 
-**Después del cambio del CRM:** las secciones 2 y 3 (tareas A3 y A4). Aplicarlas
-antes es contraproducente: el agente va a buscar `cliente.es_conocido` y
-`pedidos_pendientes`, no los va a encontrar, y en el mejor caso los ignora — en el
-peor, da por nuevo a todo cliente conocido.
-
-Cuando el bloque esté desplegado se avisa, y recién ahí se pega el prompt completo.
+Los bloques `cliente`, `pedidos_pendientes` y `asignacion` ya viajan en cada evento
+`message.received`. Si alguno llegara vacío o en null, el agente tiene que seguir
+funcionando como antes: `cliente` es null cuando la conversación todavía no está
+ligada a un contacto, y eso es normal en el primer mensaje de alguien nuevo.
 
 ---
 
@@ -161,7 +165,9 @@ Para que quede claro el reparto de responsabilidades:
 
 | | |
 |---|---|
-| Elegir el distribuidor según la ciudad | **CRM** |
+| Mantener el mapa de zonas y publicarlo en el evento | **CRM** |
+| Elegir el distribuidor y mandarlo en `user_id` | **Agente** |
+| Validar y corregir si no corresponde a la ciudad | **CRM** |
 | Mandar la ciudad del pedido | **Agente** |
 | Que "Asesor Asignado" liste sólo distribuidores | **CRM** |
 | Mandar los datos del cliente en el evento | **CRM** |
@@ -172,6 +178,11 @@ Reglas con las que el CRM reasigna un pedido:
 ```
 sin asesor                      → asigna
 el asesor no es distribuidor    → reasigna   (el caso del token del agente)
-es distribuidor de otra ciudad  → reasigna
-es el distribuidor de esta      → no toca    (respeta la asignación manual)
+es distribuidor de otra ciudad  → reasigna   (el agente mandó el id equivocado)
+es el distribuidor de esta      → no toca    (respeta lo que mandó el agente
+                                              y la asignación manual)
 ```
+
+Cada corrección queda en el log con el valor anterior. Es el único rastro de que el
+agente está mandando un distribuidor equivocado: si aparecen seguido, hay algo
+desfasado entre el prompt y las zonas.

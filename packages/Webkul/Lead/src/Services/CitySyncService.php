@@ -2,6 +2,7 @@
 
 namespace Webkul\Lead\Services;
 
+use Illuminate\Support\Facades\Event;
 use Webkul\Attribute\Models\AttributeProxy;
 use Webkul\Attribute\Models\AttributeValueProxy;
 use Webkul\Lead\Models\LeadProxy;
@@ -44,11 +45,25 @@ class CitySyncService
      * realmente activos ("No atendido" y "Cliente confirmado"); el resto se queda
      * en la ciudad donde se resolvió.
      */
+    /**
+     * Las etapas en las que un pedido ya terminó.
+     *
+     * 🔴 Estos códigos tienen que existir de verdad en `lead_pipeline_stages`. Hasta
+     * ahora decían `pedidos-entregados` y `pedidos-cancelados` —en plural— y las etapas
+     * reales son `pedido-entregado` y `pedidos-cancelado`: NINGUNO de los cuatro
+     * coincidía con nada.
+     *
+     * El efecto era mudo y de los peores: la lista de cerradas quedaba vacía, así que
+     * TODO pedido contaba como abierto. `is_open` daba siempre true, y al cambiarle la
+     * ciudad a un cliente se mudaban también sus pedidos ya entregados, que pertenecen
+     * a la ciudad donde se entregaron.
+     *
+     * Hay un test que compara esta lista contra las etapas de la base: si alguien
+     * renombra una etapa, falla ahí y no en silencio seis meses después.
+     */
     public const CLOSED_STAGE_CODES = [
-        'pedidos-entregados',
-        'pedidos-cancelados',
-        'cliente-sin-inters',
-        'otros-servicios',
+        'pedido-entregado',
+        'pedidos-cancelado',
     ];
 
     /**
@@ -99,6 +114,20 @@ class CitySyncService
             if ($lead->person_id) {
                 $this->writeAttributeValue('persons', $lead->person_id, self::PERSON_CITY_ATTRIBUTE_CODE, $city);
             }
+
+            /*
+             * La ciudad del pedido ya quedó firme: es el momento en que se puede decidir
+             * quién lo reparte.
+             *
+             * Se avisa con un evento en vez de llamar al módulo Distribuidor desde acá.
+             * Este servicio es del core de pedidos y no puede depender de un módulo que
+             * se instala aparte: hacerlo rompe el core cuando el módulo no está, y deja
+             * la dependencia apuntando al revés.
+             *
+             * Se dispara DENTRO del try, con `$running` todavía en true, así un guardado
+             * del listener no vuelve a entrar acá.
+             */
+            Event::dispatch('lead.city.synced', $lead);
         } finally {
             self::$running = false;
         }
