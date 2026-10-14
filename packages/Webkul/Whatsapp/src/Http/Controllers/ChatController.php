@@ -531,7 +531,8 @@ class ChatController extends Controller
 
         $person = PersonProxy::modelClass()::findOrFail($personId);
 
-        $pipeline = PipelineProxy::modelClass()::where('is_default', 1)->first()
+        // El de la ciudad del cliente; sin ciudad, «Sin ciudad».
+        $pipeline = app(\Webkul\Lead\Services\PipelineDeCiudad::class)->deContacto((int) $person->id)
             ?? PipelineProxy::modelClass()::firstOrFail();
 
         $stage = $pipeline->stages()->orderBy('sort_order')->firstOrFail();

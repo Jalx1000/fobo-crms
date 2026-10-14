@@ -169,6 +169,37 @@ class Responsables
     }
 
     /**
+     * Todo lo del pedido pasa a su asesor: cotizaciones, la conversación ya
+     * asignada y el contacto (si es su pedido más reciente).
+     *
+     * El 14/10 había 40 conversaciones atendidas por alguien distinto del
+     * dueño del pedido: el reparto movía el pedido y el chat seguía con el
+     * anterior. Una conversación sin asignar no se toca: asignarla es abrir
+     * una derivación, y eso lo decide el agente.
+     */
+    public static function todoConElPedido(int $leadId): void
+    {
+        $lead = DB::table('leads')->where('id', $leadId)->first(['id', 'user_id', 'person_id']);
+
+        if (! $lead?->user_id) {
+            return;
+        }
+
+        self::cotizacionesConElPedido($leadId);
+
+        DB::table('whatsapp_conversations')
+            ->where('lead_id', $leadId)
+            ->whereNotNull('assigned_user_id')
+            ->where('assigned_user_id', '!=', $lead->user_id)
+            ->update(['assigned_user_id' => $lead->user_id, 'assigned_at' => now()]);
+
+        if ($lead->person_id
+            && (int) DB::table('leads')->where('person_id', $lead->person_id)->max('id') === (int) $leadId) {
+            DB::table('persons')->where('id', $lead->person_id)->update(['user_id' => $lead->user_id]);
+        }
+    }
+
+    /**
      * Las ciudades válidas de la matriz: las de atención más la nacional.
      *
      * @return string[]

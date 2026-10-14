@@ -112,7 +112,7 @@ class CiudadDesdeChat
         if ($lead) {
             DB::table('leads')->where('id', $lead->id)->update(['user_id' => $nuevo->id]);
 
-            \Webkul\Product\Services\Responsables::cotizacionesConElPedido((int) $lead->id);
+            \Webkul\Product\Services\Responsables::todoConElPedido((int) $lead->id);
         }
 
         if ($provisorio($personaUser)) {

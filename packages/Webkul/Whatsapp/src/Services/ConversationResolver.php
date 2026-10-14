@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Contact\Repositories\PersonRepository;
-use Webkul\Lead\Models\PipelineProxy;
 use Webkul\Lead\Models\SourceProxy;
 use Webkul\Lead\Models\TypeProxy;
 use Webkul\Lead\Repositories\LeadRepository;
@@ -212,8 +211,8 @@ class ConversationResolver
     protected function createLead(Model $person, string $gateway): ?Model
     {
         try {
-            $pipeline = PipelineProxy::modelClass()::where('is_default', 1)->first()
-                ?? PipelineProxy::modelClass()::first();
+            // El de la ciudad del cliente; sin ciudad, «Sin ciudad».
+            $pipeline = app(\Webkul\Lead\Services\PipelineDeCiudad::class)->deContacto((int) $person->id);
 
             if (! $pipeline) {
                 return null;

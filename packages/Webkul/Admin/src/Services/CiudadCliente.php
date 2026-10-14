@@ -37,6 +37,23 @@ class CiudadCliente
         'trinidad beni'           => 'Beni',
         'cobija'                  => 'Pando',
         'cobija pando'            => 'Pando',
+        // Pueblos que los clientes nombran en vez del departamento (14/10).
+        'tupiza'                  => 'Potosí',
+        'villazon'                => 'Potosí',
+        'villazón'                => 'Potosí',
+        'uyuni'                   => 'Potosí',
+        'yacuiba'                 => 'Tarija',
+        'bermejo'                 => 'Tarija',
+        'villamontes'             => 'Tarija',
+        'riberalta'               => 'Beni',
+        'guayaramerin'            => 'Beni',
+        'guayaramerín'            => 'Beni',
+        'quillacollo'             => 'Cochabamba',
+        'sacaba'                  => 'Cochabamba',
+        'montero'                 => 'Santa Cruz',
+        'warnes'                  => 'Santa Cruz',
+        'cotoca'                  => 'Santa Cruz',
+        'camiri'                  => 'Santa Cruz',
     ];
 
     public function __construct(
@@ -118,6 +135,9 @@ class CiudadCliente
      */
     public function propagar(int $personId, string $ciudad): void
     {
+        // «Tupiza» → Potosí, «cbba» → Cochabamba: se guarda el departamento.
+        $ciudad = (string) self::canonica($ciudad);
+
         $destinos = collect([['persons', $personId]])
             ->concat(DB::table('leads')->where('person_id', $personId)->pluck('id')->map(fn ($id) => ['leads', (int) $id]))
             ->concat(DB::table('quotes')->where('person_id', $personId)->pluck('id')->map(fn ($id) => ['quotes', (int) $id]));
@@ -125,6 +145,11 @@ class CiudadCliente
         foreach ($destinos as [$entidad, $id]) {
             if ($this->de($entidad, $id) !== $this->opcion($entidad, $ciudad)?->name) {
                 $this->escribir($entidad, $id, $ciudad);
+            }
+
+            // Con ciudad, el pedido deja «Sin ciudad» y pasa al tablero de su ciudad.
+            if ($entidad === 'leads') {
+                app(\Webkul\Lead\Services\PipelineDeCiudad::class)->moverSiEspera($id, $ciudad);
             }
         }
     }

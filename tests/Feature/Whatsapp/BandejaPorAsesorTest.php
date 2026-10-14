@@ -100,7 +100,8 @@ it('la bandeja trae la lista de asesores para el filtro', function () {
         ->get(route('admin.whatsapp.conversations'))
         ->json('asesores');
 
-    expect(collect($asesores)->pluck('name'))->toContain('Fabio Sandoval', 'Gabriela Marconi', 'Mariano Pinell');
+    // Desde el 14/10 Mariano es supervisor: no atiende clientes ni figura en el filtro.
+    expect(collect($asesores)->pluck('name'))->toContain('Fabio Sandoval', 'Gabriela Marconi', 'Bulmaro Vaca');
 });
 
 it('cada asesor trae cuántos clientes tiene en la bandeja', function () {
