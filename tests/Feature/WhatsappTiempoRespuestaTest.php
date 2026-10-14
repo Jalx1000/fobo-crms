@@ -205,3 +205,92 @@ it('el endpoint del tablero respeta pipeline_id', function () {
 
     expect($sola)->toBeLessThan($todas);
 });
+
+// ---------------------------------------------------------------------------
+// Quién está esperando: el punto ciego del reporte
+// ---------------------------------------------------------------------------
+
+it('cuenta a los que esperan sin respuesta, no sólo a los contestados', function () {
+    $c = convParaTiempos();
+
+    // Escribió hace 22 minutos y nadie contestó.
+    mensaje($c, 'inbound', 'contact', now()->subMinutes(22)->toDateTimeString());
+
+    $e = (new ResponseTimeReport(now()->subDay(), now()->addDay()))
+        ->soloConversaciones([$c])->build()['esperando'];
+
+    /*
+     * Sin esto el reporte tenía sesgo de supervivencia: emparejaba cada mensaje
+     * del cliente con la respuesta que le siguió, así que una conversación que
+     * nadie contesta no existía para la métrica — el peor caso era el único
+     * invisible. Al detectarlo había un cliente esperando 19 h y la tarjeta
+     * mostraba una mediana de 0,2 min.
+     */
+    expect($e['casos'])->toBe(1)
+        ->and($e['maximo'])->toBeGreaterThanOrEqual(21.0)
+        ->and($e['maximo'])->toBeLessThan(23.0);
+});
+
+it('un cliente que escribió tres veces es UN cliente esperando', function () {
+    $c = convParaTiempos();
+
+    mensaje($c, 'inbound', 'contact', now()->subMinutes(30)->toDateTimeString());
+    mensaje($c, 'inbound', 'contact', now()->subMinutes(20)->toDateTimeString());
+    mensaje($c, 'inbound', 'contact', now()->subMinutes(10)->toDateTimeString());
+
+    $e = (new ResponseTimeReport(now()->subDay(), now()->addDay()))
+        ->soloConversaciones([$c])->build()['esperando'];
+
+    // Y la espera es la del primero: es cuanto lleva esperando de verdad.
+    expect($e['casos'])->toBe(1)
+        ->and($e['maximo'])->toBeGreaterThanOrEqual(29.0);
+});
+
+it('deja de esperar en cuanto le contestan', function () {
+    $c = convParaTiempos();
+
+    mensaje($c, 'inbound', 'contact', now()->subMinutes(22)->toDateTimeString());
+    mensaje($c, 'outbound', 'ia', now()->subMinutes(21)->toDateTimeString());
+
+    $e = (new ResponseTimeReport(now()->subDay(), now()->addDay()))
+        ->soloConversaciones([$c])->build()['esperando'];
+
+    expect($e['casos'])->toBe(0);
+});
+
+it('una reacción del cliente no es un turno que exija respuesta', function () {
+    $c = convParaTiempos();
+
+    $id = mensaje($c, 'inbound', 'contact', now()->subMinutes(30)->toDateTimeString());
+    mensaje($c, 'outbound', 'ia', now()->subMinutes(29)->toDateTimeString());
+
+    DB::table('whatsapp_messages')->insert([
+        'conversation_id' => $c, 'direction' => 'inbound', 'type' => 'reaction',
+        'body'            => '👍', 'sender' => 'contact', 'status' => 'delivered',
+        'created_at'      => now()->subMinutes(5), 'updated_at' => now()->subMinutes(5),
+    ]);
+
+    $e = (new ResponseTimeReport(now()->subDay(), now()->addDay()))
+        ->soloConversaciones([$c])->build()['esperando'];
+
+    expect($e['casos'])->toBe(0);
+});
+
+it('separa lo accionable de lo que ya necesita plantilla', function () {
+    $dentro = convParaTiempos();
+    mensaje($dentro, 'inbound', 'contact', now()->subHours(3)->toDateTimeString());
+
+    $fuera = convParaTiempos();
+    mensaje($fuera, 'inbound', 'contact', now()->subHours(40)->toDateTimeString());
+
+    $e = (new ResponseTimeReport(now()->subDays(5), now()->addDay()))
+        ->soloConversaciones([$dentro, $fuera])->build()['esperando'];
+
+    /*
+     * Dentro de la ventana de 24 h alguien todavía puede contestar con texto
+     * libre; fuera hace falta una plantilla aprobada. Mezclarlos tapaba lo
+     * urgente: al medirlo había esperas de 675 horas junto a una de 19.
+     */
+    expect($e['casos'])->toBe(1)
+        ->and($e['fuera_de_ventana'])->toBe(1);
+});

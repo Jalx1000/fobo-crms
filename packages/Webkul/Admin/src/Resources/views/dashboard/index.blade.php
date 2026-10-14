@@ -71,15 +71,6 @@
                 @include('admin::dashboard.index.tiempo-por-vendedor')
             @endif
 
-            {{--
-                Tiempo de respuesta en WhatsApp: agente vs asesor. Va al lado de
-                los otros tiempos, pero mide algo distinto — cuánto espera el
-                cliente, no cuánto tarda en cerrarse la venta.
-            --}}
-            @if (bouncer()->hasPermission('whatsapp'))
-                @include('admin::dashboard.index.tiempo-respuesta-whatsapp')
-            @endif
-
             @include('admin::dashboard.index.tiempo-por-etapa')
         </div>
         {!! view_render_event('admin.dashboard.index.content.left.after') !!}

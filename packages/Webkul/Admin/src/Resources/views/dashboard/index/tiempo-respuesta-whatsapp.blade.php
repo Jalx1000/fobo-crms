@@ -47,6 +47,44 @@
                     </div>
                 </div>
 
+                {{--
+                    Quién está esperando AHORA. Va arriba de todo porque es lo
+                    único de la tarjeta sobre lo que se puede actuar hoy, y
+                    porque era el punto ciego: el reporte emparejaba cada
+                    mensaje con su respuesta, así que una conversación sin
+                    contestar no existía para la métrica. Se detectó con un
+                    cliente esperando 19 h mientras la mediana decía 0,2 min.
+                --}}
+                <div
+                    v-if="esperando.casos"
+                    class="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/40"
+                >
+                    <div class="flex items-baseline justify-between">
+                        <p class="text-sm font-semibold text-red-800 dark:text-red-300">
+                            @{{ esperando.casos }} esperando respuesta
+                        </p>
+                        <p class="text-xs text-red-700 dark:text-red-400">
+                            el que más lleva: <strong>@{{ enTexto(esperando.maximo) }}</strong>
+                        </p>
+                    </div>
+
+                    <ul class="mt-2 space-y-0.5">
+                        <li
+                            v-for="caso in esperando.detalle"
+                            :key="caso.conversacion"
+                            class="flex justify-between text-xs text-red-800 dark:text-red-300"
+                        >
+                            <span class="truncate pr-2">@{{ caso.nombre }}</span>
+                            <span class="whitespace-nowrap font-medium">@{{ enTexto(caso.minutos) }}</span>
+                        </li>
+                    </ul>
+
+                    <p v-if="esperando.fuera_de_ventana" class="mt-2 text-[11px] text-red-700 dark:text-red-400">
+                        Además @{{ esperando.fuera_de_ventana }} sin responder con la ventana de 24 h vencida:
+                        a ésos sólo se les puede escribir con plantilla.
+                    </p>
+                </div>
+
                 <div v-if="porAsesor.length" class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
@@ -117,6 +155,10 @@
 
                 porAsesor() {
                     return this.datos?.por_asesor ?? [];
+                },
+
+                esperando() {
+                    return this.datos?.esperando ?? { casos: 0, maximo: 0, mediana: 0, fuera_de_ventana: 0, detalle: [] };
                 },
             },
 

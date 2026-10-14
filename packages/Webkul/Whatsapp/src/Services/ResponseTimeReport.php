@@ -88,6 +88,7 @@ class ResponseTimeReport
             'agente'     => $this->resumen($latencias->where('sender', self::AGENTE)->pluck('minutos')->all()),
             'asesor'     => $this->resumen($latencias->where('sender', self::ASESOR)->pluck('minutos')->all()),
             'por_asesor' => $this->porAsesor($latencias->where('sender', self::ASESOR)),
+            'esperando'  => $this->esperando(),
         ];
     }
 
@@ -147,6 +148,103 @@ class ResponseTimeReport
             // Un negativo sería un desorden de relojes, no una respuesta instantánea.
             ->filter(fn ($f) => $f->minutos >= 0)
             ->values();
+    }
+
+    /**
+     * Los que están esperando AHORA, sin respuesta todavía.
+     *
+     * Sin esto el reporte tenía sesgo de supervivencia: emparejaba cada mensaje
+     * del cliente con la respuesta que le siguió, así que una conversación que
+     * nadie contesta no existía para la métrica — el peor caso era el único
+     * invisible. Medido al detectarlo: cinco clientes esperaban entre 16 y 37
+     * horas y la tarjeta mostraba una mediana de 0,2 minutos.
+     *
+     * Se reporta aparte y no mezclado en la mediana de respuesta porque son dos
+     * cosas distintas: una espera en curso es una cota inferior —todavía puede
+     * crecer— y promediarla con esperas terminadas haría que un mensaje de hace
+     * un minuto mejorara el número.
+     *
+     * No se filtra por derivación ni por el interruptor del agente: el cliente
+     * espera igual, sin importar de quién sea la culpa.
+     *
+     * Se parte en dos por la ventana de 24 h de WhatsApp, y la división es de
+     * fondo, no cosmética: dentro de la ventana alguien todavía puede contestar
+     * con texto libre, así que es una tarea pendiente. Fuera, ya no se puede
+     * —hace falta una plantilla aprobada—, así que no es una espera que un
+     * asesor pueda resolver ahora y mezclarla tapaba lo urgente. Al medirlo
+     * había casos de 675 horas, 28 días: eso no es alguien esperando, es una
+     * conversación perdida, y pertenece a la campaña de plantillas.
+     *
+     * @return array{casos: int, maximo: float, mediana: float, fuera_de_ventana: int, detalle: array<int, array{conversacion: int, nombre: string, minutos: float}>}
+     */
+    private function esperando(): array
+    {
+        $filas = DB::table('whatsapp_messages as m')
+            ->join('whatsapp_conversations as c', 'c.id', '=', 'm.conversation_id')
+            ->where('m.direction', 'inbound')
+            ->whereBetween('m.created_at', [$this->desde, $this->hasta])
+            ->when($this->soloConversaciones, fn ($q, $ids) => $q->whereIn('m.conversation_id', $ids))
+            ->when($this->pipelineId, fn ($q, $id) => $q->whereIn(
+                'm.conversation_id',
+                DB::table('whatsapp_conversations')
+                    ->selectRaw('id')
+                    ->whereRaw(ConversationCity::sql().' = ?', [$id])
+            ))
+            /*
+             * Sin ninguna respuesta posterior. Las reacciones del cliente no
+             * cuentan como un turno que exija contestación.
+             */
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')
+                // Sin prefijo a mano: el query builder ya lo agrega.
+                ->from('whatsapp_messages as r')
+                ->whereColumn('r.conversation_id', 'm.conversation_id')
+                ->where('r.direction', 'outbound')
+                ->whereColumn('r.id', '>', 'm.id'))
+            ->where('m.type', '<>', 'reaction')
+            ->orderBy('m.created_at')
+            ->get(['m.conversation_id', 'm.created_at', 'c.wa_name', 'c.wa_phone']);
+
+        /*
+         * Una sola espera por conversación: si el cliente escribió tres veces
+         * sin que nadie contestara, es UN cliente esperando, no tres. Se toma la
+         * más vieja, que es cuanto lleva esperando de verdad.
+         */
+        $porConversacion = [];
+
+        foreach ($filas as $fila) {
+            $cid = (int) $fila->conversation_id;
+
+            if (isset($porConversacion[$cid])) {
+                continue;
+            }
+
+            $porConversacion[$cid] = [
+                'conversacion' => $cid,
+                'nombre'       => $fila->wa_name ?: $fila->wa_phone ?: 'Sin nombre',
+                'minutos'      => round((time() - strtotime($fila->created_at)) / 60, 1),
+            ];
+        }
+
+        $todas = array_values($porConversacion);
+
+        $ventana = 24 * 60;
+
+        $dentro = array_values(array_filter($todas, fn ($e) => $e['minutos'] < $ventana));
+        $fuera = count($todas) - count($dentro);
+
+        usort($dentro, fn ($a, $b) => $b['minutos'] <=> $a['minutos']);
+
+        $minutos = array_column($dentro, 'minutos');
+        sort($minutos);
+
+        return [
+            'casos'            => count($dentro),
+            'maximo'           => $minutos ? round(end($minutos), 1) : 0.0,
+            'mediana'          => $minutos ? round($this->percentil($minutos, 0.5), 1) : 0.0,
+            'fuera_de_ventana' => $fuera,
+            // Los diez que llevan más tiempo, para poder actuar.
+            'detalle'          => array_slice($dentro, 0, 10),
+        ];
     }
 
     /**
