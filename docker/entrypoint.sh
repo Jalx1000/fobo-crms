@@ -23,6 +23,10 @@ cd /var/www/html
 export PORT="${PORT:-80}"
 log "Puerto: $PORT"
 
+# Garantiza un solo MPM (prefork) aunque la imagen llegue con otro habilitado
+rm -f /etc/apache2/mods-enabled/mpm_event.* /etc/apache2/mods-enabled/mpm_worker.*
+[ -e /etc/apache2/mods-enabled/mpm_prefork.load ] || a2enmod mpm_prefork >/dev/null
+
 # 2. Uploads (storage/app) en el volumen de Railway para que sobrevivan deploys
 if [ -n "$RAILWAY_VOLUME_MOUNT_PATH" ] && [ -d "$RAILWAY_VOLUME_MOUNT_PATH" ]; then
     if [ ! -d "$RAILWAY_VOLUME_MOUNT_PATH/app" ]; then

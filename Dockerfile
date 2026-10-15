@@ -29,8 +29,10 @@ COPY --from=composer:2.7 /usr/bin/composer /usr/local/bin/composer
 COPY docker/php.ini /usr/local/etc/php/conf.d/zz-app.ini
 COPY .configs/apache.conf /etc/apache2/sites-available/000-default.conf
 # Apache escucha en ${PORT}; entrypoint.sh lo exporta con default 80
+# mod_php exige mpm_prefork; dejar otro MPM activo da "AH00534: More than one MPM loaded"
 RUN echo 'Listen ${PORT}' > /etc/apache2/ports.conf \
-    && a2enmod rewrite headers
+    && a2dismod -f mpm_event mpm_worker || true \
+    && a2enmod mpm_prefork rewrite headers
 
 WORKDIR /var/www/html
 
