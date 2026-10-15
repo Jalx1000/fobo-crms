@@ -63,7 +63,8 @@ fi
 artisan optimize:clear
 artisan config:cache
 artisan view:cache
-[ -L public/storage ] || artisan storage:link
+# public/ es de root: el symlink lo crea root (equivale a storage:link)
+ln -sfn /var/www/html/storage/app/public public/storage
 
 # 6. Scheduler (inbound-emails:process cada 5 min) y Apache
 su -s /bin/sh www-data -c 'while true; do php /var/www/html/artisan schedule:run --no-interaction >/dev/null 2>&1; sleep 60; done' &
