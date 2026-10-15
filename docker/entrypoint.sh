@@ -63,6 +63,11 @@ if [ "$USERS" = "0" ]; then
     artisan db:seed --force
 fi
 
+# Krayin (CanInstall) da la app por no instalada si no hay .env y manda todo
+# al instalador web; acá las variables vienen de Railway y la BD ya está lista.
+touch storage/installed
+chown www-data:www-data storage/installed
+
 # 5. Caches y symlink público
 artisan optimize:clear
 artisan config:cache
