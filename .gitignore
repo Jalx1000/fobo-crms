@@ -57,3 +57,6 @@ node_modules/
 
 # Caché de resultados de PHPUnit: artefacto local
 /.phpunit.cache
+
+# Dumps de base de datos (datos de clientes, nunca al repo)
+*.sql

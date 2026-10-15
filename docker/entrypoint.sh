@@ -75,8 +75,15 @@ artisan view:cache
 # public/ es de root: el symlink lo crea root (equivale a storage:link)
 ln -sfn /var/www/html/storage/app/public public/storage
 
-# 6. Scheduler (inbound-emails:process cada 5 min) y Apache
-su -s /bin/sh www-data -c 'while true; do php /var/www/html/artisan schedule:run --no-interaction >/dev/null 2>&1; sleep 60; done' &
+# 6. Scheduler (inbound-emails:process cada 5 min), worker de colas y Apache
+su -s /bin/sh www-data -c 'while true; do php /var/www/html/artisan schedule:run --no-interaction 2>&1 | grep -v "No scheduled commands are ready to run"; sleep 60; done' &
+
+# Con QUEUE_CONNECTION=sync no hay nada que consumir. WhatsApp encola en su propia
+# cola ("whatsapp"); timeout < retry_after (90 s) para que un job no se duplique.
+if [ "${QUEUE_CONNECTION:-sync}" != "sync" ]; then
+    log "Worker de colas: ${QUEUE_CONNECTION} (${WHATSAPP_QUEUE:-whatsapp},default)"
+    su -s /bin/sh www-data -c "while true; do php /var/www/html/artisan queue:work ${QUEUE_CONNECTION} --queue=${WHATSAPP_QUEUE:-whatsapp},default --tries=3 --backoff=10 --timeout=80 --sleep=1 --max-time=3600 2>&1; sleep 2; done" &
+fi
 
 log "Iniciando: $*"
 exec "$@"
