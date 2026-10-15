@@ -35,8 +35,12 @@ node_modules/
 /playwright/.cache/
 
 # Build de Vite del admin: artefacto generado, se compila en cada servidor
-/public/admin/build
+# (rama tessa) el build del admin va versionado: la imagen de Railway no tiene Node
 
 # Reportes de citas con telefonos de pacientes: no van al repo
 /citas-*.csv
 /citas-*.xlsx
+
+# Dumps de base de datos (datos de clientes, nunca al repo)
+*.sql
+.env.railway

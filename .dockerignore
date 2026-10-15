@@ -1,0 +1,82 @@
+# =============================================================================
+# .dockerignore - Krayin CRM / Railway
+# Excluye todo lo que no debe ir en la imagen de producción
+# =============================================================================
+
+# Control de versiones
+.git
+.gitignore
+.gitattributes
+
+# Dependencias locales (se instalan en el build)
+/node_modules
+/vendor
+
+# Assets sin compilar (el build de Vite los genera en /public/build)
+# No excluir /public porque contiene index.php y assets estáticos
+# No excluir /resources porque Vite los necesita en el stage de node
+
+# Archivos de entorno (Railway inyecta variables via env vars)
+.env
+.env.*
+!.env.example
+
+# Logs y caché local
+/storage/logs/*.log
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/bootstrap/cache/*.php
+
+# Herramientas de desarrollo y testing
+.phpunit.result.cache
+phpunit.xml
+.php-cs-fixer.php
+phpstan.neon
+pint.json
+/tests
+
+# Documentación y archivos de proyecto
+*.md
+README*
+CHANGELOG*
+CONTRIBUTING*
+LICENSE
+LICENCE
+/docs
+
+# Docker local (docker-compose solo para dev)
+docker/docker-compose.yml
+docker-compose*.yml
+docker-compose*.yaml
+
+# IDE y editores
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+.circleci
+
+# Archivos temporales
+*.tmp
+*.bak
+*.orig
+
+# Sail (Laravel local dev)
+sail
+
+# NPM / Yarn archivos de lock que no son package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Compilados de Vite en /public/build los copiamos desde el node stage
+# pero el directorio puede existir sucio en local, lo dejamos pasar
+# para que el COPY --from=node_builder sobreescriba correctamente
