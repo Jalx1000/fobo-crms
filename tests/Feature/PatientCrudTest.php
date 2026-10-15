@@ -2,30 +2,30 @@
 
 namespace Tests\Feature;
 
-use Webkul\User\Models\User;
 use Webkul\Contact\Models\Person;
+use Webkul\User\Models\User;
+
 use function Pest\Laravel\actingAs;
 
 /**
  * Este test cubre el flujo completo de administración de Pacientes (Persons).
  * Valida la creación, edición y eliminación de pacientes.
  */
-
 beforeEach(function () {
     $this->adminUser = User::find(1);
 });
 
 it('permite al administrador crear un nuevo paciente', function () {
     $personData = [
-        'name'            => 'Paciente Test ' . uniqid(),
+        'name'            => 'Paciente Test '.uniqid(),
         'emails'          => [
-            ['label' => 'work', 'value' => 'test.' . uniqid() . '@paciente.com']
+            ['label' => 'work', 'value' => 'test.'.uniqid().'@paciente.com'],
         ],
         'contact_numbers' => [
-            ['label' => 'work', 'value' => '591' . rand(70000000, 79999999)]
+            ['label' => 'work', 'value' => '591'.rand(70000000, 79999999)],
         ],
         'job_title'       => 'Ingeniero de Pruebas',
-        'unique_id'       => 'create-' . uniqid(),
+        'unique_id'       => 'create-'.uniqid(),
     ];
 
     $response = actingAs($this->adminUser, 'user')
@@ -35,22 +35,22 @@ it('permite al administrador crear un nuevo paciente', function () {
     expect($person)->not->toBeNull();
 
     $response->assertRedirect(route('admin.contacts.persons.view', $person->id))
-             ->assertSessionHas('success');
+        ->assertSessionHas('success');
 
     expect($person->job_title)->toBe($personData['job_title']);
 });
 
 it('permite editar los datos de un paciente existente', function () {
     $person = Person::create([
-        'name'      => 'Paciente para Editar ' . uniqid(),
-        'emails'    => [['label' => 'work', 'value' => 'edit.' . uniqid() . '@test.com']],
-        'unique_id' => 'edit-' . uniqid(),
+        'name'      => 'Paciente para Editar '.uniqid(),
+        'emails'    => [['label' => 'work', 'value' => 'edit.'.uniqid().'@test.com']],
+        'unique_id' => 'edit-'.uniqid(),
     ]);
 
     $updatedData = [
-        'name'      => 'Nombre Editado ' . $person->id,
+        'name'      => 'Nombre Editado '.$person->id,
         'job_title' => 'Gerente de Calidad',
-        'unique_id' => 'updated-' . $person->id . '-' . uniqid(),
+        'unique_id' => 'updated-'.$person->id.'-'.uniqid(),
     ];
 
     actingAs($this->adminUser, 'user')
@@ -64,9 +64,9 @@ it('permite editar los datos de un paciente existente', function () {
 
 it('permite eliminar un paciente que no tiene leads asociados', function () {
     $person = Person::create([
-        'name'      => 'Paciente para Eliminar ' . uniqid(),
-        'emails'    => [['label' => 'work', 'value' => 'delete.' . uniqid() . '@test.com']],
-        'unique_id' => 'delete-' . uniqid(),
+        'name'      => 'Paciente para Eliminar '.uniqid(),
+        'emails'    => [['label' => 'work', 'value' => 'delete.'.uniqid().'@test.com']],
+        'unique_id' => 'delete-'.uniqid(),
     ]);
 
     actingAs($this->adminUser, 'user')

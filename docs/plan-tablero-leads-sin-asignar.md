@@ -1,4 +1,4 @@
-# Plan: corregir "tablero a medias" — leads de la sync asignados al admin
+# Plan: corregir "tablero a medias" - leads de la sync asignados al admin
 
 > Estado: **IMPLEMENTADO Y APLICADO en producción (2026-06-29)**.
 > Backfill ejecutado: 278 leads reasignados a "Sin asignar" (rol Sistema id 18,
@@ -49,7 +49,7 @@ no a "todo lead de un admin".
 
 ## Plan de implementación
 
-### Etapa 0 — Rol "Sistema" + cuenta "Sin asignar"
+### Etapa 0 - Rol "Sistema" + cuenta "Sin asignar"
 - Crear **rol "Sistema"**: no-admin, distinto de "Recepcionista" (para no inflar
   `tiempo-por-vendedor`, que filtra exactamente `Recepcionista` en `Lead.php:1218-1219`).
 - Crear **usuario "Sin asignar"** con rol "Sistema", `status = 1`, email estable
@@ -58,7 +58,7 @@ no a "todo lead de un admin".
   nunca por id hardcodeado.
 - Implementación: seeder idempotente + migración que cree rol y usuario si no existen.
 
-### Etapa A — Raíz (creación de leads)
+### Etapa A - Raíz (creación de leads)
 - Archivo: `packages/Webkul/Lead/src/Repositories/LeadRepository.php` (~142-161).
 - Cambiar el fallback: sin `user_id` ni usuario autenticado → asignar a la cuenta
   "Sin asignar" (buscada por email/config), **nunca** a `orderBy('id')->first()`.
@@ -66,7 +66,7 @@ no a "todo lead de un admin".
 - Salvaguarda: si la cuenta "Sin asignar" no existe en algún entorno, dejar `user_id = null`
   (no caer al admin).
 
-### Etapa B — Backfill de históricos (comando artisan auditado)
+### Etapa B - Backfill de históricos (comando artisan auditado)
 - Nuevo comando: `php artisan leads:reassign-synced-to-unassigned` con flags:
   - `--dry-run` (por defecto): solo reporta cuántos y cuáles leads movería.
   - `--apply`: ejecuta la reasignación.
@@ -80,7 +80,7 @@ no a "todo lead de un admin".
     `lead_reassignment_log (lead_id, old_user_id, new_user_id, reason, created_at)`.
 - Reversibilidad: con el log anterior, un `--rollback` puede restaurar `old_user_id`.
 
-### Etapa C — Visibilidad en reporting
+### Etapa C - Visibilidad en reporting
 - Con los leads ya en "Sin asignar" (rol "Sistema", no-admin), aparecen solos en
   leads-by-users / ventas. Verificar que la exclusión `Admin%` sigue excluyendo solo a
   admins reales y NO a "Sin asignar".
@@ -101,8 +101,8 @@ no a "todo lead de un admin".
    creación nueva ya no reintroduce el problema.
 
 ## Referencias de código
-- `packages/Webkul/Lead/src/Repositories/LeadRepository.php:142-161` — fallback de owner.
-- `packages/Webkul/Admin/src/Helpers/Reporting/Lead.php:78-83` — exclusión de admins.
-- `packages/Webkul/Admin/src/Helpers/Reporting/Lead.php:1218-1219` — filtro `Recepcionista`.
-- `packages/Webkul/Admin/src/Services/SmdAppointmentSyncService.php` — escribe `smd_synced_events`.
-- `tests/Feature/DashboardExcludeAdminsTest.php` — regla de exclusión de admins.
+- `packages/Webkul/Lead/src/Repositories/LeadRepository.php:142-161` - fallback de owner.
+- `packages/Webkul/Admin/src/Helpers/Reporting/Lead.php:78-83` - exclusión de admins.
+- `packages/Webkul/Admin/src/Helpers/Reporting/Lead.php:1218-1219` - filtro `Recepcionista`.
+- `packages/Webkul/Admin/src/Services/SmdAppointmentSyncService.php` - escribe `smd_synced_events`.
+- `tests/Feature/DashboardExcludeAdminsTest.php` - regla de exclusión de admins.

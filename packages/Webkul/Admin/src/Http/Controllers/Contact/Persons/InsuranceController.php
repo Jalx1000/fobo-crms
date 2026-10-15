@@ -4,6 +4,7 @@ namespace Webkul\Admin\Http\Controllers\Contact\Persons;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Webkul\Admin\Http\Controllers\Controller;
@@ -22,9 +23,6 @@ class InsuranceController extends Controller
 
     /**
      * Verify insurance for a specific person.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\JsonResponse
      */
     public function verify(int $id): JsonResponse
     {
@@ -32,7 +30,7 @@ class InsuranceController extends Controller
 
         if (! $person) {
             return response()->json([
-                'message' => 'No encontramos al paciente.'
+                'message' => 'No encontramos al paciente.',
             ], 404);
         }
 
@@ -55,14 +53,17 @@ class InsuranceController extends Controller
             return response()->json([
                 'message' => 'Faltan datos importantes para la validación.',
                 'status'  => 'CAMPOS_VACIOS',
-                'options' => $options
+                'options' => $options,
             ], 422);
         }
 
         $result = $this->insuranceService->verify($id);
 
-        if (in_array($result['status'], ['VIGENTE', 'EN_MORA'])) {
-            $this->insuranceService->createNoteActivity($id, $result);
+        // Una nota por aseguradora con datos reales, no una sola por el agregado.
+        foreach ($result['results'] ?? [$result] as $single) {
+            if (in_array($single['status'], ['VIGENTE', 'EN_MORA'])) {
+                $this->insuranceService->createNoteActivity($id, $single);
+            }
         }
 
         return response()->json($result);
@@ -73,9 +74,21 @@ class InsuranceController extends Controller
      */
     public function updateAndVerify(int $id): JsonResponse
     {
+        /**
+         * `seguro_paciente` es un atributo multiselect: acepta un id suelto (calendario,
+         * checker SMD) o una lista (formulario de edición con chips).
+         */
+        request()->merge([
+            'seguro_paciente' => array_values(array_filter(
+                Arr::wrap(request('seguro_paciente')),
+                fn ($value) => $value !== null && $value !== ''
+            )),
+        ]);
+
         $data = request()->validate([
-            'ci_paciente'     => 'required|string',
-            'seguro_paciente' => 'required|exists:attribute_options,id',
+            'ci_paciente'       => 'required|string',
+            'seguro_paciente'   => 'required|array|min:1',
+            'seguro_paciente.*' => 'exists:attribute_options,id',
         ]);
 
         $person = $this->personRepository->find($id);
@@ -150,22 +163,38 @@ class InsuranceController extends Controller
             return response()->json(['message' => 'Not found'], 404);
         }
 
-        $ciAttr     = app(\Webkul\Attribute\Repositories\AttributeRepository::class)->findOneByField('code', 'ci_paciente');
+        $ciAttr = app(\Webkul\Attribute\Repositories\AttributeRepository::class)->findOneByField('code', 'ci_paciente');
         $seguroAttr = app(\Webkul\Attribute\Repositories\AttributeRepository::class)->findOneByField('code', 'seguro_paciente');
 
-        $ci       = $ciAttr     ? $person->getCustomAttributeValue($ciAttr)     : null;
-        $seguroId = $seguroAttr ? $person->getCustomAttributeValue($seguroAttr) : null;
+        $ci = $ciAttr ? $person->getCustomAttributeValue($ciAttr) : null;
 
-        $seguroLabel = null;
-        if ($seguroId) {
-            $option      = DB::table('attribute_options')->find($seguroId);
-            $seguroLabel = $option?->name;
-        }
+        $insurances = $this->insuranceService->getPersonInsurances($person, $seguroAttr);
+
+        // Estado persistido de cada aseguradora, indexado para pegarlo a su seguro.
+        $statuses = $person->insuranceStatuses->keyBy('attribute_option_id');
+
+        $seguros = array_map(function ($insurance) use ($statuses) {
+            $persisted = $statuses->get($insurance['id']);
+
+            return $insurance + [
+                'status'     => $persisted?->status,
+                'badge'      => $persisted?->badge,
+                'message'    => $persisted?->message,
+                'checked_at' => $persisted?->checked_at?->toISOString(),
+            ];
+        }, $insurances);
 
         return response()->json([
-            'ci'           => $ci,
-            'seguro_id'    => $seguroId,
-            'seguro_label' => $seguroLabel,
+            'ci' => $ci,
+
+            /**
+             * `seguros` es la lista completa (multiselect), cada una con SU estado.
+             * `seguro_id`/`seguro_label`/`status` se mantienen apuntando al primero
+             * para no romper a los consumidores que aún leen un solo valor.
+             */
+            'seguros'      => $seguros,
+            'seguro_id'    => $seguros[0]['id'] ?? null,
+            'seguro_label' => $seguros[0]['name'] ?? null,
             'status'       => $person->insurance_status,
             'checked_at'   => $person->insurance_checked_at?->toISOString(),
         ]);
@@ -182,12 +211,13 @@ class InsuranceController extends Controller
             return response()->json(['message' => 'Paciente no encontrado.'], 404);
         }
 
-        $ci = $person->getCustomAttributeValue(app(\Webkul\Attribute\Repositories\AttributeRepository::class)->findOneByField('code', 'ci_paciente'));
-        $seguroId = $person->getCustomAttributeValue(app(\Webkul\Attribute\Repositories\AttributeRepository::class)->findOneByField('code', 'seguro_paciente'));
+        $attributeRepository = app(\Webkul\Attribute\Repositories\AttributeRepository::class);
 
-        $cacheKey = "insurance_verify_{$id}_" . md5($seguroId . '|' . $ci);
-        
-        \Illuminate\Support\Facades\Cache::forget($cacheKey);
+        $ci = $person->getCustomAttributeValue($attributeRepository->findOneByField('code', 'ci_paciente'));
+        $seguroAttr = $attributeRepository->findOneByField('code', 'seguro_paciente');
+
+        // Limpia la caché de todas las aseguradoras del paciente, no solo de una.
+        $this->insuranceService->forgetCache($person, $seguroAttr, $ci);
 
         return response()->json(['message' => 'Caché de seguro limpiada correctamente.']);
     }

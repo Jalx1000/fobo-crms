@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
  * always reach a human. So staff numbers are treated like [[AgentBlocklist]]:
  * the agent never applies to them, whatever the global default says.
  *
- * This also unblocks the composer for them — with the agent considered active,
+ * This also unblocks the composer for them - with the agent considered active,
  * the whole row (including the template button) is locked.
  */
 class StaffNumbers
@@ -61,7 +61,7 @@ class StaffNumbers
     }
 
     /**
-     * Drop the memo — for tests and for long-running workers that would
+     * Drop the memo - for tests and for long-running workers that would
      * otherwise never see a newly loaded doctor number.
      */
     public static function flush(): void

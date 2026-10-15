@@ -35,17 +35,26 @@ class PatientContext
         }
 
         $consultaStage = (int) config('whatsapp.crm.stage_consulta', 1);
-        $labels        = (array) config('whatsapp.crm.stage_labels', []);
-        $activaStage   = (int) config('whatsapp.crm.stage_activa', 7);
+        $labels = (array) config('whatsapp.crm.stage_labels', []);
+        $activaStage = (int) config('whatsapp.crm.stage_activa', 7);
 
         try {
             // Todas las personas de ese número, no sólo la ligada al chat. En la
             // clínica la madre agenda para toda la familia desde un solo celular:
             // Loyi y Matías comparten el 59170895092 y son fichas distintas. Con
             // una sola persona el agente contestaba con las citas de quien
-            // hubiera quedado enganchado al chat —elegido arbitrariamente por
-            // orden de id—, o sea le respondía a uno con la cita del otro.
+            // hubiera quedado enganchado al chat -elegido arbitrariamente por
+            // orden de id-, o sea le respondía a uno con la cita del otro.
             $personas = $this->personasDelNumero($conversation, $person);
+
+            // Y los pacientes a cargo (hijos, familiares agendados por esta
+            // persona): no comparten número -no tienen teléfono propio-, así
+            // que sin esto sus citas no aparecerían en el contexto del agente.
+            $aCargo = $this->pacientesACargo($person->id);
+
+            if ($aCargo->isNotEmpty()) {
+                $personas = $personas->merge($aCargo)->unique('id')->values();
+            }
 
             // Every lead of the person is a candidate cita. Exclude the
             // conversación lead (Consultas). Oldest→newest for a readable history.
@@ -56,7 +65,7 @@ class PatientContext
                 ->filter(fn ($lead) => (int) $lead->lead_pipeline_stage_id !== $consultaStage)
                 ->values();
         } catch (Throwable $e) {
-            // Never let a context-build failure drop the agent event — degrade to
+            // Never let a context-build failure drop the agent event - degrade to
             // "no history" and let the agent fall back to get_citas on demand.
             Log::warning('WhatsApp: could not build patient context', [
                 'person_id' => $person->id,
@@ -99,6 +108,12 @@ class PatientContext
             'pacientes_del_numero'   => $personas->count() > 1
                 ? $personas->map(fn ($p) => ['person_id' => $p->id, 'nombre' => $p->name])->values()->all()
                 : [],
+            // Personas que este contacto agenda (hijos, familiares): el agente
+            // los ofrece como opción; para un tercero nuevo, enviar el Flow
+            // "paciente_tercero" (POST /conversations/{id}/flows).
+            'pacientes_a_cargo'      => ($aCargo ?? collect())
+                ->map(fn ($p) => ['person_id' => $p->id, 'nombre' => $p->name, 'relacion' => $p->relation ?? null])
+                ->values()->all(),
             'paciente_nuevo'         => $citas->isEmpty(),
             'nombre_registrado'      => $person->name ?: null,
             'ci_paciente_registrada' => $source ? $this->leadAttribute($source, 'ci') : null,
@@ -229,8 +244,30 @@ class PatientContext
             'nombre_registrado'      => $name ?: null,
             'ci_paciente_registrada' => null,
             'seguro_registrado'      => null,
+            'pacientes_a_cargo'      => [],
             'citas'                  => [],
             'cita_activa'            => null,
         ];
+    }
+
+    /**
+     * Pacientes vinculados a esta persona como responsable (person_relations).
+     *
+     * @return \Illuminate\Support\Collection<int, \Webkul\Contact\Models\Person>
+     */
+    protected function pacientesACargo(int $personId)
+    {
+        $relaciones = \Illuminate\Support\Facades\DB::table('person_relations')
+            ->where('responsible_person_id', $personId)
+            ->pluck('relation', 'patient_person_id');
+
+        if ($relaciones->isEmpty()) {
+            return collect();
+        }
+
+        return PersonProxy::modelClass()::whereIn('id', $relaciones->keys())
+            ->orderBy('name')
+            ->get()
+            ->each(fn ($p) => $p->setAttribute('relation', $relaciones[$p->id] ?? null));
     }
 }

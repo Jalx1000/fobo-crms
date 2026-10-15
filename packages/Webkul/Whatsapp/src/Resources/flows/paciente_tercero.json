@@ -1,0 +1,646 @@
+{
+    "version": "7.3",
+    "data_api_version": "3.0",
+    "routing_model": {
+        "PATIENT_SELECT": [
+            "PATIENT_DATA",
+            "PATIENT_CI",
+            "SPECIALTY",
+            "SUMMARY"
+        ],
+        "PATIENT_DATA": [
+            "SPECIALTY",
+            "SUMMARY"
+        ],
+        "PATIENT_CI": [
+            "SPECIALTY",
+            "SUMMARY"
+        ],
+        "SPECIALTY": [
+            "DOCTOR"
+        ],
+        "DOCTOR": [
+            "SLOT_DATE"
+        ],
+        "SLOT_DATE": [
+            "SLOT_TIME",
+            "OTHER_DATE"
+        ],
+        "OTHER_DATE": [
+            "SLOT_TIME"
+        ],
+        "SLOT_TIME": [
+            "SUMMARY"
+        ],
+        "SUMMARY": []
+    },
+    "screens": [
+        {
+            "id": "PATIENT_SELECT",
+            "title": "Agendar cita",
+            "data": {
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "self",
+                            "title": "Para mí"
+                        },
+                        {
+                            "id": "p:123",
+                            "title": "Juan Pérez"
+                        },
+                        {
+                            "id": "other",
+                            "title": "Otra persona"
+                        }
+                    ]
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextCaption",
+                        "text": "Paso 1 de 5"
+                    },
+                    {
+                        "type": "TextSubheading",
+                        "text": "¿Para quién es la cita?"
+                    },
+                    {
+                        "type": "RadioButtonsGroup",
+                        "name": "choice",
+                        "label": "Paciente",
+                        "required": true,
+                        "data-source": "${data.options}"
+                    },
+                    {
+                        "type": "Footer",
+                        "label": "Continuar",
+                        "on-click-action": {
+                            "name": "data_exchange",
+                            "payload": {
+                                "choice": "${form.choice}"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "PATIENT_DATA",
+            "title": "Datos del paciente",
+            "data": {
+                "relations": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "hijo",
+                            "title": "Hijo/a"
+                        },
+                        {
+                            "id": "padre_madre",
+                            "title": "Padre o madre"
+                        }
+                    ]
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextCaption",
+                        "text": "Paso 1 de 5"
+                    },
+                    {
+                        "type": "TextInput",
+                        "name": "full_name",
+                        "label": "Nombre completo del paciente",
+                        "input-type": "text",
+                        "required": true
+                    },
+                    {
+                        "type": "TextInput",
+                        "name": "ci",
+                        "label": "Cédula de identidad",
+                        "input-type": "text",
+                        "required": true,
+                        "helper-text": "Con complemento si tiene, ej: 1234567-1A"
+                    },
+                    {
+                        "type": "DatePicker",
+                        "name": "birthdate",
+                        "label": "Fecha de nacimiento",
+                        "required": false
+                    },
+                    {
+                        "type": "Dropdown",
+                        "name": "relation",
+                        "label": "El paciente es tu…",
+                        "required": true,
+                        "data-source": "${data.relations}"
+                    },
+                    {
+                        "type": "Footer",
+                        "label": "Continuar",
+                        "on-click-action": {
+                            "name": "data_exchange",
+                            "payload": {
+                                "full_name": "${form.full_name}",
+                                "ci": "${form.ci}",
+                                "birthdate": "${form.birthdate}",
+                                "relation": "${form.relation}"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "PATIENT_CI",
+            "title": "Tu cédula",
+            "data": {
+                "mode": {
+                    "type": "string",
+                    "__example__": "self"
+                },
+                "patient_id": {
+                    "type": "string",
+                    "__example__": "4521"
+                },
+                "heading": {
+                    "type": "string",
+                    "__example__": "Necesitamos tu cédula"
+                },
+                "full_name": {
+                    "type": "string",
+                    "__example__": "Juan Pérez"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextCaption",
+                        "text": "Paso 1 de 5"
+                    },
+                    {
+                        "type": "TextHeading",
+                        "text": "${data.heading}"
+                    },
+                    {
+                        "type": "TextBody",
+                        "text": "La usamos para registrar la cita y verificar si tenés seguro o membresía."
+                    },
+                    {
+                        "type": "TextInput",
+                        "name": "full_name",
+                        "label": "Nombre completo",
+                        "input-type": "text",
+                        "required": true,
+                        "init-value": "${data.full_name}"
+                    },
+                    {
+                        "type": "TextInput",
+                        "name": "ci",
+                        "label": "Cédula de identidad",
+                        "input-type": "text",
+                        "required": true,
+                        "helper-text": "Con complemento si tiene, ej: 1234567-1A"
+                    },
+                    {
+                        "type": "Footer",
+                        "label": "Continuar",
+                        "on-click-action": {
+                            "name": "data_exchange",
+                            "payload": {
+                                "mode": "${data.mode}",
+                                "patient_id": "${data.patient_id}",
+                                "full_name": "${form.full_name}",
+                                "ci": "${form.ci}"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "SPECIALTY",
+            "title": "Especialidad",
+            "data": {
+                "specialties": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "6",
+                            "title": "Ortodoncia"
+                        },
+                        {
+                            "id": "2",
+                            "title": "Endodoncia"
+                        }
+                    ]
+                },
+                "context": {
+                    "type": "string",
+                    "__example__": "Cita para Juan Pérez · Odontopediatria"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextCaption",
+                        "text": "Paso 2 de 5"
+                    },
+                    {
+                        "type": "TextCaption",
+                        "text": "${data.context}"
+                    },
+                    {
+                        "type": "TextSubheading",
+                        "text": "¿Qué necesitás? Si no sabés, elegí \"General\"."
+                    },
+                    {
+                        "type": "RadioButtonsGroup",
+                        "name": "specialty",
+                        "label": "Especialidad",
+                        "required": true,
+                        "data-source": "${data.specialties}"
+                    },
+                    {
+                        "type": "Footer",
+                        "label": "Continuar",
+                        "on-click-action": {
+                            "name": "data_exchange",
+                            "payload": {
+                                "specialty": "${form.specialty}"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "DOCTOR",
+            "title": "Doctor/a",
+            "data": {
+                "doctors": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "10",
+                            "title": "CAROLINA ROJAS",
+                            "description": "Próximo horario: Lun 13/10 · 09:00"
+                        }
+                    ]
+                },
+                "context": {
+                    "type": "string",
+                    "__example__": "Cita para Juan Pérez · Odontopediatria"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextCaption",
+                        "text": "Paso 3 de 5"
+                    },
+                    {
+                        "type": "TextCaption",
+                        "text": "${data.context}"
+                    },
+                    {
+                        "type": "TextSubheading",
+                        "text": "Elegí el doctor/a. Están ordenados por el horario libre más próximo."
+                    },
+                    {
+                        "type": "RadioButtonsGroup",
+                        "name": "doctor",
+                        "label": "Doctor/a",
+                        "required": true,
+                        "data-source": "${data.doctors}"
+                    },
+                    {
+                        "type": "Footer",
+                        "label": "Continuar",
+                        "on-click-action": {
+                            "name": "data_exchange",
+                            "payload": {
+                                "doctor": "${form.doctor}"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "SLOT_DATE",
+            "title": "Día",
+            "data": {
+                "dates": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "2026-10-13",
+                            "title": "Mar 13/10"
+                        }
+                    ]
+                },
+                "context": {
+                    "type": "string",
+                    "__example__": "Cita para Juan Pérez · Odontopediatria"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextCaption",
+                        "text": "Paso 4 de 5"
+                    },
+                    {
+                        "type": "TextCaption",
+                        "text": "${data.context}"
+                    },
+                    {
+                        "type": "TextSubheading",
+                        "text": "¿Qué día te queda bien? Si no te sirve ninguno, elegí \"Otra fecha\"."
+                    },
+                    {
+                        "type": "RadioButtonsGroup",
+                        "name": "date",
+                        "label": "Día",
+                        "required": true,
+                        "data-source": "${data.dates}"
+                    },
+                    {
+                        "type": "Footer",
+                        "label": "Continuar",
+                        "on-click-action": {
+                            "name": "data_exchange",
+                            "payload": {
+                                "date": "${form.date}"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "OTHER_DATE",
+            "title": "Otra fecha",
+            "data": {
+                "heading": {
+                    "type": "string",
+                    "__example__": "¿Qué día te queda bien con CAROLINA ROJAS?"
+                },
+                "min_date": {
+                    "type": "string",
+                    "__example__": "2026-10-13"
+                },
+                "max_date": {
+                    "type": "string",
+                    "__example__": "2027-01-10"
+                },
+                "context": {
+                    "type": "string",
+                    "__example__": "Cita para Juan Pérez · Odontopediatria"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextCaption",
+                        "text": "Paso 4 de 5"
+                    },
+                    {
+                        "type": "TextCaption",
+                        "text": "${data.context}"
+                    },
+                    {
+                        "type": "TextHeading",
+                        "text": "${data.heading}"
+                    },
+                    {
+                        "type": "TextBody",
+                        "text": "Elegí el día y te mostramos los horarios libres."
+                    },
+                    {
+                        "type": "DatePicker",
+                        "name": "date",
+                        "label": "Día",
+                        "required": true,
+                        "min-date": "${data.min_date}",
+                        "max-date": "${data.max_date}"
+                    },
+                    {
+                        "type": "Footer",
+                        "label": "Continuar",
+                        "on-click-action": {
+                            "name": "data_exchange",
+                            "payload": {
+                                "date": "${form.date}"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "SLOT_TIME",
+            "title": "Hora",
+            "data": {
+                "heading": {
+                    "type": "string",
+                    "__example__": "Horarios del Mar 13/10"
+                },
+                "times": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "09:00",
+                            "title": "09:00"
+                        },
+                        {
+                            "id": "09:30",
+                            "title": "09:30"
+                        }
+                    ]
+                },
+                "context": {
+                    "type": "string",
+                    "__example__": "Cita para Juan Pérez · Odontopediatria"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextCaption",
+                        "text": "Paso 4 de 5"
+                    },
+                    {
+                        "type": "TextCaption",
+                        "text": "${data.context}"
+                    },
+                    {
+                        "type": "TextSubheading",
+                        "text": "${data.heading}"
+                    },
+                    {
+                        "type": "RadioButtonsGroup",
+                        "name": "time",
+                        "label": "Hora",
+                        "required": true,
+                        "data-source": "${data.times}"
+                    },
+                    {
+                        "type": "Footer",
+                        "label": "Continuar",
+                        "on-click-action": {
+                            "name": "data_exchange",
+                            "payload": {
+                                "time": "${form.time}"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "SUMMARY",
+            "title": "Revisá y confirmá",
+            "terminal": true,
+            "success": true,
+            "data": {
+                "heading": {
+                    "type": "string",
+                    "__example__": "Revisá tu cita"
+                },
+                "detail": {
+                    "type": "string",
+                    "__example__": "Paciente: Juan Pérez\nDoctor/a: CAROLINA ROJAS\nFecha: Mar 13/10 · 09:00"
+                },
+                "ci": {
+                    "type": "string",
+                    "__example__": "1234567"
+                },
+                "show_ci": {
+                    "type": "boolean",
+                    "__example__": true
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextCaption",
+                        "text": "Paso 5 de 5"
+                    },
+                    {
+                        "type": "TextHeading",
+                        "text": "${data.heading}"
+                    },
+                    {
+                        "type": "TextBody",
+                        "text": "${data.detail}"
+                    },
+                    {
+                        "type": "TextInput",
+                        "name": "ci",
+                        "label": "Tu carnet de identidad",
+                        "input-type": "text",
+                        "required": false,
+                        "init-value": "${data.ci}",
+                        "visible": "${data.show_ci}",
+                        "helper-text": "Si está mal, corregilo y tocá Confirmar para verificar de nuevo"
+                    },
+                    {
+                        "type": "Footer",
+                        "label": "Confirmar cita",
+                        "on-click-action": {
+                            "name": "data_exchange",
+                            "payload": {
+                                "confirm": "si",
+                                "ci": "${form.ci}"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}

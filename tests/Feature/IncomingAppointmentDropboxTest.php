@@ -166,15 +166,15 @@ it('normalizeDropbox convierte startDate UTC a la timezone de la app', function 
     $payload = smdPayload(['startDate' => '2026-05-12T15:45:00.000Z']);
     $result = $method->invoke($service, $payload);
 
-    // La timezone de testing es America/La_Paz (UTC-4)
-    // 15:45 UTC → 11:45 La_Paz
-    $parsed = Carbon::parse($result['schedule_from']);
-    expect($parsed->format('H:i'))->toBe('15:45'); // normalizeDropbox no convierte, solo pasa el string — conversión es en process()
-    expect($result['schedule_from'])->toBe('2026-05-12T15:45:00.000Z');
+    // La conversión a hora boliviana se hace acá, en el borde: de este punto
+    // para adentro las horas ya son locales (antes el string UTC viajaba crudo
+    // hasta process(), y cada consumidor tenía que acordarse de convertirlo).
+    // 15:45 UTC → 11:45 en La Paz (UTC-4).
+    expect($result['schedule_from'])->toBe('2026-05-12 11:45:00');
 });
 
 // ---------------------------------------------------------------------------
-// processDropbox — creación de entidades
+// processDropbox - creación de entidades
 // ---------------------------------------------------------------------------
 
 it('processDropbox crea Lead Activity Person y Doctor para un evento nuevo', function () {

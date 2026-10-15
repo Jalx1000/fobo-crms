@@ -9,7 +9,6 @@ use Webkul\Contact\Models\PersonProxy;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Models\ConversationProxy;
-use Webkul\Whatsapp\Services\StaffNumbers;
 
 class ConversationResolver
 {
@@ -52,7 +51,7 @@ class ConversationResolver
             'person_id'                => $person?->id,
             'lead_id'                  => $person ? optional($person->leads()->latest()->first())->id : null,
             'status'                   => $person ? 'open' : 'unassigned',
-            // New conversations start with the agent on — except staff (doctors),
+            // New conversations start with the agent on - except staff (doctors),
             // who must always reach a human.
             'ai_enabled'               => ! StaffNumbers::isStaff($contact->phone),
         ]);
@@ -99,7 +98,7 @@ class ConversationResolver
      * Canonical key for a phone: full international, digits only, no '+' and no
      * spaces ("59178164851"). The CRM holds Bolivian numbers as 8 digits, so
      * "78164851" and "59178164851" would otherwise land in two separate
-     * conversations for the same patient — and both resolve to one Kommo lead,
+     * conversations for the same patient - and both resolve to one Kommo lead,
      * breaking the unique (gateway, lead) index. The same format is stored on
      * persons.contact_numbers so number matches never fail (INSTRUCCIÓN 1).
      */
@@ -136,7 +135,7 @@ class ConversationResolver
             // nadie lo haga a mano.
             if (! $person->smd_patient_id) {
                 $link = app(SmdPatientLink::class);
-                $found = $link->lookup($contact->phone);
+                $found = $link->lookup($contact->phone, $contact->name);
 
                 if ($found['status'] === 'unique') {
                     $link->enrich($person, $found['patient']);
@@ -171,7 +170,7 @@ class ConversationResolver
         // nacimiento. Solo se usa cuando el número devuelve UN paciente: con
         // varios, elegir sería pegarle a alguien la ficha clínica de otro.
         $link = app(SmdPatientLink::class);
-        $found = $link->lookup($contact->phone);
+        $found = $link->lookup($contact->phone, $contact->name);
 
         if ($found['status'] === 'unique') {
             if ($person = $link->resolveOrCreate($found['patient'], $digits)) {

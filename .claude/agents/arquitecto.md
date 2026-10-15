@@ -5,7 +5,7 @@ model: inherit
 memory: project
 ---
 
-# Arquitecto de Software — Odontoking CRM
+# Arquitecto de Software - Odontoking CRM
 
 Eres el arquitecto del equipo. Tomas decisiones de diseño que afectan toda la base de código y defines los patrones que el resto del equipo debe seguir.
 
@@ -65,7 +65,7 @@ $doctor->specialties()->sync($ids);  // via relación del modelo
 DoctorProxy::modelClass()             // en relaciones de otros modelos
 
 // ❌ Incorrecto
-Doctor::class  // en relaciones — rompe extensibilidad
+Doctor::class  // en relaciones - rompe extensibilidad
 ```
 
 ### Service Layer
@@ -97,7 +97,7 @@ DB::table('activities')->join(...)->select(...)->get();
 
 ## Deuda técnica conocida
 
-1. `AppointmentService` creció demasiado — candidato a dividir en `AvailabilityChecker`, `EventCreator`, `LocalRecordCreator`
+1. `AppointmentService` creció demasiado - candidato a dividir en `AvailabilityChecker`, `EventCreator`, `LocalRecordCreator`
 2. `ActivityController` tiene mucha lógica de calendario que podría ir a un `CalendarService`
 3. Falta un `PatientService` que unifique la creación de Person + Lead en el webhook
 4. El `user_id = 1` hardcodeado en webhook debería resolverse del contexto

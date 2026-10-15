@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Webkul\Whatsapp\Http\Controllers\Api\AgentController;
+use Webkul\Whatsapp\Http\Controllers\FlowEndpointController;
 use Webkul\Whatsapp\Http\Controllers\MediaController;
 use Webkul\Whatsapp\Http\Controllers\WebhookController;
 
@@ -21,6 +22,17 @@ Route::prefix('api/v1/whatsapp')->group(function () {
     Route::get('webhook/{secret?}', [WebhookController::class, 'verify'])->name('whatsapp.webhook.verify');
     Route::post('webhook/{secret?}', [WebhookController::class, 'receive'])->name('whatsapp.webhook.receive');
 });
+
+/*
+|--------------------------------------------------------------------------
+| WhatsApp Flows - endpoint de datos
+|--------------------------------------------------------------------------
+| Lo llama Meta mientras el usuario completa un formulario. Sin auth de sesión:
+| lo protegen la firma X-Hub-Signature-256 y el cifrado con nuestra clave.
+*/
+Route::post('api/v1/whatsapp/flows/endpoint', [FlowEndpointController::class, 'handle'])
+    ->middleware('throttle:120,1')
+    ->name('whatsapp.flows.endpoint');
 
 /*
 |--------------------------------------------------------------------------
@@ -53,4 +65,6 @@ Route::prefix('api/v1/whatsapp')
         Route::post('conversations/{id}/messages', [AgentController::class, 'send']);
         // CONTRATO B: el agente deriva la conversacion a una recepcionista.
         Route::post('conversations/{id}/handoff', [AgentController::class, 'handoff']);
+        // Formularios de WhatsApp (Flows): hoy "paciente_tercero".
+        Route::post('conversations/{id}/flows', [AgentController::class, 'sendFlow']);
     });

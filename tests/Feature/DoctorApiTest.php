@@ -1,21 +1,22 @@
 <?php
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
-use function Pest\Laravel\get;
 use Carbon\Carbon;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
+
+use function Pest\Laravel\get;
 
 uses(DatabaseTransactions::class);
 
 it('retrieves doctor details with weekly schedule', function () {
     // Generar un nom   bre único para evitar conflictos con datos reales
-    $testDoctorName = 'Dr. Test Safe ' . uniqid();
+    $testDoctorName = 'Dr. Test Safe '.uniqid();
 
     // Create Doctor
     $doctorId = DB::table('doctors')->insertGetId([
-        'name' => $testDoctorName,
-        'email' => 'test.' . uniqid() . '@example.com',
-        'is_active' => true,
+        'name'       => $testDoctorName,
+        'email'      => 'test.'.uniqid().'@example.com',
+        'is_active'  => true,
         'created_at' => now(),
         'updated_at' => now(),
     ]);
@@ -52,9 +53,9 @@ it('retrieves doctor details with weekly schedule', function () {
     $response->assertJsonStructure([
         'id', 'name', 'schedule' => [
             '*' => ['date', 'slots' => [
-                '*' => ['start_time', 'end_time', 'status']
-            ]]
-        ]
+                '*' => ['start_time', 'end_time', 'status'],
+            ]],
+        ],
     ]);
 
     $schedule = $response->json('schedule');

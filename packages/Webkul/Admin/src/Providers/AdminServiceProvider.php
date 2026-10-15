@@ -38,10 +38,10 @@ class AdminServiceProvider extends ServiceProvider
             ->group(__DIR__.'/../Routes/Front/web.php');
 
         Route::middleware([
-                'auth:sanctum',
-                'throttle:api',
-                \Illuminate\Routing\Middleware\SubstituteBindings::class,
-            ])
+            'auth:sanctum',
+            'throttle:api',
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+        ])
             ->group(__DIR__.'/../Routes/Api/insurance.php');
 
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');

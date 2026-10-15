@@ -5,7 +5,6 @@ namespace Webkul\Admin\DataGrids\Product;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Webkul\DataGrid\DataGrid;
-use Webkul\Tag\Repositories\TagRepository;
 
 class ProductDataGrid extends DataGrid
 {
@@ -17,10 +16,10 @@ class ProductDataGrid extends DataGrid
         $tablePrefix = DB::getTablePrefix();
 
         $queryBuilder = DB::table('products')
-            ->leftJoin('attribute_values as type_service_2_av', function ($join) use ($tablePrefix) {
+            ->leftJoin('attribute_values as type_service_2_av', function ($join) {
                 $join->on('products.id', '=', 'type_service_2_av.entity_id')
                     ->where('type_service_2_av.entity_type', '=', DB::raw("'products'"))
-                    ->where('type_service_2_av.attribute_id', '=', function ($query) use ($tablePrefix) {
+                    ->where('type_service_2_av.attribute_id', '=', function ($query) {
                         $query->select('id')->from('attributes')->where('code', '=', DB::raw("'type_service_2'"))->limit(1);
                     });
             })

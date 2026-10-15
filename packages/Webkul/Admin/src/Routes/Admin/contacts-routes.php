@@ -3,10 +3,9 @@
 use Illuminate\Support\Facades\Route;
 use Webkul\Admin\Http\Controllers\Contact\OrganizationController;
 use Webkul\Admin\Http\Controllers\Contact\Persons\ActivityController;
+use Webkul\Admin\Http\Controllers\Contact\Persons\InsuranceController;
 use Webkul\Admin\Http\Controllers\Contact\Persons\PersonController;
 use Webkul\Admin\Http\Controllers\Contact\Persons\TagController;
-
-use Webkul\Admin\Http\Controllers\Contact\Persons\InsuranceController;
 
 Route::prefix('contacts')->group(function () {
     /**

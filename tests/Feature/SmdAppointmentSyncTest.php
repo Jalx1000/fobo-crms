@@ -53,7 +53,7 @@ it('crea una cita nueva y registra el evento sincronizado', function () {
 it('cancela una cita archivada existente', function () {
     DB::table('smd_synced_events')->insert([
         'external_id' => 'ext-cancel', 'raw_payload' => '{}', 'status' => '',
-        'created_at' => now(), 'updated_at' => now(),
+        'created_at'  => now(), 'updated_at' => now(),
     ]);
 
     $dropbox = Mockery::mock(DropboxService::class);
@@ -73,7 +73,7 @@ it('omite un evento sin cambios (mismo hash)', function () {
 
     DB::table('smd_synced_events')->insert([
         'external_id' => 'ext-same', 'raw_payload' => json_encode($payload), 'status' => '',
-        'created_at' => now(), 'updated_at' => now(),
+        'created_at'  => now(), 'updated_at' => now(),
     ]);
 
     $dropbox = Mockery::mock(DropboxService::class);
@@ -135,7 +135,7 @@ it('rechaza con 409 si ya hay un sync en curso', function () {
 
 it('devuelve el estado actual del sync con el flag paused', function () {
     Cache::put(SyncSmdAppointmentsJob::STATUS_KEY, [
-        'state' => 'done',
+        'state'   => 'done',
         'summary' => ['creados' => 1, 'actualizados' => 0, 'cancelados' => 0, 'sin_cambios' => 0, 'errores' => 0],
     ], 600);
 

@@ -16,8 +16,8 @@ use Webkul\Lead\Models\TypeProxy;
 use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Product\Models\ProductProxy;
 use Webkul\Whatsapp\Models\ConversationProxy;
-use Webkul\Whatsapp\Services\PhoneNumber;
 use Webkul\Whatsapp\Models\MessageProxy;
+use Webkul\Whatsapp\Services\PhoneNumber;
 
 /**
  * Standalone WhatsApp page: the conversation list pane. The thread itself is
@@ -205,7 +205,7 @@ class ChatController extends Controller
             ? ConversationProxy::modelClass()::whereIn('id', $conversationIds)->max('last_inbound_at')
             : null;
 
-        // Follow-up snapshot: who spoke last and how long ago — that's what
+        // Follow-up snapshot: who spoke last and how long ago - that's what
         // tells the advisor whether this client is waiting on them.
         $lastMessage = $conversationIds->isNotEmpty()
             ? $messageModel::whereIn('conversation_id', $conversationIds)
@@ -267,6 +267,34 @@ class ChatController extends Controller
                 'leads.title as lead_title',
             ]);
 
+        /**
+         * Cobertura del paciente para el panel de perfil.
+         *
+         * El atributo `seguro_paciente` es multiselect: puede haber varias aseguradoras
+         * y cada una tiene su propio estado en `person_insurance_statuses`. El asesor
+         * necesita verlas todas antes de cotizar por chat.
+         */
+        $attributeRepository = app(\Webkul\Attribute\Repositories\AttributeRepository::class);
+
+        $seguroAttribute = $attributeRepository->findOneByField('code', 'seguro_paciente');
+        $ciAttribute = $attributeRepository->findOneByField('code', 'ci_paciente');
+
+        $persistedStatuses = $person->insuranceStatuses->keyBy('attribute_option_id');
+
+        $insurances = collect(
+            app(\Webkul\Admin\Services\InsuranceService::class)
+                ->getPersonInsurances($person, $seguroAttribute)
+        )->map(function ($insurance) use ($persistedStatuses) {
+            $persisted = $persistedStatuses->get($insurance['id']);
+
+            return $insurance + [
+                'status'     => $persisted?->status,
+                'message'    => $persisted?->message,
+                'payload'    => $persisted?->payload,
+                'checked_at' => $persisted?->checked_at?->locale('es')->diffForHumans(),
+            ];
+        })->values();
+
         return response()->json([
             'person' => [
                 'id'              => $person->id,
@@ -327,6 +355,23 @@ class ChatController extends Controller
                     'amount'     => $p->amount !== null ? number_format((float) $p->amount, 2) : null,
                     'lead_title' => $p->lead_title,
                 ])->values(),
+                // Detalle por aseguradora + veredicto agregado del paciente.
+                'insurances'           => $insurances,
+                'insurance_status'     => $person->insurance_status,
+                'insurance_checked_at' => $person->insurance_checked_at?->locale('es')->diffForHumans(),
+
+                /**
+                 * CI y catálogo de aseguradoras: el asesor edita la cobertura sin
+                 * salir del inbox, así que el panel necesita con qué poblar el form.
+                 */
+                'insurance_ci'      => $ciAttribute ? $person->getCustomAttributeValue($ciAttribute) : null,
+                'insurance_options' => $seguroAttribute
+                    ? DB::table('attribute_options')
+                        ->where('attribute_id', $seguroAttribute->id)
+                        ->orderBy('sort_order')
+                        ->get(['id', 'name'])
+                    : [],
+
                 'leads_total'     => number_format((float) $person->leads->sum('lead_value'), 2),
                 'leads'           => $person->leads->map(fn ($lead) => [
                     'id'         => $lead->id,
@@ -338,6 +383,58 @@ class ChatController extends Controller
                 ])->values(),
             ],
         ]);
+    }
+
+    /**
+     * Guarda los seguros del paciente y los verifica, desde el panel del inbox.
+     *
+     * Existe acá (y no reusando la ruta de contactos) para que el front del chat
+     * arme la URL sobre el mismo `personUrlBase` que ya recibe, sin encadenar una
+     * prop nueva a través de chat.blade + inbox-component. La lógica es la misma:
+     * delega en PersonRepository + InsuranceService.
+     */
+    public function updateInsurance(
+        Request $request,
+        string $personId,
+        PersonRepository $persons,
+        \Webkul\Admin\Services\InsuranceService $insuranceService
+    ): JsonResponse {
+        // Acepta un id suelto o una lista: `seguro_paciente` es multiselect.
+        $request->merge([
+            'seguro_paciente' => array_values(array_filter(
+                \Illuminate\Support\Arr::wrap($request->input('seguro_paciente')),
+                fn ($value) => $value !== null && $value !== ''
+            )),
+        ]);
+
+        $data = $request->validate([
+            'ci_paciente'       => 'required|string',
+            'seguro_paciente'   => 'required|array|min:1',
+            'seguro_paciente.*' => 'exists:attribute_options,id',
+        ]);
+
+        $person = $persons->find($personId);
+
+        if (! $person) {
+            return response()->json(['message' => 'Paciente no encontrado.'], 404);
+        }
+
+        $persons->update([
+            'entity_type'     => 'persons',
+            'ci_paciente'     => $data['ci_paciente'],
+            'seguro_paciente' => $data['seguro_paciente'],
+        ], $personId);
+
+        $result = $insuranceService->verify((int) $personId);
+
+        // Una nota por aseguradora con datos reales, igual que en la ficha.
+        foreach ($result['results'] ?? [$result] as $single) {
+            if (in_array($single['status'], ['VIGENTE', 'EN_MORA'])) {
+                $insuranceService->createNoteActivity((int) $personId, $single);
+            }
+        }
+
+        return response()->json($result);
     }
 
     /**
@@ -456,7 +553,7 @@ class ChatController extends Controller
 
         // Doctors are stored as the receptionist typed them (often 8 local
         // digits) while conversations key on the canonical wa_id, so they are
-        // matched on the trailing digits — the same rule the rest of the
+        // matched on the trailing digits - the same rule the rest of the
         // pipeline uses.
         $byTail = ConversationProxy::modelClass()::query()
             ->whereNotNull('wa_phone')

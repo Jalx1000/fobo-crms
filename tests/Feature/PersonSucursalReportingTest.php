@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
+use Webkul\Admin\Helpers\Reporting\Lead as LeadReporting;
+use Webkul\Attribute\Models\Attribute;
 use Webkul\Contact\Models\Person;
 use Webkul\Lead\Models\Lead;
-use Webkul\Attribute\Models\Attribute;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Webkul\Admin\Helpers\Reporting\Lead as LeadReporting;
 use Webkul\User\Models\User;
 
 class PersonSucursalReportingTest extends TestCase
@@ -43,24 +43,24 @@ class PersonSucursalReportingTest extends TestCase
         // Create a Person
         // Note: Using DB insert for simplicity if factories are not set up perfectly
         $personId = DB::table('persons')->insertGetId([
-            'name' => 'Test Person',
+            'name'       => 'Test Person',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
         // Add Sucursal Attribute Value
-        $sucursalValue = 'Test Branch ' . rand(1000, 9999);
+        $sucursalValue = 'Test Branch '.rand(1000, 9999);
         DB::table('attribute_values')->insert([
-            'entity_type' => 'persons',
+            'entity_type'  => 'persons',
             'attribute_id' => $attribute->id,
-            'entity_id' => $personId,
-            'text_value' => $sucursalValue,
+            'entity_id'    => $personId,
+            'text_value'   => $sucursalValue,
         ]);
 
         // Create a Lead linked to this Person
         $leadId = DB::table('leads')->insertGetId([
-            'title' => 'Test Lead',
-            'person_id' => $personId,
+            'title'      => 'Test Lead',
+            'person_id'  => $personId,
             'created_at' => now(),
             'updated_at' => now(),
             // Add other required fields if necessary, assuming defaults or nullable
@@ -81,8 +81,8 @@ class PersonSucursalReportingTest extends TestCase
         $this->assertArrayHasKey('data', $result);
 
         $this->assertContains($sucursalValue, $result['labels'], "The result labels should contain the person's sucursal value.");
-        
+
         $index = array_search($sucursalValue, $result['labels']);
-        $this->assertGreaterThanOrEqual(1, $result['data'][$index], "The count for the sucursal should be at least 1.");
+        $this->assertGreaterThanOrEqual(1, $result['data'][$index], 'The count for the sucursal should be at least 1.');
     }
 }

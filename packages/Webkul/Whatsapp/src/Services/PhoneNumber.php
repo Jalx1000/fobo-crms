@@ -43,7 +43,7 @@ class PhoneNumber
      * Local numbers, in digits, that may still be missing their country code.
      *
      * Bolivian numbers are 8 digits (mobile and landline alike), so anything
-     * longer already carries a country code — prefixing it would corrupt a
+     * longer already carries a country code - prefixing it would corrupt a
      * foreign number: "5493875154445" (Argentina) became "5915493875154445".
      */
     protected const LOCAL_LENGTH = 8;

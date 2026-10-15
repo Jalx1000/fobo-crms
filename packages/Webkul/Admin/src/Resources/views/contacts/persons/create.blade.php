@@ -186,6 +186,15 @@
                 return result.success ? 'neutral' : 'warning';
             }
 
+            // Aplana el `data` crudo de la aseguradora en pares label/valor mostrables.
+            function insuranceDetails(data) {
+                if (! data || typeof data !== 'object') return [];
+
+                return Object.entries(data)
+                    .filter(([, value]) => value !== null && value !== '' && value !== undefined)
+                    .map(([label, value]) => ({ label, value }));
+            }
+
             // Botón "Verificar Seguro" (modo quick, sin person_id).
             // Emite el resultado por el $emitter para que v-insurance-result lo pinte.
             app.component('v-insurance-quick', {
@@ -218,7 +227,14 @@
                 methods: {
                     async verify() {
                         const ci     = document.querySelector('[name="ci_paciente"]')?.value?.trim();
-                        const seguro = document.querySelector('[name="seguro_paciente"]')?.value;
+
+                        /**
+                         * seguro_paciente es multiselect: el componente de chips renderiza
+                         * inputs ocultos `seguro_paciente[]`, no un select simple.
+                         * La verificación externa corre contra un solo seguro → el primero.
+                         */
+                        const seguro = document.querySelector('[name="seguro_paciente[]"]')?.value
+                            ?? document.querySelector('[name="seguro_paciente"]')?.value;
 
                         if (! ci || ! seguro) {
                             this.$emitter.emit('add-flash', {
@@ -312,48 +328,65 @@
                     });
                 },
                 computed: {
-                    palette() {
+                    /**
+                     * Un paciente puede tener varias aseguradoras y cada una se verifica
+                     * por separado. Normalizamos a una lista de tarjetas: `results` cuando
+                     * el backend devolvió el detalle, o el resultado suelto como tarjeta única.
+                     */
+                    cards() {
+                        if (! this.result) return [];
+
+                        const list = Array.isArray(this.result.results) && this.result.results.length
+                            ? this.result.results
+                            : [this.result];
+
+                        const theme = this.isDark ? 'dark' : 'light';
+
+                        return list.map((r, i) => ({
+                            key:     r.seguro_id ?? i,
+                            name:    r.seguro_name || null,
+                            status:  r.status,
+                            message: r.message,
+                            palette: INSURANCE_PALETTE[theme][insuranceSeverity(r)],
+                            details: insuranceDetails(r.data),
+                        }));
+                    },
+
+                    // Con una sola aseguradora la cabecera repetiría la tarjeta: se omite.
+                    showSummary() {
+                        return this.cards.length > 1;
+                    },
+
+                    summaryPalette() {
                         const theme = this.isDark ? 'dark' : 'light';
                         return INSURANCE_PALETTE[theme][insuranceSeverity(this.result)];
                     },
-                    bannerStyle() {
+                },
+                methods: {
+                    cardStyle(palette) {
                         return {
-                            backgroundColor: this.palette.bg,
-                            borderColor:     this.palette.border,
-                            color:           this.palette.text,
+                            backgroundColor: palette.bg,
+                            borderColor:     palette.border,
+                            color:           palette.text,
                         };
                     },
-                    dotStyle() {
-                        return { backgroundColor: this.palette.dot };
-                    },
-                    resultDetails() {
-                        const d = this.result?.data;
-                        if (! d || typeof d !== 'object') return [];
-                        return Object.entries(d)
-                            .filter(([, value]) => value !== null && value !== '' && value !== undefined)
-                            .map(([label, value]) => ({ label, value }));
+                    dotStyle(palette) {
+                        return { backgroundColor: palette.dot };
                     },
                 },
                 template: `
-                    <div
-                        v-if="result"
-                        :style="bannerStyle"
-                        class="rounded-lg border px-4 py-3 text-sm transition-all duration-300"
-                    >
-                        <div class="flex items-start justify-between gap-4">
-                            <div class="flex items-start gap-2.5">
-                                <span :style="dotStyle" class="mt-1.5 h-2 w-2 shrink-0 rounded-full"></span>
-                                <div>
-                                    <p class="font-semibold">@{{ result.status }}</p>
-                                    <p class="mt-0.5 opacity-90">@{{ result.message }}</p>
-
-                                    <dl v-if="resultDetails.length" class="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
-                                        <div v-for="item in resultDetails" :key="item.label" class="flex gap-1.5 text-xs">
-                                            <dt class="font-medium opacity-70">@{{ item.label }}:</dt>
-                                            <dd>@{{ item.value }}</dd>
-                                        </div>
-                                    </dl>
-                                </div>
+                    <div v-if="result" class="flex flex-col gap-2 transition-all duration-300">
+                        <!-- Cabecera: veredicto agregado del paciente -->
+                        <div
+                            v-if="showSummary"
+                            :style="cardStyle(summaryPalette)"
+                            class="flex items-center justify-between gap-4 rounded-lg border px-4 py-2.5 text-sm"
+                        >
+                            <div class="flex items-center gap-2.5">
+                                <span :style="dotStyle(summaryPalette)" class="h-2 w-2 shrink-0 rounded-full"></span>
+                                <p class="font-semibold">
+                                    @{{ cards.length }} seguros verificados - resultado general: @{{ result.status }}
+                                </p>
                             </div>
                             <button
                                 type="button"
@@ -363,6 +396,42 @@
                             >
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
                             </button>
+                        </div>
+
+                        <!-- Una tarjeta por aseguradora -->
+                        <div
+                            v-for="card in cards"
+                            :key="card.key"
+                            :style="cardStyle(card.palette)"
+                            class="rounded-lg border px-4 py-3 text-sm"
+                        >
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="flex items-start gap-2.5">
+                                    <span :style="dotStyle(card.palette)" class="mt-1.5 h-2 w-2 shrink-0 rounded-full"></span>
+                                    <div>
+                                        <p class="font-semibold">
+                                            <span v-if="card.name">@{{ card.name }} - </span>@{{ card.status }}
+                                        </p>
+                                        <p class="mt-0.5 opacity-90">@{{ card.message }}</p>
+
+                                        <dl v-if="card.details.length" class="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+                                            <div v-for="item in card.details" :key="item.label" class="flex gap-1.5 text-xs">
+                                                <dt class="font-medium opacity-70">@{{ item.label }}:</dt>
+                                                <dd>@{{ item.value }}</dd>
+                                            </div>
+                                        </dl>
+                                    </div>
+                                </div>
+                                <button
+                                    v-if="! showSummary"
+                                    type="button"
+                                    class="shrink-0 text-xs opacity-60 transition hover:opacity-100 focus:outline-none"
+                                    @click="result = null"
+                                    aria-label="Cerrar"
+                                >
+                                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `,

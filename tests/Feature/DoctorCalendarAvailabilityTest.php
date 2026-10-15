@@ -1,8 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Carbon\Carbon;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 
 uses(DatabaseTransactions::class);
 
@@ -12,7 +12,7 @@ it('retorna disponibilidad de doctores en el calendario', function () {
 
     // Crear doctor mínimo
     $doctorId = DB::table('doctors')->insertGetId([
-        'name'       => 'Dr. Prueba ' . rand(100, 999),
+        'name'       => 'Dr. Prueba '.rand(100, 999),
         'number'     => null,
         'title'      => null,
         'unique_id'  => null,
@@ -61,8 +61,7 @@ it('retorna disponibilidad de doctores en el calendario', function () {
     // Verificar que los bloques se transformaron en slots de 60 min
     // Bloque 1 (09:00-12:00) -> 3 slots
     // Bloque 2 (15:00-18:00) -> 3 slots
-    $availForDoctorDay = array_values(array_filter($json['availability'], fn ($s) =>
-        (int)($s['doctor_id'] ?? 0) === (int)$doctorId && ($s['date'] ?? '') === $date
+    $availForDoctorDay = array_values(array_filter($json['availability'], fn ($s) => (int) ($s['doctor_id'] ?? 0) === (int) $doctorId && ($s['date'] ?? '') === $date
     ));
 
     // Esperamos 6 slots en total para este día (3 mañana + 3 tarde)

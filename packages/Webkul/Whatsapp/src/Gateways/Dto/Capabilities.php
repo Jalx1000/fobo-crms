@@ -3,7 +3,7 @@
 namespace Webkul\Whatsapp\Gateways\Dto;
 
 /**
- * What a driver ACTUALLY implements today — not what the provider supports in
+ * What a driver ACTUALLY implements today - not what the provider supports in
  * theory. The inbox composer renders from this, so a listed capability must
  * always work.
  */

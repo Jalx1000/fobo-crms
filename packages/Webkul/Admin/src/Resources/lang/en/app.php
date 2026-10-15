@@ -1729,7 +1729,7 @@ return [
     'activities' => [
         'index' => [
             'title'      => 'Activities',
-            'smd-sync' => [
+            'smd-sync'   => [
                 'sync-now'    => 'Sync now',
                 'syncing'     => 'Syncing…',
                 'pause'       => 'Pause sync',

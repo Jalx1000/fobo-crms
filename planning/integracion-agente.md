@@ -153,7 +153,7 @@ Qué debe hacer tu agente:
 2. Responder **rápido `200`** al CRM (el trabajo pesado hacelo async).
 3. Procesar con LangChain usando `message.text` + `history` + `contact`.
 4. Enviar la respuesta con el `reply.url` (punto 4).
-5. Respetar `window.open`: si es `false`, WhatsApp no deja texto libre — el POST de respuesta te va a devolver `422`.
+5. Respetar `window.open`: si es `false`, WhatsApp no deja texto libre - el POST de respuesta te va a devolver `422`.
 
 ---
 
@@ -211,7 +211,7 @@ Campos del body:
 | `422` (con `message` de ventana) | Fuera de la ventana de 24h de WhatsApp | No reintentar el texto libre. Esperar a que el cliente escriba, o usar plantilla (no soportado aún) |
 | `422` (validación) | Falta `text` u otro campo | Corregir el body |
 | `404` | La conversación no existe | Revisar el `conversation_id` |
-| `401` / `500` en auth | Token inválido/ausente | Revisar el Bearer. *Nota: la REST API de Krayin hoy devuelve `500` en vez de `401` ante token inválido — es comportamiento global de la plataforma, no de este módulo* |
+| `401` / `500` en auth | Token inválido/ausente | Revisar el Bearer. *Nota: la REST API de Krayin hoy devuelve `500` en vez de `401` ante token inválido - es comportamiento global de la plataforma, no de este módulo* |
 
 ---
 

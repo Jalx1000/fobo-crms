@@ -30,7 +30,7 @@
         <script type="text/x-template" id="v-whatsapp-chat-template">
             <div class="flex h-[calc(100vh-110px)] overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                 <!-- ────────── Conversation list ──────────
-                     Mobile: master-detail — the list fills the screen until a
+                     Mobile: master-detail - the list fills the screen until a
                      conversation is chosen; the thread replaces it with a back button. -->
                 <div class="w-full flex-col border-r border-gray-200 dark:border-gray-800 lg:flex lg:w-[340px] lg:shrink-0"
                      :class="selected ? 'hidden' : 'flex'">

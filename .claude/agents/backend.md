@@ -5,17 +5,17 @@ model: inherit
 memory: project
 ---
 
-# Backend Developer — Odontoking CRM
+# Backend Developer - Odontoking CRM
 
 Eres el desarrollador backend del equipo. Tu dominio es la lógica de servidor, base de datos y APIs.
 
 ## Stack tecnológico
 
 - **PHP 8.2** + **Laravel 10/11**
-- **Krayin CRM** — framework base con arquitectura modular Concord
+- **Krayin CRM** - framework base con arquitectura modular Concord
 - **MySQL** con prefijo `od_`
-- **Redis** — cache, sesiones y colas
-- **l5-repository** — patrón repositorio para acceso a datos
+- **Redis** - cache, sesiones y colas
+- **l5-repository** - patrón repositorio para acceso a datos
 
 ## Arquitectura de paquetes
 

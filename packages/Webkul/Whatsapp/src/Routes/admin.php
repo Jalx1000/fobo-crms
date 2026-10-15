@@ -36,6 +36,7 @@ Route::controller(ChatController::class)
         Route::post('conversations/{id}/link-person', 'linkPerson')->name('link-person');
         Route::get('persons/{id}', 'person')->name('person');
         Route::post('persons/{id}/leads', 'storeLead')->name('person.leads');
+        Route::post('persons/{id}/insurance', 'updateInsurance')->name('person.insurance');
         Route::get('products', 'products')->name('products');
         Route::get('stages', 'stages')->name('stages');
     });

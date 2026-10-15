@@ -24,7 +24,7 @@ use Webkul\Whatsapp\Services\PhoneNumber;
  *
  * Inbound: form-encoded webhook using bracket notation
  * (message[add][0][text]), which PHP parses into a nested array for free.
- * It carries the lead id but NOT the phone — that needs a second call.
+ * It carries the lead id but NOT the phone - that needs a second call.
  *
  * Outbound: there is no "send message" endpoint. Sending is a two-step dance:
  *   1. PATCH /api/v4/leads/{id}   -> park the text in a custom field
@@ -141,7 +141,7 @@ class KommoGateway extends BaseGateway
      *
      * Kommo carries an attachment under `attachment` (link/type/file_name) and
      * echoes its kind in `message_type`. We map that kind to the vocabulary the
-     * inbox renders — image/audio/video/document/sticker — and hand the link to
+     * inbox renders - image/audio/video/document/sticker - and hand the link to
      * the ingestion job, which downloads it before Kommo's URL expires.
      *
      * Attachment-less kinds (a shared vCard or a location) have no file, so they
@@ -216,7 +216,7 @@ class KommoGateway extends BaseGateway
      * Deliberately its OWN method, not a branch of sendText: it targets a
      * different bot, parks one custom field per template variable (not the
      * single free-text field) and, unlike an agent reply, must reach patients
-     * who are NOT in Kommo yet — so it resolves-or-creates the lead by phone.
+     * who are NOT in Kommo yet - so it resolves-or-creates the lead by phone.
      * The two share only low-level plumbing (resolveLeadId, runSalesbot, http).
      */
     public function sendTemplate(
@@ -348,7 +348,7 @@ class KommoGateway extends BaseGateway
 
         $leadId = $this->findLeadByPhone($phone) ?? $this->createLead($phone, $conversation->wa_name);
 
-        // Persist for reuse — unless another conversation already owns this lead
+        // Persist for reuse - unless another conversation already owns this lead
         // (same patient reached under two phone formats). The unique
         // (gateway, provider_conversation_id) index would reject it, and the
         // send only needs the id, so a collision must never fail the send.
@@ -403,7 +403,7 @@ class KommoGateway extends BaseGateway
         $response = $this->http()
             ->post($this->url('/api/v4/leads/complex'), [
                 [
-                    'name'      => 'Recordatorio de cita — '.$name,
+                    'name'      => 'Recordatorio de cita - '.$name,
                     '_embedded' => [
                         'contacts' => [
                             [

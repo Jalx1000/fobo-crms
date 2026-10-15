@@ -208,7 +208,7 @@ class Lead extends AbstractReporting
         $countsByUser = [];
 
         foreach ($results as $row) {
-            $countsByUser[$row->user_name ?? '—'] = (int) $row->count;
+            $countsByUser[$row->user_name ?? '-'] = (int) $row->count;
         }
 
         $usersQuery = $this->userRepository->resetModel()->select('name')->whereNotIn('id', $this->excludedUserIds);
@@ -318,7 +318,7 @@ class Lead extends AbstractReporting
         $avgByUser = [];
 
         foreach ($results as $row) {
-            $avgByUser[$row->user_name ?? '—'] = $row->avg_response_seconds ? (int) $row->avg_response_seconds : 0;
+            $avgByUser[$row->user_name ?? '-'] = $row->avg_response_seconds ? (int) $row->avg_response_seconds : 0;
         }
 
         $usersQuery = $this->userRepository->resetModel()->select('name')->whereNotIn('id', $this->excludedUserIds);

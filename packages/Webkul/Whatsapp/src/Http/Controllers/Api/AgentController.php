@@ -6,12 +6,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
+use Webkul\Whatsapp\Gateways\Contracts\SupportsFlows;
 use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\AgentPayload;
+use Webkul\Whatsapp\Services\Flows\FlowToken;
 
 /**
  * Token-authenticated API for the external AI agent: read the conversation for
@@ -55,7 +57,7 @@ class AgentController extends Controller
      * Derivación a recepción (CONTRATO B).
      *
      * El agente pide el traspaso y el CRM apaga el bot para esa conversación.
-     * Va atado a la CONVERSACIÓN —o sea, al paciente— y no a un lead: los leads
+     * Va atado a la CONVERSACIÓN -o sea, al paciente- y no a un lead: los leads
      * son las citas, van cambiando de etapa, y mover una a "recepción" le
      * borraría su estado real. El paciente, en cambio, es estable.
      *
@@ -72,6 +74,7 @@ class AgentController extends Controller
      *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
      *
      *     @OA\RequestBody(@OA\JsonContent(
+     *
      *         @OA\Property(property="motivo", type="string", nullable=true),
      *         @OA\Property(property="fuera_de_horario", type="boolean", nullable=true)
      *     )),
@@ -172,6 +175,69 @@ class AgentController extends Controller
 
         return response()->json([
             'message' => ['id' => $message->id, 'status' => $message->status, 'sender' => $message->sender],
+        ]);
+    }
+
+    /**
+     * HERRAMIENTA DEL AGENTE: envía un formulario de WhatsApp (Flow).
+     *
+     * POST /api/v1/whatsapp/conversations/{id}/flows {flow, text?}
+     *
+     * flow: "paciente_tercero" (agendar), "cancelar_cita" o "reprogramar_cita".
+     * Cuando el paciente lo completa, al agente le llega un mensaje
+     * `flow_reply` con los datos en `message.flow` (ver docs/agente-ia-integracion.md).
+     */
+    public function sendFlow(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            'flow' => 'required|string|in:'.implode(',', \Webkul\Whatsapp\Services\Flows\FlowDefinitions::keys()),
+            'text' => 'nullable|string|max:1000',
+        ]);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        $key = config('whatsapp.outbound_gateway');
+        $gateway = $key ? $this->gateways->driver((string) $key) : $this->gateways->for($conversation);
+
+        if (! $gateway instanceof SupportsFlows) {
+            return response()->json(['message' => 'Este canal no soporta formularios de WhatsApp (Flows).'], 422);
+        }
+
+        $window = MessagingWindow::compute($gateway->messagingWindowHours(), $conversation->last_inbound_at);
+
+        if ($window->applies && ! $window->open) {
+            return response()->json([
+                'message' => 'Fuera de la ventana de 24h de WhatsApp: el formulario solo se puede enviar mientras la conversación está abierta.',
+            ], 422);
+        }
+
+        $config = \Webkul\Whatsapp\Services\Flows\FlowDefinitions::config($data['flow']);
+        $token = FlowToken::issue((int) $conversation->id, $data['flow']);
+
+        $message = MessageProxy::modelClass()::create([
+            'conversation_id' => $conversation->id,
+            'direction'       => 'outbound',
+            'type'            => 'flow',
+            'body'            => $data['text'] ?? \Webkul\Whatsapp\Services\Flows\FlowDefinitions::defaultText($data['flow']),
+            'status'          => 'queued',
+            'sender'          => 'ia',
+            'payload'         => ['flow' => [
+                'key'   => $data['flow'],
+                'token' => $token,
+                'name'  => $config['name'] ?? null,
+                'id'    => $config['id'] ?? null,
+                'cta'   => $config['cta'] ?? 'Completar datos',
+                'mode'  => $config['mode'] ?? 'published',
+            ]],
+        ]);
+
+        $conversation->forceFill(['last_message_at' => now()])->save();
+
+        SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
+
+        return response()->json([
+            'message'    => ['id' => $message->id, 'status' => $message->status, 'type' => 'flow'],
+            'flow_token' => $token,
         ]);
     }
 }

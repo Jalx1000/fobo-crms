@@ -2,6 +2,7 @@
 
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Webkul\Product\Models\Product;
+
 use function Pest\Laravel\get;
 
 uses(DatabaseTransactions::class);
@@ -13,7 +14,7 @@ uses(DatabaseTransactions::class);
 it('persiste duration_minutes como integer en la base de datos', function () {
     $product = Product::create([
         'name'             => 'Limpieza Dental Test',
-        'sku'              => 'TEST-DUR-' . uniqid(),
+        'sku'              => 'TEST-DUR-'.uniqid(),
         'duration_minutes' => 30,
     ]);
 
@@ -23,7 +24,7 @@ it('persiste duration_minutes como integer en la base de datos', function () {
 it('devuelve null cuando duration_minutes no está configurado', function () {
     $product = Product::create([
         'name' => 'Producto Sin Duración Test',
-        'sku'  => 'TEST-DUR-NULL-' . uniqid(),
+        'sku'  => 'TEST-DUR-NULL-'.uniqid(),
     ]);
 
     expect($product->fresh()->duration_minutes)->toBeNull();
@@ -32,7 +33,7 @@ it('devuelve null cuando duration_minutes no está configurado', function () {
 it('castea duration_minutes a integer (no string)', function () {
     $product = Product::create([
         'name'             => 'Cast Test',
-        'sku'              => 'TEST-CAST-' . uniqid(),
+        'sku'              => 'TEST-CAST-'.uniqid(),
         'duration_minutes' => 45,
     ]);
 
@@ -44,7 +45,7 @@ it('castea duration_minutes a integer (no string)', function () {
 it('permite actualizar duration_minutes', function () {
     $product = Product::create([
         'name'             => 'Update Test',
-        'sku'              => 'TEST-UPD-' . uniqid(),
+        'sku'              => 'TEST-UPD-'.uniqid(),
         'duration_minutes' => 60,
     ]);
 
@@ -56,7 +57,7 @@ it('permite actualizar duration_minutes', function () {
 it('permite asignar null a duration_minutes (reset a default del agente)', function () {
     $product = Product::create([
         'name'             => 'Reset Test',
-        'sku'              => 'TEST-RESET-' . uniqid(),
+        'sku'              => 'TEST-RESET-'.uniqid(),
         'duration_minutes' => 60,
     ]);
 
@@ -72,7 +73,7 @@ it('permite asignar null a duration_minutes (reset a default del agente)', funct
 it('GET /api/public/products incluye duration_minutes en la respuesta', function () {
     Product::create([
         'name'             => 'API Duration Test',
-        'sku'              => 'TEST-API-' . uniqid(),
+        'sku'              => 'TEST-API-'.uniqid(),
         'duration_minutes' => 30,
     ]);
 
@@ -89,7 +90,7 @@ it('GET /api/public/products incluye duration_minutes en la respuesta', function
 it('GET /api/public/products devuelve el valor correcto de duration_minutes', function () {
     $product = Product::create([
         'name'             => 'Servicio 45 min',
-        'sku'              => 'TEST-API-VAL-' . uniqid(),
+        'sku'              => 'TEST-API-VAL-'.uniqid(),
         'duration_minutes' => 45,
     ]);
 
@@ -106,7 +107,7 @@ it('GET /api/public/products devuelve el valor correcto de duration_minutes', fu
 it('GET /api/public/products devuelve null para productos sin duration_minutes', function () {
     $product = Product::create([
         'name' => 'Producto Sin Duración API',
-        'sku'  => 'TEST-API-NULL-' . uniqid(),
+        'sku'  => 'TEST-API-NULL-'.uniqid(),
     ]);
 
     $response = get('/api/public/products');
@@ -122,7 +123,7 @@ it('GET /api/public/products devuelve null para productos sin duration_minutes',
 it('duration_minutes no es string en la respuesta JSON (cast correcto)', function () {
     $product = Product::create([
         'name'             => 'Type Check',
-        'sku'              => 'TEST-TYPE-' . uniqid(),
+        'sku'              => 'TEST-TYPE-'.uniqid(),
         'duration_minutes' => 120,
     ]);
 

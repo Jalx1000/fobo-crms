@@ -12,7 +12,7 @@ use Webkul\Doctor\Models\Doctor;
 uses(DatabaseTransactions::class);
 
 beforeEach(function () {
-    $this->tz   = config('app.timezone');
+    $this->tz = config('app.timezone');
     $this->date = Carbon::today()->addDay()->toDateString();
 });
 
@@ -23,13 +23,13 @@ beforeEach(function () {
 function smdSlots(string $date, string $tz, int $startHour = 8, int $endHour = 10): array
 {
     $intervals = [];
-    $cursor    = Carbon::parse("$date $startHour:00", $tz);
-    $end       = Carbon::parse("$date $endHour:00", $tz);
+    $cursor = Carbon::parse("$date $startHour:00", $tz);
+    $end = Carbon::parse("$date $endHour:00", $tz);
 
     while ($cursor->lt($end)) {
-        $next        = $cursor->copy()->addMinutes(15);
+        $next = $cursor->copy()->addMinutes(15);
         $intervals[] = ['start' => $cursor->toIso8601String(), 'end' => $next->toIso8601String()];
-        $cursor      = $next;
+        $cursor = $next;
     }
 
     return [[$date => $intervals]];

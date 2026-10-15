@@ -1,4 +1,4 @@
-# Alcance — Enviar plantillas cuando la ventana de 24h está cerrada
+# Alcance - Enviar plantillas cuando la ventana de 24h está cerrada
 
 **Módulo:** `packages/Webkul/Whatsapp`
 **Estado:** propuesta, sin implementar
@@ -86,7 +86,7 @@ Devuelve, por plantilla: `name`, `language`, `status`, `category`, `id` y `compo
 
 Un servicio nuevo se encarga de:
 
-1. Consultar y **filtrar por `status = APPROVED`** — las pendientes o rechazadas no se pueden
+1. Consultar y **filtrar por `status = APPROVED`** - las pendientes o rechazadas no se pueden
    enviar y no deben aparecer.
 2. Extraer del componente `BODY` el texto y **contar las variables** parseando los `{{n}}`.
    Meta también guarda ejemplos en `example.body_text`, que sirven de placeholder en el
@@ -100,7 +100,7 @@ diagnosticar sin depender de la UI.
 ### 5.2 Envío de una plantilla arbitraria
 
 Hoy `sendTemplate($conversation, $templateKey, $variables)` resuelve el key contra una
-**config estática** — así funciona el recordatorio de citas, que está en producción.
+**config estática** - así funciona el recordatorio de citas, que está en producción.
 
 Se extiende para aceptar además una plantilla **ad-hoc** (nombre + idioma reales), **sin tocar
 el camino por configuración**, que debe seguir funcionando igual.

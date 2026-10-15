@@ -37,9 +37,9 @@ GET /api/doctors/{id}/available-slots
 
 | Param              | Req | Tipo    | Default | Descripción                                          |
 |--------------------|-----|---------|---------|------------------------------------------------------|
-| `date`             | sí  | `Y-m-d` | —       | Fecha de inicio. Entre hoy y hoy+6 meses             |
+| `date`             | sí  | `Y-m-d` | -       | Fecha de inicio. Entre hoy y hoy+6 meses             |
 | `days`             | no  | int     | 7       | Días a consultar (1–30)                              |
-| `duration_minutes` | no  | int     | —       | Corta los bloques libres en slots de esa duración (15–480) |
+| `duration_minutes` | no  | int     | -       | Corta los bloques libres en slots de esa duración (15–480) |
 | `specialty`        | no  | string  | todas   | Filtra por una especialidad puntual                  |
 | `subsidiary`       | no  | string  | `Santa Cruz` | Sucursal en SMD                                 |
 

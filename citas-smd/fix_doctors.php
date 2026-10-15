@@ -1,7 +1,7 @@
 <?php
 
 /**
- * FASE A — Corrige la asignación de doctores de las citas ya existentes,
+ * FASE A - Corrige la asignación de doctores de las citas ya existentes,
  * tomando el export mensual de SMD como fuente de verdad.
  *
  * Uso:
@@ -112,7 +112,7 @@ $run = function () use (&$stats, &$cambios, $byExt, $mNorm, $svc, $lookup, $appl
         if (count($cambios) < 20) {
             $cn = DB::table('doctors')->whereIn('id', $cur)->pluck('name')->implode(', ');
             $nn = DB::table('doctors')->whereIn('id', $correct)->pluck('name')->implode(', ');
-            $cambios[] = "act $aid  [".($cn ?: '—')."] => [$nn]";
+            $cambios[] = "act $aid  [".($cn ?: '-')."] => [$nn]";
         }
 
         if ($apply) {

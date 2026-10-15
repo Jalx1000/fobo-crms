@@ -11,8 +11,8 @@ use Throwable;
  *
  * Medido sobre 400 payloads al azar: 212 traen un asistente de tipo paciente y
  * 208 de ésos incluyen el teléfono, así que el calendario alcanza en la gran
- * mayoría de los casos. Esto cubre el resto —los payloads UPDATED deshidratados,
- * donde `attendances[].phone` llega vacío— consultando `GET /patients/{_id}`,
+ * mayoría de los casos. Esto cubre el resto -los payloads UPDATED deshidratados,
+ * donde `attendances[].phone` llega vacío- consultando `GET /patients/{_id}`,
  * que es exacta porque va por id y no por búsqueda.
  *
  * Sin este respaldo esas citas crean un contacto sin número, y ese contacto
@@ -27,7 +27,22 @@ class SmdPatientDirectory
     /** Memo por request, encima del caché persistente. */
     protected array $memo = [];
 
+    /** Marca de "SMD dijo que no existe" (null en Redis no se distingue de "no está"). */
+    public const MISSING = '__smd_missing__';
+
     public function __construct(protected ShareMeDataService $smd) {}
+
+    /** Ficha encontrada: 7 días (smd.patient_cache_hours). */
+    protected function ttl()
+    {
+        return now()->addHours(max(1, (int) config('smd.patient_cache_hours', 168)));
+    }
+
+    /** "No existe": 7 días (smd.patient_missing_cache_hours). */
+    protected function missingTtl()
+    {
+        return now()->addHours(max(1, (int) config('smd.patient_missing_cache_hours', 168)));
+    }
 
     /**
      * La ficha de SMD de un paciente, o null si no se pudo obtener.
@@ -42,14 +57,23 @@ class SmdPatientDirectory
             return $this->memo[$smdId];
         }
 
-        $ttl = (int) config('smd.patient_cache_hours', 168);
+        $key = 'smd:patient:'.$smdId;
+        $cached = Cache::get($key);
+
+        // En Redis también se recuerda "no existe" (antes no: la sync volvía a
+        // preguntar por los mismos pacientes cada 30 min, ~250 consultas/día).
+        if ($cached !== null) {
+            return $this->memo[$smdId] = ($cached === self::MISSING ? null : $cached);
+        }
 
         try {
-            $patient = Cache::remember(
-                'smd:patient:'.$smdId,
-                now()->addHours(max(1, $ttl)),
-                fn () => $this->smd->getPatient($smdId),
-            );
+            $patient = $this->smd->getPatient($smdId);
+
+            if ($patient) {
+                Cache::put($key, $patient, $this->ttl());
+            } elseif ($this->smd->lastLookup === 'missing') {
+                Cache::put($key, self::MISSING, $this->missingTtl());
+            }
         } catch (Throwable $e) {
             Log::warning('[SMD] No se pudo obtener la ficha del paciente', [
                 'smd_patient_id' => $smdId,
@@ -129,6 +153,14 @@ class SmdPatientDirectory
             return $this->memo[$clave];
         }
 
+        // La búsqueda por nombre también queda en Redis 7 días, encuentre o no.
+        $key = 'smd:patient:name:'.md5($clave);
+        $cached = Cache::get($key);
+
+        if ($cached !== null) {
+            return $this->memo[$clave] = ($cached === self::MISSING ? null : $cached);
+        }
+
         try {
             $encontrados = $this->smd->searchPatientByName($name);
         } catch (Throwable $e) {
@@ -143,6 +175,12 @@ class SmdPatientDirectory
         // Sólo si es inequívoca. Con varias coincidencias elegir sería adivinar
         // de quién es la cita, y eso ya nos costó cruzar identidades antes.
         if (count($encontrados) !== 1) {
+            // Sin coincidencias o con varias: no se va a resolver solo, se
+            // recuerda. Si SMD falló (error), no: se reintenta la próxima vez.
+            if (count($encontrados) > 1 || $this->smd->lastLookup === 'missing') {
+                Cache::put($key, self::MISSING, $this->missingTtl());
+            }
+
             if (count($encontrados) > 1) {
                 Log::info('[SMD] El nombre coincide con varios pacientes, no se resuelve', [
                     'nombre'      => $name,
@@ -154,6 +192,7 @@ class SmdPatientDirectory
         }
 
         $patient = $encontrados[0];
+        Cache::put($key, $patient, $this->ttl());
 
         Log::info('[SMD] Paciente resuelto por nombre', [
             'nombre'          => $name,
@@ -168,7 +207,7 @@ class SmdPatientDirectory
      * ¿Es un paciente ficticio de SMD y no una persona real?
      *
      * SMD tapa los horarios en que un médico no atiende con un "paciente"
-     * inventado —"Ocupado Ocupado", sin teléfono y sin CI—. Como el evento SÍ
+     * inventado -"Ocupado Ocupado", sin teléfono y sin CI-. Como el evento SÍ
      * trae asistente, el corte por "evento sin paciente" no lo agarra y termina
      * creando persona, lead y cita. Es la misma basura que los 409 registros
      * "Paciente" que veníamos arrastrando.

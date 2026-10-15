@@ -7,6 +7,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Webkul\Whatsapp\Gateways\BaseGateway;
+use Webkul\Whatsapp\Gateways\Contracts\SupportsFlows;
 use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
@@ -22,7 +23,7 @@ use Webkul\Whatsapp\Services\PhoneNumber;
  * WhatsApp Cloud API (Meta). Addresses by phone, returns a wamid, batches
  * events as entry[].changes[].value and reports delivery receipts.
  */
-class CloudApiGateway extends BaseGateway
+class CloudApiGateway extends BaseGateway implements SupportsFlows
 {
     public function key(): string
     {
@@ -110,7 +111,7 @@ class CloudApiGateway extends BaseGateway
                         continue;
                     }
 
-                    $type = $this->normalizeType($message['type'] ?? 'unknown');
+                    $type = $this->normalizeType($message['type'] ?? 'unknown', $message);
 
                     $messages[] = new InboundMessage(
                         providerMessageId: (string) $message['id'],
@@ -150,7 +151,7 @@ class CloudApiGateway extends BaseGateway
 
         // Only Meta's own ids can be quoted. When the message being replied to
         // came in through another provider (Kommo hands out UUIDs), Meta rejects
-        // the whole send — so drop the quote and still deliver the text.
+        // the whole send - so drop the quote and still deliver the text.
         if ($replyToProviderId && str_starts_with($replyToProviderId, 'wamid.')) {
             $payload['context'] = ['message_id' => $replyToProviderId];
         }
@@ -200,8 +201,8 @@ class CloudApiGateway extends BaseGateway
             'to'                => PhoneNumber::digits($conversation->wa_phone),
             'type'              => 'template',
             'template'          => [
-                'name'     => $name,
-                'language' => ['code' => $languageCode],
+                'name'       => $name,
+                'language'   => ['code' => $languageCode],
                 'components' => $parameters === [] ? [] : [
                     ['type' => 'body', 'parameters' => $parameters],
                 ],
@@ -283,8 +284,13 @@ class CloudApiGateway extends BaseGateway
     /**
      * Map Meta's type to ours ('contacts' is plural on the wire).
      */
-    protected function normalizeType(string $type): string
+    protected function normalizeType(string $type, array $message = []): string
     {
+        // La respuesta de un WhatsApp Flow llega como interactive/nfm_reply.
+        if ($type === 'interactive' && ($message['interactive']['type'] ?? null) === 'nfm_reply') {
+            return 'flow_reply';
+        }
+
         return $type === 'contacts' ? 'contact' : $type;
     }
 
@@ -296,9 +302,109 @@ class CloudApiGateway extends BaseGateway
         return match ($type) {
             'text' => $message['text']['body'] ?? null,
             'image', 'video', 'document', 'audio' => $message[$message['type']]['caption'] ?? null,
-            'button' => $message['button']['text'] ?? null,
+            'button'      => $message['button']['text'] ?? null,
+            'flow_reply'  => $this->flowReplySummary($message),
+            'interactive' => $message['interactive']['button_reply']['title']
+                ?? $message['interactive']['list_reply']['title']
+                ?? null,
             default  => null,
         };
+    }
+
+    /**
+     * Texto legible de la respuesta de un Flow para el inbox. Los datos
+     * estructurados quedan en el payload del mensaje (response_json).
+     */
+    protected function flowReplySummary(array $message): string
+    {
+        $data = json_decode((string) ($message['interactive']['nfm_reply']['response_json'] ?? ''), true) ?: [];
+
+        $flow = $data['flow'] ?? null;
+        $status = $data['status'] ?? null;
+
+        if ($flow === 'cancelar_cita') {
+            return $status === 'pending'
+                ? trim('🗓️ Pidió cancelar: '.($data['patient_name'] ?? '').' · '.($data['date'] ?? '').' '.($data['time'] ?? '')
+                    .(! empty($data['reason']) ? ' ('.$data['reason'].')' : ''))
+                : '🗓️ Formulario de cancelación: sin citas para cancelar';
+        }
+
+        if ($flow === 'reprogramar_cita') {
+            return match ($status) {
+                'pending' => trim('🗓️ Pidió cambiar su cita: '.($data['previous_date'] ?? '').' '.($data['previous_time'] ?? '')
+                    .' → '.($data['date'] ?? '').' '.($data['time'] ?? '')),
+                'handoff' => '🗓️ Quiere cambiar su cita pero no hay horarios: pide ayuda a recepción',
+                default   => '🗓️ Formulario de cambio: sin citas para cambiar',
+            };
+        }
+
+        if (($data['status'] ?? null) === 'pending') {
+            return trim('📅 Pidió cita: '.($data['patient_name'] ?? '').' · '.($data['doctor_name'] ?? '')
+                .' · '.($data['date'] ?? '').' '.($data['time'] ?? '').' (confirmando)');
+        }
+
+        if (($data['status'] ?? null) === 'booked') {
+            return trim('📅 Cita agendada: '.($data['patient_name'] ?? '').' · '.($data['doctor_name'] ?? '')
+                .' · '.($data['date'] ?? '').' '.($data['time'] ?? ''));
+        }
+
+        if (($data['status'] ?? null) === 'handoff') {
+            return '📋 Formulario: sin horarios disponibles, pide ayuda a recepción';
+        }
+
+        if (($data['flow'] ?? null) === 'paciente_tercero' && ! empty($data['patient_name'])) {
+            $estado = ['self' => 'para sí mismo', 'found' => 'paciente existente', 'created' => 'paciente nuevo'][$data['status'] ?? ''] ?? '';
+
+            return trim('📋 Formulario: cita para '.$data['patient_name'].($estado ? " ({$estado})" : ''));
+        }
+
+        return '📋 Formulario completado';
+    }
+
+    /**
+     * Mensaje interactivo de tipo Flow. Con `data_exchange` la primera pantalla
+     * la arma nuestro endpoint (acción INIT), así puede mostrar datos del CRM.
+     */
+    public function sendFlow(Conversation $conversation, string $body, array $flow): SendResult
+    {
+        $parameters = [
+            'flow_message_version' => '3',
+            'flow_token'           => $flow['token'],
+            'flow_cta'             => mb_substr($flow['cta'], 0, 30),
+            'flow_action'          => 'data_exchange',
+            'mode'                 => ($flow['mode'] ?? 'published') === 'draft' ? 'draft' : 'published',
+        ];
+
+        // flow_id si está configurado (no cambia aunque se renombre); si no, el nombre.
+        if (! empty($flow['id'])) {
+            $parameters['flow_id'] = (string) $flow['id'];
+        } else {
+            $parameters['flow_name'] = (string) $flow['name'];
+        }
+
+        $response = Http::withToken($this->required('token'))
+            ->acceptJson()
+            ->post($this->endpoint('messages'), [
+                'messaging_product' => 'whatsapp',
+                'recipient_type'    => 'individual',
+                'to'                => PhoneNumber::digits($conversation->wa_phone),
+                'type'              => 'interactive',
+                'interactive'       => [
+                    'type'   => 'flow',
+                    'body'   => ['text' => $body],
+                    'action' => ['name' => 'flow', 'parameters' => $parameters],
+                ],
+            ]);
+
+        $response->throw();
+
+        $wamid = $response->json('messages.0.id');
+
+        if (! $wamid) {
+            throw new RuntimeException('Cloud API did not return a message id: '.$response->body());
+        }
+
+        return new SendResult($wamid);
     }
 
     protected function endpoint(string $path): string

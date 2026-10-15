@@ -188,6 +188,27 @@
                                 <div v-html="formatText(msg.text)"></div>
                             </div>
 
+                            <!-- formulario de WhatsApp enviado: texto + el botón que ve el paciente -->
+                            <div v-else-if="msg.type === 'flow'" class="min-w-[200px]">
+                                <span class="mb-1 inline-block rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide dark:bg-white/15">Formulario</span>
+                                <div class="whitespace-pre-wrap break-words" v-html="formatText(msg.text)"></div>
+                                <div class="mt-1.5 flex items-center justify-center gap-1 rounded-md border-t border-black/10 pt-1.5 text-[13px] font-medium text-sky-600 dark:border-white/15 dark:text-sky-300">
+                                    <span class="icon-list text-base"></span>
+                                    @{{ msg.flow?.cta || 'Completar datos' }}
+                                </div>
+                            </div>
+
+                            <!-- respuesta del formulario: el resumen que arma el CRM -->
+                            <div v-else-if="msg.type === 'flow_reply'" class="whitespace-pre-wrap break-words">
+                                <span class="mb-1 inline-block rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide dark:bg-white/15">Formulario completado</span>
+                                <div>@{{ msg.text || 'Envió el formulario' }}</div>
+                            </div>
+
+                            <!-- botones de plantilla / respuestas de lista: el título elegido -->
+                            <div v-else-if="(msg.type === 'button' || msg.type === 'interactive') && msg.text" class="whitespace-pre-wrap break-words">@{{ msg.text }}</div>
+
+                            <div v-else-if="msg.text" class="whitespace-pre-wrap break-words" v-html="formatText(msg.text)"></div>
+
                             <div v-else class="italic text-gray-500">Tipo no soportado</div>
 
                             <!-- why it failed: the agent is who needs this, not the log -->
@@ -232,7 +253,7 @@
                 </div>
 
                 <!-- Mensaje / Nota interna: the note works even with the agent on
-                     or the window closed — it never reaches the customer -->
+                     or the window closed - it never reaches the customer -->
                 <div v-if="conversationId && !useMock" class="mb-2 flex gap-1 text-xs">
                     <button type="button" @click="composerMode = 'mensaje'"
                             class="rounded-full px-3 py-1 font-medium transition"
@@ -525,7 +546,7 @@
                         rows="1"
                         :disabled="agentLocked"
                         :placeholder="agentLocked
-                            ? 'El agente IA está respondiendo — desactivalo para escribir'
+                            ? 'El agente IA está respondiendo - desactivalo para escribir'
                             : 'Escribe un mensaje… (/ para respuestas rápidas)'"
                         title="Enter envía · Shift+Enter salto de línea"
                         @input="autoGrow"
@@ -625,6 +646,37 @@
                                 Ventana de 24h cerrada - solo podés responder cuando el cliente vuelva a escribir.
                             </div>
 
+                            <!-- Cobertura: resumen; el detalle por aseguradora vive en la pestaña Seguro -->
+                            <template v-if="insuranceSummary">
+                                <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Cobertura</p>
+
+                                <button type="button"
+                                        class="mb-3 block w-full rounded-lg border border-gray-200 p-2.5 text-left transition hover:border-brandColor dark:border-gray-800"
+                                        @click="profileTab = 'seguro'">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="truncate text-sm font-medium text-gray-800 dark:text-gray-200">
+                                            <template v-if="insuranceSummary.vigente">@{{ insuranceSummary.vigente.name }}</template>
+                                            <template v-else>@{{ insuranceSummary.total }} seguro@{{ insuranceSummary.total === 1 ? '' : 's' }} registrado@{{ insuranceSummary.total === 1 ? '' : 's' }}</template>
+                                        </span>
+
+                                        <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                              :class="insuranceStatusClass(insuranceSummary.status)">
+                                            @{{ insuranceSummary.status || 'SIN VERIFICAR' }}
+                                        </span>
+                                    </div>
+
+                                    <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                                        <template v-if="insuranceSummary.total > 1">
+                                            @{{ insuranceSummary.total }} aseguradoras · ver detalle
+                                        </template>
+                                        <template v-else-if="insuranceSummary.pendiente">
+                                            Sin verificar todavía
+                                        </template>
+                                        <template v-else>Ver detalle</template>
+                                    </p>
+                                </button>
+                            </template>
+
                             <!-- active lead -->
                             <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Pedido en curso</p>
                             <a v-if="profile.active_lead" :href="profile.active_lead.url" target="_blank"
@@ -641,7 +693,7 @@
                             <button v-else type="button"
                                     class="mb-3 block w-full rounded-lg border border-dashed border-gray-300 px-3 py-3 text-center text-xs text-gray-400 transition hover:border-brandColor hover:text-brandColor dark:border-gray-700"
                                     @click="profileTab = 'pedidos'; leadFormOpen = true">
-                                Sin pedido en curso — crear uno
+                                Sin pedido en curso - crear uno
                             </button>
 
                             <!-- next scheduled activity -->
@@ -689,15 +741,120 @@
                             <div class="flex flex-col divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
                                 <div class="flex items-center justify-between px-2.5 py-1.5 text-xs">
                                     <span class="text-gray-500 dark:text-gray-400">Primer contacto</span>
-                                    <span class="font-medium text-gray-800 dark:text-gray-200">@{{ profile.whatsapp.first_contact || '—' }}</span>
+                                    <span class="font-medium text-gray-800 dark:text-gray-200">@{{ profile.whatsapp.first_contact || '-' }}</span>
                                 </div>
                                 <div class="flex items-center justify-between px-2.5 py-1.5 text-xs">
                                     <span class="text-gray-500 dark:text-gray-400">Último mensaje</span>
-                                    <span class="font-medium text-gray-800 dark:text-gray-200">@{{ profile.whatsapp.last_inbound || '—' }}</span>
+                                    <span class="font-medium text-gray-800 dark:text-gray-200">@{{ profile.whatsapp.last_inbound || '-' }}</span>
                                 </div>
                                 <div class="flex items-center justify-between px-2.5 py-1.5 text-xs">
                                     <span class="text-gray-500 dark:text-gray-400">Canal</span>
                                     <span class="rounded-full bg-gray-100 px-2 py-0.5 font-medium capitalize text-gray-700 dark:bg-gray-800 dark:text-gray-300">@{{ gateway || 'WhatsApp' }}</span>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Seguro: cobertura por aseguradora, editable sin salir del inbox -->
+                        <template v-else-if="profileTab === 'seguro'">
+                            <div class="mb-3 flex items-center justify-between">
+                                <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                                    Cobertura del paciente
+                                </p>
+
+                                <button v-if="!insuranceForm.editing" type="button"
+                                        class="text-[11px] font-medium text-brandColor hover:underline"
+                                        @click="startEditInsurance">
+                                    @{{ profileInsurances.length ? 'Editar' : 'Agregar' }}
+                                </button>
+                            </div>
+
+                            <!-- Vista: una tarjeta por aseguradora -->
+                            <template v-if="!insuranceForm.editing">
+                                <p v-if="!profileInsurances.length"
+                                   class="rounded-lg border border-dashed border-gray-300 px-3 py-3 text-center text-xs text-gray-400 dark:border-gray-700">
+                                    Sin seguros registrados - agregá uno para verificar cobertura.
+                                </p>
+
+                                <div v-else class="flex flex-col gap-2">
+                                    <div v-for="ins in profileInsurances" :key="'wa-ins-' + ins.id"
+                                         class="rounded-lg border border-gray-200 p-2.5 dark:border-gray-800">
+                                        <div class="flex items-start justify-between gap-2">
+                                            <span class="truncate text-sm font-medium text-gray-800 dark:text-gray-200">
+                                                @{{ ins.name }}
+                                            </span>
+                                            <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                                  :class="insuranceStatusClass(ins.status)">
+                                                @{{ ins.status || 'SIN VERIFICAR' }}
+                                            </span>
+                                        </div>
+
+                                        <p v-if="ins.message" class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                                            @{{ ins.message }}
+                                        </p>
+
+                                        <p v-if="ins.checked_at" class="mt-0.5 text-[11px] text-gray-400">
+                                            Verificado @{{ ins.checked_at }}
+                                        </p>
+
+                                        <!-- Datos crudos de la aseguradora (coaseguro, vigencia, etc.) -->
+                                        <dl v-if="insuranceDetails(ins).length"
+                                            class="mt-2 flex flex-col gap-0.5 border-t border-gray-100 pt-2 dark:border-gray-800">
+                                            <div v-for="d in insuranceDetails(ins)" :key="'wa-d-' + ins.id + '-' + d.label"
+                                                 class="flex items-start justify-between gap-2 text-[11px]">
+                                                <dt class="shrink-0 text-gray-400">@{{ d.label }}</dt>
+                                                <dd class="truncate text-right text-gray-700 dark:text-gray-300">@{{ d.value }}</dd>
+                                            </div>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Editor inline: CI + aseguradoras, guarda y verifica todas -->
+                            <div v-else class="flex flex-col gap-3 rounded-lg border border-gray-200 p-2.5 dark:border-gray-800">
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                                        Carnet de Identidad
+                                    </label>
+                                    <input type="text" v-model="insuranceForm.ci" placeholder="Ej: 5856583"
+                                           class="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-800 transition hover:border-gray-400 focus:border-brandColor focus:outline-none dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                                </div>
+
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                                        Seguros del paciente
+                                    </label>
+                                    <p class="text-[11px] text-gray-400">Marcá todos los que correspondan; se verifica cada uno.</p>
+
+                                    <div class="mt-1 flex max-h-40 flex-col gap-0.5 overflow-y-auto rounded-md border border-gray-200 p-1.5 dark:border-gray-800">
+                                        <label v-for="opt in insuranceOptionList" :key="'wa-opt-' + opt.id"
+                                               class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
+                                            <input type="checkbox" :value="opt.id" v-model="insuranceForm.seguro_ids"
+                                                   class="h-3.5 w-3.5 cursor-pointer rounded border-gray-300">
+                                            @{{ opt.name }}
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <p v-if="insuranceForm.error"
+                                   class="rounded-md bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                                    @{{ insuranceForm.error }}
+                                </p>
+
+                                <div class="flex items-center gap-2">
+                                    <button type="button"
+                                            class="flex items-center gap-1.5 rounded-md bg-brandColor px-3 py-1.5 text-xs font-medium text-white transition disabled:opacity-50"
+                                            :disabled="insuranceForm.saving || !insuranceForm.ci || !insuranceForm.seguro_ids.length"
+                                            @click="saveInsurance">
+                                        <x-admin::spinner v-if="insuranceForm.saving" class="h-3 w-3" />
+                                        <span>@{{ insuranceForm.saving ? 'Verificando...' : 'Guardar y verificar' }}</span>
+                                    </button>
+
+                                    <button type="button"
+                                            class="rounded-md px-3 py-1.5 text-xs text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                                            :disabled="insuranceForm.saving"
+                                            @click="insuranceForm.editing = false">
+                                        Cancelar
+                                    </button>
                                 </div>
                             </div>
                         </template>
@@ -1012,7 +1169,7 @@
                     recSeconds: 0,
                     recTimer: null,
                     recDiscard: false,
-                    // approved templates — the only way to write once the 24h window closed
+                    // approved templates - the only way to write once the 24h window closed
                     showTemplates: false,
                     templates: [],
                     templatesLoaded: false,
@@ -1048,12 +1205,21 @@
                     profileTab: 'info',
                     profileTabs: [
                         { id: 'info', label: 'Info' },
+                        { id: 'seguro', label: 'Seguro' },
                         { id: 'imagenes', label: 'Imágenes' },
                         { id: 'documentos', label: 'Docs' },
                         { id: 'enlaces', label: 'Enlaces' },
                         { id: 'productos', label: '@lang('admin::app.acl.products')' },
                         { id: 'pedidos', label: '@lang('admin::app.acl.leads')' },
                     ],
+                    // Edición de cobertura dentro de la pestaña "Seguro" del drawer
+                    insuranceForm: {
+                        editing:    false,
+                        saving:     false,
+                        ci:         '',
+                        seguro_ids: [],
+                        error:      null,
+                    },
                     // Quick lead creation (inside the drawer)
                     leadFormOpen: false,
                     leadForm: { title: '', value: '' },
@@ -1115,8 +1281,42 @@
                         if (t.id === 'imagenes') return this.profile.images.length > 0;
                         if (t.id === 'documentos') return this.profile.documents.length > 0;
                         if (t.id === 'enlaces') return this.profile.links.length > 0;
+                        // "Seguro" se muestra siempre: sin seguros cargados es donde se agregan.
                         return true;
                     });
+                },
+
+                /**
+                 * Aseguradoras del paciente con su estado. `insurances` puede no venir
+                 * si el perfil se cacheó con una versión previa del payload.
+                 */
+                profileInsurances() {
+                    return this.profile?.insurances || [];
+                },
+
+                // Catálogo de aseguradoras para el editor inline.
+                insuranceOptionList() {
+                    return this.profile?.insurance_options || [];
+                },
+
+                /**
+                 * Resumen para la pestaña Info: alcanza con saber si hay cobertura y
+                 * cuántas aseguradoras hay; el detalle vive en la pestaña Seguro.
+                 */
+                insuranceSummary() {
+                    const list = this.profileInsurances;
+
+                    if (! list.length) return null;
+
+                    const vigente = list.find(i => i.status === 'VIGENTE');
+                    const pendiente = list.filter(i => ! i.status).length;
+
+                    return {
+                        total:     list.length,
+                        vigente:   vigente || null,
+                        pendiente: pendiente,
+                        status:    this.profile?.insurance_status || null,
+                    };
                 },
 
                 // Canned replies matching what the advisor typed after "/".
@@ -1149,6 +1349,16 @@
                 // Switching Mensaje <-> Nota: focus the input that appeared.
                 composerMode() {
                     this.focusComposer();
+                },
+
+                /**
+                 * Al cambiar de contacto el editor de cobertura debe cerrarse: dejarlo
+                 * abierto haría que el asesor edite los seguros del paciente anterior.
+                 */
+                'context.personId'() {
+                    this.insuranceForm = {
+                        editing: false, saving: false, ci: '', seguro_ids: [], error: null,
+                    };
                 },
             },
 
@@ -1208,6 +1418,90 @@
             },
 
             methods: {
+                /**
+                 * Clases literales, no concatenadas: Tailwind purga lo que no puede
+                 * "ver" en el template, así que armar el nombre de la clase en runtime
+                 * dejaría el color fuera del CSS de producción.
+                 */
+                insuranceStatusClass(status) {
+                    const map = {
+                        VIGENTE:       'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+                        EN_MORA:       'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+                        VENCIDO:       'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+                        NO_REGISTRADO: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+                    };
+
+                    return map[status] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300';
+                },
+
+                /**
+                 * Abre el editor precargando lo que el paciente ya tiene, para que
+                 * corregir un seguro no obligue a re-marcarlos todos desde cero.
+                 */
+                startEditInsurance() {
+                    this.insuranceForm.error = null;
+                    this.insuranceForm.ci = this.profile?.insurance_ci || '';
+                    this.insuranceForm.seguro_ids = this.profileInsurances.map(i => i.id);
+                    this.insuranceForm.editing = true;
+                },
+
+                /**
+                 * Persiste la cobertura y la verifica sin salir del inbox. La respuesta
+                 * trae `results` (una entrada por aseguradora), así que repintamos el
+                 * panel con eso en vez de volver a pedir el perfil entero.
+                 */
+                saveInsurance() {
+                    if (this.insuranceForm.saving) return;
+                    if (!this.insuranceForm.ci || !this.insuranceForm.seguro_ids.length) return;
+
+                    this.insuranceForm.saving = true;
+                    this.insuranceForm.error = null;
+
+                    this.$axios.post(`${this.personUrlBase}/${this.context.personId}/insurance`, {
+                            ci_paciente:     this.insuranceForm.ci,
+                            seguro_paciente: this.insuranceForm.seguro_ids,
+                        })
+                        .then(res => {
+                            const results = res.data?.results ?? [];
+
+                            this.profile.insurances = results.map(r => ({
+                                id:         r.seguro_id,
+                                name:       r.seguro_name,
+                                status:     r.status,
+                                message:    r.message,
+                                payload:    r.data ?? null,
+                                checked_at: 'hace instantes',
+                            }));
+
+                            this.profile.insurance_ci = this.insuranceForm.ci;
+                            this.profile.insurance_status = res.data?.status ?? null;
+                            this.profile.insurance_checked_at = 'hace instantes';
+
+                            this.insuranceForm.editing = false;
+
+                            this.$emitter.emit('add-flash', {
+                                type:    'success',
+                                message: `Cobertura actualizada (${results.length || 1} verificada/s).`,
+                            });
+                        })
+                        .catch(err => {
+                            this.insuranceForm.error = err.response?.data?.message
+                                || 'No se pudo guardar la cobertura.';
+                        })
+                        .finally(() => { this.insuranceForm.saving = false; });
+                },
+
+                // Aplana el payload crudo de la aseguradora en pares mostrables.
+                insuranceDetails(insurance) {
+                    const data = insurance?.payload;
+
+                    if (! data || typeof data !== 'object') return [];
+
+                    return Object.entries(data)
+                        .filter(([, value]) => value !== null && value !== '' && value !== undefined)
+                        .map(([label, value]) => ({ label, value }));
+                },
+
                 canSend(type) {
                     return (this.capabilities?.send ?? []).includes(type);
                 },
@@ -1224,7 +1518,7 @@
                     // Optimista: el checkbox del header y el candado del composer
                     // (ambos derivan de aiEnabled) tienen que moverse JUNTOS al
                     // instante. Sin esto quedaban desincronizados mientras la
-                    // request estaba en vuelo —y para siempre si el PATCH fallaba—.
+                    // request estaba en vuelo -y para siempre si el PATCH fallaba-.
                     const previous = this.aiEnabled;
                     this.aiEnabled = enabled;
                     this.agentNote = !enabled;
@@ -1630,7 +1924,7 @@
                  *
                  * Once the 24h window closes WhatsApp refuses free text, so a
                  * template is the only way to reach the customer again. The
-                 * catalogue is fetched on demand — it is not needed until the
+                 * catalogue is fetched on demand - it is not needed until the
                  * agent actually opens the picker.
                  */
                 openTemplates() {
@@ -1730,7 +2024,7 @@
                  *
                  * WhatsApp only takes audio as aac/mp4/mpeg/amr or ogg-with-opus,
                  * and browsers disagree on what they can record: Firefox gives
-                 * ogg/opus, Safari gives mp4, Chrome usually only webm — which
+                 * ogg/opus, Safari gives mp4, Chrome usually only webm - which
                  * WhatsApp rejects. So the format is chosen at run time from what
                  * WhatsApp accepts, and if the browser offers none we say so
                  * instead of recording something that would bounce back.
@@ -1821,7 +2115,7 @@
 
                     this.showAttach = false;
 
-                    // Only what WhatsApp actually accepts — a wide image/* would
+                    // Only what WhatsApp actually accepts - a wide image/* would
                     // let the agent pick a .gif that Meta then rejects.
                     const accept = {
                         image: 'image/jpeg,image/png',

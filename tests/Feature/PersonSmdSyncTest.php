@@ -290,7 +290,7 @@ it('searchSmd retorna found:false cuando SMD no encuentra nada en ningún métod
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Flujo: syncSmd — casos faltantes
+// Flujo: syncSmd - casos faltantes
 // ──────────────────────────────────────────────────────────────────────────────
 
 it('syncSmd retorna 404 si el ID de persona no existe', function () {
@@ -373,7 +373,7 @@ it('syncSmd recupera paciente de SMD cuando createPatient responde duplicado', f
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Flujo: Listener syncToSmd — idempotencia
+// Flujo: Listener syncToSmd - idempotencia
 // ──────────────────────────────────────────────────────────────────────────────
 
 it('syncToSmd NO llama SMD si el paciente ya tiene smd_patient_id al crearse', function () {
@@ -411,12 +411,12 @@ it('syncToSmd NO llama SMD si la persona creada no tiene teléfono', function ()
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Flujo: Listener updateInSmd — not_found → limpia id → re-crea
+// Flujo: Listener updateInSmd - not_found → limpia id → re-crea
 // ──────────────────────────────────────────────────────────────────────────────
 
 it('updateInSmd limpia smd_patient_id y crea paciente cuando updatePatient retorna not_found', function () {
     Http::fake(function ($request) {
-        $url    = $request->url();
+        $url = $request->url();
         $method = $request->method();
 
         // PATCH /patients/{id} → not_found
@@ -454,7 +454,7 @@ it('updateInSmd limpia smd_patient_id y crea paciente cuando updatePatient retor
 
     // Forzar el reset del Http fake para contar desde cero
     Http::fake(function ($request) {
-        $url    = $request->url();
+        $url = $request->url();
         $method = $request->method();
 
         if ($method === 'PATCH' && str_contains($url, 'patients/smd-stale-id')) {

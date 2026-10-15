@@ -10,7 +10,7 @@ return new class extends Migration
     {
         // Sin `after('smd_patient_id')`: esa columna la crea otra migración con
         // la MISMA fecha (2026_05_19_000001), y en una base desde cero Laravel
-        // ordena por nombre —"insurance" antes que "smd"—, así que esta corría
+        // ordena por nombre -"insurance" antes que "smd"-, así que esta corría
         // primero y fallaba porque smd_patient_id aún no existía. La posición de
         // la columna es cosmética; el orden ya no importa. Los guardas hasColumn
         // dejan la migración repetible.

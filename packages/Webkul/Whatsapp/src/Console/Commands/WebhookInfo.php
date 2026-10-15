@@ -56,7 +56,7 @@ class WebhookInfo extends Command
             WebhookSecurity::SIGNATURE    => '<info>firma HMAC del cuerpo</info> (fuerte)',
             WebhookSecurity::HEADER_TOKEN => '<comment>token en header</comment> (media)',
             WebhookSecurity::URL_SECRET   => '<comment>secreto en la URL</comment> (el proveedor no firma)',
-            WebhookSecurity::NONE         => '<error>NINGUNA — cualquiera puede inyectar mensajes</error>',
+            WebhookSecurity::NONE         => '<error>NINGUNA - cualquiera puede inyectar mensajes</error>',
         };
     }
 

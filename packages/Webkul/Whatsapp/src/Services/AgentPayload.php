@@ -37,12 +37,15 @@ class AgentPayload
                 'type'      => $message->type,
                 'text'      => $message->body,
                 'timestamp' => optional($message->created_at)->toIso8601String(),
+                // Respuesta de un formulario (Flow): los datos ya estructurados,
+                // p. ej. {flow, status, patient_id, patient_name, relation}.
+                'flow'      => $message->type === 'flow_reply' ? $this->flowData($message) : null,
             ],
             'history' => $this->history($conversation),
             // CONTRATO A: the patient's full appointment history, so the agent
             // does not have to call get_citas on every turn.
             'patient_context' => $this->patientContext->build($conversation),
-            'window'  => [
+            'window'          => [
                 'open'       => $window->open,
                 'expires_at' => $window->expiresAt?->toIso8601String(),
             ],
@@ -92,5 +95,21 @@ class AgentPayload
             $this->gateways->for($conversation)->messagingWindowHours(),
             $conversation->last_inbound_at,
         );
+    }
+
+    /**
+     * `response_json` de un nfm_reply, sin el flow_token (no le sirve al agente).
+     */
+    protected function flowData(Message $message): ?array
+    {
+        $data = json_decode((string) ($message->payload['interactive']['nfm_reply']['response_json'] ?? ''), true);
+
+        if (! is_array($data)) {
+            return null;
+        }
+
+        unset($data['flow_token']);
+
+        return $data;
     }
 }

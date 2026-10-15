@@ -468,8 +468,9 @@
                                 return;
                             }
 
-                            params['search'] += `title:${column.value.join(',')};`;
-                            params['searchFields'] += `title:like;`;
+                            // Búsqueda por paciente (nombre, teléfono o CI) y por el
+                            // título del lead: la resuelve el backend (PatientSearch).
+                            params['q'] = column.value.join(' ');
 
                             return;
                         }

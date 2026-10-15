@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Informe Técnico — Integración Alianza Seguros | Odontoking CRM</title>
+  <title>Informe Técnico - Integración Alianza Seguros | Odontoking CRM</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <style>
     :root {
@@ -273,14 +273,14 @@
 
 <!-- PORTADA -->
 <div class="cover">
-  <div class="cover-logo">Odontoking CRM — Documento Técnico</div>
+  <div class="cover-logo">Odontoking CRM - Documento Técnico</div>
   <div class="cover-badge">Confidencial · Para revisión de Alianza Seguros</div>
   <h1>Integración con<br>Alianza Seguros</h1>
   <h2>Descripción técnica del sistema de verificación de cobertura dental via API MedinetGo</h2>
   <div class="cover-meta">
     <div><b>Fecha</b>1 de junio de 2025</div>
-    <div><b>Versión</b>1.0 — Ambiente QA</div>
-    <div><b>Preparado para</b>Alianza Seguros — Pase a Producción</div>
+    <div><b>Versión</b>1.0 - Ambiente QA</div>
+    <div><b>Preparado para</b>Alianza Seguros - Pase a Producción</div>
     <div><b>Sistema</b>Odontoking CRM (Laravel + Vue 3)</div>
   </div>
 </div>
@@ -294,10 +294,10 @@
       <li><a href="#s1">Resumen ejecutivo de la integración</a></li>
       <li><a href="#s2">Arquitectura del sistema de seguros</a></li>
       <li><a href="#s3">Endpoints consumidos en Alianza</a></li>
-      <li><a href="#s4">Diagrama de secuencia — Flujo completo</a></li>
-      <li><a href="#s5">Diagrama de actividades — Verificación de cobertura</a></li>
-      <li><a href="#s6">Diagrama de flujo — Atención al paciente con seguro Alianza</a></li>
-      <li><a href="#s7">Diagrama de estado — Ciclo de vida de la verificación</a></li>
+      <li><a href="#s4">Diagrama de secuencia - Flujo completo</a></li>
+      <li><a href="#s5">Diagrama de actividades - Verificación de cobertura</a></li>
+      <li><a href="#s6">Diagrama de flujo - Atención al paciente con seguro Alianza</a></li>
+      <li><a href="#s7">Diagrama de estado - Ciclo de vida de la verificación</a></li>
       <li><a href="#s8">Rutas de la API del CRM</a></li>
       <li><a href="#s9">Seguridad y manejo de datos sensibles</a></li>
       <li><a href="#s10">Manejo de errores y resiliencia</a></li>
@@ -335,7 +335,7 @@
     <p>El módulo de seguros está compuesto por tres capas: el controlador HTTP, el servicio orquestador y los drivers de aseguradora.</p>
 
     <div class="diagram-card">
-      <div class="diagram-title">Arquitectura de capas — Módulo de seguros</div>
+      <div class="diagram-title">Arquitectura de capas - Módulo de seguros</div>
       <div class="diagram-body">
         <div class="mermaid">
 graph TB
@@ -421,8 +421,8 @@ graph TB
 
         <h3>Payload enviado (JSON)</h3>
         <pre><code>{
-  "user":         "&lt;ALIANZA_USER&gt;",   // Variable de entorno — nunca en código fuente
-  "password":     "&lt;ALIANZA_PASS&gt;",   // Variable de entorno — nunca en código fuente
+  "user":         "&lt;ALIANZA_USER&gt;",   // Variable de entorno - nunca en código fuente
+  "password":     "&lt;ALIANZA_PASS&gt;",   // Variable de entorno - nunca en código fuente
   "module":       "string",
   "method":       "string",
   "nApplication": 0
@@ -440,7 +440,7 @@ graph TB
 }</code></pre>
 
         <div class="callout">
-          <strong>Uso del resultado:</strong> <code>accessToken</code> y <code>nUsercode</code> son efímeros — se usan únicamente para la segunda llamada HTTP de la misma solicitud. <strong>No se persisten en base de datos ni en caché</strong>.
+          <strong>Uso del resultado:</strong> <code>accessToken</code> y <code>nUsercode</code> son efímeros - se usan únicamente para la segunda llamada HTTP de la misma solicitud. <strong>No se persisten en base de datos ni en caché</strong>.
         </div>
 
         <div class="table-wrap">
@@ -504,7 +504,7 @@ Authorization: Bearer {accessToken}</code></pre>
               <tr><td><code>success: true</code> + campo <code>ESTADO</code> ≠ VIGENTE</td><td><strong>VIGENTE</strong> (con advertencia)</td><td><span class="badge badge-warning">warning</span></td><td>Sí</td></tr>
               <tr><td><code>success: false</code> + messageError contiene "pago pendiente" o "comuníquese"</td><td><strong>EN_MORA</strong></td><td><span class="badge badge-danger">danger</span></td><td>Sí</td></tr>
               <tr><td><code>success: false</code> + cualquier otro mensaje</td><td><strong>NO_REGISTRADO</strong></td><td><span class="badge badge-warning">warning</span></td><td>No</td></tr>
-              <tr><td>Error de red / timeout / HTTP 4xx-5xx</td><td><strong>INDETERMINADO</strong></td><td>—</td><td>No</td></tr>
+              <tr><td>Error de red / timeout / HTTP 4xx-5xx</td><td><strong>INDETERMINADO</strong></td><td>-</td><td>No</td></tr>
             </tbody>
           </table>
         </div>
@@ -516,7 +516,7 @@ Authorization: Bearer {accessToken}</code></pre>
   <div class="section" id="s4">
     <div class="section-header">
       <div class="section-number">4</div>
-      <h2>Diagrama de secuencia — Flujo completo</h2>
+      <h2>Diagrama de secuencia - Flujo completo</h2>
     </div>
     <p>Muestra la interacción entre el operador del CRM, el frontend Vue 3, el backend Laravel, el sistema de caché y la API de Alianza Seguros.</p>
 
@@ -593,7 +593,7 @@ sequenceDiagram
   <div class="section" id="s5">
     <div class="section-header">
       <div class="section-number">5</div>
-      <h2>Diagrama de actividades — Verificación de cobertura</h2>
+      <h2>Diagrama de actividades - Verificación de cobertura</h2>
     </div>
     <p>Describe el proceso lógico completo desde que se inicia la verificación hasta que se obtiene un resultado final, incluyendo todas las rutas de decisión.</p>
 
@@ -685,7 +685,7 @@ flowchart TD
   <div class="section" id="s6">
     <div class="section-header">
       <div class="section-number">6</div>
-      <h2>Diagrama de flujo — Atención al paciente con seguro Alianza</h2>
+      <h2>Diagrama de flujo - Atención al paciente con seguro Alianza</h2>
     </div>
     <p>Vista orientada al proceso clínico: cómo el resultado de la verificación determina el flujo de atención en la clínica dental.</p>
 
@@ -736,7 +736,7 @@ flowchart LR
   <div class="section" id="s7">
     <div class="section-header">
       <div class="section-number">7</div>
-      <h2>Diagrama de estado — Ciclo de vida de la verificación</h2>
+      <h2>Diagrama de estado - Ciclo de vida de la verificación</h2>
     </div>
     <p>Muestra todos los estados posibles del seguro de un paciente en el CRM y las transiciones entre ellos.</p>
 
@@ -844,7 +844,7 @@ stateDiagram-v2
             <td><span class="badge badge-success">GET</span></td>
             <td><code>/api/v1/insurance/verify</code></td>
             <td><code>Api\InsuranceController@verifyForAgent</code></td>
-            <td>Verificación para agente WhatsApp — respuesta anti-enumeración</td>
+            <td>Verificación para agente WhatsApp - respuesta anti-enumeración</td>
             <td>Bearer token + rate limit 10/min</td>
           </tr>
         </tbody>
@@ -991,7 +991,7 @@ stateDiagram-v2
 
 <!-- FOOTER -->
 <div class="footer">
-  <p><strong>Odontoking CRM</strong> — Informe Técnico de Integración con Alianza Seguros</p>
+  <p><strong>Odontoking CRM</strong> - Informe Técnico de Integración con Alianza Seguros</p>
   <p style="margin-top:8px">Versión 1.0 · Preparado el 1 de junio de 2025 · Para uso confidencial de Alianza Seguros</p>
 </div>
 

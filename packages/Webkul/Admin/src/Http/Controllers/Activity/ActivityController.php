@@ -157,6 +157,10 @@ class ActivityController extends Controller
 
                     return $allowed;
                 })())
+                // Buscador del calendario: citas del paciente por nombre, teléfono
+                // o CI (PatientSearch), o por el título de la cita.
+                ->when(trim((string) request()->get('q', '')) !== '', fn ($query) => app(\Webkul\Admin\Services\PatientSearch::class)
+                    ->apply($query, (string) request()->get('q'), 'activity_participants.person_id', ['activities.title']))
                 ->groupBy([
                     'activities.id',
                     'activities.title',
@@ -187,8 +191,8 @@ class ActivityController extends Controller
                 (int) config('smd.stage_map.completed'),
             ]);
             $confirmedStageId = (int) config('smd.stage_map.confirmed');
-            $surgeryStageId   = (int) config('smd.stage_map.surgery');
-            $lostStageId      = (int) config('smd.stage_map.no_show');
+            $surgeryStageId = (int) config('smd.stage_map.surgery');
+            $lostStageId = (int) config('smd.stage_map.no_show');
 
             $appointments = $appointments->map(function ($appointment) use ($cancelledStageIds, $completedStageIds, $confirmedStageId, $surgeryStageId, $lostStageId) {
                 $stage = $appointment->lead_pipeline_stage_id !== null ? (int) $appointment->lead_pipeline_stage_id : null;
@@ -201,8 +205,8 @@ class ActivityController extends Controller
                 // canceladas (falso positivo). Cancelado tiene prioridad visual.
                 $appointment->is_cancelled = $hasLead && $stage !== null && in_array($stage, $cancelledStageIds, true);
                 $appointment->is_completed = $hasLead && $stage !== null && in_array($stage, $completedStageIds, true) && ! $appointment->is_cancelled;
-                $appointment->is_lost      = $hasLead && $lostStageId > 0 && $stage === $lostStageId && ! $appointment->is_cancelled;
-                $appointment->is_surgery   = $hasLead && $surgeryStageId > 0 && $stage === $surgeryStageId && ! $appointment->is_cancelled;
+                $appointment->is_lost = $hasLead && $lostStageId > 0 && $stage === $lostStageId && ! $appointment->is_cancelled;
+                $appointment->is_surgery = $hasLead && $surgeryStageId > 0 && $stage === $surgeryStageId && ! $appointment->is_cancelled;
                 $appointment->is_confirmed = $hasLead && $confirmedStageId > 0 && $stage === $confirmedStageId && ! $appointment->is_cancelled;
 
                 // GROUP_CONCAT -> array de ids único (para el multiselect de doctores).
@@ -842,15 +846,17 @@ class ActivityController extends Controller
     public function updateAppointment(int $id): JsonResponse
     {
         $data = request()->validate([
-            'date'             => 'nullable|date_format:Y-m-d',
-            'start_time'       => 'nullable|date_format:H:i',
-            'end_time'         => 'nullable|date_format:H:i',
-            'duration_minutes' => 'nullable|integer|min:5|max:480',
-            'doctor_ids'       => 'nullable|array|min:1',
-            'doctor_ids.*'     => 'integer|exists:doctors,id',
-            'person_id'        => 'nullable|integer|exists:persons,id',
-            'status'           => 'nullable|in:confirmed,cancelled,completed,surgery,no_show',
-            'reason'           => 'nullable|string',
+            'date'                   => 'nullable|date_format:Y-m-d',
+            'start_time'             => 'nullable|date_format:H:i',
+            'end_time'               => 'nullable|date_format:H:i',
+            'duration_minutes'       => 'nullable|integer|min:5|max:480',
+            'doctor_ids'             => 'nullable|array|min:1',
+            'doctor_ids.*'           => 'integer|exists:doctors,id',
+            'person_id'              => 'nullable|integer|exists:persons,id',
+            'product_id'             => 'nullable|integer|exists:products,id',
+            'status'                 => 'nullable|in:confirmed,cancelled,completed,surgery,no_show',
+            'lead_pipeline_stage_id' => 'nullable|integer|exists:lead_pipeline_stages,id',
+            'reason'                 => 'nullable|string',
         ]);
 
         $activity = $this->activityRepository->findOrFail($id);
@@ -895,11 +901,23 @@ class ActivityController extends Controller
             $update['title'] = (string) $data['reason'] ?: $activity->title;
         }
 
+        if (array_key_exists('product_id', $data)) {
+            $activity->products()->sync(
+                ! empty($data['product_id'])
+                    ? [(int) $data['product_id']]
+                    : []
+            );
+        }
+
         $this->activityRepository->update($update, $id);
 
         $leadIds = $activity->leads()->pluck('leads.id');
 
         // El estado mueve el lead a la etapa mapeada (igual que el botón de estado).
+        // Prioridad al `status` (5 estados del calendario); si en su lugar llega una
+        // etapa explícita (dropdown Estado de la edición), se usa esa. La sync a SMD
+        // deriva el `status` del stage vía SmdStatusMapper, así que mover el stage
+        // antes del push deja SMD consistente.
         if (! empty($data['status'])) {
             $stageId = (int) config('smd.stage_map.'.$data['status']);
 
@@ -907,6 +925,9 @@ class ActivityController extends Controller
                 DB::table('leads')->whereIn('id', $leadIds)
                     ->update(['lead_pipeline_stage_id' => $stageId, 'updated_at' => now()]);
             }
+        } elseif (! empty($data['lead_pipeline_stage_id']) && $leadIds->isNotEmpty()) {
+            DB::table('leads')->whereIn('id', $leadIds)
+                ->update(['lead_pipeline_stage_id' => (int) $data['lead_pipeline_stage_id'], 'updated_at' => now()]);
         }
 
         // Si cambió el paciente, el lead debe apuntar a la nueva persona.
@@ -926,103 +947,15 @@ class ActivityController extends Controller
     }
 
     /**
-     * Arma el evento en formato SMD desde la cita del CRM y lo manda por PATCH.
-     *
-     * Solo empuja si la cita está vinculada a un evento de SMD (external_id). Una
-     * cita 100% local todavía no existe en SMD, así que no hay qué editar allá.
+     * Empuja la cita a SMD (PATCH del evento). La lógica vive en
+     * SmdAppointmentPush para que la usen también los formularios de WhatsApp
+     * (cancelar / reprogramar).
      *
      * @return array{synced: bool, reason: ?string}
      */
     private function pushAppointmentToSmd(int $activityId): array
     {
-        $event = DB::table('smd_synced_events')->where('activity_id', $activityId)->first();
-
-        if (! $event || ! $event->external_id) {
-            return ['synced' => false, 'reason' => 'la cita no está vinculada a SMD'];
-        }
-
-        $activity = $this->activityRepository->find($activityId);
-        $payload = json_decode($event->raw_payload ?? '{}', true) ?: [];
-
-        // Paciente: su smd_patient_id es la clave con la que SMD lo reconoce.
-        $attendances = [];
-        $personId = $activity->participants->pluck('person_id')->filter()->first();
-        $person = $personId ? $this->personRepository->find($personId) : null;
-
-        if ($person && $person->smd_patient_id) {
-            [$nombre, $apellido] = $this->splitName($person->name);
-            $phone = '';
-
-            foreach ((array) $person->contact_numbers as $n) {
-                $val = is_array($n) ? ($n['value'] ?? '') : $n;
-                if ($val !== '') { $phone = (string) $val; break; }
-            }
-
-            $attendances[] = [
-                '_id'      => $person->smd_patient_id,
-                'name'     => $nombre,
-                'lastName' => $apellido,
-                'type'     => 'patient',
-                'phone'    => $phone,
-            ];
-        }
-
-        // Todos los doctores de la cita (por su unique_id = _id de SMD).
-        foreach ($activity->doctors as $doctor) {
-            if (! $doctor->unique_id) {
-                continue;
-            }
-
-            [$nombre, $apellido] = $this->splitName($doctor->name);
-
-            $attendances[] = [
-                '_id'      => $doctor->unique_id,
-                'name'     => $nombre,
-                'lastName' => $apellido,
-                'type'     => 'physician',
-                'phone'    => '',
-            ];
-        }
-
-        $lead = $activity->leads()->first();
-        $status = app(\Webkul\Admin\Services\SmdStatusMapper::class)
-            ->smdStatusForStage($lead ? (int) $lead->lead_pipeline_stage_id : null);
-
-        $body = [
-            '_id'         => $event->external_id,
-            'eventId'     => $payload['eventId'] ?? null,
-            'type'        => 'event',
-            'summary'     => (string) ($activity->title ?? ''),
-            'description' => (string) ($activity->comment ?? ''),
-            // El horario se guarda en hora local; SMD lo espera en UTC.
-            'startDate'   => Carbon::parse($activity->schedule_from, config('app.timezone'))->utc()->format('Y-m-d\TH:i:s.000\Z'),
-            'endDate'     => Carbon::parse($activity->schedule_to, config('app.timezone'))->utc()->format('Y-m-d\TH:i:s.000\Z'),
-            'attendances' => $attendances,
-            'status'      => $status,
-        ];
-
-        $result = app(\Webkul\Admin\Services\ShareMeDataService::class)->updateEvent($event->external_id, $body);
-
-        return [
-            'synced' => (bool) ($result['success'] ?? false),
-            'reason' => $result['message'] ?? null,
-        ];
-    }
-
-    /**
-     * Parte un nombre completo en [nombre, apellido] para el formato de SMD.
-     */
-    private function splitName(?string $full): array
-    {
-        $full = trim((string) $full);
-
-        if ($full === '') {
-            return ['', ''];
-        }
-
-        $parts = preg_split('/\s+/', $full, 2);
-
-        return [$parts[0], $parts[1] ?? ''];
+        return app(\Webkul\Admin\Services\SmdAppointmentPush::class)->push($activityId);
     }
 
     /**

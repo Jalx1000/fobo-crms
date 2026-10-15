@@ -1,7 +1,7 @@
 <?php
 
 /**
- * FASE B (paso 2) — Backfill de las citas del export que faltan en el CRM.
+ * FASE B (paso 2) - Backfill de las citas del export que faltan en el CRM.
  *
  * Reutiliza SmdAppointmentSyncService::processPayload (el mismo entry point del
  * cron/webhook): idempotente, registra en smd_synced_events, crea las citas

@@ -241,7 +241,7 @@
                     "Doctors"
                 ],
                 "summary": "Slots de disponibilidad de un doctor para una fecha",
-                "description": "Devuelve los bloques de tiempo disponibles de un doctor en una fecha específica, descontando las citas ya reservadas. Una llamada por fecha — para consultar 7 días hacer 7 requests. Requiere token Sanctum (Bearer).",
+                "description": "Devuelve los bloques de tiempo disponibles de un doctor en una fecha específica, descontando las citas ya reservadas. Una llamada por fecha - para consultar 7 días hacer 7 requests. Requiere token Sanctum (Bearer).",
                 "operationId": "ebd482b15cb1d37e4f2928b0528d532b",
                 "parameters": [
                     {
@@ -524,7 +524,7 @@
                 "tags": [
                     "Insurance"
                 ],
-                "summary": "Verificar seguro por cédula — Agente WhatsApp",
+                "summary": "Verificar seguro por cédula - Agente WhatsApp",
                 "description": "Verifica si un paciente tiene seguro dental activo buscándolo por cédula (ci_paciente) y nombre de aseguradora en texto libre. Diseñado para el agente de WhatsApp. Responde con shape anti-enumeración: la respuesta es idéntica para 'paciente no encontrado' y 'sin seguro activo', para evitar revelar si un CI existe en el sistema. Rate limit: 10 req/min por token.",
                 "operationId": "6d7a0640bf0bc43ce2ae6c71c9a27a09",
                 "parameters": [
@@ -609,7 +609,7 @@
                                             "type": "object"
                                         },
                                         {
-                                            "description": "Sin seguro o paciente no encontrado (misma respuesta — anti-enumeración)",
+                                            "description": "Sin seguro o paciente no encontrado (misma respuesta - anti-enumeración)",
                                             "properties": {
                                                 "has_insurance": {
                                                     "type": "boolean",
@@ -694,7 +694,7 @@
                 "tags": [
                     "Persons"
                 ],
-                "summary": "Buscar paciente — por CI, nombre, email o wa_id/teléfono",
+                "summary": "Buscar paciente - por CI, nombre, email o wa_id/teléfono",
                 "description": "Busca pacientes por distintos criterios. El parámetro `wa_id` busca en emails (format: wa_id@...) Y en contact_numbers en una sola llamada. Devuelve custom attributes completos. Requiere Bearer token.",
                 "operationId": "025bc761995a8516a125c694df5c9be2",
                 "parameters": [
@@ -993,7 +993,7 @@
                     "Doctors"
                 ],
                 "summary": "Obtener doctor por ID con schedule semanal",
-                "description": "Devuelve los datos de un doctor específico junto con su disponibilidad (slots libres) para los próximos 7 días. Endpoint público — no requiere token. Alternativa eficiente a cargar todos los doctores y filtrar en el cliente.",
+                "description": "Devuelve los datos de un doctor específico junto con su disponibilidad (slots libres) para los próximos 7 días. Endpoint público - no requiere token. Alternativa eficiente a cargar todos los doctores y filtrar en el cliente.",
                 "operationId": "49f0a815df87b00cc69e810cc173fb83",
                 "parameters": [
                     {

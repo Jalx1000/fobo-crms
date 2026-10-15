@@ -63,7 +63,7 @@ class SmdStatusMapper
      * existió y el paciente faltó, así que debe crearse como lead en la etapa
      * "Cita Perdida" (stage_map.no_show), no descartarse. Antes caían en el
      * mismo grupo que las canceladas y, en un sync desde cero, quedaban
-     * archivadas sin lead —la cita perdida nunca aparecía en el CRM—.
+     * archivadas sin lead -la cita perdida nunca aparecía en el CRM-.
      */
     public function isCancelled(?string $smdStatus): bool
     {
@@ -81,5 +81,35 @@ class SmdStatusMapper
             'surgery'               => 'Cirugía',
             default                 => null,
         };
+    }
+
+    /**
+     * Color del tag que devuelve getTag(). Vive acá para que el status siga
+     * teniendo un solo dueño: quien sincroniza no decide de qué color pinta.
+     */
+    public function getTagColor(?string $smdStatus): string
+    {
+        return match ($this->normalize($smdStatus)) {
+            'canceled', 'cancelled' => '#ef4444',
+            'no-show', 'missed'     => '#f97316',
+            'surgery'               => '#8b5cf6',
+            default                 => '#6b7280',
+        };
+    }
+
+    /**
+     * Todos los tags que este mapper puede llegar a poner.
+     *
+     * Los administra la sincronización, no el usuario: cuando una cita cambia
+     * de status hay que sacarle el tag anterior, si no una cita que fue
+     * "Cita perdida" y después se reprograma queda marcada como perdida para
+     * siempre. Sin esta lista no hay forma de distinguir un tag nuestro de uno
+     * que puso una persona a mano -esos no se tocan-.
+     *
+     * @return array<int, string>
+     */
+    public function managedTags(): array
+    {
+        return ['Cancelado', 'Cita perdida', 'Cirugía'];
     }
 }

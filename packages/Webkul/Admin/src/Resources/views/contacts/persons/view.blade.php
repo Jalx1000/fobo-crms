@@ -117,6 +117,9 @@
 
             </div>
 
+            <!-- Estado de cobertura por aseguradora -->
+            @include ('admin::contacts.persons.view.insurance-statuses')
+
             <!-- Person Attributes -->
             @include ('admin::contacts.persons.view.attributes')
 

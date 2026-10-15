@@ -30,7 +30,7 @@ final class MessagingWindow
      *
      * @param  int|null  $hours  From the gateway; null means no window at all.
      * @param  CarbonInterface|null  $lastInboundAt  Null means the customer never
-     *                                               wrote — the window is closed.
+     *                                               wrote - the window is closed.
      */
     public static function compute(?int $hours, ?CarbonInterface $lastInboundAt): self
     {

@@ -13,7 +13,7 @@ use Webkul\Whatsapp\Models\MessageProxy;
  *
  * The point of the route is the Content-Type: it is taken from the message that
  * owns the file, so it always matches the media type declared when sending.
- * Letting the web server guess it breaks audio — an audio/mp4 voice note is an
+ * Letting the web server guess it breaks audio - an audio/mp4 voice note is an
  * MP4 container with no video track and gets served as video/mp4, which WhatsApp
  * refuses for an audio message.
  */

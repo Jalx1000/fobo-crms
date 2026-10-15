@@ -1,6 +1,6 @@
 ---
 name: project-agente-whatsapp
-description: Planning 08 para el agente de WhatsApp en odontoking.wappy.dev — 4 REQs activos con 7 tareas
+description: Planning 08 para el agente de WhatsApp en odontoking.wappy.dev - 4 REQs activos con 7 tareas
 metadata:
   type: project
 ---

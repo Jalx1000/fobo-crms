@@ -1,11 +1,11 @@
-# Login crudo Alianza (MedinetGo) — comandos curl
+# Login crudo Alianza (MedinetGo) - comandos curl
 
 Endpoint: `POST https://qualitynet.alianza.com.bo/ApiGateway/LoginUserProv`
 Contenedor app: `heaven_odontoking-crm` · app en `/code` · credenciales en `/code/.env`
 
 ---
 
-## A) Recomendado — lee credenciales del `.env` (no expone la pass)
+## A) Recomendado - lee credenciales del `.env` (no expone la pass)
 
 Ejecutar desde el **host** de Easypanel:
 

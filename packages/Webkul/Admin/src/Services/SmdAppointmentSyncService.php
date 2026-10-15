@@ -45,7 +45,7 @@ class SmdAppointmentSyncService
             $dayFiles = $this->dropbox->listFilesForDate($date);
 
             if ($onLog) {
-                $onLog("{$date} — ".count($dayFiles).' archivos');
+                $onLog("{$date} - ".count($dayFiles).' archivos');
             }
 
             $files = array_merge($files, $dayFiles);
@@ -81,6 +81,7 @@ class SmdAppointmentSyncService
             'bloqueos'     => 0,
             'sin_cambios'  => 0,
             'obsoletos'    => 0,
+            'en_proceso'   => 0,
             'errores'      => 0,
         ];
     }
@@ -94,11 +95,13 @@ class SmdAppointmentSyncService
      * por timeout. Descargar en paralelo (downloadManyJson) y saltar lo ya
      * procesado (smd_processed_files) lo vuelve viable.
      *
-     * Comparar por ruta es seguro: SMD nombra los archivos
-     * `event-YYYY-MM-DD-HHMM-<id>.json`, así que una modificación llega como
-     * archivo nuevo. Misma ruta = mismo contenido.
+     * La identidad del archivo es ruta + `content_hash`, NO la ruta sola. El
+     * nombre que usa SMD -`event-YYYY-MM-DD-HHMM-<id>.json`- tiene resolución de
+     * minutos, así que una cita creada y editada dentro del mismo minuto se
+     * escribe dos veces en la misma ruta: si dedujéramos solo por ruta, la
+     * edición se perdería en silencio sin llegar nunca a processPayload().
      *
-     * @param  array  $files  Entries de Dropbox (cada uno con `path_lower` y `name`).
+     * @param  array  $files  Entries de Dropbox (cada uno con `path_lower`, `name` y `content_hash`).
      */
     public function processEntries(array $files, array &$summary, ?callable $onLog = null): void
     {
@@ -112,19 +115,19 @@ class SmdAppointmentSyncService
 
         foreach (array_chunk($paths, 500) as $chunk) {
             $procesados = $procesados->merge(
-                DB::table('smd_processed_files')->whereIn('path', $chunk)->pluck('path')
+                DB::table('smd_processed_files')
+                    ->whereIn('path', $chunk)
+                    ->pluck('content_hash', 'path')
             );
         }
 
-        $procesados = $procesados->flip();
-
         $pendientes = array_values(array_filter(
             $files,
-            fn ($file) => ! isset($procesados[$file['path_lower'] ?? ''])
+            fn ($file) => ! $this->yaProcesado($procesados, $file)
         ));
 
         if ($onLog && count($files) !== count($pendientes)) {
-            $onLog(sprintf('%d archivos, %d ya procesados — se bajan %d', count($files), count($files) - count($pendientes), count($pendientes)));
+            $onLog(sprintf('%d archivos, %d ya procesados - se bajan %d', count($files), count($files) - count($pendientes), count($pendientes)));
         }
 
         $summary['sin_cambios'] += count($files) - count($pendientes);
@@ -145,6 +148,29 @@ class SmdAppointmentSyncService
                 $this->processFile($file, $summary, $onLog, $payloads[$file['path_lower']] ?? null);
             }
         }
+    }
+
+    /**
+     * ¿Este entry de Dropbox ya se bajó con ESTE contenido?
+     *
+     * Un hash guardado en null es una fila anterior a que empezáramos a
+     * registrarlo: no hay con qué comparar, así que se rebaja una vez. Cuesta
+     * una descarga y deja la fila al día; procesar de nuevo un payload idéntico
+     * no tiene efectos secundarios (processPayload() lo corta en `sin_cambios`).
+     *
+     * @param  \Illuminate\Support\Collection  $procesados  path => content_hash
+     */
+    private function yaProcesado($procesados, array $file): bool
+    {
+        $path = $file['path_lower'] ?? '';
+
+        if (! $procesados->has($path)) {
+            return false;
+        }
+
+        $guardado = $procesados->get($path);
+
+        return $guardado !== null && $guardado === ($file['content_hash'] ?? null);
     }
 
     /**
@@ -172,10 +198,13 @@ class SmdAppointmentSyncService
 
             $summary[$outcome]++;
 
-            // Anotado pase lo que pase: un archivo obsoleto o que no cambió nada
-            // tampoco hay que volver a bajarlo. Solo se omite si hubo excepción,
-            // para que un fallo transitorio se reintente.
-            $this->markFileProcessed($file['path_lower'], $outcome);
+            // Anotado salvo que no se haya podido aplicar: un archivo obsoleto o
+            // que no cambió nada tampoco hay que volver a bajarlo. Se omite si
+            // hubo excepción o si la cita estaba tomada por otro worker
+            // (`en_proceso`), para que la próxima corrida lo reintente.
+            if ($outcome !== 'en_proceso') {
+                $this->markFileProcessed($file['path_lower'], $outcome, $file['content_hash'] ?? null);
+            }
         } catch (\Throwable $e) {
             Log::error('[SmdAppointmentSync] Error procesando archivo', [
                 'file'  => $file['path_lower'] ?? '?',
@@ -208,12 +237,23 @@ class SmdAppointmentSyncService
         // antes de que ninguno alcance a insertar en smd_synced_events.
         $lock = Cache::lock('smd:event:'.$externalId, 60);
 
-        if (! $lock->get()) {
-            Log::info('[SmdAppointmentSync] Cita ya en proceso por otro worker, se omite', [
+        // Si otro worker la tiene, se espera un poco: lo normal es que termine en
+        // segundos y así esta versión se aplica en la misma corrida. Si no se
+        // libera, se devuelve `en_proceso`, que NO marca el archivo como
+        // procesado: antes se devolvía `sin_cambios`, el archivo quedaba anotado
+        // y esa versión no se aplicaba nunca (AUD-04).
+        try {
+            $acquired = $lock->block((int) config('smd.dropbox.lock_wait_seconds', 10));
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+            $acquired = false;
+        }
+
+        if (! $acquired) {
+            Log::info('[SmdAppointmentSync] Cita en proceso por otro worker, se reintenta en la próxima corrida', [
                 'external_id' => $externalId,
             ]);
 
-            return 'sin_cambios';
+            return 'en_proceso';
         }
 
         try {
@@ -260,21 +300,40 @@ class SmdAppointmentSyncService
                 // actualizar, y updateDropbox() crearía una cita nueva para un
                 // evento ya cancelado.
                 if ($existing->activity_id) {
-                    $this->incoming->updateDropbox($json, $existing);
+                    $result = $this->incoming->updateDropbox($json, $existing);
+
+                    // updateDropbox() puede estrenar lead y actividad: un bloqueo
+                    // que vuelve con paciente se promueve a cita. Hay que cancelar
+                    // ESA cita y guardar sus ids; si no, queda una cita activa y
+                    // desvinculada, y cada cambio futuro del evento crea otra
+                    // (AUD-13). Pasó al cancelar desde SMD citas creadas por el CRM.
+                    $existing = (object) array_merge((array) $existing, [
+                        'lead_id'     => $result['lead_id'] ?? $existing->lead_id,
+                        'activity_id' => $result['activity_id'] ?? $existing->activity_id,
+                    ]);
                 }
 
-                $this->incoming->cancelDropbox($externalId, $existing);
+                $cancelled = $this->incoming->cancelDropbox($externalId, $existing);
+
+                // cancelDropbox() borra el time_off de un bloqueo cancelado: no
+                // dejar el registro apuntando a una actividad que ya no existe.
+                if (array_key_exists('activity_id', $cancelled)) {
+                    $existing->activity_id = $cancelled['activity_id'];
+                }
+
                 DB::table('smd_synced_events')
                     ->where('external_id', $externalId)
                     ->update($this->withSourceUpdatedAt([
                         'raw_payload' => json_encode($json),
                         'status'      => $status,
+                        'lead_id'     => $existing->lead_id,
+                        'activity_id' => $existing->activity_id,
                         'archived_at' => now(),
                         'updated_at'  => now(),
                     ], $updatedAt));
             } else {
-                // Cancelada y nunca vista antes: no se crea la cita —ya viene
-                // cerrada de SMD— pero sí queda constancia. Sin esta fila el
+                // Cancelada y nunca vista antes: no se crea la cita -ya viene
+                // cerrada de SMD- pero sí queda constancia. Sin esta fila el
                 // evento no figura como sincronizado, se vuelve a evaluar en
                 // cada corrida y parece que faltara respecto del archivo origen.
                 DB::table('smd_synced_events')->insert($this->withSourceUpdatedAt([
@@ -352,10 +411,11 @@ class SmdAppointmentSyncService
     }
 
     /**
-     * Deja constancia de que el archivo ya se bajó, para que la próxima corrida
-     * no lo vuelva a pedir. Nunca debe hacer fallar la sincronización.
+     * Deja constancia de que el archivo ya se bajó CON ESTE contenido, para que
+     * la próxima corrida no lo vuelva a pedir mientras no cambie. Nunca debe
+     * hacer fallar la sincronización.
      */
-    private function markFileProcessed(?string $path, string $outcome): void
+    private function markFileProcessed(?string $path, string $outcome, ?string $contentHash = null): void
     {
         if (! $path) {
             return;
@@ -364,7 +424,7 @@ class SmdAppointmentSyncService
         try {
             DB::table('smd_processed_files')->updateOrInsert(
                 ['path' => $path],
-                ['outcome' => $outcome, 'processed_at' => now()],
+                ['outcome' => $outcome, 'content_hash' => $contentHash, 'processed_at' => now()],
             );
         } catch (\Throwable $e) {
             Log::warning('[SmdAppointmentSync] No se pudo anotar el archivo procesado', [

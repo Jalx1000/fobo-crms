@@ -18,7 +18,7 @@ uses(DatabaseTransactions::class);
  * el JSON al cliente (agente IA).
  */
 beforeEach(function () {
-    $this->user   = User::find(1);
+    $this->user = User::find(1);
     $this->person = Person::create(['name' => 'Paciente API '.uniqid(), 'entity_type' => 'persons']);
 });
 

@@ -31,7 +31,7 @@ foreach ($targets as $aid) {
 
     echo "ACT $aid  sched={$act->schedule_from}  updated={$act->updated_at}\n";
     echo "  ext=$ext\n";
-    echo '  CRM doctor(s): '.($curDocs ?: '—')."\n";
+    echo '  CRM doctor(s): '.($curDocs ?: '-')."\n";
 
     $ev = $byExt[$ext] ?? null;
     if (! $ev) {

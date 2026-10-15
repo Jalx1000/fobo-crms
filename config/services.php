@@ -42,6 +42,28 @@ return [
         'cache_ttl'     => env('INSURANCE_VERIFY_CACHE_TTL', 3600),
     ],
 
+    // Padrones de asegurados en Google Sheets (antes los leía n8n). Acceso con
+    // una cuenta de servicio: compartir cada planilla con su client_email.
+    'google_sheets' => [
+        'credentials_path' => env('GOOGLE_SHEETS_CREDENTIALS', storage_path('app/google/service-account.json')),
+        'cache_minutes'    => env('GOOGLE_SHEETS_CACHE_MINUTES', 10),
+    ],
+
+    // range: la pestaña ("'Asegurados'!A:ZZ"); A:ZZ = la primera pestaña.
+    // ci_columns: encabezados donde está la cédula (se prueba en orden).
+    'insurance_sheets' => [
+        'nacional_vida' => [
+            'spreadsheet_id' => env('NACIONAL_VIDA_SHEET_ID'),
+            'range'          => env('NACIONAL_VIDA_SHEET_RANGE', 'A:ZZ'),
+            'ci_columns'     => ['NRO DOCUMENTO', 'NRO. DOCUMENTO', 'CI'],
+        ],
+        'membresia' => [
+            'spreadsheet_id' => env('MEMBRESIA_SHEET_ID'),
+            'range'          => env('MEMBRESIA_SHEET_RANGE', 'A:ZZ'),
+            'ci_columns'     => ['CI'],
+        ],
+    ],
+
     'alianza' => [
         'login_url'        => env('ALIANZA_LOGIN_URL', 'https://qualitynet.alianza.com.bo/ApiGateway'),
         'microservice_url' => env('ALIANZA_MICROSERVICE_URL', 'https://qualitynet.alianza.com.bo/ApiGateway'),

@@ -1,6 +1,6 @@
 ---
 name: project-suite-state
-description: Estado de la suite de tests — cobertura actual, tests passing, gaps conocidos
+description: Estado de la suite de tests - cobertura actual, tests passing, gaps conocidos
 metadata:
   type: project
 ---
@@ -20,7 +20,7 @@ Los 4 failed son pre-existentes y no relacionados con el trabajo reciente:
 | `tests/Feature/PersonSmdSyncTest.php` | 18 | syncSmd, searchSmd, listeners |
 | `tests/Feature/ShareMeDataWebhookErrorTest.php` | 5 | auth webhook, validación payload |
 | `tests/Feature/InsuranceVerificationTest.php` | 12 | verificación seguros UI (POST con person_id) |
-| `tests/Feature/AgentInsuranceVerifyTest.php` | 18 | GET /api/v1/insurance/verify — agente WhatsApp |
+| `tests/Feature/AgentInsuranceVerifyTest.php` | 18 | GET /api/v1/insurance/verify - agente WhatsApp |
 | `tests/Feature/EntitySyncTest.php` | 2 | sync bidireccional CI/Seguro Person↔Lead |
 
 ## Patrón clave: tests de AgentInsuranceVerify

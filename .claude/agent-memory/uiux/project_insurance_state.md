@@ -1,6 +1,6 @@
 ---
 name: project-insurance-verification-state
-description: Implementación actual del seguro médico en la vista del paciente — endpoints, estados, lógica de verificación
+description: Implementación actual del seguro médico en la vista del paciente - endpoints, estados, lógica de verificación
 metadata:
   type: project
 ---
@@ -15,24 +15,24 @@ metadata:
 
 ## Endpoints disponibles
 
-- `POST {id}/verify-insurance` — verifica seguro del paciente
-- `POST {id}/update-insurance` — actualiza datos y luego verifica
-- `POST {id}/clear-insurance-cache` — limpia cache de verificación
-- `POST verify-insurance-quick` — verificación sin contexto de persona (para crear cita)
-- `GET insurance-options` — lista opciones de aseguradoras
+- `POST {id}/verify-insurance` - verifica seguro del paciente
+- `POST {id}/update-insurance` - actualiza datos y luego verifica
+- `POST {id}/clear-insurance-cache` - limpia cache de verificación
+- `POST verify-insurance-quick` - verificación sin contexto de persona (para crear cita)
+- `GET insurance-options` - lista opciones de aseguradoras
 
 ## Atributos del paciente relevantes
 
-- `ci_paciente` — carnet de identidad (atributo custom en `persons`)
-- `seguro_paciente` — ID de la aseguradora (atributo select, tiene labels)
+- `ci_paciente` - carnet de identidad (atributo custom en `persons`)
+- `seguro_paciente` - ID de la aseguradora (atributo select, tiene labels)
 
 ## Estados de verificación que retorna `InsuranceService::verify()`
 
-- `VIGENTE` — cobertura activa
-- `EN_MORA` — con deuda
-- `NO_ENCONTRADO` — no encontrado en aseguradora
-- `SIN_SEGURO` — sin seguro registrado
-- `INDETERMINADO` — error o aseguradora no soportada
+- `VIGENTE` - cobertura activa
+- `EN_MORA` - con deuda
+- `NO_ENCONTRADO` - no encontrado en aseguradora
+- `SIN_SEGURO` - sin seguro registrado
+- `INDETERMINADO` - error o aseguradora no soportada
 
 ## Cache
 

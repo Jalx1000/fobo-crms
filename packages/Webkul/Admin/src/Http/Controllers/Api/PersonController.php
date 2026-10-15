@@ -20,29 +20,40 @@ class PersonController extends Controller
     /**
      * @OA\Get(
      *     path="/api/v1/persons",
-     *     summary="Buscar paciente — por CI, nombre, email o wa_id/teléfono",
+     *     summary="Buscar paciente - por CI, nombre, email o wa_id/teléfono",
      *     description="Busca pacientes por distintos criterios. El parámetro `wa_id` busca en emails (format: wa_id@...) Y en contact_numbers en una sola llamada. Devuelve custom attributes completos. Requiere Bearer token.",
      *     tags={"Persons"},
      *     security={{"bearerAuth": {}}},
+     *
      *     @OA\Parameter(name="wa_id", in="query", required=false,
      *         description="ID de WhatsApp / número de teléfono. Busca en emails (wa_id@*) Y en contact_numbers.",
+     *
      *         @OA\Schema(type="string", example="59175640698")
      *     ),
+     *
      *     @OA\Parameter(name="ci", in="query", required=false,
      *         description="Cédula exacta (custom attribute ci_paciente)",
+     *
      *         @OA\Schema(type="string", example="E-10131585")
      *     ),
+     *
      *     @OA\Parameter(name="name", in="query", required=false,
      *         description="Nombre parcial (LIKE)",
+     *
      *         @OA\Schema(type="string", example="García")
      *     ),
+     *
      *     @OA\Parameter(name="limit", in="query", required=false,
+     *
      *         @OA\Schema(type="integer", default=10, maximum=50)
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Pacientes encontrados con custom attributes y wa_id detectado",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="data", type="array", @OA\Items(
      *                 @OA\Property(property="id", type="integer", example=42),
      *                 @OA\Property(property="name", type="string", example="María García"),
@@ -61,12 +72,13 @@ class PersonController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(response=401, description="No autenticado")
      * )
      */
     public function index(Request $request): JsonResponse
     {
-        $limit    = min((int) $request->query('limit', 10), 50);
+        $limit = min((int) $request->query('limit', 10), 50);
         $attrRepo = app(AttributeRepository::class);
 
         $attrs = collect(['ci_paciente', 'seguro_paciente', 'carnet', 'fecha_nacimiento'])
@@ -79,7 +91,7 @@ class PersonController extends Controller
             $query->where(function ($q) use ($waId) {
                 $q->whereRaw(
                     "JSON_SEARCH(emails, 'one', ?, NULL, '\$[*].value') IS NOT NULL",
-                    [$waId . '@%']
+                    [$waId.'@%']
                 )->orWhereRaw(
                     "JSON_SEARCH(contact_numbers, 'one', ?, NULL, '\$[*].value') IS NOT NULL",
                     [$waId]
@@ -101,14 +113,14 @@ class PersonController extends Controller
         }
 
         if ($name = trim((string) $request->query('name', ''))) {
-            $query->where('name', 'like', '%' . $name . '%');
+            $query->where('name', 'like', '%'.$name.'%');
         }
 
         $persons = $query->limit($limit)->get();
 
         // Bulk-load attribute_values en una sola query
         $personIds = $persons->pluck('id')->toArray();
-        $attrIds   = $attrs->filter()->pluck('id')->values()->toArray();
+        $attrIds = $attrs->filter()->pluck('id')->values()->toArray();
 
         $avRows = empty($personIds) ? collect() : DB::table('attribute_values')
             ->whereIn('entity_id', $personIds)

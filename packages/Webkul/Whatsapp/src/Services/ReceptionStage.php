@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
  * Recepcionista. A partir de ahí el CRM deja de avisarle: mientras el lead esté
  * en esa etapa, atiende una persona.
  *
- * No hace falta ninguna señal de vuelta — recepción saca el lead de la etapa y
+ * No hace falta ninguna señal de vuelta - recepción saca el lead de la etapa y
  * el agente se reanuda solo en el siguiente mensaje.
  */
 class ReceptionStage
@@ -21,7 +21,7 @@ class ReceptionStage
      *
      * Memoizado por request: aiEffective() corre una vez por fila de la lista de
      * conversaciones y esto no puede volverse una consulta por fila. El conjunto
-     * es chico por naturaleza —solo las conversaciones derivadas— así que se
+     * es chico por naturaleza -solo las conversaciones derivadas- así que se
      * trae entero de una vez.
      *
      * @var array<int, int>|null
@@ -139,7 +139,7 @@ class ReceptionStage
     }
 
     /**
-     * Olvida el memo — para tests y para workers de vida larga, que si no nunca
+     * Olvida el memo - para tests y para workers de vida larga, que si no nunca
      * verían una derivación hecha después de arrancar.
      */
     public static function flush(): void

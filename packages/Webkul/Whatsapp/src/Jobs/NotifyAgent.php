@@ -15,7 +15,7 @@ use Webkul\Whatsapp\Services\AgentPayload;
 /**
  * Notifies the external AI agent that an inbound message arrived, so it can
  * reply through the documented API. Only fires while the agent is enabled for
- * the conversation — turning the agent off is what stops AI replies.
+ * the conversation - turning the agent off is what stops AI replies.
  */
 class NotifyAgent implements ShouldQueue
 {

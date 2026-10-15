@@ -3,68 +3,53 @@
 namespace Webkul\Admin\Services\Insurance\Drivers;
 
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Webkul\Admin\Services\Insurance\Contracts\InsuranceDriverInterface;
+use Webkul\Admin\Services\Insurance\GoogleSheetsInsuranceSource;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
 
 /**
  * Driver para Membresía Odontoking.
  *
- * Verifica via webhook n8n (SEGUROS_WEBHOOK_URL) usando empresa_seguro = "Membresía Odontoking".
+ * Busca la cédula en el padrón de membresías de Google Sheets
+ * (GoogleSheetsInsuranceSource; antes lo leía un webhook de n8n).
  * Además, lee el atributo `estado_seguro_paciente` de la BD como contexto adicional.
  */
 class OdontokingMembershipDriver implements InsuranceDriverInterface
 {
-    const OPTION_ID_EN_MORA  = 91;
+    const OPTION_ID_EN_MORA = 91;
+
     const OPTION_ID_PROBLEMA = 92;
 
-    protected string $webhookUrl;
-    protected int    $timeout = 30;
-
     public function __construct(
-        protected AttributeRepository      $attributeRepository,
+        protected AttributeRepository $attributeRepository,
         protected AttributeValueRepository $attributeValueRepository,
-    ) {
-        $this->webhookUrl = env('SEGUROS_WEBHOOK_URL', 'https://n8n.sofopolis.com/webhook/seguros-verify');
-    }
+        protected GoogleSheetsInsuranceSource $sheets,
+    ) {}
 
     public function verify(object $person, string $ci): array
     {
         try {
-            $response = Http::timeout($this->timeout)
-                ->post($this->webhookUrl, [
-                    'empresa_seguro'   => 'Membresía Odontoking',
-                    'carnet_identidad' => $ci,
-                ]);
-
-            if ($response->failed()) {
-                $this->updateInsuranceAttributes($person, 'INDETERMINADO');
-                return $this->indeterminate('No hay conexión con la aseguradora en este momento. Inténtalo más tarde.');
-            }
-
-            $data = $response->json();
-
-            if (! is_array($data)) {
-                $this->updateInsuranceAttributes($person, 'INDETERMINADO');
-                return $this->indeterminate('La aseguradora respondió con un formato que no conocemos. Por favor, contacta a soporte.');
-            }
+            // Padrón en Google Sheets (antes lo leía n8n y devolvía lo mismo).
+            $data = $this->sheets->lookup('membresia', $ci);
 
             $result = $this->mapResponse($data);
             $this->updateInsuranceAttributes($person, $result['status']);
+
             return $result;
         } catch (\Exception $e) {
-            Log::error('[OdontokingMembershipDriver] Error: ' . $e->getMessage());
+            Log::error('[OdontokingMembershipDriver] No se pudo leer el padrón de Google Sheets: '.$e->getMessage());
             $this->updateInsuranceAttributes($person, 'INDETERMINADO');
-            return $this->indeterminate('La consulta tardó demasiado. Por favor, revisa tu conexión e inténtalo de nuevo.');
+
+            return $this->indeterminate('No pudimos consultar el padrón de membresías en este momento. Inténtalo más tarde.');
         }
     }
 
     protected function mapResponse(array $data): array
     {
         $success = $data['success'] ?? false;
-        $results = $data['data']    ?? [];
+        $results = $data['data'] ?? [];
 
         if (! $success || empty($results) || (is_string($results) && trim(strtolower($results)) === 'no registrado')) {
             return [
@@ -91,14 +76,14 @@ class OdontokingMembershipDriver implements InsuranceDriverInterface
         [$estado, $vigenciaHasta] = $this->resolveEstado($insuranceData);
 
         $displayData = [
-            'CI'          => $insuranceData['CI']           ?? '',
-            'NOMBRE'      => $insuranceData['Nombre']       ?? ($insuranceData['Paciente_Original'] ?? ''),
-            'CONTRATANTE' => 'Membresía Odontoking',
-            'ESTADO'      => $estado,
-            'TELEFONO'    => $insuranceData['Telefono']     ?? '',
+            'CI'            => $insuranceData['CI'] ?? '',
+            'NOMBRE'        => $insuranceData['Nombre'] ?? ($insuranceData['Paciente_Original'] ?? ''),
+            'CONTRATANTE'   => 'Membresía Odontoking',
+            'ESTADO'        => $estado,
+            'TELEFONO'      => $insuranceData['Telefono'] ?? '',
             'OBSERVACIONES' => $insuranceData['Observaciones'] ?? '',
-            'SEGURO'      => $insuranceData['Seguro']        ?? '',
-            'SEGURO2'     => $insuranceData['Seguro2']       ?? '',
+            'SEGURO'        => $insuranceData['Seguro'] ?? '',
+            'SEGURO2'       => $insuranceData['Seguro2'] ?? '',
         ];
 
         if ($vigenciaHasta) {
@@ -118,7 +103,7 @@ class OdontokingMembershipDriver implements InsuranceDriverInterface
         if ($estado === 'VENCIDO') {
             return [
                 'status'  => 'VENCIDO',
-                'message' => 'La membresía Odontoking está vencida.' . ($vigenciaHasta ? ' Venció el ' . $vigenciaHasta->format('d/m/Y') . '.' : ''),
+                'message' => 'La membresía Odontoking está vencida.'.($vigenciaHasta ? ' Venció el '.$vigenciaHasta->format('d/m/Y').'.' : ''),
                 'badge'   => 'danger',
                 'success' => true,
                 'data'    => $displayData,
@@ -146,6 +131,12 @@ class OdontokingMembershipDriver implements InsuranceDriverInterface
 
     protected function updateInsuranceAttributes(object $person, string $status): void
     {
+        // Consulta solo por cédula (InsuranceService::verifyCi): sin ficha no
+        // se escribe nada. Antes quedaban valores colgados de la persona 0.
+        if (empty($person->id)) {
+            return;
+        }
+
         try {
             $optionId = $this->resolveOptionId($status);
 
@@ -181,7 +172,7 @@ class OdontokingMembershipDriver implements InsuranceDriverInterface
                 }
             }
         } catch (\Exception $e) {
-            Log::error('[OdontokingMembershipDriver] Error actualizando atributos: ' . $e->getMessage());
+            Log::error('[OdontokingMembershipDriver] Error actualizando atributos: '.$e->getMessage());
         }
     }
 
@@ -236,9 +227,15 @@ class OdontokingMembershipDriver implements InsuranceDriverInterface
         $observaciones = trim((string) ($row['Observaciones'] ?? ''));
         $observacionesNormalizadas = $this->normalizeText($observaciones);
 
-        if (preg_match('/MF HASTA EL\s+(\d{2}\/\d{2}\/\d{4})/i', $observaciones, $m)) {
-            $fecha = \Carbon\Carbon::createFromFormat('d/m/Y', $m[1])->startOfDay();
-            $estado = $fecha->isFuture() ? 'VIGENTE' : 'VENCIDO';
+        // En el padrón real (Google Sheets, 2026-10-12) la fecha viene como
+        // "MF HASTA EL 15/10/2026", "MF VENCE 15/10/2026", "MF VENCE EL …" y a
+        // veces con el día de un dígito ("9/10/2026"). Antes solo se entendía la
+        // primera: ~440 membresías con "MF VENCE" pasaban como vigentes.
+        if (preg_match('/MF\s+(?:HASTA|VENCE)(?:\s+EL)?\s+(\d{1,2}\/\d{1,2}\/\d{4})/i', $observaciones, $m)) {
+            $fecha = \Carbon\Carbon::createFromFormat('j/n/Y', $m[1])->startOfDay();
+            // Vale hasta el final de ese día, inclusive.
+            $estado = $fecha->copy()->endOfDay()->isFuture() ? 'VIGENTE' : 'VENCIDO';
+
             return [$estado, $fecha];
         }
 
@@ -280,7 +277,7 @@ class OdontokingMembershipDriver implements InsuranceDriverInterface
     protected function hasMembershipInsurance(array $row): bool
     {
         $insuranceNames = [
-            $row['Seguro']  ?? '',
+            $row['Seguro'] ?? '',
             $row['Seguro2'] ?? '',
         ];
 

@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Schema;
  * permits many NULLs in a unique index, so they are unaffected.
  *
  * The new indexes get short explicit names: the auto-generated composite name
- * came to 65 chars once the table prefix is applied — one over MySQL's limit.
+ * came to 65 chars once the table prefix is applied - one over MySQL's limit.
  *
  * Every step is guarded: MySQL commits each DDL statement implicitly, so a
  * failure half-way leaves earlier steps applied while the migration stays
@@ -29,7 +29,7 @@ return new class extends Migration
 {
     protected string $table = 'whatsapp_conversations';
 
-    /** Short explicit names — used verbatim, no table prefix applied. */
+    /** Short explicit names - used verbatim, no table prefix applied. */
     protected string $phoneIndex = 'wa_conv_phone_idx';
 
     protected string $providerUnique = 'wa_conv_gateway_provider_uniq';

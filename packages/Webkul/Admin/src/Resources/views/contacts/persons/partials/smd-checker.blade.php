@@ -3,12 +3,12 @@
   Incluir con: @include('admin::contacts.persons.partials.smd-checker', ['searchUrl' => route(...), 'mode' => 'create|edit'])
 
   Variables disponibles:
-    $searchUrl  — URL del endpoint GET search-smd
-    $mode       — 'create' (sin datos previos) | 'edit' (puede pre-cargar teléfono/CI)
-    $person     — (solo en modo edit) el modelo Person existente
+    $searchUrl  - URL del endpoint GET search-smd
+    $mode       - 'create' (sin datos previos) | 'edit' (puede pre-cargar teléfono/CI)
+    $person     - (solo en modo edit) el modelo Person existente
 --}}
 
-{{-- Botón Verificar en SMD — se incluye en el header de la sección --}}
+{{-- Botón Verificar en SMD - se incluye en el header de la sección --}}
 <button
     type="button"
     id="smd-verify-btn"
@@ -89,7 +89,7 @@
             banner.className = 'rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300 transition-all duration-300';
             bannerIcon.innerHTML = svgCheck('text-green-500');
             bannerTitle.textContent = MODE === 'edit'
-                ? 'Paciente encontrado en SMD — se actualizarán sus datos'
+                ? 'Paciente encontrado en SMD - se actualizarán sus datos'
                 : 'Paciente encontrado en ShareMeData';
 
             const parts = [];
@@ -243,7 +243,9 @@
         // Estado de seguro: dispara la verificación automáticamente si hay CI y Seguro,
         // para que el estado se rellene solo (lo expone el componente de verificación).
         const ciVal     = document.querySelector('[name="ci_paciente"]')?.value?.trim();
-        const seguroVal = document.querySelector('[name="seguro_paciente"]')?.value;
+        // Multiselect: el componente de chips expone `seguro_paciente[]`.
+        const seguroVal = document.querySelector('[name="seguro_paciente[]"]')?.value
+            ?? document.querySelector('[name="seguro_paciente"]')?.value;
         if (ciVal && seguroVal && typeof window.__odkVerifyInsurance === 'function') {
             window.__odkVerifyInsurance();
         }

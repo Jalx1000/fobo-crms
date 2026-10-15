@@ -72,6 +72,21 @@
                 <button type="button" class="px-2 py-1 rounded border text-xs dark:border-gray-800" @click="selectAllDoctors">Todos</button>
                 <button type="button" class="px-2 py-1 rounded border text-xs dark:border-gray-800" @click="clearDoctors">Ninguno</button>
                 <v-doctor-multiselect style="max-width:350px;min-width:350px;max-height:100%" :items="doctors" v-model="selectedDoctorIds"></v-doctor-multiselect>
+
+                <!-- Buscador de paciente: nombre, teléfono o CI (PatientSearch en el backend) -->
+                <!-- Estilos en línea: clases de Tailwind nuevas no están en el CSS compilado de producción. -->
+                <div class="flex items-center" style="position:relative">
+                    <span class="icon-search text-xl text-gray-400" style="position:absolute;left:8px;pointer-events:none"></span>
+                    <input
+                        type="search"
+                        class="rounded border border-gray-200 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                        style="width:17rem;padding-left:2.1rem;padding-right:.5rem"
+                        placeholder="Buscar paciente: nombre, teléfono o CI"
+                        aria-label="Buscar paciente por nombre, teléfono o CI"
+                        v-model="patientSearch"
+                        @input="onPatientSearch"
+                    >
+                </div>
                 
                 <div class="flex items-center rounded border dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900">
                     <button type="button" class="px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800" :class="viewType==='day'?'bg-gray-100 dark:bg-gray-800 font-semibold text-blue-600':''" @click="setView('day')">Día</button>
@@ -568,7 +583,7 @@
                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
                                 :class="insuranceBadgeClass(insurance.result.badge)"
                             >
-                                @{{ insurance.result.status }} — @{{ insurance.result.message }}
+                                @{{ insurance.result.status }} - @{{ insurance.result.message }}
                             </span>
                         </div>
                     </div>
@@ -858,6 +873,80 @@
                         </div>
                     </div>
 
+                    <!-- Seguro médico del paciente (ver + agregar/editar) -->
+                    <div v-if="viewAppointment.data.person_id">
+                        <div class="mb-1.5 flex items-center justify-between">
+                            <p class="text-xs font-medium uppercase text-gray-400">Seguro médico</p>
+                            <button type="button" v-if="!apptInsurance.editing" @click="startEditApptInsurance"
+                                    class="text-xs text-blue-600 hover:underline dark:text-blue-400">
+                                @{{ apptInsurance.seguros.length ? 'Editar' : 'Agregar' }}
+                            </button>
+                        </div>
+
+                        <!-- Vista: una fila por aseguradora, cada una con su propio estado -->
+                        <div v-if="!apptInsurance.editing"
+                             class="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800">
+                            <span v-if="apptInsurance.loading" class="text-xs text-gray-400">Cargando…</span>
+                            <template v-else>
+                                <span v-if="!apptInsurance.seguros.length" class="text-gray-400">Sin seguro registrado.</span>
+
+                                <div v-else class="flex flex-col gap-1.5">
+                                    <div v-for="s in apptInsurance.seguros" :key="'dv-seg-'+s.id"
+                                         class="flex items-center justify-between gap-2">
+                                        <span class="text-gray-700 dark:text-gray-300">@{{ s.name }}</span>
+                                        <span v-if="apptInsuranceStatusOf(s)"
+                                              class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
+                                              :class="insuranceStatusBadge(apptInsuranceStatusOf(s))">@{{ apptInsuranceStatusOf(s) }}</span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Editor: agregar/editar seguros -->
+                        <div v-else class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                            <div class="flex flex-col gap-2">
+                                <div class="flex flex-col gap-1">
+                                    <x-admin::form.control-group.label>CI del paciente</x-admin::form.control-group.label>
+                                    <input type="text" v-model="apptInsurance.ci" placeholder="Cédula de identidad"
+                                           class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400" />
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <x-admin::form.control-group.label>Seguros del paciente</x-admin::form.control-group.label>
+                                    <p class="text-xs text-gray-400">Marca todos los que correspondan; se verifica cada uno.</p>
+
+                                    <div class="flex max-h-36 flex-col gap-0.5 overflow-y-auto rounded border border-gray-200 p-1.5 dark:border-gray-800">
+                                        <label v-for="opt in insuranceOptions" :key="'dv-ins-'+opt.id"
+                                               class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
+                                            <input type="checkbox" :value="opt.id" v-model="apptInsurance.seguro_ids"
+                                                   class="h-3.5 w-3.5 cursor-pointer rounded border-gray-300" />
+                                            @{{ opt.name }}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-2 flex items-center gap-2">
+                                <button type="button"
+                                        class="text-xs px-3 py-1.5 rounded border dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-1"
+                                        @click="saveApptInsurance"
+                                        :disabled="apptInsurance.saving || !apptInsurance.ci || !apptInsurance.seguro_ids.length">
+                                    <x-admin::spinner v-if="apptInsurance.saving" class="w-3 h-3" />
+                                    <span>Guardar y verificar</span>
+                                </button>
+                                <button type="button" class="text-xs px-3 py-1.5 rounded text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                                        :disabled="apptInsurance.saving" @click="cancelEditApptInsurance">Cancelar</button>
+                            </div>
+
+                            <!-- Resultado por aseguradora -->
+                            <div v-if="apptInsuranceResults.length" class="mt-2 flex flex-col gap-1">
+                                <span v-for="(r, i) in apptInsuranceResults" :key="'dv-res-'+i"
+                                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                      :class="insuranceBadgeClass(r.badge)">
+                                    <span v-if="r.seguro_name">@{{ r.seguro_name }} - </span>@{{ r.status }} - @{{ r.message }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Estado de la cita: selección única (pastel) -->
                     <div>
                         <p class="mb-1.5 text-xs font-medium uppercase text-gray-400">Estado de la cita</p>
@@ -961,11 +1050,22 @@
                             <span class="truncate text-sm text-gray-500 dark:text-gray-400">@{{ appointmentForm.person.name }}</span>
                         </div>
 
+                        <div class="flex flex-col gap-1">
+                            <x-admin::form.control-group.label class="required">Paciente</x-admin::form.control-group.label>
+                            <x-admin::lookup
+                                ::src="personSearchUrl"
+                                ::params="{ limit: 200 }"
+                                name="appointment_person_edit"
+                                placeholder="Buscar paciente…"
+                                @on-selected="onSelectPatient"
+                                ::value="{ id: appointmentForm.person.id, name: appointmentForm.person.name }"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <x-admin::form.control-group.label>Doctor(es)</x-admin::form.control-group.label>
+                            <v-doctor-multiselect :items="doctors" v-model="appointmentForm.doctor_ids"></v-doctor-multiselect>
+                        </div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div class="flex flex-col gap-1">
-                                <x-admin::form.control-group.label>Doctor(es)</x-admin::form.control-group.label>
-                                <v-doctor-multiselect :items="doctors" v-model="appointmentForm.doctor_ids"></v-doctor-multiselect>
-                            </div>
                             <div class="flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Servicio</x-admin::form.control-group.label>
                                 <x-admin::lookup
@@ -975,6 +1075,14 @@
                                     placeholder="Buscar servicio…"
                                     @on-selected="onSelectService"
                                     ::value="{ id: appointmentForm.product_id, name: appointmentForm.product_name }"
+                                />
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Fecha</x-admin::form.control-group.label>
+                                <input
+                                    type="date"
+                                    class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
+                                    v-model="appointmentForm.date"
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
@@ -998,6 +1106,49 @@
                                     <option :value="null" disabled>Estado</option>
                                     <option v-for="stage in stages" :key="'ed-st-'+stage.id" :value="stage.id">@{{ stage.name }}</option>
                                 </select>
+                            </div>
+
+                            <!-- Seguro médico del paciente (editable; persiste en la ficha del paciente) -->
+                            <div class="col-span-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Seguro médico</p>
+                                <div class="flex flex-col gap-2">
+                                    <div class="flex flex-col gap-1">
+                                        <x-admin::form.control-group.label>CI del paciente</x-admin::form.control-group.label>
+                                        <input type="text" v-model="apptInsurance.ci" placeholder="Cédula de identidad"
+                                               class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400" />
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <x-admin::form.control-group.label>Seguros del paciente</x-admin::form.control-group.label>
+                                        <p class="text-xs text-gray-400">Marca todos los que correspondan; se verifica cada uno.</p>
+
+                                        <div class="flex max-h-36 flex-col gap-0.5 overflow-y-auto rounded border border-gray-200 p-1.5 dark:border-gray-800">
+                                            <label v-for="opt in insuranceOptions" :key="'ed-ins-'+opt.id"
+                                                   class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
+                                                <input type="checkbox" :value="opt.id" v-model="apptInsurance.seguro_ids"
+                                                       class="h-3.5 w-3.5 cursor-pointer rounded border-gray-300" />
+                                                @{{ opt.name }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-2 flex items-center gap-2">
+                                    <button type="button"
+                                            class="text-xs px-3 py-1.5 rounded border dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-1"
+                                            @click="saveApptInsurance"
+                                            :disabled="apptInsurance.saving || !apptInsurance.ci || !apptInsurance.seguro_ids.length">
+                                        <x-admin::spinner v-if="apptInsurance.saving" class="w-3 h-3" />
+                                        <span>Guardar y verificar seguros</span>
+                                    </button>
+                                </div>
+
+                                <!-- Resultado por aseguradora -->
+                                <div v-if="apptInsuranceResults.length" class="mt-2 flex flex-col gap-1">
+                                    <span v-for="(r, i) in apptInsuranceResults" :key="'ed-res-'+i"
+                                          class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                          :class="insuranceBadgeClass(r.badge)">
+                                        <span v-if="r.seguro_name">@{{ r.seguro_name }} - </span>@{{ r.status }} - @{{ r.message }}
+                                    </span>
+                                </div>
                             </div>
                             <div class="col-span-2 flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Motivo de consulta</x-admin::form.control-group.label>
@@ -1331,7 +1482,7 @@
                             class="text-xs px-3 py-1.5 rounded-full font-medium"
                             :class="insuranceBadgeClass(newPatient.insuranceResult.badge)"
                         >
-                            @{{ newPatient.insuranceResult.status }} — @{{ newPatient.insuranceResult.message }}
+                            @{{ newPatient.insuranceResult.status }} - @{{ newPatient.insuranceResult.message }}
                         </span>
                     </div>
 
@@ -1616,6 +1767,8 @@
                 stages: [],
                 selectedDoctorIds: [],
                 doctorFilterInitialized: false,
+                patientSearch: '',
+                patientSearchTimer: null,
                 nowMinutes: 0,
                 nowText: '',
                 nowTimer: null,
@@ -1654,6 +1807,7 @@
                     doctor_ids: [],
                     product_id: null,
                     product_name: '',
+                    date: null,
                     duration: 60,
                     startTime: '09:00',
                     endTime: '10:00',
@@ -1769,6 +1923,8 @@
                 scheduleStoreUrl: "{{ route('admin.schedules.store') }}",
                 insuranceOptionsUrl: "{{ route('admin.contacts.persons.insurance_options') }}",
                 verifyInsuranceQuickUrl: "{{ route('admin.contacts.persons.verify_insurance_quick') }}",
+                insuranceStatusUrlTemplate: "{{ route('admin.contacts.persons.insurance_status', 'replaceId') }}",
+                insuranceUpdateUrlTemplate: "{{ route('admin.contacts.persons.update_insurance', 'replaceId') }}",
                 personStoreUrl: "{{ route('admin.contacts.persons.store') }}",
                 searchSmdUrl: "{{ route('admin.contacts.persons.search_smd') }}",
                 syncSmdBaseUrl: "{{ route('admin.contacts.persons.sync_smd', ['id' => '__ID__']) }}",
@@ -1778,6 +1934,19 @@
                     ci: '',
                     seguro_id: null,
                     verifying: false,
+                    result: null,
+                },
+                // Seguro del paciente de la cita abierta (modal detalle/edición).
+                // Independiente de `insurance` (modal Nueva cita) para no pisarse.
+                apptInsurance: {
+                    loading: false,
+                    saving: false,
+                    editing: false,
+                    ci: '',
+                    // El paciente puede tener varias aseguradoras: se guardan y verifican todas.
+                    seguro_ids: [],
+                    seguros: [],
+                    status: null,
                     result: null,
                 },
                 newPatient: {
@@ -1798,6 +1967,18 @@
             };
         },
         computed: {
+            /**
+             * Detalle de la última verificación, una entrada por aseguradora.
+             * `results` llega cuando el backend verificó varias; si no, el resultado
+             * suelto es la entrada única (p. ej. un error de red).
+             */
+            apptInsuranceResults() {
+                const r = this.apptInsurance.result;
+                if (! r) return [];
+
+                return Array.isArray(r.results) && r.results.length ? r.results : [r];
+            },
+
             minuteHeight() {
                 return this.hourHeight / 60;
             },
@@ -1809,12 +1990,12 @@
             },
             dayLabel() {
                 if (this.viewType === 'list') {
-                    return `${this.rangeStart || '—'} → ${this.rangeEnd || '—'}`;
+                    return `${this.rangeStart || '-'} → ${this.rangeEnd || '-'}`;
                 }
                 if (this.viewType === 'week' && this.days.length) {
                     const s = new Date(this.days[0].date);
                     const e = new Date(this.days[this.days.length - 1].date);
-                    return `${this.formatDate(s)} — ${this.formatDate(e)}`;
+                    return `${this.formatDate(s)} - ${this.formatDate(e)}`;
                 }
                 if (this.viewType === 'month') {
                     const d = this.parseISODate(this.startISO);
@@ -1969,6 +2150,108 @@
                 if (badge === 'warning') return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300';
                 return 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300';
             },
+
+            // Color del estado de cobertura persistido (insurance_status del paciente).
+            insuranceStatusBadge(status) {
+                if (status === 'VIGENTE') return 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300';
+                if (status === 'EN_MORA') return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300';
+                return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
+            },
+
+            /**
+             * Estado a mostrar junto a una aseguradora concreta.
+             * Prioriza el resultado recién verificado de ESA aseguradora; si no hay,
+             * usa el estado persistido de ESA aseguradora (person_insurance_statuses).
+             * Nunca cae al agregado del paciente: atribuirle a un seguro el veredicto
+             * de otro sería mostrar información falsa en recepción.
+             */
+            apptInsuranceStatusOf(seguro) {
+                const match = this.apptInsuranceResults
+                    .find(r => String(r.seguro_id) === String(seguro.id));
+
+                return match ? match.status : (seguro.status || null);
+            },
+
+            // Carga el seguro guardado del paciente de la cita abierta.
+            loadApptInsurance(personId) {
+                this.apptInsurance.editing = false;
+                this.apptInsurance.result = null;
+                this.apptInsurance.ci = '';
+                this.apptInsurance.seguro_ids = [];
+                this.apptInsurance.seguros = [];
+                this.apptInsurance.status = null;
+
+                if (!personId) return;
+
+                this.apptInsurance.loading = true;
+                this.$axios.get(this.insuranceStatusUrlTemplate.replace('replaceId', personId))
+                    .then(res => {
+                        this.apptInsurance.ci = res.data?.ci || '';
+                        this.apptInsurance.seguros = res.data?.seguros || [];
+                        this.apptInsurance.seguro_ids = this.apptInsurance.seguros.map(s => s.id);
+                        this.apptInsurance.status = res.data?.status || null;
+                    })
+                    .catch(() => {})
+                    .finally(() => { this.apptInsurance.loading = false; });
+            },
+
+            startEditApptInsurance() {
+                this.apptInsurance.result = null;
+                this.apptInsurance.editing = true;
+            },
+
+            cancelEditApptInsurance() {
+                this.apptInsurance.editing = false;
+                this.apptInsurance.result = null;
+                // Restaurar lo persistido (descarta lo tecleado sin guardar).
+                this.loadApptInsurance(this.viewAppointment.data?.person_id);
+            },
+
+            // Persiste el seguro (CI + tipo) en la ficha del paciente y lo verifica.
+            // Reutiliza el endpoint updateAndVerify de InsuranceController.
+            saveApptInsurance() {
+                const personId = this.viewAppointment.data?.person_id;
+                if (!personId || this.apptInsurance.saving) return;
+                if (!this.apptInsurance.ci || !this.apptInsurance.seguro_ids.length) return;
+
+                this.apptInsurance.saving = true;
+                this.apptInsurance.result = null;
+
+                this.$axios.post(this.insuranceUpdateUrlTemplate.replace('replaceId', personId), {
+                        ci_paciente: this.apptInsurance.ci,
+                        seguro_paciente: this.apptInsurance.seguro_ids,
+                    })
+                    .then(res => {
+                        this.apptInsurance.result = res.data;
+                        this.apptInsurance.status = res.data?.status || this.apptInsurance.status;
+
+                        /**
+                         * Refleja los seguros recién guardados sin re-pedirlos al backend,
+                         * pegándole a cada uno el estado que devolvió SU verificación.
+                         */
+                        const byId = new Map(
+                            (res.data?.results ?? []).map(r => [String(r.seguro_id), r.status])
+                        );
+
+                        this.apptInsurance.seguros = this.apptInsurance.seguro_ids
+                            .map(id => this.insuranceOptions.find(o => String(o.id) === String(id)))
+                            .filter(Boolean)
+                            .map(o => ({ id: o.id, name: o.name, status: byId.get(String(o.id)) || null }));
+
+                        this.apptInsurance.editing = false;
+
+                        const count = res.data?.results?.length ?? 1;
+                        this.$emitter.emit('add-flash', {
+                            type: 'success',
+                            message: `Seguro del paciente actualizado (${count} verificado(s)).`,
+                        });
+                    })
+                    .catch(err => {
+                        this.apptInsurance.result = err.response?.data
+                            || { status: 'ERROR', message: 'No se pudo guardar el seguro.', badge: 'error' };
+                    })
+                    .finally(() => { this.apptInsurance.saving = false; });
+            },
             closeNewPatientModal() {
                 if (this.$refs.newPatientModal) this.$refs.newPatientModal.close();
             },
@@ -2019,7 +2302,8 @@
                     if (this.newPatient.email)           payload.emails              = [{ label: 'work', value: this.newPatient.email }];
                     if (this.newPatient.fechaNacimiento) payload.fecha_nacimiento    = this.newPatient.fechaNacimiento;
                     if (this.newPatient.ci)              payload.ci_paciente         = this.newPatient.ci;
-                    if (this.newPatient.seguro_id)       payload.seguro_paciente     = this.newPatient.seguro_id;
+                    // seguro_paciente es multiselect: siempre se manda como lista.
+                    if (this.newPatient.seguro_id)       payload.seguro_paciente     = [this.newPatient.seguro_id];
                     if (this.newPatient.insuranceResult?.status) {
                         payload.estado_seguro_paciente = this.newPatient.insuranceResult.status;
                     }
@@ -2259,6 +2543,11 @@
                     rangeEnd: this.rangeEnd,
                 }));
             },
+            // Espera a que deje de escribir (400 ms) antes de consultar.
+            onPatientSearch() {
+                clearTimeout(this.patientSearchTimer);
+                this.patientSearchTimer = setTimeout(() => this.fetch(), 400);
+            },
             fetch() {
                 this.isLoading = true;
                 // Re-basear el polling al rango/estado recién cargado: evita una
@@ -2272,7 +2561,8 @@
                             calendar_view: this.viewType,
                             start: this.startISO,
                             range_start: this.rangeStart,
-                            range_end: this.rangeEnd
+                            range_end: this.rangeEnd,
+                            q: this.patientSearch.trim() || undefined,
                         }
                     })
                     .then(r => {
@@ -2614,6 +2904,7 @@
                 };
 
                 this.appointmentForm.id = ev.id;
+                this.appointmentForm.date = isoDate;
                 this.appointmentForm.doctor_id = ev.doctor_id;
                 // Precargar TODOS los doctores de la cita en el multiselect (strings).
                 this.appointmentForm.doctor_ids = Array.isArray(ev.doctor_ids) && ev.doctor_ids.length
@@ -2644,8 +2935,17 @@
                 return ev.doctor_name || '-';
             },
             openEditModal(ev) {
+                // Unificado: editar una cita usa el MISMO modal de detalle
+                // (viewModal), en modo edición inline. Antes abría un modal aparte
+                // (appointmentModal); ahora ver y editar comparten una sola UI.
+                this.viewAppointment.data = ev;
+                this.viewAppointment.visible = true;
+                this.whatsappMenuOpen = false;
+                this.loadApptHistory(ev.person_id);
+                this.loadApptInsurance(ev.person_id);
                 this.populateAppointmentForm(ev);
-                this.$refs.appointmentModal.open();
+                this.editMode = true;
+                this.$refs.viewModal.open();
             },
             openViewModal(ev) {
                 this.viewAppointment.data = ev;
@@ -2653,6 +2953,7 @@
                 this.whatsappMenuOpen = false;
                 this.editMode = false;
                 this.loadApptHistory(ev.person_id);
+                this.loadApptInsurance(ev.person_id);
                 this.$refs.viewModal.open();
             },
 
@@ -2827,7 +3128,7 @@
             },
 
             // Send the reminder THROUGH the CRM gateway (Kommo/Cloud API) so it
-            // lands in the patient's WhatsApp conversation and is logged — no
+            // lands in the patient's WhatsApp conversation and is logged - no
             // more wa.me deep link that needs WhatsApp Web open and a manual tap.
             openWhatsapp(tpl) {
                 const ev = this.viewAppointment.data;
@@ -2921,21 +3222,24 @@
 
                 let promise;
                 if (this.appointmentForm.id) {
-                    const url = "{{ route('admin.activities.update', 'replaceId') }}".replace('replaceId', this
-                        .appointmentForm.id);
-                    const startDateTime = `${this.modalContext.dayISO} ${this.appointmentForm.startTime}:00`;
-                    const endDateTime = `${this.modalContext.dayISO} ${this.appointmentForm.endTime}:00`;
+                    // La edición se enruta por updateAppointment (SMD-safe): sincroniza
+                    // participants (paciente) + fecha + doctores ANTES de empujar a SMD,
+                    // que es lo que garantiza el round-trip. `update()` no maneja
+                    // person_id, por eso no se usa aquí.
+                    const url = this.appointmentUpdateUrlTemplate.replace('replaceId', this.appointmentForm.id);
 
                     const updatePayload = {
-                        schedule_from: startDateTime,
-                        schedule_to: endDateTime,
-                        comment: this.appointmentForm.reason,
-                        product_id: this.appointmentForm.product_id,
+                        date: this.appointmentForm.date,
+                        start_time: this.appointmentForm.startTime,
+                        end_time: this.appointmentForm.endTime,
+                        duration_minutes: this.appointmentForm.duration,
                         doctor_ids: this.appointmentForm.doctor_ids,
-                        lead_id: this.appointmentForm.lead_id || null,
+                        person_id: this.appointmentForm.person.id || null,
+                        product_id: this.appointmentForm.product_id,
+                        reason: this.appointmentForm.reason || '',
                         lead_pipeline_stage_id: this.appointmentForm.lead_pipeline_stage_id,
                     };
-                    promise = this.$axios.put(url, updatePayload);
+                    promise = this.$axios.post(url, updatePayload);
                 } else {
                     promise = this.$axios.post(this.appointmentStoreUrl, payload);
                 }
@@ -2946,7 +3250,7 @@
                         try { localStorage.removeItem('ddc_appt_draft'); } catch (e) {}
                         this.$refs.appointmentModal.close();
                         // Inline edit (from the detail modal): leave edit mode and
-                        // close the detail modal — the calendar refresh shows the change.
+                        // close the detail modal - the calendar refresh shows the change.
                         if (this.editMode) {
                             this.editMode = false;
                             this.$refs.viewModal.close();
@@ -3849,7 +4153,7 @@
         color: #7c2d12;
     }
 
-    /* Cita perdida (etapa "Cita Perdida") — NO es cancelación, color propio. */
+    /* Cita perdida (etapa "Cita Perdida") - NO es cancelación, color propio. */
     .dwc-event.dwc-event-lost {
         border-left-color: #f87171;
         background: #FFAA8F;

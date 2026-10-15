@@ -74,5 +74,43 @@ return [
 
         // Archivos por lote. Acota cuantos payloads viven en memoria a la vez.
         'batch_size'  => (int) env('SMD_DROPBOX_BATCH_SIZE', 100),
+
+        // Segundos que se espera el lock de una cita tomada por otro worker
+        // (cron/webhook/UI) antes de dejarla para la próxima corrida.
+        'lock_wait_seconds' => (int) env('SMD_LOCK_WAIT_SECONDS', 10),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cuota de la API de SMD (contrato: 10.000 consultas por mes)
+    |--------------------------------------------------------------------------
+    | El 2026-10-12 un proceso programado hizo ~5.700 consultas en 17 h y SMD
+    | cortó el acceso. Pasado el tope diario solo salen las consultas esenciales;
+    | el resto no consulta SMD (cada método responde como si SMD no contestara).
+    | planning/15-consumo-api-smd.
+    */
+    // Pacientes que SMD respondió que NO existen (por id o por nombre): se
+    // recuerdan en Redis para no volver a preguntar en cada sync de Dropbox.
+    'patient_missing_cache_hours' => (int) env('SMD_PATIENT_MISSING_CACHE_HOURS', 168),
+
+    'api_budget' => [
+        'daily_cap'     => (int) env('SMD_DAILY_CAP', 800),
+        // Aviso (log) cuando el mes pasa este número, antes de llegar a 10.000.
+        'monthly_alert' => (int) env('SMD_MONTHLY_ALERT', 8000),
+
+        // Alertas por correo al personal de OdontoKing y Sofopolis, una vez por
+        // día y por nivel: aviso (300) y peligro (500, en rojo).
+        'alerts' => [
+            'warning_daily' => (int) env('SMD_ALERT_WARNING_DAILY', 300),
+            'danger_daily'  => (int) env('SMD_ALERT_DANGER_DAILY', 500),
+            'emails'        => array_values(array_filter(array_map('trim', explode(',', (string) env('SMD_ALERT_EMAILS', ''))))),
+        ],
+
+        // Esencial = pasa aunque se haya llegado al tope (y se cuenta igual).
+        // Crear/actualizar el evento de una cita…
+        'essential_endpoints' => ['createEvent', 'updateEvent'],
+        // …y todo lo que piden estos servicios: agendar o editar una cita
+        // confirmada, y la ficha de un paciente nuevo que llega por Dropbox.
+        'essential_sources' => ['AppointmentService::', 'SmdAppointmentPush::', 'SmdPatientDirectory::'],
     ],
 ];

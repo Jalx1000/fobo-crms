@@ -26,7 +26,7 @@ interface Gateway
     public function key(): string;
 
     /**
-     * What this driver actually implements today — not what the provider
+     * What this driver actually implements today - not what the provider
      * supports in theory. The composer renders from this.
      */
     public function capabilities(): Capabilities;
@@ -75,14 +75,14 @@ interface Gateway
     /**
      * Send a plain text message.
      *
-     * Receives the Conversation — not a phone string — so each driver picks its
+     * Receives the Conversation - not a phone string - so each driver picks its
      * own addressing: Cloud API uses wa_phone, Kommo uses
      * provider_conversation_id (its lead id).
      */
     public function sendText(Conversation $conversation, string $body, ?string $replyToProviderId = null): SendResult;
 
     /**
-     * Send an approved message template (HSM) — the only way to open a
+     * Send an approved message template (HSM) - the only way to open a
      * conversation OUTSIDE the free-text window (appointment reminders, etc.).
      *
      * $templateKey selects a template from the driver's own config; $variables
@@ -103,8 +103,8 @@ interface Gateway
      * Send a media message by public link.
      *
      * $type is the canonical media type (image, document, audio, video,
-     * sticker). Not every type carries every field — audio and stickers have no
-     * caption, and only documents have a filename — so drivers must drop what
+     * sticker). Not every type carries every field - audio and stickers have no
+     * caption, and only documents have a filename - so drivers must drop what
      * their provider rejects rather than pass it through blindly.
      */
     public function sendMedia(

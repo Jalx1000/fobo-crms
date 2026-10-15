@@ -18,8 +18,8 @@ use Webkul\Contact\Repositories\PersonRepository;
  *
  * El punto delicado es que UN TELÉFONO NO IDENTIFICA A UN PACIENTE. Sobre una
  * muestra de 40 conversaciones reales, 20 números devolvieron 2 o más pacientes
- * distintos en SMD —hermanos, familias que comparten celular, o directamente
- * personas sin relación con CI distinto— y uno devolvió 10. Por eso solo se
+ * distintos en SMD -hermanos, familias que comparten celular, o directamente
+ * personas sin relación con CI distinto- y uno devolvió 10. Por eso solo se
  * vincula cuando la coincidencia es ÚNICA: elegir uno entre varios significaría
  * pegarle a un paciente el historial clínico de otro. Con varios candidatos el
  * contacto se crea igual, sin vincular, y quedan registrados para que una
@@ -36,9 +36,9 @@ class SmdPatientLink
      * Busca en SMD el paciente detrás de un número.
      *
      * @return array{status: string, patient: ?array, candidates: array}
-     *               status: unique | ambiguous | none | unavailable
+     *                                                                   status: unique | ambiguous | none | unavailable
      */
-    public function lookup(?string $phone): array
+    public function lookup(?string $phone, ?string $profileName = null): array
     {
         $none = ['status' => 'none', 'patient' => null, 'candidates' => []];
 
@@ -58,11 +58,16 @@ class SmdPatientLink
         try {
             $smd = app(\Webkul\Admin\Services\ShareMeDataService::class);
 
-            $found = $smd->searchPatient($tail);
+            // OrNull: un fallo de SMD NO es "no existe". Antes se confundían y el
+            // contacto quedaba sin datos sin rastro de por qué.
+            $found = $smd->searchPatientOrNull($tail);
         } catch (Throwable $e) {
-            Log::warning('WhatsApp: no se pudo consultar SMD por el número entrante', [
+            $found = null;
+        }
+
+        if ($found === null) {
+            Log::warning('WhatsApp: SMD no respondió al buscar el número entrante; se reintenta en el próximo mensaje', [
                 'phone' => $phone,
-                'error' => $e->getMessage(),
             ]);
 
             return ['status' => 'unavailable', 'patient' => null, 'candidates' => []];
@@ -82,6 +87,8 @@ class SmdPatientLink
         }));
 
         if (! $matches) {
+            Log::info('WhatsApp: el número no está en SMD', ['phone' => $phone]);
+
             return $none;
         }
 
@@ -89,7 +96,57 @@ class SmdPatientLink
             return ['status' => 'unique', 'patient' => $matches[0], 'candidates' => $matches];
         }
 
+        // Varios pacientes con el mismo número (familias que comparten celular):
+        // el nombre del perfil de WhatsApp desempata, pero SOLO si coincide con
+        // uno. Caso real: "Indira" entre "JORGE AUZA PANTOJA" y "LIDIA INDIRA
+        // PANTOJA SOLARES".
+        $byName = $this->matchByProfileName($matches, $profileName);
+
+        if ($byName) {
+            Log::info('WhatsApp: número con varios pacientes en SMD, desempatado por el nombre del perfil', [
+                'phone'          => $phone,
+                'perfil'         => $profileName,
+                'smd_patient_id' => $byName['_id'] ?? null,
+            ]);
+
+            return ['status' => 'unique', 'patient' => $byName, 'candidates' => $matches];
+        }
+
         return ['status' => 'ambiguous', 'patient' => null, 'candidates' => $matches];
+    }
+
+    /**
+     * El único candidato cuyo nombre contiene TODAS las palabras del nombre del
+     * perfil de WhatsApp (sin acentos, mayúsculas ni el sufijo "(SISTEMA 2024)"
+     * que arrastra SMD). Null si el perfil no tiene nombre útil o si coinciden
+     * cero o varios: con más de uno elegir sería adivinar.
+     */
+    protected function matchByProfileName(array $candidates, ?string $profileName): ?array
+    {
+        $tokens = array_values(array_filter(
+            explode(' ', $this->normalizeName($profileName)),
+            fn ($t) => strlen($t) >= 3
+        ));
+
+        if (! $tokens) {
+            return null;
+        }
+
+        $hits = array_values(array_filter($candidates, function ($patient) use ($tokens) {
+            $name = $patient['fullName'] ?? trim(($patient['name'] ?? '').' '.($patient['lastName'] ?? ''));
+
+            return ! array_diff($tokens, explode(' ', $this->normalizeName($name)));
+        }));
+
+        return count($hits) === 1 ? $hits[0] : null;
+    }
+
+    protected function normalizeName(?string $value): string
+    {
+        $value = explode(' (', (string) $value)[0];
+        $value = iconv('UTF-8', 'ASCII//TRANSLIT', $value) ?: $value;
+
+        return preg_replace('/\s+/', ' ', trim(strtolower(preg_replace('/[^a-zA-Z ]/', '', $value))));
     }
 
     /**
@@ -120,8 +177,8 @@ class SmdPatientLink
      * uno nuevo.
      *
      * Buscar primero por `smd_patient_id` es lo que evita duplicar. Muchísimos
-     * pacientes están en el CRM sin teléfono —vinieron de la sincronización del
-     * calendario, que no trae el número—, así que el match por teléfono no los
+     * pacientes están en el CRM sin teléfono -vinieron de la sincronización del
+     * calendario, que no trae el número-, así que el match por teléfono no los
      * encuentra y crear uno nuevo dejaría dos fichas del mismo paciente. Si ya
      * existe, lo que hacemos es justamente lo que faltaba: cargarle el número.
      *

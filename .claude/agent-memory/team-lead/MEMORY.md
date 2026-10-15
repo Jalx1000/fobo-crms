@@ -1,3 +1,3 @@
-- [ShareMeData API v2 Integration Plan](project_sharemedata_v2.md) — Brechas v2 (patients endpoints, Dropbox), riesgos de base URL y schema, plan en planning/00-sharemedata-api-v2/
-- [Auditoría UX/UI](project_uxui_audit.md) — 14 hallazgos, overlay manual, spinners ad-hoc, confirm() nativo, duplicación CSS; planning en planning/07-mejoras-uxui/
-- [Agente WhatsApp — Planning 08](project_agente_whatsapp.md) — 4 REQs: token disponibilidad, duration_minutes productos, insurance verify (seguridad+tests), doctor by ID; planning en planning/08-agente-whatsapp/
+- [ShareMeData API v2 Integration Plan](project_sharemedata_v2.md) - Brechas v2 (patients endpoints, Dropbox), riesgos de base URL y schema, plan en planning/00-sharemedata-api-v2/
+- [Auditoría UX/UI](project_uxui_audit.md) - 14 hallazgos, overlay manual, spinners ad-hoc, confirm() nativo, duplicación CSS; planning en planning/07-mejoras-uxui/
+- [Agente WhatsApp - Planning 08](project_agente_whatsapp.md) - 4 REQs: token disponibilidad, duration_minutes productos, insurance verify (seguridad+tests), doctor by ID; planning en planning/08-agente-whatsapp/

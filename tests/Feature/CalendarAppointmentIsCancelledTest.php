@@ -8,8 +8,8 @@ use Webkul\Lead\Models\Lead;
 uses(DatabaseTransactions::class);
 
 beforeEach(function () {
-    $stages               = DB::table('lead_pipeline_stages')->orderBy('id')->pluck('id')->values();
-    $this->openStage      = (int) $stages[0];
+    $stages = DB::table('lead_pipeline_stages')->orderBy('id')->pluck('id')->values();
+    $this->openStage = (int) $stages[0];
     $this->cancelledStage = (int) ($stages->filter(fn ($id) => $id !== $this->openStage)->first() ?? $this->openStage);
     $this->completedStage = (int) ($stages->filter(fn ($id) => ! in_array($id, [$this->openStage, $this->cancelledStage], true))->first() ?? $this->cancelledStage);
 
@@ -42,12 +42,12 @@ it('marca is_cancelled=true cuando el lead esta en el stage cancelado, aunque st
     test()->actingAs($admin);
 
     $doctorId = DB::table('doctors')->insertGetId([
-        'name' => 'Dr. Calendario Cancelado '.uniqid(),
+        'name'       => 'Dr. Calendario Cancelado '.uniqid(),
         'created_at' => now(), 'updated_at' => now(),
     ]);
 
     $from = Carbon::tomorrow()->setTime(9, 0);
-    $to   = $from->copy()->addHour();
+    $to = $from->copy()->addHour();
 
     $activityId = makeCalendarActivity($doctorId, $from, $to);
 
@@ -77,12 +77,12 @@ it('marca is_cancelled=true cuando el lead tiene status=0, sin importar el stage
     test()->actingAs($admin);
 
     $doctorId = DB::table('doctors')->insertGetId([
-        'name' => 'Dr. Calendario Status0 '.uniqid(),
+        'name'       => 'Dr. Calendario Status0 '.uniqid(),
         'created_at' => now(), 'updated_at' => now(),
     ]);
 
     $from = Carbon::tomorrow()->setTime(10, 0);
-    $to   = $from->copy()->addHour();
+    $to = $from->copy()->addHour();
 
     $activityId = makeCalendarActivity($doctorId, $from, $to);
 
@@ -110,12 +110,12 @@ it('marca is_cancelled=false cuando el lead esta abierto (status NULL, stage no 
     test()->actingAs($admin);
 
     $doctorId = DB::table('doctors')->insertGetId([
-        'name' => 'Dr. Calendario Abierto '.uniqid(),
+        'name'       => 'Dr. Calendario Abierto '.uniqid(),
         'created_at' => now(), 'updated_at' => now(),
     ]);
 
     $from = Carbon::tomorrow()->setTime(11, 0);
-    $to   = $from->copy()->addHour();
+    $to = $from->copy()->addHour();
 
     $activityId = makeCalendarActivity($doctorId, $from, $to);
 
@@ -143,12 +143,12 @@ it('marca is_cancelled=false cuando la activity no tiene ningun lead vinculado',
     test()->actingAs($admin);
 
     $doctorId = DB::table('doctors')->insertGetId([
-        'name' => 'Dr. Calendario SinLead '.uniqid(),
+        'name'       => 'Dr. Calendario SinLead '.uniqid(),
         'created_at' => now(), 'updated_at' => now(),
     ]);
 
     $from = Carbon::tomorrow()->setTime(12, 0);
-    $to   = $from->copy()->addHour();
+    $to = $from->copy()->addHour();
 
     $activityId = makeCalendarActivity($doctorId, $from, $to);
 
@@ -170,12 +170,12 @@ it('marca is_completed=true cuando el lead esta en el stage Paciente (concretado
     test()->actingAs($admin);
 
     $doctorId = DB::table('doctors')->insertGetId([
-        'name' => 'Dr. Calendario Concretado '.uniqid(),
+        'name'       => 'Dr. Calendario Concretado '.uniqid(),
         'created_at' => now(), 'updated_at' => now(),
     ]);
 
     $from = Carbon::tomorrow()->setTime(13, 0);
-    $to   = $from->copy()->addHour();
+    $to = $from->copy()->addHour();
 
     $activityId = makeCalendarActivity($doctorId, $from, $to);
 
@@ -207,12 +207,12 @@ it('is_cancelled tiene prioridad sobre is_completed si ambos stages coincidieran
     config(['smd.stage_map.completed' => $this->cancelledStage]);
 
     $doctorId = DB::table('doctors')->insertGetId([
-        'name' => 'Dr. Calendario Prioridad '.uniqid(),
+        'name'       => 'Dr. Calendario Prioridad '.uniqid(),
         'created_at' => now(), 'updated_at' => now(),
     ]);
 
     $from = Carbon::tomorrow()->setTime(14, 0);
-    $to   = $from->copy()->addHour();
+    $to = $from->copy()->addHour();
 
     $activityId = makeCalendarActivity($doctorId, $from, $to);
 

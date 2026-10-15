@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Webkul\Activity\Repositories\ActivityRepository;
+use Webkul\Admin\Support\SmdTime;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Doctor\Repositories\DoctorRepository;
 use Webkul\Doctor\Repositories\SpecialtyRepository;
@@ -54,7 +55,40 @@ class IncomingAppointmentService
             'status'              => '',
         ];
 
-        return $this->process($normalized);
+        $externalId = $data['_id'] ?? null;
+
+        if (! $externalId) {
+            return $this->process($normalized);
+        }
+
+        // Idempotente por el _id del evento, con el mismo registro y el mismo
+        // lock que el sync de Dropbox: un reintento del webhook ya no crea otra
+        // cita (AUD-02), y si después llega el evento por Dropbox se actualiza
+        // esta misma en vez de duplicarla.
+        return \Illuminate\Support\Facades\Cache::lock('smd:event:'.$externalId, 60)
+            ->block((int) config('smd.dropbox.lock_wait_seconds', 10), function () use ($normalized, $externalId, $data) {
+                $existing = DB::table('smd_synced_events')->where('external_id', $externalId)->first();
+
+                if ($existing) {
+                    return ['lead_id' => $existing->lead_id, 'activity_id' => $existing->activity_id, 'duplicate' => true];
+                }
+
+                $result = $this->process($normalized);
+
+                DB::table('smd_synced_events')->insert([
+                    'external_id'  => $externalId,
+                    'source_file'  => 'webhook',
+                    'activity_id'  => $result['activity_id'] ?? null,
+                    'lead_id'      => $result['lead_id'] ?? null,
+                    'raw_payload'  => json_encode($data),
+                    'status'       => '',
+                    'processed_at' => now(),
+                    'created_at'   => now(),
+                    'updated_at'   => now(),
+                ]);
+
+                return $result;
+            });
     }
 
     /**
@@ -93,8 +127,8 @@ class IncomingAppointmentService
     /**
      * Bloqueo de agenda: crea una actividad de ocupación atada SOLO al doctor.
      *
-     * Es un `time_off` —el tipo que el calendario ya entiende como "no
-     * disponible"— sin lead, sin paciente y sin conversación de WhatsApp. Solo
+     * Es un `time_off` -el tipo que el calendario ya entiende como "no
+     * disponible"- sin lead, sin paciente y sin conversación de WhatsApp. Solo
      * ocupa el horario para que no se vea libre. Sin doctor identificable no hay
      * agenda que ocupar, así que se descarta sin dejar rastro.
      */
@@ -113,8 +147,9 @@ class IncomingAppointmentService
                 'type'          => 'time_off',
                 'title'         => $title,
                 'comment'       => $normalized['summary'] ?? '',
-                'schedule_from' => Carbon::parse($normalized['schedule_from'])->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
-                'schedule_to'   => Carbon::parse($normalized['schedule_to'])->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
+                // Ya vienen en hora local desde normalizeDropbox().
+                'schedule_from' => $normalized['schedule_from'],
+                'schedule_to'   => $normalized['schedule_to'],
                 'user_id'       => 1,
                 // Solo doctores: un bloqueo no tiene paciente.
                 'participants'  => [
@@ -162,8 +197,8 @@ class IncomingAppointmentService
             $activityExists = $activityId && $this->activityRepository->find($activityId);
 
             // Un bloqueo (sin lead) que ahora trae paciente deja de ser bloqueo:
-            // se borra la actividad de ocupación y se crea la cita real —persona,
-            // lead con su etapa y actividad meeting—. updateDropbox solo tocaba la
+            // se borra la actividad de ocupación y se crea la cita real -persona,
+            // lead con su etapa y actividad meeting-. updateDropbox solo tocaba la
             // actividad, así que en esta transición el lead no nacía nunca. Cubre
             // también el lead obsoleto de arriba.
             if (! $leadId && $normalized['patient_identified']) {
@@ -207,8 +242,9 @@ class IncomingAppointmentService
                 $this->activityRepository->update([
                     'title'         => $normalized['summary'] ?: $activity->title,
                     'comment'       => $normalized['summary'] ?? $activity->comment,
-                    'schedule_from' => Carbon::parse($normalized['schedule_from'])->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
-                    'schedule_to'   => Carbon::parse($normalized['schedule_to'])->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
+                    // Ya vienen en hora local desde normalizeDropbox().
+                    'schedule_from' => $normalized['schedule_from'],
+                    'schedule_to'   => $normalized['schedule_to'],
                     // Ambas claves siempre: el repositorio hace doctors()->sync([])
                     // cuando falta `doctors`, lo que borraría al médico de la cita.
                     'participants'  => [
@@ -216,6 +252,40 @@ class IncomingAppointmentService
                         'persons' => $personIds,
                     ],
                 ], $activityId);
+            } elseif ($leadId) {
+                // El lead sigue pero la actividad fue borrada: sin esto la cita
+                // desaparecía del calendario y el registro quedaba apuntando a un
+                // id muerto (AUD-09). Se recrea atada al mismo lead.
+                $lead = $this->leadRepository->find($leadId);
+                $doctorIds = array_map(fn ($d) => $d->id, $doctors ?: $this->resolveDoctors($normalized));
+                $personId = $person->id ?? $lead?->person_id;
+
+                $activity = $this->activityRepository->create([
+                    'type'          => 'meeting',
+                    'title'         => $normalized['summary'] ?: ($lead->title ?? 'Cita SMD'),
+                    'comment'       => $normalized['summary'] ?? '',
+                    'schedule_from' => $normalized['schedule_from'],
+                    'schedule_to'   => $normalized['schedule_to'],
+                    'user_id'       => 1,
+                    'participants'  => [
+                        'doctors' => $doctorIds,
+                        'persons' => array_filter([$personId]),
+                    ],
+                    'additional'    => json_encode([
+                        'lead_id'     => $leadId,
+                        'external_id' => $normalized['external_id'] ?? null,
+                        'source'      => 'ShareMeData',
+                    ]),
+                ]);
+
+                $activity->leads()->sync([$leadId]);
+                $activityId = $activity->id;
+
+                Log::info('[IncomingAppointment] Actividad borrada recreada desde SMD', [
+                    'external_id' => $data['_id'],
+                    'lead_id'     => $leadId,
+                    'activity_id' => $activityId,
+                ]);
             }
 
             if ($leadId) {
@@ -232,7 +302,13 @@ class IncomingAppointmentService
 
                 $stageId = $this->statusMapper->toLeadStageId($normalized['status']);
 
-                if ($stageId) {
+                // Status vacío en SMD = "sin estado", no "volvió a consulta": no
+                // baja una cita confirmada a Consultas. Pasaba con las citas del
+                // formulario de WhatsApp cuando el evento quedaba sin estado.
+                $keepsConfirmed = trim((string) $normalized['status']) === ''
+                    && (int) DB::table('leads')->where('id', $leadId)->value('lead_pipeline_stage_id') === (int) config('smd.stage_map.confirmed');
+
+                if ($stageId && ! $keepsConfirmed) {
                     $updateData['lead_pipeline_stage_id'] = $stageId;
                 }
 
@@ -242,9 +318,25 @@ class IncomingAppointmentService
                     $updateData['closed_at'] = now();
                 }
 
+                // Reactivada en SMD: deshacer el cierre que había hecho el sync.
+                // Solo si lo cerró el sync (motivo "… en SMD"): un cierre manual
+                // en el CRM no se pisa (AUD-06).
+                if (! $this->statusMapper->isCancelled($normalized['status']) && ! $normalized['archived']) {
+                    $lead = $this->leadRepository->find($leadId);
+
+                    if ($lead && $lead->status !== null && (int) $lead->status === 0
+                        && str_ends_with((string) $lead->lost_reason, 'en SMD')) {
+                        $updateData['status'] = null;
+                        $updateData['lost_reason'] = null;
+                        $updateData['closed_at'] = null;
+                    }
+                }
+
                 if (! empty($updateData)) {
                     $this->leadRepository->update($updateData + ['entity_type' => 'leads'], $leadId);
                 }
+
+                $this->syncStatusTag($leadId, $normalized['status']);
             }
 
             Log::info('[IncomingAppointment] Cita actualizada', [
@@ -282,7 +374,21 @@ class IncomingAppointmentService
                     'entity_type'            => 'leads',
                 ], $leadId);
 
-                $this->attachTagToLead($leadId, 'Cancelado', '#ef4444');
+                $this->syncStatusTag($leadId, 'cancelled');
+            }
+
+            // Bloqueo de agenda cancelado (sin lead): su `time_off` es lo único
+            // que ocupa el horario, así que se borra. Antes quedaba y el doctor
+            // seguía figurando ocupado (AUD-07). Solo se borra un time_off: una
+            // cita (meeting) sin lead es un dato raro que no se toca a ciegas.
+            if (! $leadId && $activityId) {
+                $activity = $this->activityRepository->find($activityId);
+
+                if ($activity && $activity->type === 'time_off') {
+                    $this->activityRepository->delete($activityId);
+                    DB::table('doctor_activities')->where('activity_id', $activityId)->delete();
+                    $activityId = null;
+                }
             }
 
             Log::info('[IncomingAppointment] Cita cancelada desde SMD', [
@@ -323,10 +429,16 @@ class IncomingAppointmentService
                 ], $lead->id);
             }
 
+            $this->syncStatusTag($lead->id, $data['status'] ?? '');
+
             $activity = $this->activityRepository->create([
                 'type'          => 'meeting',
                 'title'         => $data['summary'] ?: ($person->name.' - '.($data['specialty'] ?? 'General')),
                 'comment'       => $data['summary'] ?? '',
+                // Camino compartido: desde Dropbox las horas ya llegan locales
+                // (normalizeDropbox) y esto es un no-op; desde el webhook de SMD
+                // (`slot.start`, formato no garantizado) sigue siendo la
+                // conversión que se venía haciendo.
                 'schedule_from' => Carbon::parse($data['schedule_from'])->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
                 'schedule_to'   => Carbon::parse($data['schedule_to'])->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
                 'user_id'       => 1,
@@ -383,7 +495,7 @@ class IncomingAppointmentService
         // asistente es médico si YA lo conocemos (por unique_id o nombre) O si el
         // payload lo tipa como physician/doctor. Es una UNIÓN, no una cadena de
         // fallback: antes, si un solo doctor conocido matcheaba, los demás
-        // —identificados por `type`— se descartaban, y un "OCUPADO" con 8 médicos
+        // -identificados por `type`- se descartaban, y un "OCUPADO" con 8 médicos
         // donde solo uno estaba registrado quedaba con uno. Cubre además al médico
         // aún no registrado: resolveDoctor lo da de alta.
         $physiciansRaw = collect($attendances)
@@ -393,12 +505,12 @@ class IncomingAppointmentService
             ->all();
 
         // El `owner` también es médico de la cita cuando SMD lo tipa como
-        // physician —NO un fallback—. Un evento puede traer un doctor en
+        // physician -NO un fallback-. Un evento puede traer un doctor en
         // `attendances` (ej. el ayudante) Y otro en `owner` (el tratante): ambos
         // deben quedar registrados. Antes el owner solo se usaba si `attendances`
         // no tenía ningún doctor, así que el segundo médico se perdía. El filtro
-        // por `type` evita colgar la cita de quien solo creó el evento —la
-        // recepcionista llega como `entity:staff`—. Se deduplica por `_id` para
+        // por `type` evita colgar la cita de quien solo creó el evento -la
+        // recepcionista llega como `entity:staff`-. Se deduplica por `_id` para
         // no sumar dos veces al mismo si aparece en ambos lados.
         $owner = $data['owner'] ?? null;
 
@@ -443,8 +555,11 @@ class IncomingAppointmentService
             'patient_phone'       => $patient['phone'],
             'patient_external_id' => $patient['_id'],
             'patient_birthday'    => $patient['birthday'],
-            'schedule_from'       => $data['startDate'] ?? null,
-            'schedule_to'         => $data['endDate'] ?? null,
+            // SMD publica en UTC. La conversión a hora boliviana se hace ACÁ, en
+            // el borde: de este punto para adentro las horas ya son locales y
+            // nadie más tiene que acordarse de convertirlas.
+            'schedule_from'       => isset($data['startDate']) ? SmdTime::toLocalString($data['startDate']) : null,
+            'schedule_to'         => isset($data['endDate']) ? SmdTime::toLocalString($data['endDate']) : null,
             'specialty'           => 'General',
             'summary'             => $data['summary'] ?? '',
             'external_id'         => $data['_id'] ?? null,
@@ -460,7 +575,7 @@ class IncomingAppointmentService
      * Reconoce al doctor por `unique_id` (SMD _id) O por NOMBRE contra la tabla
      * `doctors`. El match por nombre es lo que salva el caso real: SMD reasigna
      * los `_id` de los physicians cada tanto, así que el `unique_id` guardado se
-     * desactualiza y un payload UPDATED —que no trae `type`— dejaba al doctor sin
+     * desactualiza y un payload UPDATED -que no trae `type`- dejaba al doctor sin
      * reconocer y lo descartaba. El nombre no cambia, así que sigue matcheando.
      *
      * Con `$onlyActive` devuelve solo los que pueden atender: los recursos de SMD
@@ -503,6 +618,45 @@ class IncomingAppointmentService
         return $this->doctorCatalog[$key] ??= DB::table('doctors')
             ->when($onlyActive, fn ($q) => $q->where('is_active', 1))
             ->get(['unique_id', 'name']);
+    }
+
+    /**
+     * Doctor activo cuyo nombre contiene TODAS las palabras de `$name`
+     * (normalizadas, sin títulos ni palabras de 1-2 letras). Null si ninguno
+     * o si hay más de uno: con varios candidatos asignar sería adivinar.
+     */
+    private function doctorByNameTokens(string $name): ?object
+    {
+        $titles = ['dr', 'dra', 'doctor', 'doctora', 'od', 'lic'];
+
+        $tokens = array_values(array_filter(
+            explode(' ', $this->normalizeDoctorName($name)),
+            fn ($t) => strlen($t) > 2 && ! in_array($t, $titles, true)
+        ));
+
+        if (! $tokens) {
+            return null;
+        }
+
+        $candidates = DB::table('doctors')
+            ->where('is_active', 1)
+            ->get(['id', 'name'])
+            ->filter(function ($d) use ($tokens) {
+                $words = explode(' ', $this->normalizeDoctorName($d->name));
+
+                return ! array_diff($tokens, $words);
+            });
+
+        if ($candidates->count() > 1) {
+            Log::warning('[IncomingAppointment] Nombre de médico ambiguo, no se asigna a ninguno', [
+                'name'       => $name,
+                'candidatos' => $candidates->pluck('name')->all(),
+            ]);
+
+            return null;
+        }
+
+        return $candidates->isNotEmpty() ? $this->doctorRepository->find($candidates->first()->id) : null;
     }
 
     /**
@@ -575,22 +729,13 @@ class IncomingAppointmentService
             $doctor = $this->doctorRepository->findOneByField('name', $name);
         }
 
-        // 3. Buscar por nombre parcial en BD
+        // 3. Nombre aproximado: TODAS las palabras del nombre que llega (sin
+        // títulos) tienen que estar en el del doctor, y un solo doctor puede
+        // cumplirlo. Cubre "Dra. Carolina Rojas" ↔ "Carolina Rojas Godoy".
+        // Antes bastaba UNA palabra (`LIKE %parte%`): un médico nuevo que
+        // compartía el nombre de pila quedaba asignado a otro doctor (AUD-08).
         if (! $doctor && $name !== '') {
-            $nameParts = array_filter(explode(' ', $name));
-            foreach ($nameParts as $part) {
-                if (strlen($part) <= 2) {
-                    continue;
-                }
-                $found = DB::table('doctors')
-                    ->where('name', 'like', "%{$part}%")
-                    ->where('is_active', 1)
-                    ->first();
-                if ($found) {
-                    $doctor = $this->doctorRepository->find($found->id);
-                    break;
-                }
-            }
+            $doctor = $this->doctorByNameTokens($name);
         }
 
         // 4. Crear doctor con datos de SMD si no existe
@@ -621,7 +766,7 @@ class IncomingAppointmentService
      *
      * El orden importa y es lo que evita duplicados y mezclas:
      *
-     * 1. `smd_patient_id` — identidad exacta y estable. Va PRIMERO. Antes se
+     * 1. `smd_patient_id` - identidad exacta y estable. Va PRIMERO. Antes se
      *    buscaba por teléfono primero y, si aparecía alguien, se le estampaba el
      *    id de SMD. Como la mitad de los números corresponde a más de un paciente
      *    (familias que comparten celular: medido, 20 de 40 conversaciones reales),
@@ -687,7 +832,7 @@ class IncomingAppointmentService
 
         // 3. Recién ahora la red: es un paciente que no pudimos identificar con
         // lo que ya teníamos. La ficha real se busca por id y, si no aparece,
-        // por nombre — el `_id` del asistente del calendario no siempre es el de
+        // por nombre - el `_id` del asistente del calendario no siempre es el de
         // la ficha de paciente.
         $ficha = $directory->resolve($smdPatientId, $name);
 
@@ -760,7 +905,7 @@ class IncomingAppointmentService
      *
      * Busca por teléfono primero y le estampa el `smd_patient_id` a quien
      * encuentre. Con familias que comparten celular eso cruza las identidades
-     * entre los dos sistemas — es exactamente el motivo por el que existe la
+     * entre los dos sistemas - es exactamente el motivo por el que existe la
      * versión nueva. Está acá sólo para poder volver atrás sin editar código.
      */
     private function resolvePersonLegacy(?string $phone, ?string $smdPatientId, string $name): object
@@ -824,7 +969,7 @@ class IncomingAppointmentService
      *
      * El prefiltro es un LIKE por los últimos 8 dígitos porque el CRM guarda
      * tanto "78164851" como "59178164851" y una comparación exacta no cruzaría
-     * los dos formatos —ése era el otro origen de fichas duplicadas—. La
+     * los dos formatos -ése era el otro origen de fichas duplicadas-. La
      * confirmación final se hace en PHP contra los valores normalizados.
      */
     private function personByPhoneAndName(string $phone, string $name): ?object
@@ -909,6 +1054,44 @@ class IncomingAppointmentService
         ];
 
         return $this->leadRepository->create($leadData);
+    }
+
+    /**
+     * Deja el lead con el tag que corresponde al status de SMD y sin los otros
+     * que administra la sincronización.
+     *
+     * Es un sync, no un attach: una cita que fue "Cita perdida" y se reprograma
+     * tiene que perder esa marca, si no queda mal etiquetada para siempre. Los
+     * tags puestos a mano no se tocan - solo se sacan los de managedTags().
+     */
+    private function syncStatusTag(?int $leadId, ?string $smdStatus): void
+    {
+        if (! $leadId) {
+            return;
+        }
+
+        $tagName = $this->statusMapper->getTag($smdStatus);
+
+        $lead = $this->leadRepository->find($leadId);
+
+        if (! $lead) {
+            return;
+        }
+
+        $sobrantes = array_filter(
+            $this->statusMapper->managedTags(),
+            fn ($nombre) => $nombre !== $tagName
+        );
+
+        $idsASacar = $lead->tags()->whereIn('name', $sobrantes)->pluck('tags.id')->all();
+
+        if ($idsASacar) {
+            $lead->tags()->detach($idsASacar);
+        }
+
+        if ($tagName) {
+            $this->attachTagToLead($leadId, $tagName, $this->statusMapper->getTagColor($smdStatus));
+        }
     }
 
     private function attachTagToLead(int $leadId, string $tagName, string $color = '#6b7280'): void

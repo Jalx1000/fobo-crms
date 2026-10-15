@@ -3,19 +3,15 @@
 namespace Tests\Feature;
 
 use Illuminate\Support\Facades\DB;
-use Webkul\User\Models\User;
 use Webkul\Doctor\Models\Specialty;
+use Webkul\User\Models\User;
+
 use function Pest\Laravel\actingAs;
-use function Pest\Laravel\get;
-use function Pest\Laravel\post;
-use function Pest\Laravel\put;
-use function Pest\Laravel\delete;
 
 /**
  * Este test cubre el flujo completo de administración de Especialidades Médicas.
  * Se utiliza el usuario administrador (ID 1) para las pruebas.
  */
-
 beforeEach(function () {
     // Obtenemos el usuario administrador existente
     $this->adminUser = User::find(1);
@@ -23,7 +19,7 @@ beforeEach(function () {
 
 it('permite al administrador crear una nueva especialidad', function () {
     $specialtyData = [
-        'name'        => 'Especialidad Test ' . uniqid(),
+        'name'        => 'Especialidad Test '.uniqid(),
         'description' => 'Descripción de prueba profesional',
     ];
 
@@ -39,7 +35,7 @@ it('permite al administrador crear una nueva especialidad', function () {
 
 it('valida que el nombre de la especialidad sea único', function () {
     $existingName = 'Ortodoncia'; // Asumimos que existe por el negocio
-    
+
     // Si no existe, lo creamos para el test
     DB::table('specialties')->updateOrInsert(
         ['name' => $existingName],
@@ -58,13 +54,13 @@ it('valida que el nombre de la especialidad sea único', function () {
 
 it('permite editar una especialidad existente', function () {
     $specialty = Specialty::first() ?: Specialty::create([
-        'name' => 'Temp Specialty',
-        'slug' => 'temp-specialty',
-        'description' => 'Old description'
+        'name'        => 'Temp Specialty',
+        'slug'        => 'temp-specialty',
+        'description' => 'Old description',
     ]);
 
     $updatedData = [
-        'name'        => 'Nombre Editado ' . $specialty->id,
+        'name'        => 'Nombre Editado '.$specialty->id,
         'description' => 'Nueva descripción editada',
     ];
 
@@ -80,9 +76,9 @@ it('permite editar una especialidad existente', function () {
 
 it('permite eliminar una especialidad que no tiene doctores asociados', function () {
     $specialty = Specialty::create([
-        'name' => 'Para Eliminar ' . uniqid(),
-        'slug' => 'para-eliminar',
-        'description' => 'Será borrada'
+        'name'        => 'Para Eliminar '.uniqid(),
+        'slug'        => 'para-eliminar',
+        'description' => 'Será borrada',
     ]);
 
     actingAs($this->adminUser, 'user')

@@ -120,7 +120,21 @@
       "Bash(sed -i 's/\\\\bfunction smdEvent\\(/function smdSyncEvent\\(/; s/\\\\bfunction sync\\(\\)/function smdSyncService\\(\\)/; s/\\\\bfunction makeDoctor\\(\\)/function smdSyncDoctor\\(\\)/' tests/Feature/SmdParticipantsSyncTest.php)",
       "Bash(sed -i 's/\\\\bsmdEvent\\(\\\\[/smdSyncEvent\\([/g; s/\\\\bsync\\(\\)->processPayload/smdSyncService\\(\\)->processPayload/g; s/\\\\bmakeDoctor\\(\\)/smdSyncDoctor\\(\\)/g' tests/Feature/SmdParticipantsSyncTest.php)",
       "Bash(sed -i '340s|# 139 tests|# 144 tests|' docs/README-integracion-smd.md)",
-      "Bash(sed -i '372s|^`139` en verde para `Dropbox|`144` en verde para `Dropbox|' docs/README-integracion-smd.md)"
+      "Bash(sed -i '372s|^`139` en verde para `Dropbox|`144` en verde para `Dropbox|' docs/README-integracion-smd.md)",
+      "Bash(command -v docker)",
+      "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Services/ tests/)",
+      "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Services/InsuranceService.php packages/Webkul/Admin/src/Http/Controllers/Contact/Persons/InsuranceController.php packages/Webkul/Attribute/src/Repositories/AttributeValueRepository.php packages/Webkul/Admin/src/Listeners/Person.php packages/Webkul/Admin/src/Listeners/EntitySync.php tests/Feature/InsuranceMultiselectTest.php)",
+      "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Services/InsuranceService.php tests/Feature/InsuranceMultiselectTest.php)",
+      "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Services/InsuranceService.php packages/Webkul/Admin/src/Http/Controllers/Contact/Persons/InsuranceController.php tests/Feature/InsuranceMultiselectTest.php)",
+      "Bash(./vendor/bin/pint --test packages/Webkul/Admin/src/Services/InsuranceService.php packages/Webkul/Admin/src/Http/Controllers/Contact/Persons/InsuranceController.php packages/Webkul/Attribute/src/Repositories/AttributeValueRepository.php tests/Feature/InsuranceMultiselectTest.php)",
+      "Bash(./vendor/bin/pint packages/Webkul/Admin/src/Services/InsuranceService.php packages/Webkul/Contact/src tests/Feature/InsuranceMultiselectTest.php database/migrations/2026_08_11_000001_create_person_insurance_statuses_table.php)",
+      "Bash(./vendor/bin/pint tests/Feature/InsuranceMultiselectTest.php)",
+      "Bash(./vendor/bin/pint packages/Webkul/Whatsapp/src/Http/Controllers/ChatController.php)",
+      "Bash(./vendor/bin/pint tests/Feature/WhatsappProfileInsuranceTest.php)",
+      "Bash(./vendor/bin/pint packages/Webkul/Whatsapp/src/Http/Controllers/ChatController.php packages/Webkul/Whatsapp/src/Routes/admin.php)"
     ]
+  },
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": true
   }
 }

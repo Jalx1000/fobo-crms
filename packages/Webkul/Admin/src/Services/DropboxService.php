@@ -12,7 +12,7 @@ class DropboxService
 
     private const TOKEN_CACHE_KEY = 'dropbox_access_token';
 
-    private const TOKEN_TTL = 12600; // 3h30m — refresca antes de las 4h de expiración
+    private const TOKEN_TTL = 12600; // 3h30m - refresca antes de las 4h de expiración
 
     public function __construct()
     {
@@ -421,7 +421,7 @@ class DropboxService
         }
 
         // El token venció a mitad del lote: se renueva y se reintenta sólo lo
-        // que quedó sin bajar, no todo de nuevo. Un solo reintento — si el token
+        // que quedó sin bajar, no todo de nuevo. Un solo reintento - si el token
         // nuevo también da 401 el problema son las credenciales, y reintentar en
         // bucle sólo convertiría un error de config en una tormenta de requests.
         if ($expired && $intento === 1) {

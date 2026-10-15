@@ -36,7 +36,7 @@
                                 <span class="mt-0.5 h-3.5 w-3.5 shrink-0 rounded-sm" :style="{ backgroundColor: colors[index] }"></span>
                                 <div class="flex min-w-0 flex-col">
                                     <p class="text-xs font-medium text-gray-800 dark:text-gray-200 break-words" :title="stat.name">
-                                        @{{ stat.name }} — @{{ stat.total_qty_ordered }}
+                                        @{{ stat.name }} - @{{ stat.total_qty_ordered }}
                                     </p>
                                     <p class="text-xs text-gray-400">
                                         @{{ stat.leads_count }} @lang('admin::app.dashboard.index.services-requested.leads')

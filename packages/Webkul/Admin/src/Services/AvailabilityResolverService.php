@@ -31,7 +31,7 @@ class AvailabilityResolverService
      */
     public function resolve(int $doctorId, Carbon $startDate, int $days, array $opts = []): array
     {
-        $doctor   = $this->doctorRepository->with('specialties')->find($doctorId);
+        $doctor = $this->doctorRepository->with('specialties')->find($doctorId);
         $duration = (int) ($opts['duration_minutes'] ?? 0);
 
         // Caso 4: integración SMD desactivada globalmente.
@@ -44,9 +44,9 @@ class AvailabilityResolverService
             return $this->localResult($doctorId, $startDate, $days, $duration, 'doctor_unlinked');
         }
 
-        $tz   = config('app.timezone', 'America/La_Paz');
+        $tz = config('app.timezone', 'America/La_Paz');
         $from = $startDate->copy()->startOfDay();
-        $to   = $startDate->copy()->addDays($days - 1)->endOfDay();
+        $to = $startDate->copy()->addDays($days - 1)->endOfDay();
 
         $specialties = ! empty($opts['specialty'])
             ? [$opts['specialty']]
@@ -55,7 +55,7 @@ class AvailabilityResolverService
         $subsidiary = $opts['subsidiary'] ?? config('smd.default_subsidiary', 'Santa Cruz');
 
         // ── Recolectar intervalos libres de SMD (unión de especialidades) ──────
-        $smdByDay       = []; // 'Y-m-d' => [ [Carbon start, Carbon end], ... ]
+        $smdByDay = []; // 'Y-m-d' => [ [Carbon start, Carbon end], ... ]
         $networkFailure = false;
 
         foreach ($specialties as $spec) {
@@ -74,19 +74,7 @@ class AvailabilityResolverService
                 continue;
             }
 
-            foreach ($slots as $daySlots) {            // [ { "Y-m-d": [{start,end}, ...] } ]
-                foreach ($daySlots as $intervals) {
-                    foreach ($intervals as $iv) {
-                        if (empty($iv['start']) || empty($iv['end'])) {
-                            continue;
-                        }
-
-                        $s = Carbon::parse($iv['start'])->setTimezone($tz);
-                        $e = Carbon::parse($iv['end'])->setTimezone($tz);
-                        $smdByDay[$s->toDateString()][] = [$s, $e];
-                    }
-                }
-            }
+            $smdByDay = array_merge_recursive($smdByDay, self::parseSmdSlots((array) $slots, $tz));
         }
 
         // Caso 2: SMD falló y no obtuvimos NADA → fallback local.
@@ -94,15 +82,59 @@ class AvailabilityResolverService
             return $this->localResult($doctorId, $startDate, $days, $duration, 'smd_unavailable');
         }
 
+        return $this->scheduleFromSmd($doctorId, $startDate, $days, $smdByDay, $duration);
+    }
+
+    /**
+     * Intervalos libres de SMD de un doctor ('slots' de la respuesta de
+     * /schedule/availability) agrupados por día local.
+     *
+     * @return array<string, array<int, array{0:Carbon,1:Carbon}>>
+     */
+    public static function parseSmdSlots(array $slots, string $tz): array
+    {
+        $byDay = [];
+
+        foreach ($slots as $daySlots) {            // [ { "Y-m-d": [{start,end}, ...] } ]
+            foreach ((array) $daySlots as $intervals) {
+                foreach ((array) $intervals as $iv) {
+                    if (empty($iv['start']) || empty($iv['end'])) {
+                        continue;
+                    }
+
+                    $s = Carbon::parse($iv['start'])->setTimezone($tz);
+                    $e = Carbon::parse($iv['end'])->setTimezone($tz);
+                    $byDay[$s->toDateString()][] = [$s, $e];
+                }
+            }
+        }
+
+        return $byDay;
+    }
+
+    /**
+     * Disponibilidad real a partir de intervalos de SMD ya obtenidos:
+     * SMD ∩ jornada local − citas locales. No consulta SMD (el formulario de
+     * WhatsApp trae una sola respuesta por especialidad y la reparte acá
+     * entre sus doctores).
+     *
+     * @param  array<string, array<int, array{0:Carbon,1:Carbon}>>  $smdByDay
+     */
+    public function scheduleFromSmd(int $doctorId, Carbon $startDate, int $days, array $smdByDay, int $duration = 0): array
+    {
+        $tz = config('app.timezone', 'America/La_Paz');
+        $from = $startDate->copy()->startOfDay();
+        $to = $startDate->copy()->addDays($days - 1)->endOfDay();
+
         // ── Jornada local + citas locales ─────────────────────────────────────
-        $shifts   = $this->localShifts($doctorId, $from, $to, $tz);
+        $shifts = $this->localShifts($doctorId, $from, $to, $tz);
         $bookings = $this->localBookings($doctorId, $from, $to, $tz);
 
         $schedule = [];
-        $cursor   = $startDate->copy();
+        $cursor = $startDate->copy();
 
         for ($i = 0; $i < $days; $i++) {
-            $dateStr  = $cursor->toDateString();
+            $dateStr = $cursor->toDateString();
             $intervals = $smdByDay[$dateStr] ?? [];
 
             // Intersección con la jornada local (doctor_shifts). Sin turno local
@@ -154,8 +186,8 @@ class AvailabilityResolverService
         $byDay = [];
         foreach ($rows as $r) {
             $date = $r->date instanceof Carbon ? $r->date->toDateString() : $r->date;
-            $s    = Carbon::parse($date.' '.$r->start_time, $tz);
-            $e    = Carbon::parse($date.' '.$r->end_time, $tz);
+            $s = Carbon::parse($date.' '.$r->start_time, $tz);
+            $e = Carbon::parse($date.' '.$r->end_time, $tz);
 
             if ($s->lt($e)) {
                 $byDay[$date][] = [$s, $e];
@@ -183,7 +215,7 @@ class AvailabilityResolverService
         foreach ($intervals as $iv) {
             foreach ($windows as $w) {
                 $start = $iv[0]->gt($w[0]) ? $iv[0] : $w[0];
-                $end   = $iv[1]->lt($w[1]) ? $iv[1] : $w[1];
+                $end = $iv[1]->lt($w[1]) ? $iv[1] : $w[1];
 
                 if ($start->lt($end)) {
                     $out[] = [$start->copy(), $end->copy()];
@@ -295,9 +327,9 @@ class AvailabilityResolverService
             $cursor = $block[0]->copy();
 
             while ($cursor->copy()->addMinutes($duration)->lte($block[1])) {
-                $end     = $cursor->copy()->addMinutes($duration);
+                $end = $cursor->copy()->addMinutes($duration);
                 $slots[] = [$cursor->copy(), $end];
-                $cursor  = $end;
+                $cursor = $end;
             }
         }
 

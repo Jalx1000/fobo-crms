@@ -1,4 +1,4 @@
-# Informe de Integración — Alianza Seguros × Odontoking CRM
+# Informe de Integración - Alianza Seguros × Odontoking CRM
 
 **Fecha:** 2026-06-02
 **Versión:** 1.0
@@ -11,7 +11,7 @@
 1. [Resumen ejecutivo](#1-resumen-ejecutivo)
 2. [Inventario de integración](#2-inventario-de-integración)
 3. [Diagramas de flujo](#3-diagramas-de-flujo)
-4. [Diagrama de actividades — Ciclo completo](#4-diagrama-de-actividades--ciclo-completo)
+4. [Diagrama de actividades - Ciclo completo](#4-diagrama-de-actividades--ciclo-completo)
 5. [Configuración y entornos](#5-configuración-y-entornos)
 
 ---
@@ -58,7 +58,7 @@ Odontoking CRM integra la API de Alianza Seguros para verificar en tiempo real l
 
 | Método HTTP | Endpoint | Propósito |
 |---|---|---|
-| `POST` | `{base_url}/LoginUserProv` | Autenticación — obtiene `accessToken` y `nUsercode` |
+| `POST` | `{base_url}/LoginUserProv` | Autenticación - obtiene `accessToken` y `nUsercode` |
 | `GET` | `{base_url}/OdontologyCoverage?ci={ci}&nUsercode={nUsercode}` | Verificación de cobertura dental por CI |
 
 > **Base URL actual (desarrollo):** `https://devnet.alianza.com.bo/ApiGateway`
@@ -159,7 +159,7 @@ flowchart TD
 
 ---
 
-### Flujo C: Verificación vía API REST — Agente WhatsApp
+### Flujo C: Verificación vía API REST - Agente WhatsApp
 
 ```mermaid
 flowchart TD
@@ -179,7 +179,7 @@ flowchart TD
 
 ---
 
-## 4. Diagrama de actividades — Ciclo completo
+## 4. Diagrama de actividades - Ciclo completo
 
 ```mermaid
 flowchart TD
@@ -229,7 +229,7 @@ flowchart TD
 
 | Entorno | IP | Ubicación |
 |---|---|---|
-| Desarrollo / Producción | `76.13.69.34` | Brasil — São Paulo (Ubuntu 24.04) |
+| Desarrollo / Producción | `76.13.69.34` | Brasil - São Paulo (Ubuntu 24.04) |
 
 ### Caché de verificaciones
 
@@ -250,6 +250,6 @@ Cada verificación vía API queda registrada en `insurance_audit_logs` con datos
 
 | Archivo | Descripción |
 |---|---|
-| `packages/Webkul/Admin/src/Services/Insurance/Drivers/AlianzaDriver.php` | Driver de verificación — login y consulta de cobertura |
+| `packages/Webkul/Admin/src/Services/Insurance/Drivers/AlianzaDriver.php` | Driver de verificación - login y consulta de cobertura |
 | `packages/Webkul/Admin/src/Services/InsuranceService.php` | Orquestador de seguros con caché y persistencia |
 | `packages/Webkul/Admin/src/Http/Controllers/Api/InsuranceController.php` | Endpoints REST de verificación |

@@ -37,12 +37,16 @@ class InsuranceController extends Controller
      *     description="Realiza la verificación del seguro dental de un paciente usando el CI y el tipo de seguro proporcionados. Equivalente a la verificación interna del CRM. Si el resultado es VIGENTE o EN_MORA, crea automáticamente una nota de actividad en el perfil del paciente y sus leads relacionados.",
      *     tags={"Insurance"},
      *     security={{"bearerAuth": {}}},
+     *
      *     @OA\RequestBody(
      *         required=true,
+     *
      *         @OA\MediaType(
      *             mediaType="application/json",
+     *
      *             @OA\Schema(
      *                 required={"person_id", "ci", "insurance_type"},
+     *
      *                 @OA\Property(
      *                     property="person_id",
      *                     type="integer",
@@ -65,10 +69,13 @@ class InsuranceController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Verificación completada. El campo 'status' indica el resultado.",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="status", type="string", description="Resultado de la verificación",
      *                 enum={"VIGENTE", "EN_MORA", "VENCIDO", "NO_REGISTRADO", "SIN_SEGURO", "INDETERMINADO"},
      *                 example="VIGENTE"
@@ -86,24 +93,33 @@ class InsuranceController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="No autenticado. Se requiere Bearer token válido.",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="Unauthenticated.")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=404,
      *         description="Paciente no encontrado",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="Paciente no encontrado.")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=422,
      *         description="Error de validación en los campos enviados",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="The person_id field is required."),
      *             @OA\Property(property="errors", type="object")
      *         )
@@ -135,31 +151,39 @@ class InsuranceController extends Controller
     /**
      * @OA\Get(
      *     path="/api/v1/insurance/verify",
-     *     summary="Verificar seguro por cédula — Agente WhatsApp",
+     *     summary="Verificar seguro por cédula - Agente WhatsApp",
      *     description="Verifica si un paciente tiene seguro dental activo buscándolo por cédula (ci_paciente) y nombre de aseguradora en texto libre. Diseñado para el agente de WhatsApp. Responde con shape anti-enumeración: la respuesta es idéntica para 'paciente no encontrado' y 'sin seguro activo', para evitar revelar si un CI existe en el sistema. Rate limit: 10 req/min por token.",
      *     tags={"Insurance"},
      *     security={{"bearerAuth": {}}},
+     *
      *     @OA\Parameter(
      *         name="ci_paciente",
      *         in="query",
      *         required=true,
      *         description="Cédula de identidad del paciente (custom attribute ci_paciente del Person)",
+     *
      *         @OA\Schema(type="string", minLength=3, maxLength=30, example="0912345678")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="seguro_paciente",
      *         in="query",
      *         required=true,
      *         description="Nombre de la empresa aseguradora en texto libre (ej. 'Alianza', 'Nacional Vida', 'Membresía Odontoking')",
+     *
      *         @OA\Schema(type="string", minLength=2, maxLength=100, example="Alianza")
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Verificación completada. has_insurance:true indica seguro VIGENTE o EN_MORA.",
+     *
      *         @OA\JsonContent(
      *             oneOf={
+     *
      *                 @OA\Schema(
      *                     description="Seguro activo",
+     *
      *                     @OA\Property(property="has_insurance", type="boolean", example=true),
      *                     @OA\Property(property="insurance_name", type="string", example="Seguros Equinoccial"),
      *                     @OA\Property(property="policy_number", type="string", nullable=true, example="POL-2025-00123"),
@@ -169,28 +193,37 @@ class InsuranceController extends Controller
      *                     @OA\Property(property="patient_name", type="string", nullable=true, example="Adenilza Flores"),
      *                     @OA\Property(property="patient_id", type="integer", nullable=true, example=55)
      *                 ),
+     *
      *                 @OA\Schema(
-     *                     description="Sin seguro o paciente no encontrado (misma respuesta — anti-enumeración)",
+     *                     description="Sin seguro o paciente no encontrado (misma respuesta - anti-enumeración)",
+     *
      *                     @OA\Property(property="has_insurance", type="boolean", example=false),
      *                     @OA\Property(property="patient_found", type="boolean", example=false)
      *                 )
      *             }
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Token inválido o ausente",
+     *
      *         @OA\JsonContent(@OA\Property(property="message", type="string", example="Unauthenticated."))
      *     ),
+     *
      *     @OA\Response(
      *         response=422,
      *         description="Parámetros faltantes o inválidos",
+     *
      *         @OA\JsonContent(@OA\Property(property="message", type="string"), @OA\Property(property="errors", type="object"))
      *     ),
+     *
      *     @OA\Response(
      *         response=429,
      *         description="Rate limit excedido (máx 10 req/min por token)",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="message", type="string", example="Too many requests. Maximum 10 verifications per minute per token."),
      *             @OA\Property(property="retry_after", type="integer", example=60)
      *         )
@@ -204,13 +237,13 @@ class InsuranceController extends Controller
             'seguro_paciente' => ['required', 'string', 'min:2', 'max:100'],
         ]);
 
-        $ci         = trim($data['ci_paciente']);
+        $ci = trim($data['ci_paciente']);
         $seguroName = trim($data['seguro_paciente']);
         $webhookUrl = env('SEGUROS_WEBHOOK_URL', 'https://n8n.sofopolis.com/webhook/seguros-verify');
 
         try {
             $webhookResponse = $this->rememberInsuranceRequest(
-                'insurance_verify_agent_' . md5($seguroName . '|' . $ci),
+                'insurance_verify_agent_'.md5($seguroName.'|'.$ci),
                 function () use ($webhookUrl, $seguroName, $ci) {
                     $response = Http::timeout(30)->post($webhookUrl, [
                         'empresa_seguro'   => $seguroName,
@@ -226,12 +259,13 @@ class InsuranceController extends Controller
 
             if ($webhookResponse['failed']) {
                 $this->logAudit($request, $ci, $seguroName, false);
+
                 return response()->json(['has_insurance' => false, 'patient_found' => false], 200);
             }
 
             $webhookData = $webhookResponse['data'];
-            $success     = $webhookData['success'] ?? false;
-            $results     = $webhookData['data'] ?? [];
+            $success = $webhookData['success'] ?? false;
+            $results = $webhookData['data'] ?? [];
 
             $hasInsurance = $success
                 && ! empty($results)
@@ -241,10 +275,11 @@ class InsuranceController extends Controller
 
             if (! $hasInsurance) {
                 usleep(random_int(50000, 150000));
+
                 return response()->json(['has_insurance' => false, 'patient_found' => false]);
             }
 
-            $row        = is_array($results) ? ($results[0] ?? $results) : [];
+            $row = is_array($results) ? ($results[0] ?? $results) : [];
             $validUntil = $this->extractField($row, ['VIGENCIA HASTA', 'VENCIMIENTO', 'valid_until']);
 
             return response()->json([
@@ -259,6 +294,7 @@ class InsuranceController extends Controller
             ]);
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('[verifyForAgent] Webhook error', ['error' => $e->getMessage()]);
+
             return response()->json(['has_insurance' => false, 'patient_found' => false], 200);
         }
     }
@@ -270,7 +306,7 @@ class InsuranceController extends Controller
     private function logAudit(Request $request, string $ci, string $seguro, bool $result): void
     {
         try {
-            $tokenRaw  = optional($request->user()?->currentAccessToken())->token ?? 'unknown';
+            $tokenRaw = optional($request->user()?->currentAccessToken())->token ?? 'unknown';
             $tokenHash = hash('sha256', $tokenRaw);
 
             DB::table('insurance_audit_logs')->insert([

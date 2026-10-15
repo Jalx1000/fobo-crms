@@ -2,11 +2,10 @@
 
 namespace Webkul\Admin\Listeners;
 
-use Illuminate\Support\Facades\DB;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
-use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Lead\Repositories\LeadRepository;
 
 class EntitySync
 {
@@ -57,7 +56,7 @@ class EntitySync
                 // Buscar el ID equivalente en los atributos de Lead
                 $leadInsuranceAttr = $this->attributeRepository->findOneByField('code', 'insurance');
                 $targetOption = $leadInsuranceAttr->options->where('name', $seguroName)->first();
-                
+
                 if ($targetOption) {
                     $data['insurance'] = [$targetOption->id];
                     $syncNeeded = true;
@@ -112,7 +111,11 @@ class EntitySync
             $targetOption = $personInsuranceAttr->options->where('name', $seguroName)->first();
 
             if ($targetOption) {
-                $data['seguro_paciente'] = $targetOption->id;
+                /**
+                 * Multiselect: se envía como lista. Ojo, esto REEMPLAZA los seguros
+                 * del paciente por el que viene del lead, no los acumula.
+                 */
+                $data['seguro_paciente'] = [$targetOption->id];
                 $syncNeeded = true;
             }
         }

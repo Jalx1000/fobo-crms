@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+
 use function Pest\Laravel\get;
 
 uses(DatabaseTransactions::class);
@@ -12,12 +12,11 @@ uses(DatabaseTransactions::class);
  * Este test valida el endpoint público de historial de chat con la IA.
  * Se utiliza para alimentar la pestaña "Historial IA" en Leads y Personas.
  */
-
 it('retorna error 400 si no se proporciona el email', function () {
     $response = get('/api/public/chat-history');
 
     $response->assertStatus(400)
-             ->assertJson(['error' => 'email es requerido']);
+        ->assertJson(['error' => 'email es requerido']);
 });
 
 it('puede consultar el historial de un email (aunque esté vacío)', function () {
@@ -25,15 +24,15 @@ it('puede consultar el historial de un email (aunque esté vacío)', function ()
     try {
         \Illuminate\Support\Facades\DB::connection('external_pgsql')->getPdo();
     } catch (\Exception $e) {
-        test()->markTestSkipped('Conexión external_pgsql no disponible en este entorno: ' . $e->getMessage());
+        test()->markTestSkipped('Conexión external_pgsql no disponible en este entorno: '.$e->getMessage());
     }
 
-    $email = 'test.' . uniqid() . '@example.com';
+    $email = 'test.'.uniqid().'@example.com';
 
-    $response = get('/api/public/chat-history?email=' . $email);
+    $response = get('/api/public/chat-history?email='.$email);
 
     $response->assertStatus(200)
-             ->assertJsonStructure(['messages']);
+        ->assertJsonStructure(['messages']);
 });
 
 it('valida que el componente de historial IA sea accesible en la vista de Leads', function () {

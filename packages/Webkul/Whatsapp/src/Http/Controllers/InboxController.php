@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Storage;
 use Webkul\Activity\Models\ActivityProxy;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Contact\Models\PersonProxy;
@@ -61,7 +60,7 @@ class InboxController extends Controller
             $messages = $messages->map(fn ($message) => $this->transform($message));
 
             // Internal notes live as Krayin note-activities on the linked
-            // person/lead — merge them into the stream chronologically.
+            // person/lead - merge them into the stream chronologically.
             $messages = $messages
                 ->concat($this->notesFor($conversation, $since))
                 ->sortBy('timestamp')
@@ -70,7 +69,7 @@ class InboxController extends Controller
 
         // Receiving and sending can be two different providers (Kommo takes the
         // messages in, the Cloud API sends them out), so each half of the
-        // capabilities has to come from the driver that actually does it —
+        // capabilities has to come from the driver that actually does it -
         // otherwise the composer hides what the sending driver supports.
         // Resolved against the conversation's own gateway so history created
         // under a previous provider still reports the right abilities.
@@ -99,7 +98,7 @@ class InboxController extends Controller
                 // effective = what actually applies right now.
                 'enabled'   => $conversation?->ai_enabled,
                 // With no conversation yet there is nothing to read the flag
-                // from, so the global default applies — except for staff, who
+                // from, so the global default applies - except for staff, who
                 // the agent never handles. Without this a doctor who has never
                 // written shows the agent as active, which locks the composer
                 // and with it the template button.
@@ -178,7 +177,7 @@ class InboxController extends Controller
         }
 
         // WhatsApp policy: free text is only allowed within 24h of the customer's
-        // last message, and only THEIR message reopens that window — sending a
+        // last message, and only THEIR message reopens that window - sending a
         // template does not. The UI hides the composer when it closes, but the
         // window can lapse between page load and send, so it is enforced here
         // too: otherwise the message is queued only for Meta to reject it.
@@ -244,7 +243,7 @@ class InboxController extends Controller
     }
 
     /**
-     * Send an approved template — the only thing WhatsApp accepts once the 24h
+     * Send an approved template - the only thing WhatsApp accepts once the 24h
      * window has closed.
      */
     public function sendTemplate(Request $request, ConversationResolver $resolver, TemplateCatalog $catalog): JsonResponse
@@ -342,7 +341,7 @@ class InboxController extends Controller
      * Send a file (document, image, audio, video) to the conversation.
      *
      * The provider fetches the file by URL, so it is stored on the public disk
-     * and the message keeps that URL in media_path — which is also what the
+     * and the message keeps that URL in media_path - which is also what the
      * inbox renders from, so the thread shows the real attachment.
      */
     public function sendMedia(Request $request, ConversationResolver $resolver): JsonResponse
@@ -463,7 +462,7 @@ class InboxController extends Controller
      *
      * Sniffing the contents alone is not enough: a voice note recorded as
      * audio/mp4 is an MP4 container with no video track, and detection reports
-     * it as video/mp4 — so notes went out as videos. The browser's own mime
+     * it as video/mp4 - so notes went out as videos. The browser's own mime
      * breaks that tie, and is only trusted when WhatsApp accepts it anyway.
      */
     protected function mediaTypeFor(?string $detected, ?string $declared = null): ?string
@@ -678,7 +677,7 @@ class InboxController extends Controller
     }
 
     /**
-     * A contact can end up with several conversations — one per provider after a
+     * A contact can end up with several conversations - one per provider after a
      * migration, or one per phone format. Show the one on the active gateway:
      * it is the only one the agent can actually reply through. Recency alone
      * would surface a dead conversation from a decommissioned provider.
@@ -730,6 +729,10 @@ class InboxController extends Controller
                 'url'      => $message->media_path,
                 'filename' => $message->media_name,
                 'meta'     => $message->media_mime,
+            ] : null,
+            // Formulario enviado: el botón que vio el paciente.
+            'flow'      => $message->type === 'flow' ? [
+                'cta' => $message->payload['flow']['cta'] ?? 'Completar datos',
             ] : null,
             'replyTo'   => $message->replyTo ? [
                 'author'  => $message->replyTo->direction === 'inbound' ? 'Cliente' : 'Agente',

@@ -157,7 +157,7 @@
                                 :label="trans('Instructor asignado')"
                                 :placeholder="trans('Selecciona instructor')"
                             >
-                                <option value="">—</option>
+                                <option value="">-</option>
                                 @php $inst = old('instructor_id', $specialty->instructor_id); @endphp
                                 @foreach ($instructors as $u)
                                     <option value="{{ $u->id }}" {{ $inst == $u->id ? 'selected' : '' }}>{{ $u->name }}</option>

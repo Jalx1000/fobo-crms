@@ -21,7 +21,7 @@ class SendAppointmentReminders extends Command
 {
     protected $signature = 'whatsapp:appointment-reminders
         {--date= : Target day (Y-m-d). Defaults to today + reminders.days_before}
-        {--person= : Only remind this patient (person id) — for controlled tests}
+        {--person= : Only remind this patient (person id) - for controlled tests}
         {--dry-run : List who would be reminded without sending}';
 
     protected $description = 'Envía recordatorios de cita por WhatsApp (gateway del CRM)';
@@ -62,7 +62,14 @@ class SendAppointmentReminders extends Command
         $skipped = 0;
 
         foreach ($appointments as $appt) {
-            $person = $appt->person_id ? PersonProxy::modelClass()::find($appt->person_id) : null;
+            // A quien agendó (decisión del negocio): si la cita la sacó otra
+            // persona por el formulario de WhatsApp -un padre para su hijo-, el
+            // recordatorio le llega a ella, que además suele ser la única con
+            // teléfono. Si no, al paciente, como siempre.
+            $bookerId = (int) (json_decode((string) ($appt->additional ?? ''), true)['booked_by_person_id'] ?? 0);
+            $recipientId = $bookerId ?: $appt->person_id;
+
+            $person = $recipientId ? PersonProxy::modelClass()::find($recipientId) : null;
             $phone = $this->phoneOf($person);
 
             if (! $phone) {
@@ -75,12 +82,12 @@ class SendAppointmentReminders extends Command
             $variables = $this->buildVariables($appt);
 
             if ($this->option('dry-run')) {
-                $this->line("  → [dry-run] {$appt->person_name} ({$phone}) — ".implode(' | ', $variables));
+                $this->line("  → [dry-run] {$appt->person_name} ({$phone}) - ".implode(' | ', $variables));
 
                 continue;
             }
 
-            $conversation = $resolver->findOrCreate($phone, $appt->person_name);
+            $conversation = $resolver->findOrCreate($phone, $person->name ?? $appt->person_name);
 
             $msg = MessageProxy::modelClass()::create([
                 'conversation_id' => $conversation->id,
@@ -118,7 +125,7 @@ class SendAppointmentReminders extends Command
                 ],
             );
 
-            $this->line("  ✓ {$appt->person_name} ({$phone})");
+            $this->line("  ✓ {$appt->person_name} ({$phone})".($bookerId ? " → a quien agendó: {$person->name}" : ''));
             $sent++;
         }
 
@@ -175,6 +182,7 @@ class SendAppointmentReminders extends Command
                 'activities.schedule_from as start',
                 'activity_participants.person_id',
                 DB::raw('MAX('.$prefix.'ev.external_id) as external_id'),
+                DB::raw('MAX('.$prefix.'activities.additional) as additional'),
                 DB::raw('MAX('.$prefix.'persons.name) as person_name'),
                 DB::raw('MAX('.$prefix.'doctors.name) as doctor_name'),
             ]);

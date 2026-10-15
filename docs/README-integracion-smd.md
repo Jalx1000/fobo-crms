@@ -1,4 +1,4 @@
-# Integración con ShareMeData (SMD) — README de traspaso
+# Integración con ShareMeData (SMD) - README de traspaso
 
 > **Para quién es esto:** cualquiera que retome la integración SMD ↔ Odontoking CRM sin contexto previo.
 > Está pensado para leerse de arriba hacia abajo. Si solo vas a tocar la sincronización de citas,
@@ -19,7 +19,7 @@
 | **CRM → SMD** (saliente) | API HTTP REST | Consultar disponibilidad, crear citas, crear/buscar/actualizar pacientes |
 | **SMD → CRM** (entrante) | **Dropbox** (archivos JSON) | Recibir las citas que se crean o modifican directamente en SMD |
 
-> ⚠️ **No hay un webhook HTTP de SMD hacia nosotros.** Todo lo que SMD nos comunica llega como **archivos JSON en una carpeta compartida de Dropbox**. El "webhook de Dropbox" que sí existe es de *Dropbox* avisándonos que un archivo cambió — no de SMD.
+> ⚠️ **No hay un webhook HTTP de SMD hacia nosotros.** Todo lo que SMD nos comunica llega como **archivos JSON en una carpeta compartida de Dropbox**. El "webhook de Dropbox" que sí existe es de *Dropbox* avisándonos que un archivo cambió - no de SMD.
 
 **Ambiente actual:** `gamma` (pre-producción de SMD). Base: `https://gamma.sharemedata.com`
 
@@ -47,7 +47,7 @@ SMD  ──escribe JSON──►  Dropbox  ──┬──► [1] cron  smd:sync
 | | Cómo descubre los archivos | Alcance |
 |---|---|---|
 | **[1] cron** | `listFilesForDate()` sobre `config('smd.dropbox.appointments_folder')/<fecha>` | Solo las carpetas de los últimos N días |
-| **[2] webhook** | `listChanges($cursor)` — cursor guardado en `settings.dropbox_cursor` | **La carpeta con la que se creó el cursor** |
+| **[2] webhook** | `listChanges($cursor)` - cursor guardado en `settings.dropbox_cursor` | **La carpeta con la que se creó el cursor** |
 | **[3] UI** | Igual que el cron, con `--days=7` | Idem cron |
 
 > ⚠️ **Trampa conocida:** el cursor del webhook queda **atado a la carpeta con la que se inicializó**. Cambiar `DROPBOX_APPOINTMENTS_FOLDER` en `.env` **no lo actualiza**. Si cambiás la carpeta, hay que re-ejecutar `php artisan smd:dropbox-init-cursor`, o el webhook seguirá leyendo la carpeta vieja mientras el cron lee la nueva. Esto ya pasó una vez (julio/2026).
@@ -79,7 +79,7 @@ Autenticación: header **`apikey`** (valor estático, en `SHAREMEDATA_API_KEY`).
 /smd-events/<clinicId>/<YYYY-MM-DD>/event-<YYYY-MM-DD>-<HHMM>-<_id>.json
 ```
 
-- `<clinicId>` — identifica la clínica. **La real de Odontoking es `60ccc528c1c48400065e3861`.**
+- `<clinicId>` - identifica la clínica. **La real de Odontoking es `60ccc528c1c48400065e3861`.**
   (`69bd99417549b10008e0ab5f` es la carpeta de **pruebas** que usó SMD para el cambio de julio.)
 - `<YYYY-MM-DD>` de la carpeta = **el día en que se escribió el archivo**, NO el día de la cita.
 - El nombre lleva fecha+hora de escritura y el `_id` del evento.
@@ -141,7 +141,7 @@ médico buscando qué asistente es un doctor registrado; `type` quedó como fall
 encuentra al paciente por teléfono: sin eso, un `UPDATED` deshidratado (sin `phone`) no lo
 encontraría y crearía un duplicado.
 
-### 🚨 Cambio de julio/2026 — un archivo por cada modificación
+### 🚨 Cambio de julio/2026 - un archivo por cada modificación
 
 Desde el 13/07/2026, **cada modificación de una cita genera un archivo nuevo** en la carpeta **del día en curso**, y **los archivos viejos NO se borran**.
 
@@ -152,7 +152,7 @@ Es decir: una cita creada el 13 y modificada tres veces el 14 tiene **4 archivos
 ## 5. Reglas de oro (invariantes que NO hay que romper)
 
 1. **La versión que gana es la de `updated_at` más alto. Siempre.**
-   `processPayload()` descarta cualquier payload cuyo `updated_at` sea anterior al ya aplicado (`smd_synced_events.source_updated_at`). Sin esto, el archivo viejo pisa al nuevo y **revierte la modificación** — pasó en producción, con una cita real corrida 4 días.
+   `processPayload()` descarta cualquier payload cuyo `updated_at` sea anterior al ya aplicado (`smd_synced_events.source_updated_at`). Sin esto, el archivo viejo pisa al nuevo y **revierte la modificación** - pasó en producción, con una cita real corrida 4 días.
 
 2. **No confíes en el orden en que Dropbox devuelve los archivos.**
    Se ordenan por nombre (que es cronológico por el formato `event-YYYY-MM-DD-HHMM-…`), pero eso es solo una **optimización**. La corrección la garantiza el descarte por `updated_at`.
@@ -172,7 +172,7 @@ Es decir: una cita creada el 13 y modificada tres veces el 14 tiene **4 archivos
    El `_id` siempre viene y cruza con `doctors.unique_id` / `persons.smd_patient_id`; `type`
    falta en la mayoría de los payloads.
 
-9. **El `owner` NO es el médico** — es quien creó el evento (la recepcionista). Nunca lo uses
+9. **El `owner` NO es el médico** - es quien creó el evento (la recepcionista). Nunca lo uses
    como fallback de doctor: es lo que generó el doctor basura `id=458`.
 
 10. **Si un payload no identifica al médico o al paciente, conserva los actuales.**
@@ -183,11 +183,11 @@ Es decir: una cita creada el 13 y modificada tres veces el 14 tiene **4 archivos
 
 ## 6. Modelo de datos
 
-### `smd_synced_events` — el registro de lo sincronizado
+### `smd_synced_events` - el registro de lo sincronizado
 
 | Columna | Para qué |
 |---|---|
-| `external_id` | El `_id` de SMD. **UNIQUE** — es la idempotencia |
+| `external_id` | El `_id` de SMD. **UNIQUE** - es la idempotencia |
 | `source_file` | Path del último archivo aplicado |
 | `activity_id` / `lead_id` | Qué creó en el CRM |
 | `raw_payload` | El JSON aplicado. Su hash detecta "sin cambios" |
@@ -214,7 +214,7 @@ Verificado contra la carpeta **real** (`/smd-events/60ccc528…`), sobre 30 arch
 médico se identifica **por id**, no por nombre ni por `type`.
 
 > 💡 **Corolario clave:** como el `_id` matchea, **no hace falta `type`** para distinguir
-> médico de paciente — basta con ver en qué tabla cae el id. Eso vuelve irrelevante la
+> médico de paciente - basta con ver en qué tabla cae el id. Eso vuelve irrelevante la
 > deshidratación de los `UPDATED` y **evita tener que pedirle nada a SMD**.
 
 ---
@@ -230,7 +230,7 @@ médico se identifica **por id**, no por nombre ni por `type`.
 | BUG-3 | `listChanges()` lanzaba `TypeError` y perdía la notificación del webhook |
 | BUG-5 | Sin protección de concurrencia (cron + webhook duplicaban Lead/Activity) |
 | BUG-12 | Una cancelación que además editaba el título perdía la edición |
-| — | Una cita cancelada se re-cancelaba en cada corrida del cron |
+| - | Una cita cancelada se re-cancelaba en cada corrida del cron |
 | **BUG-4** | El médico no se identificaba (los `UPDATED` no traen `type`) → caía al `owner` → citas colgadas del doctor basura "Recepcionista Odontoking". **Ahora se identifica cruzando `attendances[]._id` contra `doctors.unique_id`, y el fallback al `owner` se eliminó** |
 | **BUG-11** | Un cambio de paciente o médico en SMD no se reflejaba. **Ahora `updateDropbox()` re-resuelve `participants` y `doctor_activities`**, y reapunta el `person_id` del lead |
 | **BUG-10** | ❌ **No existía.** Se diagnosticó contra la carpeta de pruebas (ver §6) |
@@ -247,16 +247,16 @@ las re-resuelve**. Hace falta un backfill que re-aplique el `raw_payload` guarda
 
 ### 🟡 Menores sin tocar
 
-- **BUG-6** — Una cita reactivada queda "perdida": `cancelDropbox()` pone `status=0`/`lost_reason` y `updateDropbox()` nunca los revierte.
-- **BUG-7** — `listFilesForDate()` ignora `has_more` (no pagina). Hoy no duele; dolería con carpetas grandes.
-- **BUG-8** — `DropboxWebhookController:51` loguea la **firma HMAC esperada**. Con acceso a logs se puede forjar un request.
-- **BUG-9** — `.env.example` **no tiene ninguna** variable de SMD/Dropbox.
+- **BUG-6** - Una cita reactivada queda "perdida": `cancelDropbox()` pone `status=0`/`lost_reason` y `updateDropbox()` nunca los revierte.
+- **BUG-7** - `listFilesForDate()` ignora `has_more` (no pagina). Hoy no duele; dolería con carpetas grandes.
+- **BUG-8** - `DropboxWebhookController:51` loguea la **firma HMAC esperada**. Con acceso a logs se puede forjar un request.
+- **BUG-9** - `.env.example` **no tiene ninguna** variable de SMD/Dropbox.
 - `closed_at` no persiste en el Lead (probablemente no está en `$fillable`), aunque `status` y `lost_reason` sí.
-- `normalizeDropbox()` hardcodea `specialty = 'General'`: el payload de Dropbox **no trae el servicio**. Por eso el KPI "servicios solicitados" da 0 — no es un bug de código.
+- `normalizeDropbox()` hardcodea `specialty = 'General'`: el payload de Dropbox **no trae el servicio**. Por eso el KPI "servicios solicitados" da 0 - no es un bug de código.
 
 ---
 
-## 8. Entorno — trampas que te van a hacer perder tiempo
+## 8. Entorno - trampas que te van a hacer perder tiempo
 
 ### 🚨 `.env.testing` apunta a la base de datos de PRODUCCIÓN
 
@@ -287,7 +287,7 @@ docker logs --since 30m <container> 2>&1 | grep smd:sync-dropbox
 
 ### Los logs de producción no están en `storage/logs/laravel.log`
 
-Ese archivo solo tiene entradas `testing.*` — o sea, **el ruido de la suite de tests**. Los logs reales van a stdout del contenedor (`docker logs`).
+Ese archivo solo tiene entradas `testing.*` - o sea, **el ruido de la suite de tests**. Los logs reales van a stdout del contenedor (`docker logs`).
 
 ### Desde el shell del host, `artisan` no llega a la BD ni a Redis
 
@@ -355,7 +355,7 @@ php artisan test --filter "Dropbox|Smd"        # 144 tests
 config/smd.php                                          # stages, carpeta Dropbox, flags
 packages/Webkul/Admin/src/
   Services/DropboxService.php                           # token OAuth, list, download
-  Services/SmdAppointmentSyncService.php                # ★ processPayload() — el corazón
+  Services/SmdAppointmentSyncService.php                # ★ processPayload() - el corazón
   Services/IncomingAppointmentService.php               # normaliza payload → Lead/Activity
   Services/SmdStatusMapper.php                          # status SMD → stage del CRM
   Services/ShareMeDataService.php                       # API saliente
@@ -369,7 +369,7 @@ tests/Feature/SmdStalePayloadSyncTest.php               # regresiones del cambio
 
 ### Tests
 
-`144` en verde para `Dropbox|Smd`. La suite completa da **8 fallos preexistentes** (`AgentInsuranceVerifyTest`, `LeadReuseTest`, `LeadUnassignedOwnerTest`, `ReassignSyncedLeadsCommandTest`) — **verificado con `git stash` que ya fallaban antes**. Son de seguros y de "Sin asignar", ajenos a esta integración.
+`144` en verde para `Dropbox|Smd`. La suite completa da **8 fallos preexistentes** (`AgentInsuranceVerifyTest`, `LeadReuseTest`, `LeadUnassignedOwnerTest`, `ReassignSyncedLeadsCommandTest`) - **verificado con `git stash` que ya fallaban antes**. Son de seguros y de "Sin asignar", ajenos a esta integración.
 
 ---
 
@@ -391,4 +391,4 @@ tests/Feature/SmdStalePayloadSyncTest.php               # regresiones del cambio
 | 2026-07-14 | Se detectan y corrigen BUG-1/2/3/5/12; migración `source_updated_at`; se documentan BUG-4/10/11 |
 | 2026-07-14 (2ª) | **BUG-10 resulta falso** (se había diagnosticado contra la carpeta de pruebas). Con eso se corrigen **BUG-4** (médico por `attendances[]._id` → `doctors.unique_id`, sin fallback al `owner`) y **BUG-11** (re-resolución de participantes en `updateDropbox()`). `.env` vuelve a la carpeta real y se re-inicializa el cursor. Queda el backfill de 19 citas |
 
-**Contactos:** Mauri Pache (SMD) — vía WhatsApp.
+**Contactos:** Mauri Pache (SMD) - vía WhatsApp.

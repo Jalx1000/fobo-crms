@@ -6,6 +6,8 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Webkul\Whatsapp\Console\Commands\FlowsKeys;
+use Webkul\Whatsapp\Console\Commands\FlowsPublish;
 use Webkul\Whatsapp\Console\Commands\KommoCheck;
 use Webkul\Whatsapp\Console\Commands\ListTemplates;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
@@ -52,6 +54,8 @@ class WhatsappServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->commands([
+                FlowsKeys::class,
+                FlowsPublish::class,
                 KommoCheck::class,
                 NormalizePhones::class,
                 RepairGateway::class,
@@ -69,7 +73,7 @@ class WhatsappServiceProvider extends ServiceProvider
                 $schedule = $this->app->make(Schedule::class);
                 // Hourly, not once a day. SMD keeps syncing appointments all day
                 // long, and a single 08:00 run leaves every appointment created
-                // afterwards without a reminder — on 2026-07-21 that lost 20
+                // afterwards without a reminder - on 2026-07-21 that lost 20
                 // patients who did have a phone. The command is idempotent (one
                 // reminder per appointment, failed sends retried), so the extra
                 // runs only pick up what the earlier ones could not.
@@ -93,6 +97,10 @@ class WhatsappServiceProvider extends ServiceProvider
                         ->timezone((string) config('whatsapp.reminders.timezone', 'America/La_Paz'))
                         ->withoutOverlapping();
                 }
+
+                // (Sin tareas programadas contra la API de SMD: el catálogo de
+                // horarios que corría cada 10 min se quitó el 2026-10-13 por
+                // consumir la cuota contratada. planning/15-consumo-api-smd.)
 
                 // Give quiet conversations back to the agent. Every minute so the
                 // configured wait is honoured as-is: on a ten-minute tick a
@@ -128,7 +136,7 @@ class WhatsappServiceProvider extends ServiceProvider
                         ->everyMinute()
                         // TTL corto: el drainer dura máx 55s, así que un lock que
                         // quede colgado (por un kill/OOM/reinicio) se libera solo en
-                        // 2 min en vez de las 24h por defecto —que dejaban la cola sin
+                        // 2 min en vez de las 24h por defecto -que dejaban la cola sin
                         // drenar hasta limpiar el mutex a mano.
                         ->withoutOverlapping(2)
                         ->runInBackground();

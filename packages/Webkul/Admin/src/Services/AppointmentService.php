@@ -28,7 +28,7 @@ class AppointmentService
      *
      * Orden garantizado:
      *  1. Validar turno local (doctor_shifts)
-     *  2. Validar conflicto local (doctor_activities) — un Lead cancelado no bloquea
+     *  2. Validar conflicto local (doctor_activities) - un Lead cancelado no bloquea
      *  3. Descubrir unique_id del doctor en SMD si falta            ┐
      *  4. Verificar disponibilidad en ShareMeData                   │ se omiten si
      *  5. Crear evento en ShareMeData PRIMERO                       ┘ smd.validate_availability=false
@@ -236,6 +236,17 @@ class AppointmentService
                 $doctorSpecialties = ['General'];
             }
 
+            // Si se sabe con qué especialidad se agenda (el formulario de WhatsApp
+            // la conoce), se valida esa primero: 1 consulta a SMD en vez de una
+            // por cada especialidad del doctor hasta dar con la correcta.
+            if (! empty($data['specialty_id'])) {
+                $booked = $this->specialtyRepository->find((int) $data['specialty_id'])?->name;
+
+                if ($booked && in_array($booked, $doctorSpecialties, true)) {
+                    $doctorSpecialties = array_values(array_unique(array_merge([$booked], $doctorSpecialties)));
+                }
+            }
+
             $isAvailableExternally = false;
             $smdErrors = [];
 
@@ -352,6 +363,21 @@ class AppointmentService
                 }
             }
 
+            // Paciente sin teléfono propio (un hijo agendado por su madre desde
+            // WhatsApp): antes no se registraba en SMD, el evento quedaba sin
+            // paciente ni estado y la sync lo devolvía a "Consultas". Se busca
+            // por CÉDULA (buscar por el teléfono de contacto encontraría a la
+            // madre) y si no está se registra con ese teléfono de contacto.
+            if (! $smdPersonId && $personPhone === '0' && ! empty($data['contact_phone'])) {
+                $smdPersonId = $this->smdPatientIdByCi($person, (string) $data['contact_phone']);
+
+                if ($smdPersonId) {
+                    DB::table('persons')->where('id', $person->id)->update(['smd_patient_id' => $smdPersonId]);
+                    $person = $this->personRepository->find($person->id);
+                    $personPhone = (string) $data['contact_phone'];
+                }
+            }
+
             $firstName = $nameParts[0] ?: 'Paciente';
             $lastName = count($nameParts) > 1 ? implode(' ', array_slice($nameParts, 1)) : 'Externo';
 
@@ -362,7 +388,9 @@ class AppointmentService
                     'name'     => (string) $firstName,
                     'lastName' => (string) $lastName,
                     'phone'    => (string) $personPhone,
-                    'personID' => (string) ($smdPersonId ?? ''),
+                    // En SMD `personID` es la CÉDULA (doc. API v2), no el _id del
+                    // paciente. Mandar el _id acá no lo asociaba al evento (AUD-11).
+                    'personID' => (string) ($this->patientCi($person) ?? ''),
                     'birthday' => '',
                 ],
                 'slot' => [
@@ -392,23 +420,27 @@ class AppointmentService
                 );
             }
 
-            // ── 5.b Multi-doctor: sumar los físicos extra al evento por PATCH ──
-            // createEvent solo acepta un físico; el resto se agrega editando el
-            // evento recién creado (mismo mecanismo que la edición desde el CRM).
-            if (count($allDoctorIds) > 1) {
-                $this->attachExtraPhysicians(
-                    $smdResult['data'] ?? [],
-                    $allDoctorIds,
-                    $smdPersonId ?? null,
-                    $firstName,
-                    $lastName,
-                    $personPhone,
-                    $scheduleFrom,
-                    $scheduleTo,
-                    $title,
-                    $data['reason'] ?? ''
-                );
-            }
+            // ── 5.b Completar el evento por PATCH: paciente + todos los físicos ──
+            // createEvent solo acepta un físico Y NO asocia al paciente: el evento
+            // quedaba en SMD con el médico solo (AUD-11), y al volver por Dropbox
+            // el CRM lo tomaba como bloqueo de agenda. El PATCH con attendances sí
+            // los asocia (verificado en producción el 2026-10-11), así que se hace
+            // siempre que haya paciente de SMD o más de un médico.
+            // Siempre, aunque no haya paciente de SMD: el PATCH es el que deja el
+            // evento en CONFIRMED. Sin él SMD lo devuelve con status vacío y la
+            // sync pasa el lead de "Cita Confirmada" a "Consultas".
+            $this->syncEventAttendances(
+                $smdResult['data'] ?? [],
+                $allDoctorIds,
+                $smdPersonId ?? null,
+                $firstName,
+                $lastName,
+                $personPhone,
+                $scheduleFrom,
+                $scheduleTo,
+                $title,
+                $data['reason'] ?? ''
+            );
         } else {
             Log::info('[AppointmentService] Creando cita sin validar SMD (smd.validate_availability=false)', [
                 'doctor_id' => $doctorId,
@@ -527,17 +559,49 @@ class AppointmentService
     }
 
     /**
-     * Suma los físicos adicionales a un evento recién creado en SMD, mediante PATCH.
+     * _id de SMD del paciente buscándolo por cédula, o registrándolo con el
+     * teléfono de contacto de quien lo agendó. Null si no tiene cédula.
+     */
+    private function smdPatientIdByCi(object $person, string $contactPhone): ?string
+    {
+        $ciAttribute = app(\Webkul\Attribute\Repositories\AttributeRepository::class)->findOneByField('code', 'ci_paciente');
+        $ci = $ciAttribute ? trim((string) $person->getCustomAttributeValue($ciAttribute)) : '';
+
+        if ($ci === '') {
+            return null;
+        }
+
+        $digits = preg_replace('/\D/', '', $ci);
+
+        foreach ($this->shareMeDataService->searchPatientByCi($digits) as $candidate) {
+            if (preg_replace('/\D/', '', (string) ($candidate['personID'] ?? '')) === $digits && ! empty($candidate['_id'])) {
+                return (string) $candidate['_id'];
+            }
+        }
+
+        $parts = explode(' ', trim((string) $person->name)) ?: ['Paciente'];
+        $result = $this->shareMeDataService->createPatient([
+            'first_name' => $parts[0] ?: 'Paciente',
+            'last_name'  => implode(' ', array_slice($parts, 1)) ?: 'Externo',
+            'phone'      => $contactPhone,
+            'ci'         => $ci,
+        ]);
+
+        return $result['success'] ? ($result['data']['_id'] ?? null) : null;
+    }
+
+    /**
+     * Completa por PATCH un evento recién creado en SMD: paciente + todos los físicos.
      *
-     * El endpoint createEvent solo admite un físico, así que para citas multi-doctor
-     * se crea con el principal y luego se edita el evento agregando el resto como
-     * attendances de tipo physician. Nunca lanza: si falla, la cita queda con el
-     * doctor principal en SMD (y todos los doctores localmente) y se registra un aviso.
+     * createEvent solo admite un físico y no asocia al paciente, así que se crea
+     * con el principal y luego se edita el evento con las attendances completas.
+     * Nunca lanza: si falla, la cita queda creada (en SMD con el médico principal
+     * y sin paciente, como antes) y se registra un aviso.
      *
      * @param  array  $createdEvent  Respuesta de createEvent (contiene el _id del evento).
      * @param  int[]  $allDoctorIds  Ids locales de todos los doctores (principal primero).
      */
-    private function attachExtraPhysicians(
+    private function syncEventAttendances(
         array $createdEvent,
         array $allDoctorIds,
         ?string $smdPersonId,
@@ -555,7 +619,7 @@ class AppointmentService
         $eventId = $extracted['eventId'];
 
         if (! $smdEventId) {
-            Log::warning('[SMD] Multi-doctor: no se pudo obtener el _id del evento creado; los físicos extra no se agregaron.', [
+            Log::warning('[SMD] No se pudo obtener el _id del evento creado; no se completaron paciente ni físicos extra.', [
                 'created_event_keys' => array_keys($createdEvent),
                 'created_event_json' => json_encode($createdEvent, JSON_UNESCAPED_UNICODE),
             ]);
@@ -615,16 +679,30 @@ class AppointmentService
         $result = $this->shareMeDataService->updateEvent((string) $smdEventId, $body);
 
         if (! ($result['success'] ?? false)) {
-            Log::warning('[SMD] Multi-doctor: PATCH para sumar físicos extra falló.', [
+            Log::warning('[SMD] PATCH para completar paciente y físicos del evento falló.', [
                 'event_id' => $smdEventId,
                 'message'  => $result['message'] ?? null,
             ]);
         } else {
-            Log::info('[SMD] Multi-doctor: físicos extra agregados al evento.', [
+            Log::info('[SMD] Paciente y físicos agregados al evento.', [
                 'event_id'   => $smdEventId,
                 'physicians' => count(array_filter($attendances, fn ($a) => ($a['type'] ?? '') === 'physician')),
             ]);
         }
+    }
+
+    /**
+     * Cédula del paciente (atributo `ci_paciente`), o null si no la tiene.
+     * Es lo que SMD espera en `personID`.
+     */
+    private function patientCi($person): ?string
+    {
+        $attribute = app(\Webkul\Attribute\Repositories\AttributeRepository::class)
+            ->findOneByField('code', 'ci_paciente');
+
+        $ci = $attribute ? trim((string) $person->getCustomAttributeValue($attribute)) : '';
+
+        return $ci !== '' ? $ci : null;
     }
 
     /**

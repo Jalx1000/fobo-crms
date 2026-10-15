@@ -1,7 +1,7 @@
 <?php
 
 /**
- * FASE B (paso 1) — Caracteriza los eventos del export que NO existen como cita
+ * FASE B (paso 1) - Caracteriza los eventos del export que NO existen como cita
  * en el CRM, para separar lo creable de la basura (test/cancelado/sin paciente).
  * Solo lectura.
  */

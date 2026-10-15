@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Qué archivos de Dropbox ya se bajaron, sin importar en qué terminaron.
  *
- * `smd_synced_events` guarda un `source_file` por CITA — el último que la
- * actualizó —, así que los archivos obsoletos o los que no cambiaron nada no
+ * `smd_synced_events` guarda un `source_file` por CITA - el último que la
+ * actualizó -, así que los archivos obsoletos o los que no cambiaron nada no
  * quedan anotados en ningún lado y la sincronización vuelve a bajarlos en cada
  * corrida. Con cientos de archivos por carpeta eso son minutos de descargas
  * inútiles cada cinco minutos, y una cita nueva esperando detrás de la cola.

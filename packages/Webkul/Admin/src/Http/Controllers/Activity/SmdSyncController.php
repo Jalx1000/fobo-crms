@@ -73,7 +73,7 @@ class SmdSyncController extends Controller
 
         $status = Cache::get(SyncSmdAppointmentsJob::STATUS_KEY, ['state' => 'idle']);
 
-        $status['paused']  = SmdSyncState::isPaused();
+        $status['paused'] = SmdSyncState::isPaused();
         $status['message'] = $this->humanMessage($status);
 
         return response()->json($status);
@@ -115,9 +115,9 @@ class SmdSyncController extends Controller
             'failed'  => 'La sincronización con ShareMeData falló. Revisa los logs.',
             'done'    => sprintf(
                 'Sincronización completada: %d creadas, %d actualizadas, %d canceladas.',
-                $status['summary']['creados']     ?? 0,
+                $status['summary']['creados'] ?? 0,
                 $status['summary']['actualizados'] ?? 0,
-                $status['summary']['cancelados']  ?? 0,
+                $status['summary']['cancelados'] ?? 0,
             ),
             default => null,
         };

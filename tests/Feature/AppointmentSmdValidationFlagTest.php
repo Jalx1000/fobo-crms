@@ -15,7 +15,7 @@ uses(DatabaseTransactions::class);
 
 beforeEach(function () {
     $this->from = Carbon::tomorrow()->setTime(9, 0);
-    $this->to   = $this->from->copy()->addMinutes(30);
+    $this->to = $this->from->copy()->addMinutes(30);
 });
 
 function makeDoctorWithoutSmdLink(): Doctor
@@ -60,7 +60,7 @@ it('crea la cita 100% local sin tocar ShareMeData cuando smd.validate_availabili
     $mock->shouldNotReceive('createEvent');
     app()->bind(ShareMeDataService::class, fn () => $mock);
 
-    $person  = makePersonForFlag();
+    $person = makePersonForFlag();
     $service = app(AppointmentService::class);
 
     $result = $service->process([
@@ -101,7 +101,7 @@ it('sigue validando con ShareMeData cuando smd.validate_availability es true (de
     $mock->shouldNotReceive('createEvent');
     app()->bind(ShareMeDataService::class, fn () => $mock);
 
-    $person  = makePersonForFlag();
+    $person = makePersonForFlag();
     $service = app(AppointmentService::class);
 
     expect(fn () => $service->process([
@@ -144,7 +144,7 @@ it('con la bandera en false, un lead abierto en el mismo horario sigue bloqueand
     $mock->shouldNotReceive('createEvent');
     app()->bind(ShareMeDataService::class, fn () => $mock);
 
-    $person  = makePersonForFlag();
+    $person = makePersonForFlag();
     $service = app(AppointmentService::class);
 
     expect(fn () => $service->process([

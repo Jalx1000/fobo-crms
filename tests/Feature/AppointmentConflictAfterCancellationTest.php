@@ -26,7 +26,7 @@ uses(DatabaseTransactions::class);
 function buildSmdSlots(Carbon $from, Carbon $to): array
 {
     $intervals = [];
-    $current   = $from->copy();
+    $current = $from->copy();
 
     while ($current->lessThan($to)) {
         $intervals[] = [
@@ -141,8 +141,12 @@ function bindShareMeDataMock(?array $slots, bool $expectAvailabilityCheck = true
             'success' => true,
             'data'    => ['_id' => 'evt-'.uniqid()],
         ]);
+        // Tras createEvent el CRM completa el evento por PATCH (paciente +
+        // físicos), porque createEvent no asocia al paciente (AUD-11).
+        $mock->shouldReceive('updateEvent')->andReturn(['success' => true, 'data' => []]);
     } else {
         $mock->shouldNotReceive('createEvent');
+        $mock->shouldNotReceive('updateEvent');
     }
 
     app()->bind(ShareMeDataService::class, fn () => $mock);
@@ -152,12 +156,12 @@ function bindShareMeDataMock(?array $slots, bool $expectAvailabilityCheck = true
 
 beforeEach(function () {
     $this->from = Carbon::tomorrow()->setTime(9, 0);
-    $this->to   = $this->from->copy()->addMinutes(30);
+    $this->to = $this->from->copy()->addMinutes(30);
 
     // Stages reales y distintos entre sí, igual que en producción: "cancelado" es
     // el stage configurado en smd.stage_map, "abierto" es cualquier otro stage real.
-    $stages               = DB::table('lead_pipeline_stages')->orderBy('id')->pluck('id');
-    $this->openStage      = (int) $stages->first();
+    $stages = DB::table('lead_pipeline_stages')->orderBy('id')->pluck('id');
+    $this->openStage = (int) $stages->first();
     $this->cancelledStage = (int) ($stages->filter(fn ($id) => $id !== $this->openStage)->first() ?? $this->openStage);
 
     config([
@@ -167,7 +171,7 @@ beforeEach(function () {
 });
 
 // ---------------------------------------------------------------------------
-// 1. Lead cerrado no bloquea — y SMD permite → la cita nueva se crea
+// 1. Lead cerrado no bloquea - y SMD permite → la cita nueva se crea
 // ---------------------------------------------------------------------------
 
 it('permite crear una cita nueva cuando la unica cita previa pertenece a un lead cerrado y SMD confirma disponibilidad', function () {
@@ -179,7 +183,7 @@ it('permite crear una cita nueva cuando la unica cita previa pertenece a un lead
 
     bindShareMeDataMock(buildSmdSlots($this->from, $this->to));
 
-    $person  = makePatient();
+    $person = makePatient();
     $service = app(AppointmentService::class);
 
     $result = $service->process([
@@ -195,7 +199,7 @@ it('permite crear una cita nueva cuando la unica cita previa pertenece a un lead
 });
 
 // ---------------------------------------------------------------------------
-// 2. Lead abierto sigue bloqueando (sin regresion) — y no debe llegar a SMD
+// 2. Lead abierto sigue bloqueando (sin regresion) - y no debe llegar a SMD
 // ---------------------------------------------------------------------------
 
 it('sigue bloqueando cuando la cita previa pertenece a un lead abierto, sin consultar SMD', function () {
@@ -207,7 +211,7 @@ it('sigue bloqueando cuando la cita previa pertenece a un lead abierto, sin cons
 
     bindShareMeDataMock(null, expectAvailabilityCheck: false);
 
-    $person  = makePatient();
+    $person = makePatient();
     $service = app(AppointmentService::class);
 
     expect(fn () => $service->process([
@@ -229,7 +233,7 @@ it('sigue bloqueando cuando la activity previa no tiene ningun lead vinculado', 
 
     bindShareMeDataMock(null, expectAvailabilityCheck: false);
 
-    $person  = makePatient();
+    $person = makePatient();
     $service = app(AppointmentService::class);
 
     expect(fn () => $service->process([
@@ -254,7 +258,7 @@ it('sigue bloqueando si al menos uno de los leads vinculados a la activity esta 
 
     bindShareMeDataMock(null, expectAvailabilityCheck: false);
 
-    $person  = makePatient();
+    $person = makePatient();
     $service = app(AppointmentService::class);
 
     expect(fn () => $service->process([
@@ -278,7 +282,7 @@ it('libera el slot localmente pero sigue rechazando si SMD no tiene disponibilid
 
     bindShareMeDataMock(null); // SMD sin slots disponibles
 
-    $person  = makePatient();
+    $person = makePatient();
     $service = app(AppointmentService::class);
 
     expect(fn () => $service->process([
@@ -290,7 +294,7 @@ it('libera el slot localmente pero sigue rechazando si SMD no tiene disponibilid
 });
 
 // ---------------------------------------------------------------------------
-// 6b. Caso real de produccion — cancelacion manual que SOLO mueve el stage,
+// 6b. Caso real de produccion - cancelacion manual que SOLO mueve el stage,
 // dejando leads.status en NULL (no en 0). Doctor 21 en produccion, 2026-06-17
 // 11:00-12:00: el lead quedo con stage "Cancelado" pero status nunca se tocó.
 // ---------------------------------------------------------------------------
@@ -304,7 +308,7 @@ it('libera el slot cuando el lead se cancelo solo moviendo el stage, sin tocar s
 
     bindShareMeDataMock(buildSmdSlots($this->from, $this->to));
 
-    $person  = makePatient();
+    $person = makePatient();
     $service = app(AppointmentService::class);
 
     $result = $service->process([
@@ -318,7 +322,7 @@ it('libera el slot cuando el lead se cancelo solo moviendo el stage, sin tocar s
 });
 
 // ---------------------------------------------------------------------------
-// 6. Caso historico — cancelacion real (cancelDropbox) round-trip
+// 6. Caso historico - cancelacion real (cancelDropbox) round-trip
 // ---------------------------------------------------------------------------
 
 it('permite agendar tras una cancelacion real via cancelDropbox', function () {
@@ -365,7 +369,7 @@ it('permite agendar tras una cancelacion real via cancelDropbox', function () {
 
     bindShareMeDataMock(buildSmdSlots($this->from, $this->to));
 
-    $person  = makePatient();
+    $person = makePatient();
     $service = app(AppointmentService::class);
 
     $result = $service->process([

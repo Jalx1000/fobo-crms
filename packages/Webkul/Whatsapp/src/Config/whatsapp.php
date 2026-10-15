@@ -11,7 +11,7 @@ $cloud = [
     'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
 
     // WhatsApp Business Account that owns the phone number. Templates live on
-    // the account, not the number, so reading the catalogue needs it — and it
+    // the account, not the number, so reading the catalogue needs it - and it
     // cannot be derived from the token or the phone number, it has to be copied
     // from WhatsApp Manager.
     'waba_id'         => env('WHATSAPP_WABA_ID'),
@@ -39,7 +39,7 @@ return [
     | number: talking to Meta directly gives a real message id and drops the
     | salesbot relay, which could only answer inside an existing chat.
     |
-    | Applies to every outbound path — agent replies, inbox replies, reminders —
+    | Applies to every outbound path - agent replies, inbox replies, reminders -
     | because it is resolved in the send job itself. Null = each conversation
     | sends through its own gateway.
     */
@@ -60,7 +60,7 @@ return [
     | Gateway registry
     |--------------------------------------------------------------------------
     | Each driver receives its own config array. The core never reads these
-    | keys directly — only the driver does.
+    | keys directly - only the driver does.
     */
     'gateways' => [
         'cloud_api' => array_merge($cloud, [
@@ -144,7 +144,7 @@ return [
     |--------------------------------------------------------------------------
     | Scheduled short-lived worker that keeps the WhatsApp queue moving without a
     | dedicated supervised process. Turn OFF once a real worker (a supervisor
-    | process running `queue:work --queue=whatsapp`) is in place — running both
+    | process running `queue:work --queue=whatsapp`) is in place - running both
     | is harmless but redundant.
     */
     'queue_drainer' => [
@@ -172,6 +172,81 @@ return [
     | links it.
     */
     'auto_create_person' => env('WHATSAPP_AUTO_CREATE_PERSON', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | WhatsApp Flows (formularios dentro del chat, solo Cloud API)
+    |--------------------------------------------------------------------------
+    | El endpoint de los Flows recibe pedidos cifrados con NUESTRA clave pública
+    | (subida a Meta con `php artisan whatsapp:flows:keys`). La privada queda en
+    | el servidor, fuera del repo. Ver planning/14-pacientes-terceros.
+    */
+    'flows' => [
+        // Segundos máximos que el resultado de un formulario ("✅ Cita
+        // confirmada") espera a que el agente conteste el flow_reply, para que
+        // llegue DESPUÉS de su "estoy registrando…". 0 = enviar al toque.
+        'confirm_wait_seconds' => (int) env('WHATSAPP_FLOW_CONFIRM_WAIT', 40),
+
+        // Segundos que "Revisá tu cita" espera el resultado del seguro (Meta da
+        // ~10 s por pantalla). Si no llega, muestra "todavía verificando".
+        'insurance_wait_seconds' => (float) env('WHATSAPP_FLOW_INSURANCE_WAIT', 5),
+
+        'private_key_path'       => env('WHATSAPP_FLOWS_PRIVATE_KEY_PATH', storage_path('app/whatsapp/flows_private.pem')),
+        'private_key_passphrase' => env('WHATSAPP_FLOWS_KEY_PASSPHRASE'),
+
+        // Flow "¿Para quién es la cita?": identifica al paciente cuando agenda un tercero.
+        'patient' => [
+            'name' => env('WHATSAPP_FLOW_PATIENT_NAME', 'odontoking_paciente_tercero'),
+            // Pedir la cédula a "Para mí" / pacientes a cargo que no la tienen
+            // (pantalla PATIENT_CI). Encender solo con el Flow nuevo publicado.
+            'ask_ci' => (bool) env('WHATSAPP_FLOW_ASK_CI', false),
+            // Versión 4 (paso a paso: sin "Confirmar" al inicio, "Paso X de 5" y
+            // lo elegido en cada pantalla). Encender solo con la v4 publicada.
+            'v4'     => (bool) env('WHATSAPP_FLOW_V4', false),
+            'id'     => env('WHATSAPP_FLOW_PATIENT_ID'),
+            'cta'    => env('WHATSAPP_FLOW_PATIENT_CTA', 'Agendar cita'),
+            // draft = probar el borrador antes de publicarlo; published = producción.
+            'mode' => env('WHATSAPP_FLOW_PATIENT_MODE', 'published'),
+        ],
+
+        // Formulario "Cancelar cita".
+        'cancel' => [
+            'name' => env('WHATSAPP_FLOW_CANCEL_NAME', 'odontoking_cancelar_cita'),
+            'id'   => env('WHATSAPP_FLOW_CANCEL_ID'),
+            'cta'  => env('WHATSAPP_FLOW_CANCEL_CTA', 'Cancelar cita'),
+            'mode' => env('WHATSAPP_FLOW_CANCEL_MODE', 'published'),
+        ],
+
+        // Formulario "Reprogramar cita".
+        'reschedule' => [
+            'name' => env('WHATSAPP_FLOW_RESCHEDULE_NAME', 'odontoking_reprogramar_cita'),
+            'id'   => env('WHATSAPP_FLOW_RESCHEDULE_ID'),
+            'cta'  => env('WHATSAPP_FLOW_RESCHEDULE_CTA', 'Cambiar cita'),
+            'mode' => env('WHATSAPP_FLOW_RESCHEDULE_MODE', 'published'),
+        ],
+
+        // Agenda dentro del mismo formulario: especialidad → doctor → día → hora.
+        'booking' => [
+
+            // Días que se consultan a SMD al elegir la especialidad (1 consulta).
+            // Para otra fecha, el paciente elige el día ("Otra fecha") y se
+            // consulta solo ese día: no se piden semanas que nadie va a mirar.
+            'days'             => (int) env('WHATSAPP_FLOW_BOOKING_DAYS', 7),
+
+            // Hasta cuántos días adelante se puede elegir en "Otra fecha".
+            'max_days'         => (int) env('WHATSAPP_FLOW_BOOKING_MAX_DAYS', 90),
+
+            // Cuánto espera una pantalla la respuesta de SMD (Meta corta ~10 s).
+            'wait_seconds'     => (float) env('WHATSAPP_FLOW_BOOKING_WAIT', 7),
+
+            // Turnos de 1 hora, siempre en punto (09:00, 10:00…).
+            'duration_minutes' => (int) env('WHATSAPP_FLOW_BOOKING_DURATION', 60),
+
+            // "No sé qué especialidad necesito" → la primera de estas que tenga
+            // horarios (odontología general).
+            'general_specialties' => ['Odontología General', 'Odontologia General', 'General'],
+        ],
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -243,11 +318,11 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | CRM orchestration (patient context — CONTRATO A)
+    | CRM orchestration (patient context - CONTRATO A)
     |--------------------------------------------------------------------------
     | Maps this install's pipeline to the appointment-history block the CRM
     | injects into the agent event (see Services\PatientContext). All ids/codes
-    | are instance-specific — these defaults are Odontoking's, confirmed against
+    | are instance-specific - these defaults are Odontoking's, confirmed against
     | the live DB (lead_pipeline_stages + attributes tables).
     */
     'crm' => [
@@ -280,7 +355,7 @@ return [
 
         // Lead custom-attribute CODES that PatientContext reads per cita.
         // ci/seguro exist and are wired. There is NO lead attribute for the
-        // appointment date or doctor in this CRM — those live on the meeting
+        // appointment date or doctor in this CRM - those live on the meeting
         // ACTIVITY (see SendAppointmentReminders), so they stay null until the
         // lead-per-cita model the agent creates carries them, or PatientContext
         // is pointed at the activity. Override via env when the codes exist.
@@ -330,7 +405,7 @@ return [
 
         // Which gateway sends the reminder. Kommo can't initiate a chat with a
         // patient who never wrote (no "talk"), so reminders go through the Cloud
-        // API — which is built to open conversations with an approved template —
+        // API - which is built to open conversations with an approved template -
         // while the inbox keeps running on the active gateway. Null = use each
         // conversation's own gateway.
         'gateway'      => env('WHATSAPP_REMINDERS_GATEWAY', 'cloud_api'),

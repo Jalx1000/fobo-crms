@@ -22,7 +22,7 @@ class SendDoctorShiftReminders extends Command
 {
     protected $signature = 'whatsapp:doctor-shift-reminders
         {--date= : Día objetivo (Y-m-d). Default: hoy}
-        {--doctor= : Solo este doctor (id) — para tests controlados}
+        {--doctor= : Solo este doctor (id) - para tests controlados}
         {--dry-run : Lista a quién avisaría sin enviar}';
 
     protected $description = 'Avisa a los doctores por WhatsApp al inicio de su turno';
@@ -72,7 +72,7 @@ class SendDoctorShiftReminders extends Command
             $variables = [$nombre, $hora];
 
             if ($this->option('dry-run')) {
-                $this->line("  → [dry-run] {$doctor->name} ({$phone}) — ".implode(' | ', $variables));
+                $this->line("  → [dry-run] {$doctor->name} ({$phone}) - ".implode(' | ', $variables));
 
                 continue;
             }
@@ -113,7 +113,7 @@ class SendDoctorShiftReminders extends Command
                 ],
             );
 
-            $this->line("  ✓ {$doctor->name} ({$phone}) — desde las {$hora}");
+            $this->line("  ✓ {$doctor->name} ({$phone}) - desde las {$hora}");
             $sent++;
         }
 

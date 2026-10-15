@@ -22,12 +22,13 @@ class SyncDropboxAppointments extends Command
         $summary = $service->run($days, fn (string $line) => $this->line($line), $baseDate);
 
         $this->info(sprintf(
-            'Creados: %d | Actualizados: %d | Cancelados: %d | Sin cambios: %d | Obsoletos: %d | Errores: %d',
+            'Creados: %d | Actualizados: %d | Cancelados: %d | Sin cambios: %d | Obsoletos: %d | En proceso: %d | Errores: %d',
             $summary['creados'],
             $summary['actualizados'],
             $summary['cancelados'],
             $summary['sin_cambios'],
             $summary['obsoletos'],
+            $summary['en_proceso'],
             $summary['errores'],
         ));
 

@@ -30,7 +30,7 @@
                         <div class="flex flex-wrap justify-center gap-5">
                             <div class="flex items-center gap-2 whitespace-nowrap" v-for="(label, index) in chartLabels" :key="label">
                                 <span class="h-3.5 w-3.5 rounded-sm" :style="{ backgroundColor: colors[index] }"></span>
-                                <p class="text-xs dark:text-gray-300">@{{ label }} — @{{ report.statistics?.data?.[index] ?? 0 }}</p>
+                                <p class="text-xs dark:text-gray-300">@{{ label }} - @{{ report.statistics?.data?.[index] ?? 0 }}</p>
                             </div>
                         </div>
                     </div>

@@ -31,7 +31,7 @@ abstract class BaseGateway implements Gateway
     }
 
     /**
-     * HMAC of the RAW body. Never re-encode the JSON first — a re-serialized
+     * HMAC of the RAW body. Never re-encode the JSON first - a re-serialized
      * body produces a different digest and every request fails.
      */
     protected function hmacMatches(Request $request, string $header, string $secret, string $algo = 'sha256', string $prefix = ''): bool

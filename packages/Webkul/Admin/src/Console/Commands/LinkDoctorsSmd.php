@@ -34,12 +34,12 @@ class LinkDoctorsSmd extends Command
 
     public function handle(): int
     {
-        $dryRun     = (bool) $this->option('dry-run');
-        $days       = max(1, (int) $this->option('days'));
+        $dryRun = (bool) $this->option('dry-run');
+        $days = max(1, (int) $this->option('days'));
         $subsidiary = (string) $this->option('subsidiary');
 
         $from = now()->startOfDay()->format('Y-m-d H:i:s');
-        $to   = now()->addDays($days)->endOfDay()->format('Y-m-d H:i:s');
+        $to = now()->addDays($days)->endOfDay()->format('Y-m-d H:i:s');
 
         // 1) Recolectar todos los physicians reales que expone SMD ─────────────
         $specialties = $this->smd->getSpecialties();
@@ -54,7 +54,7 @@ class LinkDoctorsSmd extends Command
         }
 
         $byEmail = []; // email_lower => _id
-        $byName  = []; // "nombre apellido" normalizado => _id
+        $byName = []; // "nombre apellido" normalizado => _id
 
         foreach ($specialties as $spec) {
             $this->smd->checkAvailability(null, $spec, $subsidiary, $from, $to);
@@ -65,7 +65,7 @@ class LinkDoctorsSmd extends Command
             }
 
             foreach ($raw['body'] as $item) {
-                $p   = $item['physician'] ?? null;
+                $p = $item['physician'] ?? null;
                 $pid = $p['_id'] ?? null;
                 if (! $pid) {
                     continue;
@@ -75,14 +75,14 @@ class LinkDoctorsSmd extends Command
                     $byEmail[$this->norm($p['email'])] = $pid;
                 }
 
-                $fullName = $this->norm(($p['name'] ?? '') . ' ' . ($p['lastName'] ?? ''));
+                $fullName = $this->norm(($p['name'] ?? '').' '.($p['lastName'] ?? ''));
                 if ($fullName !== '') {
                     $byName[$fullName] = $pid;
                 }
             }
         }
 
-        $this->info('Physicians distintos en SMD: ' . count(array_unique(array_merge(
+        $this->info('Physicians distintos en SMD: '.count(array_unique(array_merge(
             array_values($byEmail),
             array_values($byName)
         ))));

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * FASE A.2 — Corrige los doctores de las citas placeholder/recurso que quedan
+ * FASE A.2 - Corrige los doctores de las citas placeholder/recurso que quedan
  * FUERA de la ventana del export (jul/ago). Fuente: smd_synced_events.raw_payload
  * (los payloads de Dropbox que el CRM ya tenía persistidos).
  *
@@ -112,7 +112,7 @@ $run = function () use (&$stats, &$cambios, $affected, $exportExt, $mNorm, $svc,
         if (count($cambios) < 20) {
             $cn = DB::table('doctors')->whereIn('id', $cur)->pluck('name')->implode(', ');
             $nn = DB::table('doctors')->whereIn('id', $correct)->pluck('name')->implode(', ');
-            $cambios[] = "act $aid  [".($cn ?: '—')."] => [$nn]";
+            $cambios[] = "act $aid  [".($cn ?: '-')."] => [$nn]";
         }
 
         if ($apply) {

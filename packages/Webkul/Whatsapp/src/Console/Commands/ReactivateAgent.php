@@ -55,12 +55,12 @@ class ReactivateAgent extends Command
         $prefix = DB::getTablePrefix();
 
         // Only conversations explicitly switched off (ai_enabled = 0). A NULL
-        // ai_enabled means "inherit the global default" — it was never taken
+        // ai_enabled means "inherit the global default" - it was never taken
         // over, so there is nothing to give back.
         //
         // ai_disabled_at is only stamped by the switch, so every conversation
         // turned off before it existed (or by a bulk update) carries NULL. They
-        // must still come back, so updated_at stands in as the handoff time —
+        // must still come back, so updated_at stands in as the handoff time -
         // requiring the stamp is what kept this from reactivating anything.
         $conversations = ConversationProxy::modelClass()::query()
             ->where('ai_enabled', 0)
@@ -89,7 +89,7 @@ class ReactivateAgent extends Command
 
         foreach ($conversations as $conversation) {
             $this->line(sprintf(
-                '  %s %s (%s) — inactiva desde %s',
+                '  %s %s (%s) - inactiva desde %s',
                 $dryRun ? '→ [dry-run]' : '✓',
                 $conversation->wa_name ?: 'sin nombre',
                 $conversation->wa_phone,

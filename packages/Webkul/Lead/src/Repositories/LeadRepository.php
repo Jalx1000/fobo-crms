@@ -240,7 +240,11 @@ class LeadRepository extends Repository
             if ($isWon || $isLost) {
                 $data['closed_at'] = $data['closed_at'] ?? Carbon::now();
             } else {
-                $data['closed_at'] = null;
+                // Respeta un closed_at explícito: las etapas propias de la clínica
+                // ("Cita Cancelada") no se llaman won/lost, y forzar null borraba el
+                // cierre que manda el sync de SMD (741 cancelaciones sin closed_at,
+                // AUD-05). Sin closed_at explícito, mover a otra etapa reabre.
+                $data['closed_at'] = $data['closed_at'] ?? null;
             }
         }
 

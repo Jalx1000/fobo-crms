@@ -29,6 +29,23 @@ trait CustomAttribute
     ];
 
     /**
+     * Al borrar la entidad se borran sus valores de atributos.
+     *
+     * attribute_values es polimórfica (entity_type + entity_id), así que la base
+     * no los borra en cascada. Quedaban huérfanos y, cuando el auto_increment
+     * volvía a entregar ese id, el registro nuevo HEREDABA los atributos del
+     * borrado: en 2026-10 había 3.334 de contactos (nombre, CI, teléfono de otros
+     * pacientes) esperando a los próximos ids. Un DELETE en SQL directo sigue sin
+     * pasar por acá: borrar siempre por Eloquent/repositorio.
+     */
+    public static function bootCustomAttribute(): void
+    {
+        static::deleted(function ($model) {
+            $model->attribute_values()->delete();
+        });
+    }
+
+    /**
      * Get the attribute values that owns the entity.
      */
     public function attribute_values()

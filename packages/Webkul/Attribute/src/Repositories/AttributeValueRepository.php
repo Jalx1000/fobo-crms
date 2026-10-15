@@ -5,6 +5,7 @@ namespace Webkul\Attribute\Repositories;
 use Carbon\Carbon;
 use Illuminate\Container\Container;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Webkul\Attribute\Contracts\AttributeValue;
 use Webkul\Core\Eloquent\Repository;
@@ -71,7 +72,15 @@ class AttributeValueRepository extends Repository
             }
 
             if ($attribute->type === 'multiselect' || $attribute->type === 'checkbox') {
-                $data[$attribute->code] = implode(',', $data[$attribute->code]);
+                /**
+                 * Los formularios envían un array, pero los callers programáticos
+                 * (API, listeners de sync, servicios) suelen enviar un solo id escalar.
+                 * Normalizamos ambos casos al CSV que espera `text_value`.
+                 */
+                $data[$attribute->code] = implode(',', array_filter(
+                    Arr::wrap($data[$attribute->code]),
+                    fn ($value) => $value !== null && $value !== ''
+                ));
             }
 
             if ($attribute->type === 'email' || $attribute->type === 'phone') {

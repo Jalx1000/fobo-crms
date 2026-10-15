@@ -9,6 +9,7 @@ use Webkul\Contact\Models\Person;
 use Webkul\Doctor\Models\Doctor;
 use Webkul\Lead\Models\Lead;
 use Webkul\User\Models\User;
+
 use function Pest\Laravel\actingAs;
 
 /**
@@ -18,16 +19,15 @@ use function Pest\Laravel\actingAs;
  * - Paciente con lead cerrado → se reabre el lead existente
  * - Con cita → se crea actividad en el lead (nuevo o existente)
  */
-
 beforeEach(function () {
     $this->admin = User::find(1);
 
     $this->person = Person::create([
-        'name' => 'Paciente Test ' . uniqid(),
+        'name' => 'Paciente Test '.uniqid(),
     ]);
 
     // Stage 1 = Consulta (sin cita), Stage 2 = Confirmada (con cita)
-    $this->stageConsulta   = DB::table('lead_pipeline_stages')->find(1);
+    $this->stageConsulta = DB::table('lead_pipeline_stages')->find(1);
     $this->stageConfirmada = DB::table('lead_pipeline_stages')->find(2);
 });
 
@@ -37,7 +37,7 @@ beforeEach(function () {
 function leadPayload(Person $person, array $overrides = []): array
 {
     return array_merge([
-        'title'  => 'Cita de prueba ' . uniqid(),
+        'title'  => 'Cita de prueba '.uniqid(),
         'person' => [
             'id'   => $person->id,
             'name' => $person->name,
@@ -53,9 +53,9 @@ it('crea un nuevo lead cuando el paciente no tiene person.id', function () {
 
     actingAs($this->admin, 'user')
         ->post(route('admin.leads.store'), [
-            'title'  => 'Lead nuevo ' . uniqid(),
+            'title'  => 'Lead nuevo '.uniqid(),
             'person' => [
-                'name' => 'Nuevo Paciente ' . uniqid(),
+                'name' => 'Nuevo Paciente '.uniqid(),
             ],
         ])
         ->assertRedirect();
@@ -179,7 +179,7 @@ it('crea una actividad en el lead existente cuando se agenda una cita', function
     }
 
     $start = Carbon::now()->addDay()->setTime(9, 0, 0);
-    $end   = $start->copy()->addHour();
+    $end = $start->copy()->addHour();
 
     // Crear jornada laboral del doctor para ese día
     DB::table('doctor_shifts')->insert([
@@ -202,7 +202,7 @@ it('crea una actividad en el lead existente cuando se agenda una cita', function
     ]);
 
     $actividadesAntes = $leadExistente->activities()->count();
-    $leadsAntes       = Lead::count();
+    $leadsAntes = Lead::count();
 
     actingAs($this->admin, 'user')
         ->post(route('admin.leads.store'), leadPayload($this->person, [
@@ -236,7 +236,7 @@ it('mueve el lead existente a stage Confirmada al agendar cita', function () {
     }
 
     $start = Carbon::now()->addDays(2)->setTime(10, 0, 0);
-    $end   = $start->copy()->addHour();
+    $end = $start->copy()->addHour();
 
     DB::table('doctor_shifts')->insert([
         'doctor_id'  => $doctor->id,

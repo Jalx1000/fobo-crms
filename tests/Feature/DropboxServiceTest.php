@@ -33,7 +33,7 @@ beforeEach(function () {
 });
 
 // ===========================================================================
-// token() — lógica de caché y refresh
+// token() - lógica de caché y refresh
 // ===========================================================================
 
 it('token usa access_token del config cuando no hay credenciales de refresh', function () {
@@ -96,7 +96,7 @@ it('token queda cacheado y no vuelve a llamar oauth2/token en la segunda invocac
     Http::fake([
         'https://api.dropboxapi.com/oauth2/token' => Http::sequence([
             Http::response(['access_token' => 'cached-token'], 200),
-            // Si se llama una segunda vez, devolvería esto — pero no debería ocurrir
+            // Si se llama una segunda vez, devolvería esto - pero no debería ocurrir
             Http::response(['access_token' => 'second-call-error'], 200),
         ]),
         'https://api.dropboxapi.com/2/files/list_folder' => Http::response([
@@ -144,7 +144,7 @@ it('token cae al fallback access_token cuando el refresh falla', function () {
 
     $dropbox = freshDropboxService();
 
-    // No debe lanzar excepción — debe usar el fallback
+    // No debe lanzar excepción - debe usar el fallback
     $files = $dropbox->listFilesForDate('2026-05-12');
 
     expect($files)->toBe([]);
@@ -239,7 +239,7 @@ it('listFilesForDate devuelve array vacio cuando ambos intentos (401 + 401) fall
         ], 200),
         'https://api.dropboxapi.com/2/files/list_folder' => Http::sequence([
             Http::response([], 401),  // primer intento
-            Http::response([], 401),  // segundo intento — también falla
+            Http::response([], 401),  // segundo intento - también falla
         ]),
     ]);
 

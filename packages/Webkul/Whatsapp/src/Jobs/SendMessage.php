@@ -21,8 +21,8 @@ class SendMessage implements ShouldQueue
 
     /**
      * @param  string|null  $gatewayOverride  Force a specific driver instead of
-     *   the conversation's own gateway (reminders send via Cloud API while the
-     *   inbox stays on Kommo).
+     *                                        the conversation's own gateway (reminders send via Cloud API while the
+     *                                        inbox stays on Kommo).
      */
     public function __construct(public int $messageId, public ?string $gatewayOverride = null) {}
 
@@ -49,6 +49,17 @@ class SendMessage implements ShouldQueue
                     (string) ($message->payload['template'] ?? ''),
                     (array) ($message->payload['variables'] ?? []),
                     $message->payload['language'] ?? null,
+                );
+            } elseif ($message->type === 'flow') {
+                // Formulario de WhatsApp Flows: solo canales que lo soportan.
+                if (! $gateway instanceof \Webkul\Whatsapp\Gateways\Contracts\SupportsFlows) {
+                    throw new \RuntimeException('Este canal no soporta formularios de WhatsApp (Flows).');
+                }
+
+                $result = $gateway->sendFlow(
+                    $message->conversation,
+                    (string) $message->body,
+                    (array) ($message->payload['flow'] ?? []),
                 );
             } elseif (in_array($message->type, self::MEDIA_TYPES, true)) {
                 // media_path holds the public URL the provider fetches from, and

@@ -17,7 +17,7 @@ class DoctorAvailabilityService
 
     /**
      * Excluye, de una query sobre `activities`, las citas cuyo(s) Lead(s) están
-     * todos cerrados/cancelados — mismo criterio que el chequeo de conflicto local
+     * todos cerrados/cancelados - mismo criterio que el chequeo de conflicto local
      * de AppointmentService: cancelación se detecta por leads.status = 0 o por
      * lead_pipeline_stage_id en stage_map.cancelled/no_show (config/smd.php).
      * Una Activity sin Lead vinculado se sigue tratando como cita real (conservador).

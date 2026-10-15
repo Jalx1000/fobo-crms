@@ -118,7 +118,7 @@ foreach ($files as $file) {
             if (count($muestras) < 15) {
                 $curNames = DB::table('doctors')->whereIn('id', $currentIds)->pluck('name')->implode(', ');
                 $newNames = DB::table('doctors')->whereIn('id', $correctIds)->pluck('name')->implode(', ');
-                $muestras[] = "act $activityId  [".($curNames ?: '—')."]  =>  [$newNames]";
+                $muestras[] = "act $activityId  [".($curNames ?: '-')."]  =>  [$newNames]";
             }
         }
     }

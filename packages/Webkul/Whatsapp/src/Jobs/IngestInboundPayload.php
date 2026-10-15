@@ -19,7 +19,7 @@ use Webkul\Whatsapp\Services\ConversationResolver;
 
 /**
  * Persists whatever the active gateway hands back. Knows nothing about any
- * provider's payload shape — that lives in the driver.
+ * provider's payload shape - that lives in the driver.
  */
 class IngestInboundPayload implements ShouldQueue
 {
@@ -43,7 +43,7 @@ class IngestInboundPayload implements ShouldQueue
             // the active gateway does not match the traffic hitting the webhook
             // (e.g. WHATSAPP_GATEWAY=kommo while Meta posts here). Dropping it
             // silently loses real customer messages, so say so loudly.
-            Log::warning('WhatsApp: webhook payload produced no events — is WHATSAPP_GATEWAY correct for this traffic?', [
+            Log::warning('WhatsApp: webhook payload produced no events - is WHATSAPP_GATEWAY correct for this traffic?', [
                 'gateway'      => $this->gatewayKey,
                 'payload_keys' => array_keys($this->payload),
             ]);
@@ -100,7 +100,7 @@ class IngestInboundPayload implements ShouldQueue
             'unread_count'    => $conversation->unread_count + 1,
         ])->save();
 
-        // Hand the message to the AI agent — but only while it is enabled for
+        // Hand the message to the AI agent - but only while it is enabled for
         // this conversation. Off = a human is handling it.
         if ($conversation->aiEffective()) {
             NotifyAgent::dispatch($created->id)->onQueue(config('whatsapp.queue'));
@@ -113,7 +113,7 @@ class IngestInboundPayload implements ShouldQueue
      * message row should keep. The inbox renders from these columns.
      *
      * Served through our own media route so the Content-Type matches what was
-     * stored — the same path outbound attachments take.
+     * stored - the same path outbound attachments take.
      *
      * Fail-soft: if the download breaks, the message is still saved and the raw
      * provider link is kept as a best-effort fallback (it may still resolve

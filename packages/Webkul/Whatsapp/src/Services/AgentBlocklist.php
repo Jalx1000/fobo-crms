@@ -8,7 +8,7 @@ namespace Webkul\Whatsapp\Services;
  * The mirror of [[AgentTestMode]]: that one restricts the agent to a whitelist
  * while testing, this one bans specific numbers permanently. Both are consulted
  * from Conversation::aiEffective(), so a blocked number is silent on every path
- * — inbound ingestion, the notify job and the inbox composer.
+ * - inbound ingestion, the notify job and the inbox composer.
  *
  * Blocking wins over everything: the per-conversation switch and the global
  * WHATSAPP_AI_ENABLED cannot re-enable the agent for a banned number.

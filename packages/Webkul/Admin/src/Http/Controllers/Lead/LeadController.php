@@ -119,6 +119,11 @@ class LeadController extends Controller
                 $query->whereIn('leads.user_id', $userIds);
             }
 
+            // Buscador del kanban: paciente por nombre, teléfono o CI, o el título.
+            if ($term = trim((string) request()->query('q', ''))) {
+                app(\Webkul\Admin\Services\PatientSearch::class)->apply($query, $term, 'leads.person_id', ['leads.title']);
+            }
+
             /**
              * Filtro por fecha de creación. Un rango personalizado (start_date/end_date)
              * tiene precedencia sobre el quick-filter (7 / 30 / 90 días / mes actual).

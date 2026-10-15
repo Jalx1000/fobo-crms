@@ -218,7 +218,7 @@ class PersonRepository extends Repository
         // legitimately share a phone (family members) with no email to tell them
         // apart, which collapses unique_id to "|<phone>". Rather than let that
         // raise a raw 1062 on an otherwise valid contact, drop the hint so the
-        // row saves with a NULL unique_id — the column is nullable and MySQL
+        // row saves with a NULL unique_id - the column is nullable and MySQL
         // allows many NULLs in a unique index.
         if (! empty($data['unique_id'])) {
             $collides = app($this->model())->newQuery()

@@ -58,14 +58,14 @@ class Conversation extends Model implements ConversationContract
      *
      * Test mode sits on top of both: a number outside the whitelist never gets
      * the agent, however the switches are set. Every path that could reach the
-     * agent — inbound ingestion, the notify job, the inbox composer — goes
+     * agent - inbound ingestion, the notify job, the inbox composer - goes
      * through here, so this single check is the whole gate.
      */
     public function aiEffective(): bool
     {
         // A blocked number is silent no matter what: it outranks the global
         // default and the per-conversation switch alike. Staff (doctors) are
-        // treated the same way — the agent answers patients, and a doctor
+        // treated the same way - the agent answers patients, and a doctor
         // writing to the clinic must always reach a human.
         if (AgentBlocklist::blocks($this->wa_phone) || StaffNumbers::isStaff($this->wa_phone)) {
             return false;

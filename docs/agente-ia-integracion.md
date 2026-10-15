@@ -1,4 +1,4 @@
-# Guía de integración — Agente IA / Disponibilidad y agendamiento
+# Guía de integración - Agente IA / Disponibilidad y agendamiento
 
 Cómo debe consumir el agente IA el CRM Odontoking para **consultar horarios disponibles**
 y **agendar citas**. La disponibilidad ya viene calculada por el CRM
@@ -31,7 +31,7 @@ Accept: application/json
 ```
 1) GET /api/doctors                      → encontrar al doctor (id) y sus especialidades
 2) GET /api/doctors/{id}/available-slots → horarios reales para ofrecer al paciente
-3) (resolver paciente: ya lo hace crm.py — GET/POST /api/v1/persons|contacts)
+3) (resolver paciente: ya lo hace crm.py - GET/POST /api/v1/persons|contacts)
 4) POST /api/v1/activities               → agendar la cita elegida
 ```
 
@@ -47,9 +47,9 @@ GET /api/doctors/{id}/available-slots
 
 | Param              | Req | Tipo    | Default | Descripción |
 |--------------------|-----|---------|---------|-------------|
-| `date`             | sí  | `Y-m-d` | —       | Fecha de inicio (entre hoy y hoy+6 meses) |
+| `date`             | sí  | `Y-m-d` | -       | Fecha de inicio (entre hoy y hoy+6 meses) |
 | `days`             | no  | int     | 7       | Días a consultar desde `date` (1–30) |
-| `duration_minutes` | no  | int     | —       | **Duración real de la consulta.** Corta los bloques libres en slots de esa medida (15–480) |
+| `duration_minutes` | no  | int     | -       | **Duración real de la consulta.** Corta los bloques libres en slots de esa medida (15–480) |
 | `specialty`        | no  | string  | todas   | Filtra por una especialidad puntual |
 | `subsidiary`       | no  | string  | `Santa Cruz` | Sucursal |
 
@@ -229,3 +229,151 @@ else:
 4. **Agendar** con `POST /api/v1/activities`, doctor y paciente en `participants`.
 5. Manejar `422` al agendar: re-consultar disponibilidad y reintentar.
 6. Loguear `degraded=true` / `reason` para visibilidad operativa.
+
+---
+
+## 7. Citas para otra persona (hijos, familiares): formulario de WhatsApp
+
+Quien escribe no siempre es el paciente. Para una cita **para otra persona** el agente
+**no** crea el paciente con `POST /api/v1/persons`: le envía al usuario un **formulario de
+WhatsApp (Flow)** que pide nombre, **cédula (obligatoria)**, fecha de nacimiento y
+relación, y el CRM identifica al paciente **por la cédula**. Así, si la mamá agenda el
+lunes y el papá el jueves desde otro número, los dos llegan a la **misma** ficha.
+
+> Solo funciona por **Cloud API** (no por Kommo) y con la ventana de 24 h abierta.
+
+### 7.1 Antes de preguntar, mirar el contexto
+
+En cada webhook `message.received`, `patient_context.pacientes_a_cargo` trae a quienes
+este contacto ya agendó:
+
+```json
+"pacientes_a_cargo": [
+  {"person_id": 4521, "nombre": "Juan Pérez López", "relacion": "hijo"}
+]
+```
+
+Si la cita es para uno de ellos, agendar directo con su `person_id`. Sus citas ya vienen
+en `patient_context.citas` (campo `paciente`).
+
+### 7.2 Enviar el formulario
+
+```
+POST /api/v1/whatsapp/conversations/{conversation_id}/flows
+Authorization: Bearer <token>
+{"flow": "paciente_tercero", "text": "Para agendar, completá los datos del paciente 👇"}
+```
+
+`text` es opcional. Respuestas: `200` (encolado), `422` si la conversación está fuera de
+la ventana de 24 h o el canal no soporta formularios.
+
+### 7.3 Qué hace el formulario
+
+El formulario no solo identifica al paciente: **también agenda**. Pantallas:
+¿Para quién? → (datos del tercero, con cédula) → Especialidad → Doctor (recomendados,
+ordenados por el horario más próximo) → Día → Hora → Confirmar.
+
+Solo ofrece especialidades y doctores con **horarios realmente libres** (catálogo
+`whatsapp:booking-catalog`, recalculado cada 10 min desde SMD). Turnos de **1 hora en punto**, hasta **fin del mes siguiente**, y la opción "No sé / Consulta
+general". Al confirmar, la cita se crea en segundo plano igual que con
+`POST /api/v1/activities` (SMD + CRM) y el recordatorio le llega a **quien agendó**.
+
+### 7.4 Cuando el usuario lo completa
+
+Llega un `message.received` con `message.type = "flow_reply"` y los datos en `message.flow`:
+
+```json
+"message": {
+  "type": "flow_reply",
+  "text": "📅 Pidió cita: Juan Pérez López · CAROLINA ROJAS · 2026-10-13 09:00 (confirmando)",
+  "flow": {
+    "flow": "paciente_tercero",
+    "status": "pending",
+    "patient_status": "created",
+    "patient_id": 4521,
+    "patient_name": "Juan Pérez López",
+    "relation": "hijo",
+    "specialty": "Endodoncia",
+    "doctor_id": 10,
+    "doctor_name": "CAROLINA ROJAS",
+    "date": "2026-10-13",
+    "time": "09:00"
+  }
+}
+```
+
+| `status` | Qué hacer |
+|---|---|
+| `pending` | La cita **se está creando** (segundo plano, segundos). El CRM le manda solo al usuario "✅ Cita confirmada…" o, si el horario se ocupó, que elija otro. El agente **no** agenda ni confirma por su cuenta. |
+| `handoff` | No había horarios reservables por el formulario: derivar a recepción (`/handoff`). |
+
+`patient_status` dice cómo se identificó al paciente: `created` (nuevo), `found` (ya existía)
+o `self` (quien escribe). `relation` (y `relacion` en `pacientes_a_cargo`) dice **qué es el
+paciente para quien escribe**: `hijo`, `padre_madre`, `pareja`, `hermano`, `familiar` u `otro`.
+
+### 7.5 Reglas
+
+- Nunca crear a un tercero con `POST /api/v1/persons`: siempre por el formulario.
+- Si el formulario devolvió `pending`, la cita ya está en curso: no llamar a `POST /api/v1/activities`.
+- No pedir la cédula por chat para un tercero: la pide y valida el formulario.
+- Si el usuario no puede dar la cédula del paciente, derivar a recepción (`/handoff`).
+
+---
+
+## 8. Cancelar y reprogramar citas: formularios de WhatsApp
+
+Igual que para agendar (§7), cancelar y reprogramar se hacen con **formularios de WhatsApp**,
+no por chat. El agente detecta la intención y envía el formulario; el CRM muestra solo las
+**próximas citas del contacto y de los pacientes que tiene a cargo**, aplica el cambio en el
+CRM **y en SMD**, y le confirma al usuario por el chat.
+
+### 8.1 Cuándo enviar cada formulario
+
+| El usuario quiere… | `flow` |
+|---|---|
+| Agendar (para sí o para otra persona) | `paciente_tercero` |
+| Cancelar una cita | `cancelar_cita` |
+| Cambiar el día u hora de una cita | `reprogramar_cita` |
+
+```
+POST /api/v1/whatsapp/conversations/{conversation_id}/flows
+Authorization: Bearer <token>
+{"flow": "cancelar_cita"}            // o "reprogramar_cita"; "text" opcional
+```
+
+Mismas reglas que §7.2: solo con la ventana de 24 h abierta (`422` si no) y solo por Cloud API.
+
+### 8.2 Qué le llega al agente
+
+Un `message.received` con `message.type = "flow_reply"` y los datos en `message.flow`.
+
+**Cancelar** (`flow: "cancelar_cita"`):
+
+```json
+{"flow": "cancelar_cita", "status": "pending", "activity_id": 77587, "patient_id": 6021,
+ "patient_name": "Heidy Dayana Mogro Peñafiel", "doctor_name": "CAROLINA ROJAS",
+ "date": "2026-10-15", "time": "10:00", "reason": "No puedo asistir"}
+```
+
+**Reprogramar** (`flow: "reprogramar_cita"`):
+
+```json
+{"flow": "reprogramar_cita", "status": "pending", "activity_id": 77587, "patient_id": 6021,
+ "patient_name": "Heidy Dayana Mogro Peñafiel", "doctor_name": "CAROLINA ROJAS",
+ "previous_date": "2026-10-15", "previous_time": "10:00", "date": "2026-10-16", "time": "11:00"}
+```
+
+| `status` | Qué hacer |
+|---|---|
+| `pending` | El cambio **se está aplicando** (segundos). El CRM le manda solo al usuario "✅ Cita cancelada" / "✅ Cita reprogramada", o el aviso de que el horario se ocupó (la cita queda como estaba). El agente **no** repite la acción. |
+| `none`    | El usuario no tenía citas próximas. Ofrecer agendar (`paciente_tercero`). |
+| `handoff` | (solo reprogramar) No hay horarios libres con ese doctor: derivar a recepción (`/handoff`). |
+
+### 8.3 Reglas
+
+- No cancelar ni reprogramar por API ni por chat: siempre con el formulario.
+- Reprogramar mantiene el **mismo doctor**, con turnos de **1 hora en punto** hasta fin del
+  mes siguiente. Si el usuario quiere **otro doctor**, se cancela y se agenda de nuevo.
+- Las citas que se pueden tocar son las **futuras** y vigentes (no canceladas, atendidas ni
+  perdidas) del contacto y de sus pacientes a cargo. La de otra persona no aparece ni se acepta.
+- Si el usuario dice que no le aparece una cita que sí tiene, derivar a recepción.

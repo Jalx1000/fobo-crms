@@ -24,18 +24,18 @@ DECISIONES YA TOMADAS (no volver a preguntar):
 
 IMPLEMENTA EN ESTE ORDEN, validando cada etapa antes de seguir:
 
-Etapa 0 — Rol "Sistema" + cuenta "Sin asignar":
+Etapa 0 - Rol "Sistema" + cuenta "Sin asignar":
 - Migración/seeder idempotente que cree el rol "Sistema" (permisos mínimos, no-admin) y
   el usuario "Sin asignar" (status=1, email estable p.ej. sin-asignar@sistema.local) si no existen.
 - Agregar config('dashboard.unassigned_user_email') para resolver la cuenta.
 
-Etapa A — Raíz (creación):
+Etapa A - Raíz (creación):
 - En LeadRepository::create (~142-161), cambiar el fallback: sin user_id ni usuario
   autenticado → asignar al usuario "Sin asignar" (por email/config), nunca a orderBy('id')->first().
 - Si la cuenta no existe en el entorno, dejar user_id = null (no caer al admin).
 - No alterar el caso con usuario autenticado.
 
-Etapa B — Backfill auditado:
+Etapa B - Backfill auditado:
 - Comando: php artisan leads:reassign-synced-to-unassigned con --dry-run (default) y --apply.
 - Criterio quirúrgico: leads que están en smd_synced_events (lead_id) Y hoy tienen dueño
   con rol Admin% → reasignar a "Sin asignar". NO tocar los 7 leads manuales del admin.
@@ -43,11 +43,11 @@ Etapa B — Backfill auditado:
   (lead_id, old_user_id, new_user_id, reason, created_at) para trazabilidad y --rollback.
 - --dry-run no modifica nada, solo reporta conteo y muestra los lead_id afectados.
 
-Etapa C — Verificación reporting:
+Etapa C - Verificación reporting:
 - Confirmar que con los leads ya en "Sin asignar" (no-admin) aparecen en leads-by-users/ventas
   y que la exclusión Admin% sigue excluyendo solo a admins reales.
 
-TESTS (Pest, OBLIGATORIO — regla del proyecto):
+TESTS (Pest, OBLIGATORIO - regla del proyecto):
 - LeadRepository: lead sin auth y sin user_id → queda en "Sin asignar", no en admin.
 - LeadRepository: lead con usuario autenticado → queda en ese usuario (sin regresión).
 - Comando --dry-run: cuenta correcta, no modifica.

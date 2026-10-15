@@ -4,7 +4,7 @@ namespace Webkul\Whatsapp\Gateways\Dto;
 
 /**
  * Outcome of authenticating an inbound webhook. Carries a reason so a rejection
- * can be diagnosed — a bare bool tells you nothing at 3am.
+ * can be diagnosed - a bare bool tells you nothing at 3am.
  */
 final class WebhookAuth
 {

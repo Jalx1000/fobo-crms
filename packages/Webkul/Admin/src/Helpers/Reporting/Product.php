@@ -92,7 +92,7 @@ class Product extends AbstractReporting
 
         $statistics = $items->map(fn ($item) => [
             'id'                => $item->product_id,
-            'name'              => $item->name ?: '—',
+            'name'              => $item->name ?: '-',
             'total_qty_ordered' => (int) $item->total_qty_ordered,
             'leads_count'       => (int) $item->leads_count,
         ])->values()->toArray();

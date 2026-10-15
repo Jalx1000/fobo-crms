@@ -38,13 +38,27 @@
                     </template>
                     <template v-else>
                         <div class="flex flex-col gap-2">
+                            <!-- Una fila por aseguradora, cada una con SU estado -->
                             <div class="flex gap-2 text-sm">
-                                <span class="text-gray-500 dark:text-gray-400 w-32">Aseguradora</span>
-                                <span class="dark:text-gray-200">@{{ insurance.seguro_label || '—' }}</span>
+                                <span class="text-gray-500 dark:text-gray-400 w-32 shrink-0">
+                                    @{{ insurance.seguros.length > 1 ? 'Aseguradoras' : 'Aseguradora' }}
+                                </span>
+
+                                <span v-if="!insurance.seguros.length" class="dark:text-gray-200">-</span>
+
+                                <div v-else class="flex min-w-0 flex-col gap-1">
+                                    <div v-for="s in insurance.seguros" :key="'smd-seg-'+s.id"
+                                         class="flex items-center gap-2">
+                                        <span class="dark:text-gray-200">@{{ s.name }}</span>
+                                        <span v-if="s.status"
+                                              class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                                              :class="seguroBadgeClass(s.status)">@{{ s.status }}</span>
+                                    </div>
+                                </div>
                             </div>
                             <div class="flex gap-2 text-sm">
                                 <span class="text-gray-500 dark:text-gray-400 w-32">C.I. Paciente</span>
-                                <span class="dark:text-gray-200">@{{ insurance.ci || '—' }}</span>
+                                <span class="dark:text-gray-200">@{{ insurance.ci || '-' }}</span>
                             </div>
                             <div v-if="insurance.checked_at" class="flex gap-2 text-sm">
                                 <span class="text-gray-500 dark:text-gray-400 w-32">Verificado</span>
@@ -109,15 +123,15 @@
                             <template v-if="!smd.stale">
                                 <div class="flex gap-2 text-sm">
                                     <span class="text-gray-500 dark:text-gray-400 w-32">Nombre SMD</span>
-                                    <span class="dark:text-gray-200">@{{ smd.name || '—' }}</span>
+                                    <span class="dark:text-gray-200">@{{ smd.name || '-' }}</span>
                                 </div>
                                 <div class="flex gap-2 text-sm">
                                     <span class="text-gray-500 dark:text-gray-400 w-32">Teléfono</span>
-                                    <span class="dark:text-gray-200">@{{ smd.phone || '—' }}</span>
+                                    <span class="dark:text-gray-200">@{{ smd.phone || '-' }}</span>
                                 </div>
                                 <div class="flex gap-2 text-sm">
                                     <span class="text-gray-500 dark:text-gray-400 w-32">Seguro SMD</span>
-                                    <span class="dark:text-gray-200">@{{ smd.insurance || '—' }}</span>
+                                    <span class="dark:text-gray-200">@{{ smd.insurance || '-' }}</span>
                                 </div>
                             </template>
                             <template v-else>
@@ -226,6 +240,8 @@
                         verifying: false,
                         status:    null,
                         ci:        null,
+                        // Detalle por aseguradora: [{ id, name, status, message, checked_at }]
+                        seguros:   [],
                         seguro_id: null,
                         seguro_label: null,
                         checked_at:   null,
@@ -256,11 +272,28 @@
             },
 
             methods: {
+                /**
+                 * Clases literales, no concatenadas: Tailwind purga lo que no puede "ver"
+                 * en el template, así que armar el nombre en runtime dejaría el color
+                 * fuera del CSS de producción.
+                 */
+                seguroBadgeClass(status) {
+                    const map = {
+                        VIGENTE:       'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                        EN_MORA:       'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+                        VENCIDO:       'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+                        NO_REGISTRADO: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+                    };
+
+                    return map[status] || 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400';
+                },
+
                 async loadInsuranceStatus() {
                     this.insurance.loading = true;
                     try {
                         const { data } = await this.$axios.get(this.urls.insuranceStatus);
                         this.insurance.ci          = data.ci;
+                        this.insurance.seguros     = data.seguros ?? [];
                         this.insurance.seguro_id   = data.seguro_id;
                         this.insurance.seguro_label = data.seguro_label;
                         this.insurance.status      = data.status;

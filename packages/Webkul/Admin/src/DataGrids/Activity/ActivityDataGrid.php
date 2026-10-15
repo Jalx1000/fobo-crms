@@ -18,7 +18,7 @@ class ActivityDataGrid extends DataGrid
      *
      * Adds the large sizes on top of the framework defaults: the clinic reviews
      * a whole day or week of appointments at once, and a 50-row ceiling forced
-     * constant paging. They are opt-in — nothing loads 1000 rows unless the
+     * constant paging. They are opt-in - nothing loads 1000 rows unless the
      * size is picked from the dropdown.
      */
     protected $perPageOptions = [10, 20, 30, 40, 50, 100, 500, 1000];

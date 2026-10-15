@@ -121,8 +121,8 @@ it('devuelve has_insurance:true cuando el webhook retorna datos del paciente', f
     Http::fake(['*' => Http::response([
         'success' => true,
         'data'    => [[
-            'CI'           => 'E-10131585',
-            'Nombre'       => 'Paciente Ejemplo',
+            'CI'            => 'E-10131585',
+            'Nombre'        => 'Paciente Ejemplo',
             'Observaciones' => 'MF HASTA EL 31/12/2026',
         ]],
     ], 200)]);
@@ -198,7 +198,7 @@ it('devuelve 429 después de 10 requests por minuto', function () {
 
     for ($i = 1; $i <= 10; $i++) {
         $this->actingAs($this->user, 'sanctum')
-            ->get("/api/v1/insurance/verify?ci_paciente=CI-RATE-{$i}-" . uniqid() . '&seguro_paciente=Alianza')
+            ->get("/api/v1/insurance/verify?ci_paciente=CI-RATE-{$i}-".uniqid().'&seguro_paciente=Alianza')
             ->assertStatus(200);
     }
 
@@ -249,7 +249,7 @@ it('el audit log guarda result:true cuando has_insurance es true', function () {
 it('el audit log NO guarda el CI en claro', function () {
     Http::fake(['*' => Http::response(['success' => false, 'data' => []], 200)]);
 
-    $ci = 'CI-HASH-TEST-' . uniqid();
+    $ci = 'CI-HASH-TEST-'.uniqid();
 
     $this->actingAs($this->user, 'sanctum')
         ->get("/api/v1/insurance/verify?ci_paciente={$ci}&seguro_paciente=Alianza");

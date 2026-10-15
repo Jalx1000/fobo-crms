@@ -1,4 +1,4 @@
-# REQUERIMIENTOS — Plataforma Agente WhatsApp
+# REQUERIMIENTOS - Plataforma Agente WhatsApp
 
 **De:** Plataforma Agente WhatsApp (03.agent-production)
 **Para:** Team Lead CRM Odontoking
@@ -13,17 +13,17 @@ El agente conversacional de WhatsApp está en producción en `https://odontoking
 
 ---
 
-## REQ-1 — El agente está usando el endpoint equivocado · BLOQUEANTE
+## REQ-1 - El agente está usando el endpoint equivocado · BLOQUEANTE
 
 ### Problema
 
-El agente llama a `GET /api/doctors` (endpoint Krayin vendor) para mostrar horarios disponibles. Ese endpoint devuelve el campo `availability` con solo `start_time` — sin `end_time`. El agente **inventa** que cada cita dura 60 minutos, generando confirmaciones incorrectas en producción.
+El agente llama a `GET /api/doctors` (endpoint Krayin vendor) para mostrar horarios disponibles. Ese endpoint devuelve el campo `availability` con solo `start_time` - sin `end_time`. El agente **inventa** que cada cita dura 60 minutos, generando confirmaciones incorrectas en producción.
 
 **El endpoint correcto ya existe:** `GET /api/disponibilidad?doctorId=X&date=Y` devuelve `startTime` y `endTime` reales y ya verifica contra citas reservadas.
 
 ### Lo que necesitamos
 
-**Nada que modificar en la API.** El fix es del lado del agente WhatsApp — vamos a migrar el flujo para usar `GET /api/disponibilidad` en lugar de `GET /api/doctors`.
+**Nada que modificar en la API.** El fix es del lado del agente WhatsApp - vamos a migrar el flujo para usar `GET /api/disponibilidad` en lugar de `GET /api/doctors`.
 
 **Sin embargo, necesitamos confirmar:**
 
@@ -33,7 +33,7 @@ El agente llama a `GET /api/doctors` (endpoint Krayin vendor) para mostrar horar
 
 ---
 
-## REQ-2 — Agregar `duration_minutes` a productos/servicios · ALTO
+## REQ-2 - Agregar `duration_minutes` a productos/servicios · ALTO
 
 ### Problema
 
@@ -43,7 +43,7 @@ El agente no puede validar si un slot alcanza para el servicio solicitado (Limpi
 
 Agregar un atributo personalizado `duration_minutes` (entero, en minutos) a los productos en el CRM, y exponerlo en la respuesta de `GET /api/public/products`.
 
-**Duración por defecto: 60 minutos.** El campo es opcional. Cuando un producto no lo tiene configurado (`null`), el agente asume 60 minutos. Este default NO debe aplicarse en backend — el API devuelve `null` y el agente decide.
+**Duración por defecto: 60 minutos.** El campo es opcional. Cuando un producto no lo tiene configurado (`null`), el agente asume 60 minutos. Este default NO debe aplicarse en backend - el API devuelve `null` y el agente decide.
 
 **Respuesta esperada por producto:**
 ```json
@@ -65,7 +65,7 @@ Cuando no está configurado:
 
 ---
 
-## REQ-3 — NUEVO ENDPOINT: Verificación de seguro dental · NUEVO FEATURE
+## REQ-3 - NUEVO ENDPOINT: Verificación de seguro dental · NUEVO FEATURE
 
 ### Descripción
 
@@ -120,7 +120,7 @@ GET /api/v1/insurance/verify?ci_paciente=0912345678&seguro_paciente=Equinoccial
 - Respuesta idéntica para "no encontrado" y "sin seguro" (evita confirmar existencia del paciente)
 - No retornar `patient_id` cuando `has_insurance: false`
 
-### Contexto técnico — infraestructura ya existente, solo falta el endpoint
+### Contexto técnico - infraestructura ya existente, solo falta el endpoint
 
 - **`ci_paciente`** y **`seguro_paciente`** son Custom Attributes del modelo `Person` ✅
 - **`InsuranceService::verifyWithParams($ci, $seguroName)`** ya existe ✅
@@ -133,9 +133,9 @@ GET /api/v1/insurance/verify?ci_paciente=0912345678&seguro_paciente=Equinoccial
 4. Audit log con valores hasheados
 
 **Archivos clave a reutilizar:**
-- `packages/Webkul/Admin/src/Services/InsuranceService.php` — método `verifyWithParams()`
-- `packages/Webkul/Admin/src/Http/Controllers/Contact/Persons/InsuranceController.php` — referencia
-- `tests/Feature/InsuranceVerificationTest.php` — tests existentes a extender
+- `packages/Webkul/Admin/src/Services/InsuranceService.php` - método `verifyWithParams()`
+- `packages/Webkul/Admin/src/Http/Controllers/Contact/Persons/InsuranceController.php` - referencia
+- `tests/Feature/InsuranceVerificationTest.php` - tests existentes a extender
 
 ### Criterio de aceptación con tests obligatorios
 
@@ -148,9 +148,9 @@ GET /api/v1/insurance/verify?ci_paciente=0912345678&seguro_paciente=Equinoccial
 
 ---
 
-## REQ-4 — Endpoint por doctor ID individual · MEJORA
+## REQ-4 - Endpoint por doctor ID individual · MEJORA
 
-`GET /api/doctors/{id}` — actualmente el agente carga los 100 doctores y filtra en Python para obtener 1. Un endpoint directo reduce el payload ~99% y permite caché por doctor.
+`GET /api/doctors/{id}` - actualmente el agente carga los 100 doctores y filtra en Python para obtener 1. Un endpoint directo reduce el payload ~99% y permite caché por doctor.
 
 ---
 
@@ -160,7 +160,7 @@ GET /api/v1/insurance/verify?ci_paciente=0912345678&seguro_paciente=Equinoccial
 |---|---|---|
 | P1 | ¿El token `ODONTOKING_API_TOKEN` tiene acceso a `auth:sanctum` (`/api/disponibilidad`)? | **Abierta** → backend |
 | P2 | ¿`GET /api/disponibilidad` acepta múltiples fechas o una por llamada? | **Abierta** → backend |
-| P3 | ¿Existen `ci_paciente` y `seguro_paciente` en el CRM e `InsuranceService::verifyWithParams()`? | **CERRADA** — Sí, confirmado |
+| P3 | ¿Existen `ci_paciente` y `seguro_paciente` en el CRM e `InsuranceService::verifyWithParams()`? | **CERRADA** - Sí, confirmado |
 | P4 | ¿La duración de cita varía por servicio o es fija (60 min por defecto)? | **Abierta** → backend |
 
 ---
@@ -169,12 +169,12 @@ GET /api/v1/insurance/verify?ci_paciente=0912345678&seguro_paciente=Equinoccial
 
 | REQ | Prioridad | Bloqueante hoy |
 |-----|-----------|----------------|
-| REQ-1 | Crítica | Sí — necesitamos respuesta a P1 y P2 para hacer el fix |
+| REQ-1 | Crítica | Sí - necesitamos respuesta a P1 y P2 para hacer el fix |
 | REQ-2 | Alta | No |
-| REQ-3 | Alta | No — infraestructura ya existe |
+| REQ-3 | Alta | No - infraestructura ya existe |
 | REQ-4 | Baja | No |
 
 ---
 
-*Plataforma Agente WhatsApp — Lead Dev*
+*Plataforma Agente WhatsApp - Lead Dev*
 *Producción: https://odontoking.wappy.dev*

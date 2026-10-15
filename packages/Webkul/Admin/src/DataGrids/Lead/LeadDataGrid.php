@@ -19,7 +19,7 @@ class LeadDataGrid extends DataGrid
      *
      * Adds the large sizes on top of the framework defaults: the clinic reviews
      * a whole day or week of citas at once, and a 50-row ceiling forced constant
-     * paging. They are opt-in — nothing loads 1000 rows unless the size is
+     * paging. They are opt-in - nothing loads 1000 rows unless the size is
      * picked from the dropdown.
      */
     protected $perPageOptions = [10, 20, 30, 40, 50, 100, 500, 1000];
@@ -332,5 +332,21 @@ class LeadDataGrid extends DataGrid
                 'value' => $stage->id,
             ])->toArray(),
         ]);
+    }
+
+    /**
+     * La búsqueda general ("all") encuentra al paciente por nombre, teléfono o
+     * CI (tabla de leads; también por el título). La del DataGrid base solo hacía LIKE sobre las columnas
+     * visibles: no veía la CI y el teléfono tenía que escribirse tal cual.
+     */
+    protected function processRequestedFilters(array $requestedFilters)
+    {
+        foreach ((array) ($requestedFilters['all'] ?? []) as $term) {
+            app(\Webkul\Admin\Services\PatientSearch::class)->apply($this->queryBuilder, (string) $term, 'leads.person_id', ['leads.title']);
+        }
+
+        unset($requestedFilters['all']);
+
+        return parent::processRequestedFilters($requestedFilters);
     }
 }

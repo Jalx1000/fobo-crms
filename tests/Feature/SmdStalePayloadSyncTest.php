@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Webkul\Admin\Services\SmdAppointmentSyncService;
 
 /**
@@ -33,94 +32,10 @@ beforeEach(function () {
         'smd.stage_map.completed'         => $stageId,
         'smd.stage_map.cancelled'         => $stageId,
         'smd.stage_map.no_show'           => $stageId,
+        'smd.stage_map.surgery'           => $stageId,
+        'smd.stage_map.default'           => $stageId,
     ]);
 });
-
-/**
- * Payload con la forma real de SMD (ver planning/10-actualizacion-eventstatus-dropbox).
- * `$updatedAt` a null simula los archivos anteriores al cambio, que no traían el campo.
- */
-function smdEvent(string $id, array $overrides = []): array
-{
-    return array_merge([
-        '_id'         => $id,
-        'eventId'     => '1783952187466',
-        'archived'    => false,
-        'status'      => '',
-        'startDate'   => '2026-07-21T13:00:00.000Z',
-        'endDate'     => '2026-07-21T14:00:00.000Z',
-        'type'        => 'event',
-        'summary'     => 'Creado 21 de Jul',
-        'description' => '',
-        'created_at'  => '2026-07-13T14:16:50.325Z',
-        'updated_at'  => '2026-07-13T14:16:50.325Z',
-        '__v'         => 0,
-        'attendances' => [[
-            '_id'      => 'pat-'.$id,
-            'name'     => 'Juan',
-            'lastName' => 'Perez',
-            'fullName' => 'Juan Perez',
-            'type'     => 'patient',
-            'phone'    => '7'.rand(1000000, 9999999),
-        ]],
-        'owner' => [
-            '_id'      => 'doc-'.$id,
-            'name'     => 'Dr. Sync',
-            'lastName' => 'Test',
-            'phone'    => '',
-        ],
-    ], $overrides);
-}
-
-function fileEntry(string $date, string $hhmm, string $id): array
-{
-    $name = "event-{$date}-{$hhmm}-{$id}.json";
-
-    return ['.tag' => 'file', 'name' => $name, 'path_lower' => "/smd-events/{$date}/{$name}"];
-}
-
-/**
- * Simula Dropbox: `$folders` mapea fecha => entries, `$payloads` mapea path => json.
- */
-function fakeDropbox(array $folders, array $payloads): void
-{
-    // Http::fake() acumula stubs en vez de reemplazarlos, y el Factory está
-    // bindeado como singleton: sin descartarlo, una segunda llamada en el mismo
-    // test no tendría efecto porque ganaría el stub anterior.
-    app()->forgetInstance(\Illuminate\Http\Client\Factory::class);
-    Http::clearResolvedInstances();
-
-    Http::fake(function ($request) use ($folders, $payloads) {
-        $url = $request->url();
-
-        if (str_contains($url, 'oauth2/token')) {
-            return Http::response(['access_token' => 'tok'], 200);
-        }
-
-        if (str_contains($url, 'files/list_folder')) {
-            $path = $request->data()['path'] ?? '';
-            $date = basename($path);
-            $entries = $folders[$date] ?? [];
-
-            return Http::response(['entries' => $entries, 'cursor' => 'c', 'has_more' => false], 200);
-        }
-
-        if (str_contains($url, 'files/download')) {
-            $arg = json_decode($request->header('Dropbox-API-Arg')[0] ?? '{}', true);
-
-            return Http::response(json_encode($payloads[$arg['path'] ?? ''] ?? []), 200);
-        }
-
-        return Http::response([], 200);
-    });
-}
-
-function activityFor(string $externalId): ?object
-{
-    $row = DB::table('smd_synced_events')->where('external_id', $externalId)->first();
-
-    return $row ? DB::table('activities')->find($row->activity_id) : null;
-}
 
 // ---------------------------------------------------------------------------
 
@@ -263,6 +178,86 @@ it('un archivo legacy sin updated_at no borra la referencia ya guardada', functi
     expect($row->source_updated_at)->not->toBeNull();
 });
 
+/**
+ * El nombre de archivo de SMD tiene resolución de minutos
+ * (`event-YYYY-MM-DD-HHMM-<id>.json`), así que una cita creada y editada dentro
+ * del mismo minuto se escribe DOS VECES en la misma ruta. Deduplicar por ruta
+ * sola hacía que la segunda escritura no se bajara nunca y la edición se
+ * perdiera en silencio, sin log y sin llegar a processPayload().
+ *
+ * Caso real: evento 6a675da5ee8ea30008b466cf del 2026-07-27 - creado 13:31:17,
+ * pasado a SURGERY 13:31:25, ambos en `event-2026-07-27-1331-...json`. El lead
+ * quedó en Consultas en vez de Cirugía.
+ */
+it('aplica la edición cuando SMD reescribe el MISMO archivo dentro del mismo minuto', function () {
+    $id = 'ev-'.uniqid();
+
+    $creado = smdEvent($id, ['summary' => 'exodoncia pza 4.6', 'updated_at' => '2026-07-27T13:31:17.975Z']);
+    $file = fileEntry('2026-07-27', '1331', $id, 'hash-v1');
+
+    fakeDropbox(['2026-07-27' => [$file]], [$file['path_lower'] => $creado]);
+
+    $service = app(SmdAppointmentSyncService::class);
+    $service->run(1, null, \Carbon\Carbon::parse('2026-07-27'));
+
+    expect(activityFor($id)->title)->toBe('exodoncia pza 4.6');
+
+    // SMD reescribe la MISMA ruta: cambia el contenido y con él el content_hash.
+    $editado = smdEvent($id, [
+        'summary'     => 'exodoncia pza 4.6 (cirugia)',
+        'status'      => 'SURGERY',
+        'updated_at'  => '2026-07-27T13:31:25.279Z',
+        'eventStatus' => 'UPDATED',
+        '__v'         => 1,
+    ]);
+    $reescrito = fileEntry('2026-07-27', '1331', $id, 'hash-v2');
+
+    expect($reescrito['path_lower'])->toBe($file['path_lower']);
+
+    fakeDropbox(['2026-07-27' => [$reescrito]], [$reescrito['path_lower'] => $editado]);
+
+    $summary = $service->run(1, null, \Carbon\Carbon::parse('2026-07-27'));
+
+    expect($summary['actualizados'])->toBe(1)
+        ->and($summary['sin_cambios'])->toBe(0)
+        ->and(activityFor($id)->title)->toBe('exodoncia pza 4.6 (cirugia)');
+
+    $row = DB::table('smd_synced_events')->where('external_id', $id)->first();
+    expect($row->status)->toBe('SURGERY');
+
+    // El hash nuevo queda anotado: una tercera corrida sin cambios ya no lo baja.
+    expect(DB::table('smd_processed_files')->where('path', $file['path_lower'])->value('content_hash'))
+        ->toBe('hash-v2');
+
+    expect($service->run(1, null, \Carbon\Carbon::parse('2026-07-27'))['sin_cambios'])->toBe(1);
+});
+
+it('una fila sin content_hash (anterior al fix) se rebaja una vez y queda al día', function () {
+    $id = 'ev-'.uniqid();
+
+    $file = fileEntry('2026-07-27', '1331', $id, 'hash-v1');
+
+    // Estado que dejó la versión vieja del sync: ruta anotada, sin huella.
+    DB::table('smd_processed_files')->insert([
+        'path'         => $file['path_lower'],
+        'content_hash' => null,
+        'outcome'      => 'creados',
+        'processed_at' => now(),
+    ]);
+
+    fakeDropbox(
+        ['2026-07-27' => [$file]],
+        [$file['path_lower'] => smdEvent($id, ['summary' => 'Recuperada', 'updated_at' => '2026-07-27T13:31:25.279Z'])],
+    );
+
+    $summary = app(SmdAppointmentSyncService::class)->run(1, null, \Carbon\Carbon::parse('2026-07-27'));
+
+    expect($summary['creados'])->toBe(1)
+        ->and(activityFor($id)->title)->toBe('Recuperada')
+        ->and(DB::table('smd_processed_files')->where('path', $file['path_lower'])->value('content_hash'))
+        ->toBe('hash-v1');
+});
+
 it('una cancelación que además edita el título aplica ambas cosas', function () {
     $id = 'ev-'.uniqid();
 
@@ -343,10 +338,11 @@ it('una cita ya cancelada no se vuelve a cancelar en cada corrida del cron', fun
     // ni reescribir archived_at.
     $summary = $service->run(1, null, \Carbon\Carbon::parse('2026-07-14'));
 
-    // El archivo de cancelación queda idéntico a lo guardado (sin_cambios) y el de
-    // creación queda por detrás en updated_at (obsoletos). Ninguno vuelve a cancelar.
+    // Ninguno de los dos archivos cambió de contenido, así que el descarte por
+    // ruta+content_hash los saltea antes de bajarlos: los dos cuentan como
+    // sin_cambios y ninguno vuelve a cancelar ni reescribe archived_at.
     expect($summary['cancelados'])->toBe(0)
-        ->and($summary['sin_cambios'])->toBe(1)
-        ->and($summary['obsoletos'])->toBe(1)
+        ->and($summary['sin_cambios'])->toBe(2)
+        ->and($summary['obsoletos'])->toBe(0)
         ->and(DB::table('smd_synced_events')->where('external_id', $id)->value('archived_at'))->toBe($archivedAt);
 });

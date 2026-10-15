@@ -9,6 +9,7 @@ function mapOdontokingMembershipResponse(array $row): array
     $driver = new OdontokingMembershipDriver(
         Mockery::mock(AttributeRepository::class),
         Mockery::mock(AttributeValueRepository::class),
+        Mockery::mock(\Webkul\Admin\Services\Insurance\GoogleSheetsInsuranceSource::class),
     );
 
     $method = new ReflectionMethod($driver, 'mapResponse');

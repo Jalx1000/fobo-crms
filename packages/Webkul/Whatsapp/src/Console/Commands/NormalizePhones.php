@@ -73,7 +73,7 @@ class NormalizePhones extends Command
                 }
             });
 
-        $this->info(sprintf('persons          — scanned %d, %d %s.', $scanned, $changed, $apply ? 'updated' : 'would change'));
+        $this->info(sprintf('persons          - scanned %d, %d %s.', $scanned, $changed, $apply ? 'updated' : 'would change'));
     }
 
     /**
@@ -122,7 +122,7 @@ class NormalizePhones extends Command
                 }
             });
 
-        $this->info(sprintf('conversations    — scanned %d, %d %s.', $scanned, $changed, $apply ? 'updated' : 'would change'));
+        $this->info(sprintf('conversations    - scanned %d, %d %s.', $scanned, $changed, $apply ? 'updated' : 'would change'));
     }
 
     /**

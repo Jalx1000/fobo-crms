@@ -1,4 +1,4 @@
-# Plan — Regla "1 lead = 1 cita" (odontoking)
+# Plan - Regla "1 lead = 1 cita" (odontoking)
 
 ## Diagnóstico
 - `AppointmentService` crea un lead por cita (`leadRepository->create` + `activity->leads()->sync`),
@@ -13,18 +13,18 @@
 
 ## Fases
 
-### Fase 1 · Diagnóstico (solo lectura) — 0.5d
+### Fase 1 · Diagnóstico (solo lectura) - 0.5d
 - Revisar las 12 citas del lead 2689: fechas, estados, ¿reagendamientos?
 - Determinar POR QUÉ comparten lead (¿el update de cita re-sincroniza el lead? ¿SMD sync?).
 - Salida: informe de causa raíz.
 
-### Fase 2 · Guard preventivo — 1d · 🟡
+### Fase 2 · Guard preventivo - 1d · 🟡
 - En `AppointmentService::create` y en el update de cita: **cada cita tiene su propio lead**;
   nunca reusar un lead que ya está vinculado a otra cita.
 - Al editar una cita, no re-vincular su lead a otra.
 - Test: crear 2 citas del mismo paciente → 2 leads distintos.
 
-### Fase 3 · Limpieza de datos — 0.5d · 🔴 (backup + OK explícito)
+### Fase 3 · Limpieza de datos - 0.5d · 🔴 (backup + OK explícito)
 - Para los 3 leads con múltiples citas: crear un lead nuevo por cada cita extra y re-vincular,
   preservando etapa/estado de cada una.
 - **Backup previo** de `leads` + `lead_activities` (+ `person_activities` si aplica).

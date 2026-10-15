@@ -72,11 +72,11 @@ Reglas importantes:
 
 ### Otras respuestas
 
-- **404** — especialidad no encontrada:
+- **404** - especialidad no encontrada:
   ```json
   { "message": "Specialty not found" }
   ```
-- **200 con lista vacía** — la especialidad existe pero no tiene doctores activos:
+- **200 con lista vacía** - la especialidad existe pero no tiene doctores activos:
   ```json
   { "specialty": {...}, "data": [], "meta": { "total": 0 } }
   ```
@@ -88,7 +88,7 @@ Reglas importantes:
 3. Muestra por cada doctor: nombre, rango de edad, servicios (`type_service_doctor`),
    modalidad (`attendsPatientType`) y un indicador de disponibilidad según la ventana
    (7/14/30 días) que el usuario elija.
-4. Trata correctamente los `null` (no muestres "null" en la UI; muestra un guion o "—").
+4. Trata correctamente los `null` (no muestres "null" en la UI; muestra un guion o "-").
 
 [Especifica aquí tu stack: fetch/axios en JS, un componente Vue/React, un cliente en PHP/Python, etc.]
 
