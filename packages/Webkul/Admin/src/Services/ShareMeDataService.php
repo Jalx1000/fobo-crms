@@ -21,9 +21,11 @@ class ShareMeDataService
     public function __construct(
         protected SpecialtyRepository $specialtyRepository
     ) {
-        $this->apiKey = config('services.sharemedata.api_key');
-        $this->baseUrl = config('services.sharemedata.base_url', 'https://gamma.sharemedata.com/api/calendar');
-        $this->patientsBaseUrl = config('services.sharemedata.patients_url', 'https://gamma.sharemedata.com/api');
+        // Cast: sin SHAREMEDATA_API_KEY (build de Docker, instancias sin SMD) el
+        // config es null y la propiedad tipada rompería package:discover.
+        $this->apiKey = (string) config('services.sharemedata.api_key');
+        $this->baseUrl = (string) config('services.sharemedata.base_url', 'https://gamma.sharemedata.com/api/calendar');
+        $this->patientsBaseUrl = (string) config('services.sharemedata.patients_url', 'https://gamma.sharemedata.com/api');
     }
 
     /**
