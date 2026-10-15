@@ -1,132 +1,72 @@
 #!/bin/bash
 # =============================================================================
-# entrypoint.sh - Krayin CRM / Railway
+# entrypoint.sh - Krayin CRM / Railway (Apache + mod_php)
 #
-# Se ejecuta como root antes de arrancar supervisor.
-# Orden:
-#   1. Parchear nginx.conf con el $PORT que Railway asigna
-#   2. Crear directorios de runtime necesarios
-#   3. Esperar a que la base de datos esté disponible
-#   4. Ejecutar migraciones (--force en producción)
-#   5. Calentar caches de Laravel
-#   6. Crear symlink de storage
-#   7. Arrancar supervisor (que levanta nginx, php-fpm, worker, scheduler)
+# Corre como root y deja todo lo que escribe Laravel en manos de www-data
+# (si artisan corre como root, los logs/caches quedan con dueño root y
+# Apache responde "Permission denied").
+#   1. Puerto de Railway
+#   2. Volumen persistente para storage/app
+#   3. Esperar a MySQL
+#   4. Migraciones + seed inicial si la BD está vacía
+#   5. Caches de Laravel y storage:link
+#   6. Scheduler en segundo plano y Apache en primer plano
 # =============================================================================
-
 set -e
 
-# Color para logs
 log() { echo "[entrypoint] $*"; }
-error() { echo "[entrypoint][ERROR] $*" >&2; }
+artisan() { su -s /bin/sh www-data -c "php /var/www/html/artisan $* --no-interaction"; }
 
-# =============================================================================
-# 1. Puerto Railway
-# =============================================================================
-PORT="${PORT:-8080}"
-log "Usando puerto: $PORT"
-
-# Reemplazar placeholder en nginx.conf
-sed -i "s/__PORT__/${PORT}/g" /etc/nginx/nginx.conf
-
-# =============================================================================
-# 2. Directorios de runtime y permisos
-# =============================================================================
-log "Preparando directorios de runtime..."
-
-# Directorios que necesita Laravel para funcionar
-for dir in \
-    /var/www/html/storage/app/public \
-    /var/www/html/storage/framework/cache/data \
-    /var/www/html/storage/framework/sessions \
-    /var/www/html/storage/framework/views \
-    /var/www/html/storage/logs \
-    /var/www/html/bootstrap/cache \
-    /tmp/nginx_client_body \
-    /tmp/nginx_proxy \
-    /tmp/nginx_fastcgi \
-    /tmp/nginx_uwsgi \
-    /tmp/nginx_scgi; do
-    mkdir -p "$dir"
-done
-
-chown -R www-data:www-data \
-    /var/www/html/storage \
-    /var/www/html/bootstrap/cache
-
-chmod -R 775 \
-    /var/www/html/storage \
-    /var/www/html/bootstrap/cache
-
-# Directorio para el socket de php-fpm
-mkdir -p /run
-chown www-data:www-data /run
-
-# =============================================================================
-# 3. Esperar a que MySQL esté disponible
-# =============================================================================
-if [ -n "$DB_HOST" ] && [ "$DB_CONNECTION" != "sqlite" ]; then
-    DB_HOST_VAL="${DB_HOST:-127.0.0.1}"
-    DB_PORT_VAL="${DB_PORT:-3306}"
-    MAX_TRIES=30
-    TRIES=0
-
-    log "Esperando a que la DB esté disponible en ${DB_HOST_VAL}:${DB_PORT_VAL}..."
-
-    until php -r "
-        \$conn = @new PDO(
-            '${DB_CONNECTION}:host=${DB_HOST_VAL};port=${DB_PORT_VAL};dbname=${DB_DATABASE}',
-            '${DB_USERNAME}',
-            '${DB_PASSWORD}'
-        );
-        echo 'ok';
-    " 2>/dev/null | grep -q 'ok'; do
-        TRIES=$((TRIES + 1))
-        if [ "$TRIES" -ge "$MAX_TRIES" ]; then
-            error "No se pudo conectar a la DB después de ${MAX_TRIES} intentos. Abortando."
-            exit 1
-        fi
-        log "  Intento ${TRIES}/${MAX_TRIES} - reintentando en 2s..."
-        sleep 2
-    done
-
-    log "Base de datos disponible."
-fi
-
-# =============================================================================
-# 4. Migraciones
-# =============================================================================
-log "Ejecutando migraciones..."
 cd /var/www/html
 
-# --force es necesario en APP_ENV=production
-php artisan migrate --force --no-interaction || {
-    error "Las migraciones fallaron."
-    exit 1
-}
+# 1. Apache lee ${PORT} desde ports.conf y el vhost
+export PORT="${PORT:-80}"
+log "Puerto: $PORT"
 
-# =============================================================================
-# 5. Caches de Laravel (config, rutas, vistas, eventos)
-# =============================================================================
-log "Calentando caches de Laravel..."
-
-php artisan config:cache    --no-interaction
-php artisan route:cache     --no-interaction
-php artisan view:cache      --no-interaction
-php artisan event:cache     --no-interaction
-php artisan queue:restart   --no-interaction
-
-# =============================================================================
-# 6. Storage symlink (public/storage -> storage/app/public)
-# =============================================================================
-log "Creando symlink de storage..."
-
-# Solo crear si no existe ya
-if [ ! -L "/var/www/html/public/storage" ]; then
-    php artisan storage:link --no-interaction || true
+# 2. Uploads (storage/app) en el volumen de Railway para que sobrevivan deploys
+if [ -n "$RAILWAY_VOLUME_MOUNT_PATH" ] && [ -d "$RAILWAY_VOLUME_MOUNT_PATH" ]; then
+    if [ ! -d "$RAILWAY_VOLUME_MOUNT_PATH/app" ]; then
+        log "Inicializando storage/app en el volumen $RAILWAY_VOLUME_MOUNT_PATH"
+        cp -a storage/app "$RAILWAY_VOLUME_MOUNT_PATH/app"
+    fi
+    rm -rf storage/app
+    ln -s "$RAILWAY_VOLUME_MOUNT_PATH/app" storage/app
+    chown -R www-data:www-data "$RAILWAY_VOLUME_MOUNT_PATH/app"
 fi
 
-# =============================================================================
-# 7. Arrancar supervisor
-# =============================================================================
-log "Iniciando supervisor (nginx + php-fpm + queue-worker + scheduler)..."
-exec /usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf
+mkdir -p storage/app/public storage/framework/{cache/data,sessions,views} storage/logs bootstrap/cache
+chown -R www-data:www-data storage/framework storage/logs bootstrap/cache
+
+# 3. Esperar a MySQL
+if [ -n "$DB_HOST" ]; then
+    log "Esperando a MySQL en ${DB_HOST}:${DB_PORT:-3306}..."
+    for i in $(seq 1 30); do
+        if php -r 'try { new PDO("mysql:host=".getenv("DB_HOST").";port=".(getenv("DB_PORT") ?: 3306), getenv("DB_USERNAME"), getenv("DB_PASSWORD")); exit(0); } catch (Throwable $e) { exit(1); }'; then
+            log "MySQL disponible."
+            break
+        fi
+        [ "$i" -eq 30 ] && { log "MySQL no responde, abortando."; exit 1; }
+        sleep 2
+    done
+fi
+
+# 4. Migraciones y seed (solo la primera vez, con la tabla de usuarios vacía)
+artisan migrate --force
+
+USERS=$(php -r 'try { $p = new PDO("mysql:host=".getenv("DB_HOST").";port=".(getenv("DB_PORT") ?: 3306).";dbname=".getenv("DB_DATABASE"), getenv("DB_USERNAME"), getenv("DB_PASSWORD")); echo $p->query("SELECT COUNT(*) FROM ".getenv("DB_PREFIX")."users")->fetchColumn(); } catch (Throwable $e) { echo "err"; }')
+if [ "$USERS" = "0" ]; then
+    log "BD sin usuarios: ejecutando db:seed"
+    artisan db:seed --force
+fi
+
+# 5. Caches y symlink público
+artisan optimize:clear
+artisan config:cache
+artisan view:cache
+[ -L public/storage ] || artisan storage:link
+
+# 6. Scheduler (inbound-emails:process cada 5 min) y Apache
+su -s /bin/sh www-data -c 'while true; do php /var/www/html/artisan schedule:run --no-interaction >/dev/null 2>&1; sleep 60; done' &
+
+log "Iniciando: $*"
+exec "$@"
