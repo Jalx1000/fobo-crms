@@ -5,6 +5,7 @@ namespace Webkul\Admin\Helpers\Reporting;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Webkul\Attribute\Repositories\AttributeRepository;
+use Webkul\Lead\Models\Stage;
 use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Lead\Repositories\PipelineRepository;
 use Webkul\Lead\Repositories\StageRepository;
@@ -854,21 +855,24 @@ class Lead extends AbstractReporting
         $now = now()->toDateTimeString();
 
         /**
-         * Regla "por etapa actual": el reloj va desde created_at hasta la fecha
-         * de la ETAPA donde el lead está HOY: abierto (NO ATENDIDOS) -> ahora;
-         * cotización enviada -> confirmed_at; cerrado -> closed_at. Se cuentan
-         * solo horas hábiles (HorasHabiles).
+         * El reloj va desde created_at y solo PARA cuando el pedido entra a una
+         * etapa final: SIN INTERÉS, ENTREGADOS, CANCELADOS u OTROS SERVICIOS
+         * (Stage::TONOS ganado + perdido; pedido del 16/10). En cualquier otra
+         * etapa sigue contando hasta ahora. Solo horas hábiles (HorasHabiles).
          */
         $buildAverages = function ($startDate, $endDate) use ($pipelineId, $now) {
             $query = $this->leadRepository
                 ->resetModel()
                 ->leftJoin('users', 'leads.user_id', '=', 'users.id')
+                ->leftJoin('lead_pipeline_stages', 'leads.lead_pipeline_stage_id', '=', 'lead_pipeline_stages.id')
                 ->select(
+                    'leads.id',
                     'users.name as user_name',
                     'leads.created_at',
+                    'leads.updated_at',
                     'leads.lead_pipeline_stage_id',
-                    'leads.confirmed_at',
-                    'leads.closed_at'
+                    'leads.closed_at',
+                    'lead_pipeline_stages.code as stage_code'
                 )
                 ->whereBetween('leads.created_at', [$startDate, $endDate])
                 ->when($pipelineId, function ($q) use ($pipelineId) {
@@ -888,17 +892,20 @@ class Lead extends AbstractReporting
             /*
             | Horas HÁBILES (lunes a viernes, 08:00–19:00; spec
             | tiempo-en-responder), no las 24 h de los 7 días: un pedido del
-            | viernes 18:00 medido el lunes 09:00 lleva 2 h, no 63. El
-            | intervalo es el de siempre: hasta la fecha de su etapa actual.
+            | viernes 18:00 medido el lunes 09:00 lleva 2 h, no 63.
             */
+            $rows = $query->get();
+            $finales = array_merge(Stage::TONOS['ganado'], Stage::TONOS['perdido']);
+            $entradas = $this->entradaAEtapaActual(
+                $rows->filter(fn ($row) => in_array($row->stage_code, $finales, true))
+            );
+
             $segundosPorAsesor = [];
 
-            foreach ($query->get() as $row) {
-                $hasta = match (true) {
-                    in_array((int) $row->lead_pipeline_stage_id, $this->prospectoStageIds, true) => $now,
-                    in_array((int) $row->lead_pipeline_stage_id, $this->confirmedStageIds, true) => $row->confirmed_at ?? $now,
-                    default                                                                      => $row->closed_at ?? $row->confirmed_at ?? $now,
-                };
+            foreach ($rows as $row) {
+                $hasta = in_array($row->stage_code, $finales, true)
+                    ? ($entradas[$row->id] ?? $row->closed_at ?? $row->updated_at)
+                    : $now;
 
                 $segundosPorAsesor[$row->user_name ?? '—'][] = \Webkul\Admin\Helpers\HorasHabiles::segundos(
                     \Carbon\Carbon::parse($row->created_at),
@@ -939,6 +946,43 @@ class Lead extends AbstractReporting
             'previous_data' => $previousData,
             'users'         => $users,
         ];
+    }
+
+    /**
+     * Cuándo entró cada pedido a la etapa en la que está hoy, según el
+     * historial («Actualizado Etapa», con el id de la etapa nueva en
+     * additional.new.value). Si se movió varias veces, la última entrada.
+     *
+     * Se compara por CÓDIGO y no por id: cada ciudad (pipeline) tiene sus
+     * propias etapas, y un pedido que cambió de ciudad queda en la etapa
+     * «sin-inters» de la otra ciudad, con otro id.
+     *
+     * @return array<int, string> lead_id => fecha
+     */
+    protected function entradaAEtapaActual($rows): array
+    {
+        $codigoDe = DB::table('lead_pipeline_stages')->pluck('code', 'id');
+        $etapaDe = $rows->pluck('stage_code', 'id');
+        $entradas = [];
+
+        foreach ($etapaDe->keys()->chunk(1000) as $ids) {
+            $cambios = DB::table('activities')
+                ->join('lead_activities', 'lead_activities.activity_id', '=', 'activities.id')
+                ->whereIn('lead_activities.lead_id', $ids)
+                ->where('activities.type', 'system')
+                ->where('activities.additional->attribute', 'Etapa')
+                ->get(['lead_activities.lead_id', 'activities.additional', 'activities.created_at']);
+
+            foreach ($cambios as $cambio) {
+                $nueva = $codigoDe[json_decode($cambio->additional, true)['new']['value'] ?? 0] ?? null;
+
+                if ($nueva === $etapaDe[$cambio->lead_id] && $cambio->created_at > ($entradas[$cambio->lead_id] ?? '')) {
+                    $entradas[$cambio->lead_id] = $cambio->created_at;
+                }
+            }
+        }
+
+        return $entradas;
     }
 
     public function getVentasCountByBranches(): array
