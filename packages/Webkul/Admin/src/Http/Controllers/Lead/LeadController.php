@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
 use Prettus\Repository\Criteria\RequestCriteria;
 use Webkul\Admin\DataGrids\Lead\LeadDataGrid;
+use Webkul\Admin\Helpers\FiltroEjecutivo;
 use Webkul\Admin\Http\Controllers\Controller;
 use Webkul\Admin\Http\Requests\LeadForm;
 use Webkul\Admin\Http\Requests\MassDestroyRequest;
@@ -328,6 +329,9 @@ class LeadController extends Controller
             if ($userIds = bouncer()->getAuthorizedUserIds()) {
                 $query->whereIn('leads.user_id', $userIds);
             }
+
+            // Selector «Ejecutivo comercial» (dentro de lo que ya puede ver).
+            FiltroEjecutivo::aplicar($query);
 
             /**
              * Narrow the board to one messaging channel.

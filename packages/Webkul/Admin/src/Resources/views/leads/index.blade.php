@@ -61,7 +61,7 @@
                 <x-admin::datagrid.export
                     file-name="pedidos"
                     :src="route('admin.leads.index', array_merge(
-                        request()->only(['date_filter', 'date_from', 'date_to']),
+                        request()->only(['date_filter', 'date_from', 'date_to', \Webkul\Admin\Helpers\FiltroEjecutivo::PARAMETRO]),
                         ['pipeline_id' => request('pipeline_id')]
                     ))"
                 />

@@ -1,12 +1,15 @@
 {!! view_render_event('admin.leads.index.view_switcher.before') !!}
 
 @php
-    // Preserve the active date filter across pipeline/view navigation so it
-    // stays applied until the user explicitly clears it.
-    $dateParams = request()->only(['date_filter', 'date_from', 'date_to']);
+    // Preserve the active date filter (and the executive filter) across
+    // pipeline/view navigation so it stays applied until explicitly cleared.
+    $dateParams = request()->only(['date_filter', 'date_from', 'date_to', \Webkul\Admin\Helpers\FiltroEjecutivo::PARAMETRO]);
 @endphp
 
 <div class="flex items-center gap-4 max-md:w-full max-md:!justify-between">
+    <!-- Ejecutivo comercial, al lado de la ciudad -->
+    @include('admin::leads.index.ejecutivo-filter')
+
     <x-admin::dropdown>
         <x-slot:toggle>
             {!! view_render_event('admin.leads.index.view_switcher.pipeline.button.before') !!}

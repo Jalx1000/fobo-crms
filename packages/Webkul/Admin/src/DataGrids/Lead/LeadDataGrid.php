@@ -5,6 +5,7 @@ namespace Webkul\Admin\DataGrids\Lead;
 use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Webkul\Admin\Helpers\CustomAttributeValueResolver;
+use Webkul\Admin\Helpers\FiltroEjecutivo;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Contact\Support\BusquedaContacto;
 use Webkul\DataGrid\DataGrid;
@@ -134,6 +135,9 @@ class LeadDataGrid extends DataGrid
         if ($userIds = bouncer()->getAuthorizedUserIds()) {
             $queryBuilder->whereIn('leads.user_id', $userIds);
         }
+
+        // Selector «Ejecutivo comercial» (dentro de lo que ya puede ver).
+        FiltroEjecutivo::aplicar($queryBuilder);
 
         if ($dateFilter = request()->query('date_filter')) {
             if ($dateFilter === 'today') {
