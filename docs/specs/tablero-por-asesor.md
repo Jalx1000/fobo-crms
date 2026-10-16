@@ -1,6 +1,6 @@
 # Spec: Tablero e inbox por asesor
 
-Estado: **spec aprobado el 16/10/2026** — pasa a plan (`tasks/plan-tablero-por-asesor.md`). Adaptado de ponce_de_leon
+Estado: **implementado el 16/10/2026** (fases A, B y C; commits en la rama `imprimir-modulo-whatsapp`). Ver `tasks/todo-tablero-por-asesor.md`. Adaptado de ponce_de_leon
 (`docs/specs/tablero-por-asesor.md`, implementado el 14/10/2026).
 
 ## Objetivo

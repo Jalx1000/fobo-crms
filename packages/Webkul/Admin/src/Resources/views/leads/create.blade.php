@@ -143,7 +143,7 @@
                                 <div class="w-full">
                                     <x-admin::attributes
                                         :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
-                                            ['code', 'IN', ['user_id', 'lead_value']],
+                                            ['code', 'IN', app(\Webkul\Admin\Helpers\Alcance::class)->veTotal() ? ['user_id', 'lead_value'] : ['lead_value']],
                                             'entity_type' => 'leads',
                                             'quick_add'   => 1
                                         ])"

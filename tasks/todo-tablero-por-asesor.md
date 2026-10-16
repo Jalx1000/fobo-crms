@@ -86,7 +86,7 @@ docker exec -u www-data -w /code -e TMPDIR=/code/storage/framework/cache $C ./ve
 
 ## Fase C · Pedidos
 
-- [ ] **C1 · Solo Administrador y Supervisores cambian el asesor** (M)
+- [x] **C1 · Solo Administrador y Supervisores cambian el asesor** (M) — 16/10: `LeadRepository::sinCambioDeAsesor()` en create/update (como ponce); «Asesor» de solo lectura en la ficha (`readOnly` nuevo en `x-admin::attributes.view`) y fuera de los formularios. Mass update solo cambia etapa. Reparto y agente escriben sin usuario o con DB::table: no afectados.
   - Descripción: `LeadRepository` rechaza el cambio de `user_id` (create con otro dueño y update) si el usuario logueado no ve el total; sin usuario logueado (reparto, agente, jobs) pasa. En la ficha y el formulario, el campo Asesor es de solo lectura para los ejecutivos. Cubre la edición en línea y la actualización masiva (`LeadController::massUpdate`).
   - Aceptación:
     - [ ] Como Bulmaro, un PUT, una edición en línea o una actualización masiva con otro `user_id` no lo cambia.
@@ -95,7 +95,7 @@ docker exec -u www-data -w /code -e TMPDIR=/code/storage/framework/cache $C ./ve
   - Archivos: `Lead/src/Repositories/LeadRepository.php`, `Admin/src/Http/Controllers/Lead/LeadController.php`, la vista del formulario y la ficha del pedido, `tests/Feature/Lead/AsesorSoloLecturaTest.php` (nuevo)
   - Depende de: A1
 
-- [ ] **C2 · Contactos: ficha ajena 404 y «Asesor Asignado» solo para Administrador y Supervisores** (M)
+- [x] **C2 · Contactos: ficha ajena 404 y «Asesor Asignado» solo para Administrador y Supervisores** (M) — 16/10: middleware `ContactoDelAsesor` en el grupo de rutas de personas (las 8 rutas con {id}); `PersonRepository` ignora `user_id` de un ejecutivo y crea a su nombre. De paso: la edición en línea de cualquier campo dejaba el contacto sin asesor (normalizaba `user_id` aunque no viniera). Producción: Bulmaro 200 en su contacto y 404 en uno de Eduardo.
   - Descripción: los ejecutivos están en `individual` para no pelearse por los contactos (decisión del usuario, 15/10). `PersonController::view`, `edit`, `update` (y `destroy`) responden 404 si el contacto no es del ejecutivo (`persons.user_id`). `PersonRepository` rechaza el cambio de `user_id` si el usuario logueado no ve el total; sin usuario logueado (reparto, agente) pasa. En el formulario, "Asesor Asignado" es de solo lectura para los ejecutivos.
   - Aceptación:
     - [ ] Como Bulmaro, `/admin/contacts/persons/view/<contacto de Eduardo>` responde 404, y el PUT también.
@@ -103,6 +103,12 @@ docker exec -u www-data -w /code -e TMPDIR=/code/storage/framework/cache $C ./ve
     - [ ] Como Mariano, todo funciona como hoy.
   - Archivos: `Admin/src/Http/Controllers/Contact/Persons/PersonController.php`, `Contact/src/Repositories/PersonRepository.php`, el formulario del contacto, `tests/Feature/Contact/ContactoPorAsesorTest.php` (nuevo)
   - Depende de: A1
+
+## Pendientes encontrados (16/10)
+
+- [ ] `admin.quotes.whatsapp` (enviar cotización por WhatsApp desde Cotizaciones) no verifica el asesor de la cotización.
+- [ ] La suite completa (`php artisan test`) no arranca: `ciudadDe()` declarada en `Contact/SincronizarCiudadTest` y `Quote/CiudadYSucursalTest`.
+- [ ] 2 tests de Product (`CotizacionAgenteTest`, `EntregaTest`) fallan desde antes de este trabajo.
 
 ### ✅ Checkpoint final
 - [ ] Tests de Dashboard, Whatsapp y Lead en verde, cada uno por separado.

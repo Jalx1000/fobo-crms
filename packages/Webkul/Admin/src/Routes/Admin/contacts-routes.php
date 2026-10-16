@@ -11,7 +11,8 @@ Route::prefix('contacts')->group(function () {
     /**
      * Persons routes.
      */
-    Route::controller(PersonController::class)->prefix('persons')->group(function () {
+    // Un ejecutivo solo abre sus contactos (spec tablero-por-asesor, D13b).
+    Route::controller(PersonController::class)->prefix('persons')->middleware(\Webkul\Admin\Http\Middleware\ContactoDelAsesor::class)->group(function () {
         Route::get('', 'index')->name('admin.contacts.persons.index');
 
         Route::get('create', 'create')->name('admin.contacts.persons.create');

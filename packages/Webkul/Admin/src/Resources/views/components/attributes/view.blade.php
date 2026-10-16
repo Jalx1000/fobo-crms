@@ -3,6 +3,9 @@
     'entity'           => null,
     'allowEdit'        => false,
     'url'              => null,
+    // Códigos que se muestran pero no se editan en línea (p. ej. el asesor
+    // para un ejecutivo, spec tablero-por-asesor D13). El servidor igual los descarta.
+    'readOnly'         => [],
 ])
 
 <div class="flex flex-col gap-1">
@@ -40,7 +43,7 @@
                     @include ($typeView, [
                         'attribute' => $attribute,
                         'value'     => $value,
-                        'allowEdit' => $allowEdit,
+                        'allowEdit' => $allowEdit && ! in_array($attribute->code, $readOnly, true),
                         'url'       => $url,
                     ])
                 </div>

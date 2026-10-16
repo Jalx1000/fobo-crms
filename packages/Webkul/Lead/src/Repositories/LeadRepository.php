@@ -116,6 +116,8 @@ class LeadRepository extends Repository
      */
     public function create(array $data)
     {
+        $data = $this->sinCambioDeAsesor($data);
+
         $data = $this->prepararAtributos($data);
 
         // Sanitize foreign key values
@@ -264,6 +266,8 @@ class LeadRepository extends Repository
      */
     public function update(array $data, $id, $attributes = [])
     {
+        $data = $this->sinCambioDeAsesor($data);
+
         $data = $this->prepararAtributos($data);
 
         // Sanitize foreign key values
@@ -443,5 +447,22 @@ class LeadRepository extends Repository
         $user = auth()->guard('user')->user();
 
         return $user && in_array(optional($user->role)->name, ['Supervisores', 'Administrador'], true);
+    }
+
+    /**
+     * El asesor de un pedido lo cambian solo Administrador y Supervisores
+     * (spec docs/specs/tablero-por-asesor.md, D13): para un ejecutivo se
+     * descarta el `user_id` que venga, por cualquier camino (formulario,
+     * edición en línea, inbox). Al crear, el pedido queda a su nombre
+     * (duenoPorDefecto). Sin usuario logueado —reparto, agente, jobs— Alcance
+     * no restringe, así que el reparto automático sigue moviendo pedidos.
+     */
+    protected function sinCambioDeAsesor(array $data): array
+    {
+        if (array_key_exists('user_id', $data) && ! app(\Webkul\Admin\Helpers\Alcance::class)->veTotal()) {
+            unset($data['user_id']);
+        }
+
+        return $data;
     }
 }

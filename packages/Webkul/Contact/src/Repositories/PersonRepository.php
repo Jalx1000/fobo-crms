@@ -59,6 +59,11 @@ class PersonRepository extends Repository
     {
         $data = $this->sanitizeRequestedPersonData($data);
 
+        // Un ejecutivo crea contactos a su nombre (spec tablero-por-asesor, D13b).
+        if ($userId = app(\Webkul\Admin\Helpers\Alcance::class)->userId()) {
+            $data['user_id'] = $userId;
+        }
+
         if (! empty($data['organization_name'])) {
             $organization = $this->fetchOrCreateOrganizationByName($data['organization_name']);
 
@@ -95,7 +100,17 @@ class PersonRepository extends Repository
     {
         $data = $this->sanitizeRequestedPersonData($data);
 
-        $data['user_id'] = empty($data['user_id']) ? null : $data['user_id'];
+        /*
+        | «Asesor Asignado» (spec tablero-por-asesor, D13b): solo Administrador y
+        | Supervisores lo cambian; para un ejecutivo se ignora lo que venga.
+        | Y se normaliza solo si vino: la edición en línea de la ficha manda un
+        | campo por vez, y antes cualquier otro campo dejaba el contacto sin asesor.
+        */
+        if (! app(\Webkul\Admin\Helpers\Alcance::class)->veTotal()) {
+            unset($data['user_id']);
+        } elseif (array_key_exists('user_id', $data)) {
+            $data['user_id'] = empty($data['user_id']) ? null : $data['user_id'];
+        }
 
         if (! empty($data['organization_name'])) {
             $organization = $this->fetchOrCreateOrganizationByName($data['organization_name']);
