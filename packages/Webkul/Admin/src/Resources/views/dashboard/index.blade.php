@@ -131,6 +131,24 @@
                     </option>
                 </select>
 
+                <!-- Ejecutivo comercial: solo Administrador y Supervisores (spec pedidos-filtro-ejecutivo) -->
+                @if (\Webkul\Admin\Helpers\FiltroEjecutivo::disponible())
+                <select
+                    aria-label="Ejecutivo comercial"
+                    class="flex min-h-[39px] w-[190px] rounded-md border px-3 py-2 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                    v-model="filters.ejecutivo"
+                >
+                    <option value="">Todos los ejecutivos</option>
+                    <option
+                        v-for="ejecutivo in ejecutivos"
+                        :key="ejecutivo.id"
+                        :value="ejecutivo.id"
+                    >
+                        @{{ ejecutivo.name }}
+                    </option>
+                </select>
+                @endif
+
                 <div class="flex gap-1">
                     <button
                         type="button"
@@ -235,12 +253,17 @@
                     return {
                         pipelines: @json($pipelines->map(fn ($pipeline) => ['id' => $pipeline->id, 'name' => $pipeline->name])),
 
+                        // Vacío para el ejecutivo comercial: no ve el selector.
+                        ejecutivos: @json(\Webkul\Admin\Helpers\FiltroEjecutivo::disponible() ? \Webkul\Admin\Helpers\FiltroEjecutivo::opciones() : []),
+
                         exportFormat: 'xlsx',
 
                         filters: {
                             channel: '',
 
                             pipeline_id: (! savedCity || savedCity === 'all') ? '' : decodeURIComponent(savedCity),
+
+                            ejecutivo: '',
 
                             start: savedFrom || "{{ $startDate->format('Y-m-d') }}",
 
@@ -325,6 +348,10 @@
                         const params = new URLSearchParams();
 
                         params.set('format', this.exportFormat);
+
+                        if (this.filters.ejecutivo) {
+                            params.set('ejecutivo', this.filters.ejecutivo);
+                        }
 
                         if (this.filters.pipeline_id) {
                             params.set('pipeline_id', this.filters.pipeline_id);

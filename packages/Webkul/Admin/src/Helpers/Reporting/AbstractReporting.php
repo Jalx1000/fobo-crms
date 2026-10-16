@@ -399,13 +399,14 @@ abstract class AbstractReporting
     /**
      * Asesores cuyos números puede ver el usuario logueado, o null si ve el
      * total. Lo decide Alcance por ROL (spec tablero-por-asesor, D1–D3): un
-     * ejecutivo ve solo lo suyo; Administrador y Supervisores, todo.
+     * ejecutivo ve solo lo suyo; Administrador y Supervisores, todo, o solo el
+     * ejecutivo que eligieron en el selector del tablero.
      *
      * @return array<int, int>|null
      */
     protected function asesoresVisibles(): ?array
     {
-        $userId = app(\Webkul\Admin\Helpers\Alcance::class)->userId();
+        $userId = \Webkul\Admin\Helpers\FiltroEjecutivo::usuarioDelTablero();
 
         return $userId === null ? null : [$userId];
     }

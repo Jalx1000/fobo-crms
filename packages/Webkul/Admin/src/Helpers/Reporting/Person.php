@@ -50,7 +50,8 @@ class Person extends AbstractReporting
 
         // Un ejecutivo cuenta solo sus contactos («Asesor Asignado» = él), igual
         // que la lista de Contactos con permiso individual (spec tablero-por-asesor).
-        app(\Webkul\Admin\Helpers\Alcance::class)->leads($query, 'persons.user_id');
+        // Administrador y Supervisores: los del ejecutivo elegido en el tablero.
+        \Webkul\Admin\Helpers\FiltroEjecutivo::limitarTablero($query, 'persons.user_id');
 
         // La ciudad del contacto, con la misma regla que la lista de Contactos
         // (atributo `ciudad`, por nombre; «Sin ciudad» = sin ciudad).

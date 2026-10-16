@@ -49,6 +49,34 @@ class FiltroEjecutivo
     }
 
     /**
+     * De quién son los datos del tablero: el ejecutivo ve los suyos (Alcance);
+     * Administrador y Supervisores, los del ejecutivo elegido en el selector
+     * del tablero, o todos (null). Una sola regla para todas las tarjetas y
+     * el Excel (spec pedidos-filtro-ejecutivo, «Tablero»).
+     */
+    public static function usuarioDelTablero(): ?int
+    {
+        return app(Alcance::class)->userId() ?? self::elegido();
+    }
+
+    /**
+     * Limita una consulta del tablero a usuarioDelTablero(), si lo hay.
+     *
+     * @template T
+     *
+     * @param  T  $query
+     * @return T
+     */
+    public static function limitarTablero($query, string $columna = 'leads.user_id')
+    {
+        if (! is_null($userId = self::usuarioDelTablero())) {
+            $query->where($columna, $userId);
+        }
+
+        return $query;
+    }
+
+    /**
      * @template T
      *
      * @param  T  $query

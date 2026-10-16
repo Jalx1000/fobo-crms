@@ -39,7 +39,8 @@ class Organization extends AbstractReporting
     public function getTotalOrganizations($startDate, $endDate): int
     {
         // Un ejecutivo cuenta solo las organizaciones a su nombre (spec tablero-por-asesor).
-        return app(\Webkul\Admin\Helpers\Alcance::class)->leads(
+        // Administrador y Supervisores: las del ejecutivo elegido en el tablero.
+        return \Webkul\Admin\Helpers\FiltroEjecutivo::limitarTablero(
             $this->organizationRepository->resetModel()->whereBetween('organizations.created_at', [$startDate, $endDate]),
             'organizations.user_id'
         )->count();

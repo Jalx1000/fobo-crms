@@ -24,7 +24,18 @@ permite ver los pedidos de un ejecutivo en particular (pedido del usuario, 16/10
 | B2 | Un ejecutivo comercial **no ve pedidos de otro ejecutivo** por ningún camino (sigue el permiso `individual`, D13b de `tablero-por-asesor.md`). |
 | B3 | Para quien no ve el total, el parámetro `?ejecutivo=` **se ignora**: una URL compartida por un supervisor le muestra igual sus propios pedidos, no un tablero vacío. |
 
-Fuera de alcance: contactos, cotizaciones, inbox de WhatsApp y tablero (cada uno ya tiene su regla).
+## Tablero (16/10/2026, pedido del usuario)
+
+El mismo selector, **al lado del de ciudades del tablero**, con las mismas reglas B1–B3.
+
+| # | Decisión |
+|---|---|
+| T1 | Solo Administrador y Supervisores lo ven; al ejecutivo comercial ni se le envía (se decide en el servidor). |
+| T2 | El administrador que elige a un ejecutivo ve **exactamente lo que ve ese ejecutivo** en todas las tarjetas: es la misma regla con la que el tablero ya mostraba «solo lo mío» (`FiltroEjecutivo::usuarioDelTablero()` = el propio id del ejecutivo, o el elegido por quien ve el total). |
+| T3 | Esa regla reemplaza a `Alcance` en los 6 lugares que deciden de quién son los datos del tablero: `aplicarAlcance()` (scope de Lead + `user_id`), `asesoresVisibles()`, contactos, organizaciones, cotizaciones y la hoja de pedidos del Excel. Para un ejecutivo nada cambia. |
+| T4 | El Excel lleva el ejecutivo elegido. La elección no se guarda en cookie: al recargar vuelve a «Todos los ejecutivos». |
+
+Fuera de alcance: contactos, cotizaciones e inbox de WhatsApp (cada uno ya tiene su regla).
 
 ## Comandos
 
@@ -45,6 +56,10 @@ packages/Webkul/Admin/src/Resources/views/leads/index/view-switcher.blade.php   
 packages/Webkul/Admin/src/Http/Controllers/Lead/LeadController.php               → kanban
 packages/Webkul/Admin/src/DataGrids/Lead/LeadDataGrid.php                        → lista
 packages/Webkul/Admin/src/Helpers/Alcance.php                                    → quién ve el total (se consulta, sin cambios)
+packages/Webkul/Admin/src/Resources/views/dashboard/index.blade.php              → selector del tablero
+packages/Webkul/Admin/src/Http/Controllers/DashboardController.php               → aplicarAlcance() con usuarioDelTablero()
+packages/Webkul/Admin/src/Helpers/Reporting/*.php, Exports/Dashboard/DashboardOrdersSheet.php → limitarTablero()
+tests/Feature/Dashboard/TableroFiltroEjecutivoTest.php                           → tests del tablero
 tests/Feature/Lead/FiltroEjecutivoTest.php                                       → tests
 ```
 
@@ -68,6 +83,9 @@ y borra sus registros (fechas de enero de 2020). **Nunca una base de prueba apar
 3. Un supervisor ve el selector y filtra.
 4. Un ejecutivo no ve el selector.
 5. Un ejecutivo con `?ejecutivo=<otro>` sigue viendo solo sus pedidos, en el kanban y en la lista.
+6. Tablero: para **cada** tipo de tarjeta, el administrador que elige a Bulmaro ve lo mismo que Bulmaro.
+7. Tablero: sin elegir, el total; un supervisor filtra; un ejecutivo con `?ejecutivo=<otro>` ve lo suyo;
+   el selector solo llega a Administrador y Supervisores; el Excel respeta la elección.
 
 ## Límites
 
@@ -84,3 +102,4 @@ y borra sus registros (fechas de enero de 2020). **Nunca una base de prueba apar
 - [x] Decisiones B1–B3 tomadas por el usuario.
 - [x] El ejecutivo no ve el selector y el parámetro se le ignora; Administrador y Supervisores filtran.
 - [x] Tests de pedidos y suite completa en verde (757, la base queda igual antes y después).
+- [x] Tablero: selector junto a la ciudad, mismo resultado que el ejecutivo en todas las tarjetas y el Excel; suite 767 en verde, base igual.

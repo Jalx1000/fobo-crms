@@ -38,7 +38,8 @@ class Quote extends AbstractReporting
     {
         // Un ejecutivo cuenta solo sus cotizaciones (spec tablero-por-asesor): las
         // cotizaciones siguen al asesor del pedido (Responsables::cotizacionesConElPedido).
-        return app(\Webkul\Admin\Helpers\Alcance::class)->leads(
+        // Administrador y Supervisores: las del ejecutivo elegido en el tablero.
+        return \Webkul\Admin\Helpers\FiltroEjecutivo::limitarTablero(
             $this->quoteRepository->resetModel()->whereBetween('quotes.created_at', [$startDate, $endDate]),
             'quotes.user_id'
         )->count();

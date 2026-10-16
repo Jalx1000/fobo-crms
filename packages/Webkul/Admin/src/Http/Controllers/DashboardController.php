@@ -5,8 +5,8 @@ namespace Webkul\Admin\Http\Controllers;
 use Maatwebsite\Excel\Facades\Excel;
 use Webkul\Admin\Exports\Dashboard\DashboardExport;
 use Webkul\Admin\Exports\Dashboard\DashboardLeadsSheet;
-use Webkul\Admin\Helpers\Alcance;
 use Webkul\Admin\Helpers\Dashboard;
+use Webkul\Admin\Helpers\FiltroEjecutivo;
 use Webkul\Lead\Models\LeadProxy;
 use Webkul\Lead\Repositories\PipelineRepository;
 
@@ -195,7 +195,9 @@ class DashboardController extends Controller
 
     /**
      * Quien no ve el total (spec tablero-por-asesor, D1–D3, D5) recibe solo lo
-     * suyo, en el servidor y para TODAS las tarjetas y el Excel:
+     * suyo, en el servidor y para TODAS las tarjetas y el Excel. Lo mismo
+     * para Administrador y Supervisores cuando eligen un ejecutivo en el
+     * selector del tablero (FiltroEjecutivo::usuarioDelTablero()):
      *
      *  - `user_id` se pisa con su id: lo que venga en la URL se ignora.
      *  - Un scope global en Lead filtra cada consulta de Eloquent sobre leads.
@@ -205,23 +207,25 @@ class DashboardController extends Controller
      *
      * El scope es estático (queda registrado en el modelo para todo el
      * proceso), por eso NO guarda el id de quien lo registró: pregunta a
-     * Alcance en cada consulta. Si no, en un worker o en los tests, el
+     * FiltroEjecutivo en cada consulta. Si no, en un worker o en los tests, el
      * siguiente usuario heredaría el filtro del anterior.
      */
     private function aplicarAlcance(): void
     {
-        $alcance = app(Alcance::class);
+        // Ejecutivo: el suyo. Administrador y Supervisores: el elegido en el
+        // selector «Ejecutivo comercial» del tablero, si eligieron uno.
+        $userId = FiltroEjecutivo::usuarioDelTablero();
 
-        if ($alcance->userId() === null) {
+        if ($userId === null) {
             return;
         }
 
-        request()->merge(['user_id' => $alcance->userId()]);
-        request()->query->set('user_id', $alcance->userId());
+        request()->merge(['user_id' => $userId]);
+        request()->query->set('user_id', $userId);
 
         LeadProxy::modelClass()::addGlobalScope(
             'alcance-tablero',
-            fn ($query) => app(Alcance::class)->leads($query->getQuery()),
+            fn ($query) => FiltroEjecutivo::limitarTablero($query->getQuery()),
         );
     }
 }
