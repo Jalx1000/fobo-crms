@@ -54,6 +54,11 @@ class QuoteRepository extends Repository
      */
     public function create(array $data)
     {
+        // Un ejecutivo crea cotizaciones a su nombre (spec tablero-por-asesor, D13c).
+        if ($userId = app(\Webkul\Admin\Helpers\Alcance::class)->userId()) {
+            $data['user_id'] = $userId;
+        }
+
         $quote = parent::create($data);
 
         $this->attributeValueRepository->save(array_merge($data, [
@@ -78,6 +83,13 @@ class QuoteRepository extends Repository
      */
     public function update(array $data, $id, $attributes = [])
     {
+        // El «Asesor de venta» lo cambian solo Administrador y Supervisores
+        // (D13c). Las cotizaciones siguen al asesor de su pedido por
+        // Responsables::cotizacionesConElPedido, que no pasa por acá.
+        if (! app(\Webkul\Admin\Helpers\Alcance::class)->veTotal()) {
+            unset($data['user_id']);
+        }
+
         $quote = $this->find($id);
 
         parent::update($data, $id);

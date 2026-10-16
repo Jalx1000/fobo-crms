@@ -106,7 +106,7 @@ docker exec -u www-data -w /code -e TMPDIR=/code/storage/framework/cache $C ./ve
 
 ## Pendientes encontrados (16/10)
 
-- [ ] `admin.quotes.whatsapp` (enviar cotización por WhatsApp desde Cotizaciones) no verifica el asesor de la cotización.
+- [x] Cotizaciones (D13c): middleware `CotizacionDelAsesor` en todas las rutas `quotes/{id}` y `create/{lead_id}`; «Asesor de venta» bloqueado en `QuoteRepository`. Antes un ejecutivo podía imprimir el PDF, editar y enviar por WhatsApp/Messenger/correo la cotización de otro.
 - [ ] La suite completa (`php artisan test`) no arranca: `ciudadDe()` declarada en `Contact/SincronizarCiudadTest` y `Quote/CiudadYSucursalTest`.
 - [ ] 2 tests de Product (`CotizacionAgenteTest`, `EntregaTest`) fallan desde antes de este trabajo.
 

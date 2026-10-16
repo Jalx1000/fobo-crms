@@ -3,7 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use Webkul\Admin\Http\Controllers\Quote\QuoteController;
 
-Route::controller(QuoteController::class)->prefix('quotes')->group(function () {
+// Un ejecutivo solo toca sus cotizaciones (spec tablero-por-asesor, D13c).
+Route::controller(QuoteController::class)->prefix('quotes')->middleware(\Webkul\Admin\Http\Middleware\CotizacionDelAsesor::class)->group(function () {
     Route::get('', 'index')->name('admin.quotes.index');
 
     Route::get('create/{lead_id?}', 'create')->name('admin.quotes.create');
