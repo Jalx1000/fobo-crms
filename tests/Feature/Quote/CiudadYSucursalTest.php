@@ -30,7 +30,7 @@ function opcionCiudad(string $entityType, string $nombre): int
     return $attribute->options->firstWhere('name', $nombre)->id;
 }
 
-function ciudadDe(string $entityType, int $id): ?string
+function ciudadSegunAtributo(string $entityType, int $id): ?string
 {
     $attribute = app(AttributeRepository::class)
         ->findWhere(['entity_type' => $entityType, 'code' => 'ciudad'])
@@ -179,7 +179,7 @@ it('la cotización hereda la ciudad del contacto', function () {
 
     $quote = cotizacionCiudad(['person_id' => $persona->id]);
 
-    expect(ciudadDe('quotes', $quote->id))->toBe('Cochabamba');
+    expect(ciudadSegunAtributo('quotes', $quote->id))->toBe('Cochabamba');
 });
 
 it('el contacto aprende la ciudad que trae la cotización', function () {
@@ -190,8 +190,8 @@ it('el contacto aprende la ciudad que trae la cotización', function () {
         'ciudad'    => opcionCiudad('quotes', 'Tarija'),
     ]);
 
-    expect(ciudadDe('persons', $persona->id))->toBe('Tarija')
-        ->and(ciudadDe('quotes', $quote->id))->toBe('Tarija');
+    expect(ciudadSegunAtributo('persons', $persona->id))->toBe('Tarija')
+        ->and(ciudadSegunAtributo('quotes', $quote->id))->toBe('Tarija');
 });
 
 it('con dos ciudades distintas, manda la última que se guardó', function () {
@@ -207,8 +207,8 @@ it('con dos ciudades distintas, manda la última que se guardó', function () {
         'ciudad'    => opcionCiudad('quotes', 'Oruro'),
     ]);
 
-    expect(ciudadDe('persons', $persona->id))->toBe('Oruro')
-        ->and(ciudadDe('quotes', $quote->id))->toBe('Oruro');
+    expect(ciudadSegunAtributo('persons', $persona->id))->toBe('Oruro')
+        ->and(ciudadSegunAtributo('quotes', $quote->id))->toBe('Oruro');
 });
 
 it('la oportunidad también se concilia con su contacto, en los dos sentidos', function () {
@@ -216,7 +216,7 @@ it('la oportunidad también se concilia con su contacto, en los dos sentidos', f
 
     $lead = oportunidadCiudad(['person' => ['id' => $persona->id], 'person_id' => $persona->id]);
 
-    expect(ciudadDe('leads', $lead->id))->toBe('Sucre');
+    expect(ciudadSegunAtributo('leads', $lead->id))->toBe('Sucre');
 
     // Y al revés: un contacto sin ciudad la aprende de su oportunidad.
     $otra = personaCiudad();
@@ -227,8 +227,8 @@ it('la oportunidad también se concilia con su contacto, en los dos sentidos', f
         'ciudad'    => opcionCiudad('leads', 'Beni'),
     ]);
 
-    expect(ciudadDe('persons', $otra->id))->toBe('Beni')
-        ->and(ciudadDe('leads', $lead2->id))->toBe('Beni');
+    expect(ciudadSegunAtributo('persons', $otra->id))->toBe('Beni')
+        ->and(ciudadSegunAtributo('leads', $lead2->id))->toBe('Beni');
 });
 
 it('la sucursal se propone desde la planta del producto, y no se pisa si ya vino', function () {
@@ -288,8 +288,8 @@ it('la cotización del agente guarda ciudad y la planta del producto', function 
 
     $quoteId = $r->json('quote_id');
 
-    expect(ciudadDe('quotes', $quoteId))->toBe('La Paz')
-        ->and(ciudadDe('persons', $persona->id))->toBe('La Paz');
+    expect(ciudadSegunAtributo('quotes', $quoteId))->toBe('La Paz')
+        ->and(ciudadSegunAtributo('persons', $persona->id))->toBe('La Paz');
 
     $sucursal = app(AttributeRepository::class)
         ->findWhere(['entity_type' => 'quotes', 'code' => 'sucursal'])->first();
@@ -322,8 +322,8 @@ it('si el agente cotiza con la capital, la cotización y el contacto quedan con 
         'ciudad'    => 'Cobija',
     ])->assertStatus(201);
 
-    expect(ciudadDe('quotes', $r->json('quote_id')))->toBe('Pando')
-        ->and(ciudadDe('persons', $persona->id))->toBe('Pando');
+    expect(ciudadSegunAtributo('quotes', $r->json('quote_id')))->toBe('Pando')
+        ->and(ciudadSegunAtributo('persons', $persona->id))->toBe('Pando');
 });
 
 it('la ciudad canónica: capitales y abreviaturas al nombre del CRM', function () {

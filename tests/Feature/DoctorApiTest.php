@@ -5,6 +5,19 @@ use Illuminate\Support\Facades\DB;
 
 use function Pest\Laravel\get;
 
+
+/*
+| PELIGRO: este archivo hace DELETE/TRUNCATE sin transacción. Los tests corren
+| contra la base de producción (no hay .env.testing), y el 16/10/2026 borró
+| datos reales (valores de atributos de productos, doctor_specialty). Solo
+| corre contra una base de prueba (nombre que termine en «_test» o «_testing»).
+*/
+beforeEach(function () {
+    if (! preg_match('/_test(ing)?$/', (string) config('database.connections.'.config('database.default').'.database'))) {
+        $this->markTestSkipped('Destructivo: solo contra una base de prueba.');
+    }
+});
+
 it('retrieves doctor details with weekly schedule', function () {
     // Clear tables
     DB::table('doctor_specialty')->truncate();

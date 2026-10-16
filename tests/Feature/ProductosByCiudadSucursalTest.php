@@ -71,6 +71,19 @@ function authenticatedUser(): User
 // Tests
 // ---------------------------------------------------------------------------
 
+
+/*
+| PELIGRO: este archivo hace DELETE/TRUNCATE sin transacción. Los tests corren
+| contra la base de producción (no hay .env.testing), y el 16/10/2026 borró
+| datos reales (valores de atributos de productos, doctor_specialty). Solo
+| corre contra una base de prueba (nombre que termine en «_test» o «_testing»).
+*/
+beforeEach(function () {
+    if (! preg_match('/_test(ing)?$/', (string) config('database.connections.'.config('database.default').'.database'))) {
+        $this->markTestSkipped('Destructivo: solo contra una base de prueba.');
+    }
+});
+
 it('requires authentication', function () {
     $response = test()->getJson(route('api.productos.por-ciudad-sucursal', ['ciudad_producto_sucursal' => 5]));
 
