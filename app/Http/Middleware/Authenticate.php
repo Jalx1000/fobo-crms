@@ -15,7 +15,8 @@ class Authenticate extends Middleware
     protected function redirectTo($request)
     {
         if (! $request->expectsJson()) {
-            return route('login');
+            // El login del CRM: `login` no existe y daba un 500.
+            return route('admin.session.create');
         }
     }
 }

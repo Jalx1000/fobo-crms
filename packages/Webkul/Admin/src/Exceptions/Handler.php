@@ -45,6 +45,12 @@ class Handler extends AppExceptionHandler
      */
     public function render($request, Throwable $exception)
     {
+        // «No autenticado» es 401 o el login, con debug encendido o apagado.
+        // Con debug apagado caía en renderCustomResponse() y salía un 500.
+        if ($exception instanceof AuthenticationException) {
+            return $this->unauthenticated($request, $exception);
+        }
+
         if (! config('app.debug')) {
             return $this->renderCustomResponse($exception);
         }
@@ -64,7 +70,8 @@ class Handler extends AppExceptionHandler
             return response()->json(['message' => $this->jsonErrorMessages[401]], 401);
         }
 
-        return redirect()->guest(route('customer.session.index'));
+        // El login del CRM (`customer.session.index` era de Bagisto y no existe).
+        return redirect()->guest(route('admin.session.create'));
     }
 
     /**
@@ -112,6 +119,7 @@ class Handler extends AppExceptionHandler
             ], $errorCode);
         }
 
-        return response()->view('admin::errors.index', compact('errorCode'));
+        // Con su código: sin él, con debug apagado todo error salía como 200.
+        return response()->view('admin::errors.index', compact('errorCode'), (int) $errorCode);
     }
 }
