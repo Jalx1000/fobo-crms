@@ -8,21 +8,25 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Webkul\Admin\Services\CiudadCliente;
 use Webkul\Lead\Models\Stage;
 use Webkul\Lead\Services\PipelineDeCiudad;
+use Webkul\Lead\Services\ProductoDelPedido;
 use Webkul\Product\Models\ProductProxy;
 use Webkul\Product\Services\Responsables;
 use Webkul\Whatsapp\Models\Conversation;
+use Webkul\Whatsapp\Services\CiudadDesdeChat;
 
 /**
- * Pedido sin ciudad: a la hora, el asesor nacional de SU PRODUCTO
- * (spec docs/specs/asignar-sin-ciudad.md, 16/10/2026).
+ * Pedido que nació sin ciudad: a la hora, el asesor que le corresponde según
+ * lo que el cliente dijo en esa hora (spec docs/specs/asignar-sin-ciudad.md,
+ * v1 y v2 del 16/10/2026).
  *
- * El pedido nace con un asesor por turno, antes de saber el producto (el
- * agente lo pregunta después). Si a la hora sigue sin ciudad y nadie lo
- * atendió, se le pone el asesor de cobertura nacional («Bolivia» en la matriz
- * de reparto) que atiende su producto. No deriva, no apaga la IA y no manda
- * correos: solo cambia el dueño.
+ * El pedido nace con un asesor por turno, antes de saber nada. A la hora, si
+ * nadie lo atendió, se mira la ciudad (si la dijo) y el producto (el del
+ * pedido o el que nombró en el chat: #6610 preguntó por «Stretch Film» y
+ * seguía con Eduardo) y se aplica la matriz de reparto. No deriva, no apaga
+ * la IA y no manda correos: solo cambia el dueño y carga el producto.
  */
 class AsignarSinCiudad implements ShouldQueue
 {
@@ -57,19 +61,23 @@ class AsignarSinCiudad implements ShouldQueue
             return;
         }
 
-        $productoId = DB::table('lead_products')->where('lead_id', $lead->id)->orderBy('id')->value('product_id');
-        $producto = $productoId ? ProductProxy::modelClass()::find($productoId) : null;
+        $conversacion = Conversation::where('lead_id', $lead->id)->latest('id')->first();
+        $ciudad = $this->ciudad($lead);
+        $producto = $this->producto($lead, $conversacion);
+        $actual = $lead->user_id ? (int) $lead->user_id : null;
 
         // No rota por rotar: si el actual ya es válido, se queda con su cliente.
-        if ($this->esValido($responsables, $producto, $lead->user_id ? (int) $lead->user_id : null)) {
+        if ($actual && in_array($actual, $this->validos($responsables, $producto, $ciudad), true)) {
             return;
         }
 
-        $nuevo = $producto
-            ? $responsables->siguiente($producto, null)
-            : $responsables->asesorPorDefecto();
+        $nuevo = match (true) {
+            (bool) $producto => $responsables->siguiente($producto, $ciudad),
+            (bool) $ciudad   => $responsables->porCiudad($ciudad),
+            default          => $responsables->asesorPorDefecto(),
+        };
 
-        if (! $nuevo || (int) $nuevo->id === (int) $lead->user_id) {
+        if (! $nuevo || (int) $nuevo->id === $actual) {
             return;
         }
 
@@ -78,20 +86,21 @@ class AsignarSinCiudad implements ShouldQueue
         // Contacto, cotizaciones y conversación asignada siguen al pedido.
         Responsables::todoConElPedido((int) $lead->id);
 
-        Log::info('Pedido sin ciudad asignado al asesor de su producto.', [
-            'lead' => $lead->id, 'de' => $lead->user_id, 'a' => $nuevo->id, 'producto' => $producto?->name,
+        Log::info('Pedido sin ciudad asignado según ciudad y producto.', [
+            'lead' => $lead->id, 'de' => $actual, 'a' => $nuevo->id, 'ciudad' => $ciudad, 'producto' => $producto?->name,
         ]);
     }
 
     /**
-     * Sigue sin ciudad, en NO ATENDIDOS, sin derivación abierta y sin que
-     * ningún asesor le haya escrito. Si algo de eso cambió, no se toca.
+     * En NO ATENDIDOS, sin derivación abierta y sin que ningún asesor le haya
+     * escrito. Si dijo la ciudad (ya pasó al pipeline de su ciudad) igual se
+     * revisa: pudo nombrar el producto después (v2).
      */
     protected function sigueEsperando(object $lead): bool
     {
         $etapa = DB::table('lead_pipeline_stages')->where('id', $lead->lead_pipeline_stage_id)->value('code');
 
-        if (! static::esSinCiudad((int) $lead->lead_pipeline_id) || ! in_array($etapa, Stage::NO_ATENDIDOS, true)) {
+        if (! in_array($etapa, Stage::NO_ATENDIDOS, true)) {
             return false;
         }
 
@@ -108,24 +117,68 @@ class AsignarSinCiudad implements ShouldQueue
     }
 
     /**
-     * ¿El asesor actual ya es de los que corresponden? Con producto: uno de
-     * sus responsables nacionales. Sin producto: uno del turno «sin ciudad»
-     * (cobertura nacional y no fuera del turno).
+     * La del pipeline si ya pasó a una ciudad; si no, la del contacto.
      */
-    protected function esValido(Responsables $responsables, $producto, ?int $userId): bool
+    protected function ciudad(object $lead): ?string
     {
-        if (! $userId) {
-            return false;
+        if (! static::esSinCiudad((int) $lead->lead_pipeline_id)) {
+            return DB::table('lead_pipelines')->where('id', $lead->lead_pipeline_id)->value('name');
         }
 
+        $ciudad = $lead->person_id ? app(CiudadCliente::class)->de('persons', (int) $lead->person_id) : null;
+
+        return $ciudad && ! Responsables::esNacional($ciudad) ? $ciudad : null;
+    }
+
+    /**
+     * El del pedido; si no tiene, el que el cliente nombró en el chat, que
+     * queda cargado en el pedido (decisión Q2 del 16/10).
+     */
+    protected function producto(object $lead, ?Conversation $conversacion)
+    {
+        $id = DB::table('lead_products')->where('lead_id', $lead->id)->orderBy('id')->value('product_id');
+
+        if ($id) {
+            return ProductProxy::modelClass()::find($id);
+        }
+
+        $producto = $conversacion ? app(CiudadDesdeChat::class)->producto($conversacion) : null;
+
         if ($producto) {
-            return $responsables->candidatos($producto, null)->pluck('user_id')->map(fn ($id) => (int) $id)->contains($userId);
+            app(ProductoDelPedido::class)->registrar((int) $lead->id, (int) $producto->id);
+        }
+
+        return $producto;
+    }
+
+    /**
+     * Quiénes corresponden, sin gastar el turno de nadie: con producto, sus
+     * responsables en la ciudad (o los nacionales); con solo la ciudad, quien
+     * atiende todo ahí; sin nada —o nadie en esa ciudad—, el turno nacional
+     * «sin ciudad» (sin los de `fuera_del_turno`).
+     *
+     * @return array<int, int>
+     */
+    protected function validos(Responsables $responsables, $producto, ?string $ciudad): array
+    {
+        if ($producto) {
+            return $responsables->candidatos($producto, $ciudad)->pluck('user_id')->map(fn ($id) => (int) $id)->all();
+        }
+
+        if ($ciudad && $locales = $responsables->atiendenTodoEn($ciudad)) {
+            return $locales;
         }
 
         $fuera = array_map('strtolower', array_filter(array_map('trim', (array) config('cotizacion.fuera_del_turno', []))));
-        $email = strtolower((string) DB::table('users')->where('id', $userId)->value('email'));
 
-        return $responsables->esSinCiudad($userId) && ! in_array($email, $fuera, true);
+        return DB::table('users')
+            ->where('status', 1)
+            ->get(['id', 'email'])
+            ->reject(fn ($u) => in_array(strtolower((string) $u->email), $fuera, true))
+            ->map(fn ($u) => (int) $u->id)
+            ->filter(fn ($id) => $responsables->esSinCiudad($id))
+            ->values()
+            ->all();
     }
 
     protected static function esSinCiudad(int $pipelineId): bool

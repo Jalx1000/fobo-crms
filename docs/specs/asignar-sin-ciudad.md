@@ -1,6 +1,6 @@
 # Spec: Pedidos sin ciudad — asesor por producto a la hora
 
-Estado: **implementado** (16/10/2026).
+Estado: v1 y **v2 implementadas** (16/10/2026). La v2 considera la ciudad y el producto que el cliente dijo dentro de la hora.
 
 ## Objetivo
 
@@ -39,6 +39,77 @@ Al crearse un pedido en el pipeline «Sin ciudad» se agenda `AsignarSinCiudad` 
 | D3 | **No derivar**, IA encendida, **sin correos**. |
 | D4 | Si el asesor actual ya es válido, no se cambia. |
 
+## v2 — ciudad y producto dichos dentro de la hora (16/10)
+
+**Caso real, pedido #6610** (Bruval Productos de Limpieza, nació 10:43 en «Sin ciudad» a nombre de
+Eduardo). El primer mensaje del cliente fue «¿Cuáles son los tamaños disponibles del **Stretch Film**?».
+El pedido no tiene producto cargado (`lead_products` vacío), así que la v1 lo trataba como «sin
+producto»: Eduardo es de cobertura nacional → «válido» → no lo cambiaba. Stretch es de Bulmaro: a las
+11:40 lo pasó a mano Danitza.
+
+Hoy, además:
+- Si el cliente **dice la ciudad** contestando el menú, `CiudadDesdeChat` ya lo pasa al pipeline de la
+  ciudad y lo reasigna en el momento (producto × ciudad). Pero la v1 **deja de mirarlo** porque ya no
+  está en «Sin ciudad»: si el producto lo dijo **después** de la ciudad, nadie lo corrige.
+- El producto que se detecta en el chat (`CiudadDesdeChat::producto()`: palabras como «stretch»,
+  «film», «bolsa», «hule», «tapa») **no** lo usa la v1.
+
+### Regla v2
+
+Al cumplirse la hora, para todo pedido que **nació** en «Sin ciudad»:
+
+1. **Sigue esperando:** NO ATENDIDOS, sin derivación abierta y sin mensajes de un asesor. (Ya no se
+   exige que siga en «Sin ciudad»: si dijo la ciudad, igual se revisa.)
+2. **Ciudad:** la del pipeline si ya pasó a una ciudad; si no, la del contacto; si no, ninguna.
+3. **Producto:** el cargado en el pedido; si no hay, **el que el cliente nombró en el chat**
+   (`CiudadDesdeChat::producto()`, la misma detección que ya usa la reasignación por ciudad).
+4. **Quién corresponde** (matriz de reparto, sin Mariano):
+
+   | Dijo… | Válidos | Ejemplo |
+   |---|---|---|
+   | producto y ciudad | `candidatos(producto, ciudad)`: los de esa ciudad; si no hay, los nacionales | Hules + Santa Cruz → Fabio; Stretch + Santa Cruz → Bulmaro |
+   | solo producto | nacionales del producto | Stretch → Bulmaro; Magia Verde → Eduardo |
+   | solo ciudad | quien atiende **todos** los productos en esa ciudad; si no hay nadie, el turno nacional | Cochabamba → Mauricio; La Paz/El Alto → Gabriela; Santa Cruz → turno nacional |
+   | nada | turno nacional «sin ciudad» (como la v1) | Bulmaro / Eduardo |
+
+5. Si el asesor actual ya es válido, **no se cambia**; si no, el siguiente del turno entre los válidos.
+6. Igual que la v1: se mueven contacto, cotizaciones y conversación (`todoConElPedido`); **nunca**
+   derivar, apagar la IA ni mandar correos.
+
+### Matriz cargada vs. tabla del 16/10
+
+| Producto | Tabla del usuario | Matriz cargada hoy |
+|---|---|---|
+| Stretch Film | Bulmaro (Bolivia), Mauricio (CBBA), Gabriela (LP), Mariano (Bolivia) | igual, **sin Mariano** |
+| Magia Verde | Eduardo (Bolivia), Mauricio, Gabriela, Mariano | igual, **sin Mariano** |
+| Hules | Fabio (SC), Mauricio, Gabriela, Mariano (Bolivia) | igual **+ Bulmaro (Bolivia)**, sin Mariano |
+| Tapas | Mauricio, Gabriela, Mariano (Bolivia) | igual **+ Bulmaro (Bolivia)**, sin Mariano |
+
+Bulmaro cubre Hules y Tapas a nivel nacional en lugar de Mariano (decisión del 13/10: «debe ser sin
+Mariano»). La v2 **no cambia la matriz**.
+
+### Decisiones v2 (16/10, respondidas por el usuario)
+
+- **Q1. Sin Mariano.** La matriz queda como está: Hules y Tapas nacionales → Bulmaro.
+- **Q2. El producto detectado en el chat se carga en el pedido** (`ProductoDelPedido::registrar`, que
+  solo agrega si el pedido no lo tiene).
+- Quiénes son válidos se calcula **sin gastar el turno** de nadie
+  (`Responsables::candidatos()` / `atiendenTodoEn()`); el turno solo se marca al asignar.
+
+Simulación sobre producción (transacción deshecha, 16/10): de 17 pedidos que nacieron sin ciudad y
+seguían esperando más de una hora, 4 cambiarían de asesor (#1906 → Eduardo; #1910, #1914 y #2622 →
+Bulmaro) y 10 recibirían su producto. Los pedidos existentes **no** se tocan sin pedido explícito.
+
+### Tests v2
+
+1. #6610: «¿tamaños del Stretch Film?», sin ciudad, de Eduardo → a la hora pasa a Bulmaro.
+2. Dijo Cochabamba (ya en ese pipeline) y después «bolsas» → Mauricio (si no lo era).
+3. Dijo Santa Cruz y «hules» → Fabio; Santa Cruz y «stretch» → Bulmaro.
+4. Solo La Paz, sin producto → Gabriela; solo Santa Cruz → turno nacional.
+5. Si el actual ya es válido → no cambia. Si un asesor escribió, hay derivación abierta o ya no está
+   en NO ATENDIDOS → no hace nada (igual que la v1).
+6. Un pedido que nació con ciudad no se agenda (igual que la v1).
+
 ## Fuera de alcance
 
 - Pedidos ya existentes (se resolvieron a mano el 16/10).
@@ -75,4 +146,6 @@ tests/Feature/Whatsapp/AsignarSinCiudadTest.php                → tests (nuevo)
 ## Criterios de éxito
 
 - [x] Los 6 tests en verde y la suite completa sin dejar registros (los 4 fallos de esa corrida son de `APP_DEBUG=false` en el .env, ajenos a esto: con debug pasan).
-- [ ] Worker reiniciado; un pedido nuevo sin ciudad aparece con el asesor de su producto a la hora.
+- [x] Worker reiniciado (16/10, tras la v2).
+- [ ] Un pedido nuevo sin ciudad aparece a la hora con el asesor de su producto y su ciudad.
+- [x] v2: 10 tests del job en verde y suite completa (761) sin dejar registros.

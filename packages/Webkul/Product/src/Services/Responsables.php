@@ -441,23 +441,7 @@ class Responsables
     protected function turnoEn(string $ciudad)
     {
         return DB::transaction(function () use ($ciudad) {
-            $filas = ProductoResponsableProxy::modelClass()::query()
-                ->whereHas('user', fn ($q) => $q->where('status', 1))
-                ->with('user')
-                ->get()
-                ->filter(fn ($r) => self::mismaCiudad((string) $r->ciudad, $ciudad));
-
-            /*
-            | Sin producto conocido, solo quien atiende TODOS los productos en
-            | esa ciudad (Mauricio en Cochabamba, Gabriela en La Paz). Fabio
-            | atiende solo Hules en Santa Cruz: mandarle a cualquier cliente de
-            | Santa Cruz le cargaba consultas de productos que no vende.
-            */
-            $productos = ProductoResponsableProxy::modelClass()::query()->distinct()->count('product_id');
-
-            $filas = $filas->groupBy('user_id')
-                ->filter(fn ($suyas) => $suyas->pluck('product_id')->unique()->count() >= $productos)
-                ->flatten(1);
+            $filas = $this->casillasDeTodoEn($ciudad);
 
             if ($filas->isEmpty()) {
                 return null;
@@ -477,6 +461,41 @@ class Responsables
 
             return $filas->firstWhere('user_id', $userId)->user;
         });
+    }
+
+    /**
+     * Quiénes atienden TODOS los productos en la ciudad (los que porCiudad()
+     * reparte por turno), sin marcar el turno de nadie.
+     *
+     * @return array<int, int>
+     */
+    public function atiendenTodoEn(string $ciudad): array
+    {
+        return $this->casillasDeTodoEn($ciudad)->pluck('user_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
+    /**
+     * Las casillas de la ciudad de quienes atienden todos los productos ahí.
+     */
+    protected function casillasDeTodoEn(string $ciudad): Collection
+    {
+        $filas = ProductoResponsableProxy::modelClass()::query()
+            ->whereHas('user', fn ($q) => $q->where('status', 1))
+            ->with('user')
+            ->get()
+            ->filter(fn ($r) => self::mismaCiudad((string) $r->ciudad, $ciudad));
+
+        /*
+        | Sin producto conocido, solo quien atiende TODOS los productos en
+        | esa ciudad (Mauricio en Cochabamba, Gabriela en La Paz). Fabio
+        | atiende solo Hules en Santa Cruz: mandarle a cualquier cliente de
+        | Santa Cruz le cargaba consultas de productos que no vende.
+        */
+        $productos = ProductoResponsableProxy::modelClass()::query()->distinct()->count('product_id');
+
+        return $filas->groupBy('user_id')
+            ->filter(fn ($suyas) => $suyas->pluck('product_id')->unique()->count() >= $productos)
+            ->flatten(1);
     }
 
     /**

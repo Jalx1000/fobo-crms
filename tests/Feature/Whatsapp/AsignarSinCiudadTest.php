@@ -9,13 +9,17 @@ use Webkul\Whatsapp\Jobs\AsignarSinCiudad;
 use Webkul\Whatsapp\Models\Conversation;
 
 /**
- * Pedidos sin ciudad: a la hora, el asesor nacional de su producto
- * (spec docs/specs/asignar-sin-ciudad.md). Sin derivar, IA encendida, sin correos.
+ * Pedidos que nacen sin ciudad: a la hora, el asesor según la ciudad y el
+ * producto que el cliente dijo en esa hora (spec docs/specs/asignar-sin-ciudad.md,
+ * v1 y v2). Sin derivar, IA encendida, sin correos.
  */
 beforeEach(function () {
     $this->bulmaro = User::where('name', 'Bulmaro Vaca')->firstOrFail();
     $this->eduardo = User::where('name', 'Eduardo Lujan')->firstOrFail();
     $this->fabio = User::where('name', 'Fabio Sandoval')->firstOrFail();
+    $this->mauricio = User::where('name', 'Mauricio Garces')->firstOrFail();
+    $this->gabriela = User::where('name', 'Gabriela Marconi')->firstOrFail();
+    $this->pipeline = fn (string $nombre) => (int) DB::table('lead_pipelines')->where('name', $nombre)->value('id');
     $this->sinCiudad = (int) DB::table('lead_pipelines')->where('name', 'Sin ciudad')->value('id');
 });
 
@@ -46,6 +50,14 @@ function pedidoSinCiudad($test, User $asesor, ?string $sku, string $etapa = 'no-
     ]);
 
     return ['lead' => $lead, 'persona' => $persona, 'conv' => $conv];
+}
+
+function dijo(array $p, string $texto): void
+{
+    DB::table('whatsapp_messages')->insert([
+        'conversation_id' => $p['conv']->id, 'direction' => 'inbound', 'sender' => 'contact', 'type' => 'text',
+        'body'            => $texto, 'status' => 'received', 'created_at' => now(), 'updated_at' => now(),
+    ]);
 }
 
 function asignar(int $lead): void
@@ -86,8 +98,6 @@ it('sin producto: si ya es de un asesor nacional no cambia; si no, va al turno n
 });
 
 it('no hace nada si el pedido ya no está esperando', function () {
-    // Dijo su ciudad: ya no está en «Sin ciudad».
-    $conCiudad = pedidoSinCiudad($this, $this->bulmaro, 'CM_00002', 'no-atendidos', 1);
     // Ya no está en NO ATENDIDOS.
     $avanzado = pedidoSinCiudad($this, $this->bulmaro, 'CM_00002', 'solicitud-recibida');
     // Un asesor ya le escribió.
@@ -100,7 +110,7 @@ it('no hace nada si el pedido ya no está esperando', function () {
     $derivado = pedidoSinCiudad($this, $this->bulmaro, 'CM_00002');
     $derivado['conv']->forceFill(['handoff_state' => Conversation::HANDOFF_ASSIGNED, 'assigned_user_id' => $this->bulmaro->id, 'handoff_requested_at' => now()])->save();
 
-    foreach ([$conCiudad, $avanzado, $atendido, $derivado] as $p) {
+    foreach ([$avanzado, $atendido, $derivado] as $p) {
         asignar($p['lead']);
         expect(asesorDe($p['lead']))->toBe($this->bulmaro->id);
     }
@@ -132,4 +142,57 @@ it('crear un pedido en «Sin ciudad» agenda la asignación a la hora; en otra c
         && $job->delay instanceof \DateTimeInterface
         && abs(now()->addMinutes(60)->diffInSeconds($job->delay)) < 5);
     Queue::assertNotPushed(AsignarSinCiudad::class, fn ($job) => $job->leadId === $santaCruz['lead']);
+});
+
+// v2: lo que el cliente dijo dentro de la hora.
+
+it('#6610: preguntó por Stretch Film sin decir la ciudad → Bulmaro, y el producto queda cargado', function () {
+    $p = pedidoSinCiudad($this, $this->eduardo, null);
+    dijo($p, '¿Cuáles son los tamaños disponibles del Stretch Film?');
+
+    asignar($p['lead']);
+
+    expect(asesorDe($p['lead']))->toBe($this->bulmaro->id)
+        ->and(DB::table('lead_products')->where('lead_id', $p['lead'])->pluck('product_id')->all())
+        ->toBe([(int) DB::table('products')->where('sku', 'CM_00001')->value('id')]);
+});
+
+it('dijo la ciudad y después el producto: se aplica producto × ciudad', function () {
+    // Cochabamba + bolsas → Mauricio.
+    $cbba = pedidoSinCiudad($this, $this->bulmaro, null, 'no-atendidos', ($this->pipeline)('Cochabamba'));
+    dijo($cbba, 'Quiero bolsas');
+    asignar($cbba['lead']);
+    expect(asesorDe($cbba['lead']))->toBe($this->mauricio->id);
+
+    // Santa Cruz + hules → Fabio (local).
+    $hules = pedidoSinCiudad($this, $this->bulmaro, null, 'no-atendidos', ($this->pipeline)('Santa Cruz'));
+    dijo($hules, 'precio de hules');
+    asignar($hules['lead']);
+    expect(asesorDe($hules['lead']))->toBe($this->fabio->id);
+
+    // Santa Cruz + stretch → nadie local, el nacional: Bulmaro.
+    $stretch = pedidoSinCiudad($this, $this->eduardo, null, 'no-atendidos', ($this->pipeline)('Santa Cruz'));
+    dijo($stretch, 'necesito stretch film');
+    asignar($stretch['lead']);
+    expect(asesorDe($stretch['lead']))->toBe($this->bulmaro->id);
+});
+
+it('solo la ciudad: quien atiende todo ahí; si no hay nadie, el turno nacional', function () {
+    $laPaz = pedidoSinCiudad($this, $this->bulmaro, null, 'no-atendidos', ($this->pipeline)('La Paz'));
+    asignar($laPaz['lead']);
+    expect(asesorDe($laPaz['lead']))->toBe($this->gabriela->id);
+
+    // En Santa Cruz nadie atiende todo: el turno nacional, y Eduardo ya es de ahí.
+    $santaCruz = pedidoSinCiudad($this, $this->eduardo, null, 'no-atendidos', ($this->pipeline)('Santa Cruz'));
+    asignar($santaCruz['lead']);
+    expect(asesorDe($santaCruz['lead']))->toBe($this->eduardo->id);
+});
+
+it('con ciudad y producto, si el actual ya corresponde no cambia', function () {
+    $p = pedidoSinCiudad($this, $this->gabriela, null, 'no-atendidos', ($this->pipeline)('La Paz'));
+    dijo($p, 'tapas');
+
+    asignar($p['lead']);
+
+    expect(asesorDe($p['lead']))->toBe($this->gabriela->id);
 });
