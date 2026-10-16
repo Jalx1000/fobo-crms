@@ -29,6 +29,8 @@ class EventServiceProvider extends ServiceProvider
         'lead.create.after' => [
             'Webkul\Admin\Listeners\Lead@linkToEmail',
             'Webkul\Admin\Listeners\Ciudad@deOportunidad',
+            // Sin ciudad: a la hora, el asesor nacional de su producto.
+            'Webkul\Admin\Listeners\SinCiudad@agendar',
             'Webkul\Admin\Listeners\ValorPedido@deOportunidad',
         ],
 

@@ -104,6 +104,15 @@ return [
     'ciudades_sin_cotizacion' => ['El Alto', 'Exterior'],
 
     /*
+    | Pedido que nace sin ciudad: a los N minutos, si nadie lo atendió y sigue
+    | sin ciudad, pasa al asesor nacional de su producto (sin derivar ni
+    | apagar la IA). 0 = apagado. Spec docs/specs/asignar-sin-ciudad.md.
+    */
+    'sin_ciudad' => [
+        'asignar_minutos' => (int) env('SIN_CIUDAD_ASIGNAR_MINUTOS', 60),
+    ],
+
+    /*
     | Horario en el que el equipo atiende. Fuera de él las consultas se asignan
     | igual —el asesor las ve al día siguiente— y el agente le avisa al cliente.
     */
