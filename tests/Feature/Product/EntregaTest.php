@@ -97,12 +97,14 @@ it('sin ítems devuelve los valores por defecto en vez de romper', function () {
 });
 
 it('el agente recibe la entrega resuelta para la cantidad pedida', function () {
+    // Desde el 13/10 Hules cotiza por Color y Factura (con o sin): sin Factura
+    // el agente recibe «faltan datos» en vez de la cotización.
     actingAsSanctumAuthenticatedAdmin();
 
     // Hules: el umbral de 5 rollos es lo que le permite al agente ofrecer
     // "si lleva 5 o más, se lo llevamos" sin inventarlo.
     $r = test()->postJson('/api/v1/productos/catalogo/CM_00003/precio', [
-        'criterios' => ['Color' => 'Negro'], 'cantidad' => 4,
+        'criterios' => ['Color' => 'Negro', 'Factura' => 'Sin factura'], 'cantidad' => 4,
     ])->assertOk();
 
     expect($r->json('entrega'))->toBe([
@@ -110,7 +112,7 @@ it('el agente recibe la entrega resuelta para la cantidad pedida', function () {
     ]);
 
     expect(test()->postJson('/api/v1/productos/catalogo/CM_00003/precio', [
-        'criterios' => ['Color' => 'Negro'], 'cantidad' => 5,
+        'criterios' => ['Color' => 'Negro', 'Factura' => 'Sin factura'], 'cantidad' => 5,
     ])->json('entrega.lugar'))->toBe(Entrega::LUGAR_DOMICILIO);
 });
 

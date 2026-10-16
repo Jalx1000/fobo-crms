@@ -6,6 +6,8 @@ use Webkul\Attribute\Models\Attribute;
 use Webkul\DataGrid\Exports\DataGridExport;
 
 // Corre contra la base real: todo lo que crea se deshace al terminar.
+require_once __DIR__.'/helpers/personas.php';
+
 uses(DatabaseTransactions::class);
 
 /**
@@ -20,7 +22,7 @@ function cityAttribute(): Attribute
 {
     ensureCityAttribute();
 
-    return Attribute::where('code', 'cliente_ciudad')
+    return Attribute::where('code', 'ciudad')
         ->where('entity_type', 'persons')
         ->first();
 }
@@ -35,7 +37,7 @@ function pipelineIdByName(string $name): int
 
     if (! $id) {
         $id = DB::table('lead_pipelines')->insertGetId([
-            'name' => $name,
+            'name'       => $name,
             'is_default' => 0,
             'created_at' => now(),
             'updated_at' => now(),
@@ -49,29 +51,30 @@ it('exports the city custom attribute as its label, not the raw id', function ()
     test()->actingAs(getDefaultAdmin());
 
     $attribute = cityAttribute();
-    $pipelineId = pipelineIdByName('Bogotá Export '.rand(1000, 9999));
-    $pipelineName = DB::table('lead_pipelines')->where('id', $pipelineId)->value('name');
 
-    $personId = createPerson('Export City Prospect '.rand(1000, 9999), now(), $attribute->id, $pipelineId);
+    // Cochabamba (pipeline 8): la ciudad se guarda como opción del atributo
+    // `ciudad`, y el export tiene que mostrar el nombre, no el id de la opción.
+    $personId = createPerson('Export City Prospect '.rand(1000, 9999), now(), $attribute->id, 8);
 
     $dataGrid = app(\Webkul\Admin\DataGrids\Contact\PersonDataGrid::class);
     $dataGrid->prepareColumns();
 
     $export = new DataGridExport($dataGrid);
 
-    // Zip the export headings with the mapped row and read the city cell by its
-    // column label, so the assertion is exact (no substring false positives).
-    $cells = collect($export->headings())->combine($export->map((object) ['id' => $personId]));
+    // La fila real que arma la grilla (map() lee todas las columnas: nombre,
+    // emails, teléfonos…); antes se le pasaba un objeto con solo el id.
+    $fila = $dataGrid->prepareQueryBuilder()->where('persons.id', $personId)->first();
+    $cells = collect($export->headings())->combine($export->map($fila));
 
-    expect($cells->get($attribute->name))->toBe($pipelineName);
+    expect($cells->get($attribute->name))->toBe('Cochabamba');
 });
 
 it('carries the active date/city filter in the prospect export link', function () {
     test()->actingAs(getDefaultAdmin());
 
     $response = test()->get(route('admin.contacts.persons.index', [
-        'start' => '2026-07-01',
-        'end' => '2026-07-07',
+        'start'       => '2026-07-01',
+        'end'         => '2026-07-07',
         'pipeline_id' => 7,
     ]));
 

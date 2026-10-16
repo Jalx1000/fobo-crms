@@ -201,6 +201,45 @@ class CiudadCliente
         return trim($ciudad);
     }
 
+    /**
+     * Filtra una consulta de `$entidad` por la ciudad del filtro del tablero
+     * (un pipeline: Santa Cruz, La Paz…). La ciudad viaja por NOMBRE: el
+     * pipeline «La Paz» es la opción «La Paz» del atributo `ciudad` (con sus
+     * equivalentes: Trinidad = Beni). «Sin ciudad» son los que no tienen ciudad.
+     *
+     * La usan la lista de Contactos y el KPI «Total de contactos». Hasta el
+     * 16/10/2026 buscaban `cliente_ciudad`, que la migración del 15/09 borró:
+     * el filtro de ciudad no filtraba nada.
+     */
+    public function filtrarPorPipeline($query, int $pipelineId, string $entidad = 'persons'): void
+    {
+        $atributo = $this->atributo($entidad);
+        $pipeline = DB::table('lead_pipelines')->where('id', $pipelineId)->value('name');
+
+        if (! $atributo || $pipeline === null) {
+            return;
+        }
+
+        $alias = 'ciudad_av';
+
+        $query->leftJoin("attribute_values as {$alias}", function ($join) use ($alias, $atributo, $entidad) {
+            $join->on("{$alias}.entity_id", '=', "{$entidad}.id")
+                ->where("{$alias}.entity_type", $entidad)
+                ->where("{$alias}.attribute_id", $atributo->id);
+        });
+
+        if (ListaPrecios::comparable($pipeline) === ListaPrecios::comparable('Sin ciudad')) {
+            $query->whereNull("{$alias}.integer_value");
+
+            return;
+        }
+
+        $opcion = $this->opcion($entidad, $pipeline);
+
+        // Una ciudad sin opción para esta entidad: nadie es de ahí.
+        $query->where("{$alias}.integer_value", $opcion?->id ?? 0);
+    }
+
     protected function opcion(string $entidad, mixed $valor)
     {
         $valor = trim((string) ($valor ?? ''));

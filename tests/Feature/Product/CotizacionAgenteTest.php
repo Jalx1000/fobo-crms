@@ -367,13 +367,15 @@ it('tolera acentos y mayúsculas en la marca', function () {
 });
 
 it('la cotización se puede leer con sus líneas, y lo que no existe es 404', function () {
+    // Desde el 13/10 Hules cotiza por Color y Factura (con o sin): sin Factura
+    // el agente recibe «faltan datos» en vez de la cotización.
     /*
      * `GET /api/v1/quotes/{id}` de Krayin no devuelve los ítems y responde 500
      * cuando la cotización no existe (le pasa null al Resource). Este endpoint
      * es el que el agente debe usar.
      */
     $r = test()->postJson("/api/v1/productos/conversations/{$this->conv->id}/cotizacion", [
-        'sku' => 'CM_00003', 'criterios' => ['Color' => 'Negro'], 'cantidad' => 2,
+        'sku' => 'CM_00003', 'criterios' => ['Color' => 'Negro', 'Factura' => 'Sin factura'], 'cantidad' => 2,
     ])->assertStatus(201);
 
     $this->quotes[] = $id = $r->json('quote_id');
