@@ -34,7 +34,8 @@ class PipelineDeCiudad
             fn ($p) => ListaPrecios::comparable((string) $p->name) === ListaPrecios::comparable($nombre)
         );
 
-        return ($ciudad ? $porNombre($ciudad) : null)
+        // El pipeline es el de la zona: un cliente de El Alto va a La Paz.
+        return ($ciudad ? $porNombre((string) CiudadCliente::zona($ciudad)) : null)
             ?? $porNombre(self::SIN_CIUDAD)
             ?? $pipelines->firstWhere('is_default', 1)
             ?? $pipelines->first();

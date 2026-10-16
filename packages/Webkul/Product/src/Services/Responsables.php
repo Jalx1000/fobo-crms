@@ -485,7 +485,11 @@ class Responsables
      */
     public static function mismaCiudad(string $a, string $b): bool
     {
-        return ListaPrecios::comparable($a) === ListaPrecios::comparable($b);
+        // Por zona: un cliente de El Alto lo atiende quien atiende La Paz
+        // (CiudadCliente::zona, decisión del 16/10/2026).
+        $zona = fn (string $c) => ListaPrecios::comparable((string) \Webkul\Admin\Services\CiudadCliente::zona($c));
+
+        return $zona($a) === $zona($b);
     }
 
     public static function esNacional(string $ciudad): bool

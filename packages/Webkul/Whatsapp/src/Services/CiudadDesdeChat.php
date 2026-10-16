@@ -189,7 +189,9 @@ class CiudadDesdeChat
 
         $pipelines = DB::table('lead_pipelines')->get(['id', 'name', 'is_default']);
 
-        $destino = $pipelines->first(fn ($p) => ListaPrecios::comparable($p->name) === ListaPrecios::comparable($ciudad));
+        // El pipeline de la zona: «El Alto» va a La Paz (CiudadCliente::zona).
+        $zona = (string) \Webkul\Admin\Services\CiudadCliente::zona($ciudad);
+        $destino = $pipelines->first(fn ($p) => ListaPrecios::comparable($p->name) === ListaPrecios::comparable($zona));
         $actual = $pipelines->firstWhere('id', $lead->lead_pipeline_id);
 
         $movible = $actual && ($actual->is_default || ListaPrecios::comparable($actual->name) === ListaPrecios::comparable('Sin ciudad'));

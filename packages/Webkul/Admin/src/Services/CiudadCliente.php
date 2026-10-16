@@ -234,10 +234,43 @@ class CiudadCliente
             return;
         }
 
-        $opcion = $this->opcion($entidad, $pipeline);
+        // Las opciones de esa zona: «La Paz» trae también a los de El Alto.
+        $opciones = $atributo->options
+            ->filter(fn ($o) => ListaPrecios::comparable((string) self::zona((string) $o->name)) === ListaPrecios::comparable($pipeline))
+            ->pluck('id')
+            ->all();
 
         // Una ciudad sin opción para esta entidad: nadie es de ahí.
-        $query->where("{$alias}.integer_value", $opcion?->id ?? 0);
+        $query->whereIn("{$alias}.integer_value", $opciones ?: [0]);
+    }
+
+    /**
+     * Ciudades del cliente que pertenecen a la zona de otra (decisión del
+     * 16/10/2026: El Alto es La Paz). El contacto conserva su ciudad —El Alto
+     * no va en la cotización (ciudades_sin_cotizacion)—, pero el pipeline, el
+     * reparto y los filtros por ciudad la cuentan como La Paz.
+     */
+    public const ZONA = [
+        'el alto' => 'La Paz',
+    ];
+
+    /**
+     * La ciudad con la que se agrupa: la de su zona (El Alto → La Paz) o ella
+     * misma. Es lo que usan el pipeline, el reparto y los filtros.
+     */
+    public static function zona(?string $ciudad): ?string
+    {
+        if ($ciudad === null || trim($ciudad) === '') {
+            return $ciudad;
+        }
+
+        foreach (self::ZONA as $ciudadDeLaZona => $zona) {
+            if (ListaPrecios::comparable($ciudadDeLaZona) === ListaPrecios::comparable($ciudad)) {
+                return $zona;
+            }
+        }
+
+        return trim($ciudad);
     }
 
     protected function opcion(string $entidad, mixed $valor)
