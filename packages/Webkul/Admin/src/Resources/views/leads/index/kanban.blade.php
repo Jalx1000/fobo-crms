@@ -29,9 +29,10 @@
         /* Solo las columnas con tono: una etapa nueva sin tono queda como
            antes. Doble clase para ganarle a las utilidades `border` de Tailwind. */
 
-        /* Franja arriba de la columna. */
+        /* Borde de color en toda la columna de la etapa (las tarjetas de
+           los pedidos quedan como estaban). */
         .etapa-columna:is(.etapa-en-curso, .etapa-ganado, .etapa-perdido) {
-            border-top: 3px solid var(--etapa);
+            border: 2px solid var(--etapa);
         }
 
         /* Punto junto al nombre de la etapa. */
@@ -49,11 +50,6 @@
             background: var(--etapa);
         }
 
-        /* Borde izquierdo de cada tarjeta: al arrastrarla a otra columna toma
-           el color nuevo solo, porque el color sale de la columna. */
-        .etapa-columna:is(.etapa-en-curso, .etapa-ganado, .etapa-perdido) .etapa-tarjeta {
-            border-left: 4px solid var(--etapa);
-        }
     </style>
 @endPushOnce
 
@@ -181,7 +177,7 @@
                                 {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.before') !!}
 
                                 <a
-                                    class="lead-item etapa-tarjeta flex cursor-pointer flex-col gap-5 rounded-md border border-gray-100 bg-gray-50 p-2 dark:border-gray-400 dark:bg-gray-400"
+                                    class="lead-item flex cursor-pointer flex-col gap-5 rounded-md border border-gray-100 bg-gray-50 p-2 dark:border-gray-400 dark:bg-gray-400"
                                     :href="'{{ route('admin.leads.view', 'replaceId') }}'.replace('replaceId', element.id)"
                                 >
                                     {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.header.before') !!}
