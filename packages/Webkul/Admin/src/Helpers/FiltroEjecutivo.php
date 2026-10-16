@@ -10,13 +10,20 @@ use Illuminate\Support\Facades\DB;
  * de ciudad. Va en la URL (`?ejecutivo=<id>`) como el de canal: el kanban y la
  * lista reenvían la URL a su endpoint, y la elección sobrevive a recargar.
  *
- * Solo achica lo que el usuario ya puede ver: el permiso de vista
- * (bouncer) se aplica antes, así que un asesor nunca llega a la cartera de
- * otro por acá.
+ * Solo para quien ve el total (Administrador y Supervisores; spec
+ * docs/specs/pedidos-filtro-ejecutivo.md, B1–B3): el ejecutivo comercial no
+ * ve el selector y el parámetro se le ignora, así una URL compartida por un
+ * supervisor le muestra igual sus pedidos. Además el permiso de vista
+ * (bouncer) se aplica antes: nadie llega por acá a una cartera ajena.
  */
 class FiltroEjecutivo
 {
     public const PARAMETRO = 'ejecutivo';
+
+    public static function disponible(): bool
+    {
+        return app(Alcance::class)->veTotal();
+    }
 
     /**
      * Ejecutivos activos que el usuario puede ver, para el selector.
@@ -38,7 +45,7 @@ class FiltroEjecutivo
     {
         $valor = request()->query(self::PARAMETRO);
 
-        return is_numeric($valor) ? (int) $valor : null;
+        return is_numeric($valor) && self::disponible() ? (int) $valor : null;
     }
 
     /**

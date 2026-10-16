@@ -2,7 +2,10 @@
     Selector «Ejecutivo comercial», al lado del de ciudad. Un <select> que
     navega, como el de canal: la elección queda en la URL (`ejecutivo`) y el
     kanban y la lista la reenvían a su endpoint (FiltroEjecutivo).
+    Solo Administrador y Supervisores: el ejecutivo comercial ve solo lo suyo
+    y no tiene nada que filtrar (spec pedidos-filtro-ejecutivo, B1).
 --}}
+@if (\Webkul\Admin\Helpers\FiltroEjecutivo::disponible())
 @php
     $ejecutivos = \Webkul\Admin\Helpers\FiltroEjecutivo::opciones();
     $ejecutivoElegido = \Webkul\Admin\Helpers\FiltroEjecutivo::elegido();
@@ -29,3 +32,4 @@
         </option>
     @endforeach
 </select>
+@endif

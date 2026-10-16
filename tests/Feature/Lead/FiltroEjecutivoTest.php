@@ -5,7 +5,8 @@ use Webkul\User\Models\User;
 
 /**
  * Pedidos: selector «Ejecutivo comercial» al lado del de ciudad (16/10/2026).
- * Filtra el kanban y la lista; nunca amplía lo que el usuario ya puede ver.
+ * Filtra el kanban y la lista. Solo Administrador y Supervisores: el ejecutivo
+ * comercial ve solo lo suyo y no ve el selector (spec pedidos-filtro-ejecutivo).
  * Todo el 15/01/2020, para no mezclarse con los datos reales.
  */
 beforeEach(function () {
@@ -67,10 +68,28 @@ it('el selector está al lado de la ciudad y lista solo ejecutivos comerciales',
         ->toMatch('/pipeline_id=all[^"]*ejecutivo='.$this->bulmaro->id.'|ejecutivo='.$this->bulmaro->id.'[^"]*pipeline_id=all/');
 });
 
-it('un asesor no ve pedidos ajenos aunque elija a otro ejecutivo', function () {
+it('un supervisor ve el selector y filtra', function () {
+    test()->actingAs(User::where('name', 'Mariano Pinell')->firstOrFail(), 'user');
+
+    expect(test()->get(route('admin.leads.index', ['pipeline_id' => 1, ...$this->fechas]))->assertOk()->getContent())
+        ->toContain('aria-label="Ejecutivo comercial"')
+        ->and(idsDelKanban([...$this->fechas, 'ejecutivo' => $this->eduardo->id]))
+        ->toContain($this->deEduardo)->not->toContain($this->deBulmaro);
+});
+
+// B1–B3: el ejecutivo ve solo lo suyo, sin selector, y el parámetro se le ignora.
+it('un ejecutivo no ve el selector', function () {
     test()->actingAs($this->bulmaro, 'user');
 
-    expect(idsDelKanban([...$this->fechas, 'ejecutivo' => $this->eduardo->id]))->toBe([])
-        ->and(idsDeLaLista([...$this->fechas, 'ejecutivo' => $this->eduardo->id]))->toBe([])
-        ->and(idsDelKanban([...$this->fechas, 'ejecutivo' => $this->bulmaro->id]))->toContain($this->deBulmaro);
+    expect(test()->get(route('admin.leads.index', ['pipeline_id' => 1, ...$this->fechas]))->assertOk()->getContent())
+        ->not->toContain('aria-label="Ejecutivo comercial"');
+});
+
+it('un ejecutivo que llega con otro ejecutivo en la URL sigue viendo solo sus pedidos', function () {
+    test()->actingAs($this->bulmaro, 'user');
+
+    expect(idsDelKanban([...$this->fechas, 'ejecutivo' => $this->eduardo->id]))
+        ->toContain($this->deBulmaro)->not->toContain($this->deEduardo)
+        ->and(idsDeLaLista([...$this->fechas, 'ejecutivo' => $this->eduardo->id]))
+        ->toContain($this->deBulmaro)->not->toContain($this->deEduardo);
 });
