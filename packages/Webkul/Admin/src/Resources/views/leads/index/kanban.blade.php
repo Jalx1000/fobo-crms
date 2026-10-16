@@ -10,6 +10,53 @@
 
 {!! view_render_event('admin.leads.index.kanban.after') !!}
 
+@pushOnce('styles')
+    {{--
+        Colores del kanban por etapa (pedido del 16/10/2026; tonos en Stage::TONOS):
+        amarillo = en curso, verde = entregado, rojo = cerrado sin venta.
+        CSS propio (no clases de Tailwind) porque el CSS del admin viene
+        compilado y no incluiría clases nuevas.
+    --}}
+    <style>
+        .etapa-en-curso { --etapa: #f59e0b; }
+        .etapa-ganado { --etapa: #16a34a; }
+        .etapa-perdido { --etapa: #dc2626; }
+
+        .dark .etapa-en-curso { --etapa: #fbbf24; }
+        .dark .etapa-ganado { --etapa: #4ade80; }
+        .dark .etapa-perdido { --etapa: #f87171; }
+
+        /* Solo las columnas con tono: una etapa nueva sin tono queda como
+           antes. Doble clase para ganarle a las utilidades `border` de Tailwind. */
+
+        /* Franja arriba de la columna. */
+        .etapa-columna:is(.etapa-en-curso, .etapa-ganado, .etapa-perdido) {
+            border-top: 3px solid var(--etapa);
+        }
+
+        /* Punto junto al nombre de la etapa. */
+        .etapa-punto {
+            display: inline-block;
+            flex-shrink: 0;
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 9999px;
+            background: var(--etapa);
+        }
+
+        /* La barra de valor, del color de su columna. */
+        .etapa-columna:is(.etapa-en-curso, .etapa-ganado, .etapa-perdido) .etapa-barra {
+            background: var(--etapa);
+        }
+
+        /* Borde izquierdo de cada tarjeta: al arrastrarla a otra columna toma
+           el color nuevo solo, porque el color sale de la columna. */
+        .etapa-columna:is(.etapa-en-curso, .etapa-ganado, .etapa-perdido) .etapa-tarjeta {
+            border-left: 4px solid var(--etapa);
+        }
+    </style>
+@endPushOnce
+
 @pushOnce('scripts')
     <script
         type="text/x-template"
@@ -30,7 +77,8 @@
                 <div class="flex gap-2.5 overflow-x-auto">
                     <!-- Stage Cards -->
                     <div
-                        class="flex min-w-[275px] max-w-[275px] flex-col gap-1 rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+                        class="etapa-columna flex min-w-[275px] max-w-[275px] flex-col gap-1 rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+                        :class="stage.tono ? 'etapa-' + stage.tono : ''"
                         v-for="(stage, index) in stageLeads"
                     >
                         {!! view_render_event('admin.leads.index.kanban.content.stage.header.before') !!}
@@ -39,7 +87,16 @@
                         <div class="flex flex-col px-2 py-3">
                             <!-- Stage Title and Action -->
                             <div class="flex items-center justify-between">
-                                <span class="text-xs font-medium dark:text-white">
+                                <span class="flex items-center gap-1.5 text-xs font-medium dark:text-white">
+                                    <!-- El color nunca va solo: el nombre de la etapa sigue al lado. -->
+                                    <span
+                                        v-if="stage.tono"
+                                        class="etapa-punto"
+                                        role="img"
+                                        :aria-label="tonoEtiqueta(stage.tono)"
+                                        :title="tonoEtiqueta(stage.tono)"
+                                    ></span>
+
                                     @{{ stage.name }} (@{{ stage.leads.meta.total }})
                                 </span>
 
@@ -62,7 +119,7 @@
                                 <!-- Progress Bar -->
                                 <div class="h-1 w-36 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
                                     <div
-                                        class="h-1 bg-green-500"
+                                        class="etapa-barra h-1 bg-green-500"
                                         :style="{ width: (stage.lead_value / totalStagesAmount) * 100 + '%' }"
                                     ></div>
                                 </div>
@@ -124,7 +181,7 @@
                                 {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.before') !!}
 
                                 <a
-                                    class="lead-item flex cursor-pointer flex-col gap-5 rounded-md border border-gray-100 bg-gray-50 p-2 dark:border-gray-400 dark:bg-gray-400"
+                                    class="lead-item etapa-tarjeta flex cursor-pointer flex-col gap-5 rounded-md border border-gray-100 bg-gray-50 p-2 dark:border-gray-400 dark:bg-gray-400"
                                     :href="'{{ route('admin.leads.view', 'replaceId') }}'.replace('replaceId', element.id)"
                                 >
                                     {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.header.before') !!}
@@ -397,6 +454,18 @@
             },
 
             methods: {
+                /**
+                 * Qué significa el color de la columna (para lectores de pantalla
+                 * y el tooltip del punto). Los tonos vienen de Stage::TONOS.
+                 */
+                tonoEtiqueta(tono) {
+                    return {
+                        'en-curso': 'En curso',
+                        'ganado': 'Entregado',
+                        'perdido': 'Cerrado sin venta',
+                    }[tono] ?? '';
+                },
+
                 /**
                  * Initialization: This function checks for any previously saved filters in local storage and applies them as needed.
                  *

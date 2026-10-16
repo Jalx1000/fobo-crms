@@ -17,6 +17,8 @@ class StageResource extends JsonResource
         return [
             'id'                   => $this->id,
             'code'                 => $this->code,
+            // Color de la columna en el kanban (Stage::TONOS).
+            'tono'                 => $this->tono(),
             'name'                 => $this->name,
             'lead_value'           => $this->lead_value,
             'formatted_lead_value' => core()->formatBasePrice($this->lead_value),
