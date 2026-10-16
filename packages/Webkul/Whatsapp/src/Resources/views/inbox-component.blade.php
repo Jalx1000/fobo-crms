@@ -598,12 +598,13 @@
                         </span>
 
                         <span class="flex shrink-0 items-center gap-2">
-                            <button v-if="handoff.pooled" type="button" :disabled="handoffBusy"
+                            {{-- Tomar: solo Administrador y Supervisores (spec tablero-por-asesor, D12). --}}
+                            <button v-if="handoff.pooled && {{ app(\Webkul\Admin\Helpers\Alcance::class)->veTotal() ? 'true' : 'false' }}" type="button" :disabled="handoffBusy"
                                     class="rounded bg-red-600 px-2 py-1 font-semibold text-white transition hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-40"
                                     @click="claimHandoff()">
                                 Tomar conversación
                             </button>
-                            <button v-else type="button" :disabled="handoffBusy"
+                            <button v-else-if="! handoff.pooled" type="button" :disabled="handoffBusy"
                                     class="rounded border border-current px-2 py-1 font-semibold transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40"
                                     @click="resolveHandoff()">
                                 Cerrar derivación

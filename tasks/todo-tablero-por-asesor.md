@@ -57,7 +57,7 @@ docker exec -u www-data -w /code -e TMPDIR=/code/storage/framework/cache $C ./ve
 
 ## Fase B · Inbox de WhatsApp
 
-- [ ] **B1 · ConversacionesVisibles y listado** (M)
+- [x] **B1 · ConversacionesVisibles y listado** (M) — 16/10: la regla de «Míos» salió de ChatController al servicio; lista = «Míos» para un ejecutivo; selector de asesores solo él. Producción: 162+145+52+34+4 = 397 = lo que ven Javier y Mariano.
   - Descripción: `Whatsapp/src/Services/ConversacionesVisibles.php` con `deAsesor($query, $userId)` (la regla de "Míos", movida desde `ChatController`), `aplicar($query)` (administrador: todo; quien ve el total: todo; ejecutivo: `deAsesor` con su id; sin contacto ni pedido: solo administradores), `puedeVer()`, `exigir()` (404) y `puedeVerContacto()`. `ChatController::conversations` llama a `aplicar()`, y "Míos" llama a `deAsesor()`.
   - Aceptación:
     - [ ] Como Bulmaro, el listado = el filtro "Míos" de Bulmaro.
@@ -65,14 +65,14 @@ docker exec -u www-data -w /code -e TMPDIR=/code/storage/framework/cache $C ./ve
   - Archivos: `Whatsapp/src/Services/ConversacionesVisibles.php` (nuevo), `Whatsapp/src/Http/Controllers/ChatController.php`, `tests/Feature/Whatsapp/InboxPorAsesorTest.php` (nuevo)
   - Depende de: A1
 
-- [ ] **B2 · Cada endpoint del inbox** (M)
+- [x] **B2 · Cada endpoint del inbox** (M) — 16/10: `existingConversation()` (thread y los 4 envíos) + las 7 rutas con {id} + 5 de ChatController. Test que recorre las rutas admin.whatsapp.*: todas 404 con la de otro. Un ejecutivo no abre conversación nueva a un número suelto (D9).
   - Descripción: `exigir()` en `thread`, `send`, `send-media`, `send-location`, `send-template` (por teléfono o id), `agent`, `lead`, `notes`, `handoff`, `handoff/claim`, `handoff/resolve`, `handoff/reassign`; en `ChatController`: `link-person`, `persons/{id}`, `persons/{id}/leads` (GET/POST) y `leads/{id}/stage`. La API del agente y los webhooks no se tocan.
   - Aceptación:
     - [ ] Un test recorre las rutas `admin.whatsapp.*` con parámetros y, como Bulmaro con una conversación de Eduardo, espera 404 en todas; con la suya, no 404.
   - Archivos: `InboxController.php`, `ChatController.php`, `InboxPorAsesorTest.php`
   - Depende de: B1
 
-- [ ] **B3 · Pool y Reasignar** (S)
+- [x] **B3 · Pool y Reasignar** (S) — 16/10: tomar y reasignar 403 para quien no ve el total; `Handoff::request` reintenta el turno si quedó sin asignar; filtros «Sin asesor»/«Sin contacto» y botón «Tomar» ocultos según el rol. Pendiente aparte: `admin.quotes.whatsapp` (módulo Cotizaciones) no verifica el asesor de la cotización.
   - Descripción: los filtros "pool" y "handoff" (todas las derivaciones) y la acción "Reasignar" solo para quien ve el total (403 en `reassign`, el filtro se ignora). Si `ownerFor()` devuelve null, la derivación queda visible para administradores y supervisores, y el siguiente `requestHandoff` vuelve a intentar el turno.
   - Aceptación:
     - [ ] Como Bulmaro, `?filter=pool` no trae nada ajeno y `handoff/reassign` responde 403.

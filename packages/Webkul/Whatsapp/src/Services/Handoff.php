@@ -64,6 +64,21 @@ class Handoff
                     $fresh->forceFill(['ai_enabled' => false])->save();
                 }
 
+                /*
+                | Quedó sin asignar (la matriz no tenía a nadie): al pedirla de
+                | nuevo se reintenta el turno (spec tablero-por-asesor, D12). Las
+                | derivaciones no esperan en el pozo a que alguien las tome.
+                */
+                if ($fresh->assigned_user_id === null && $owner = $assignTo ?? $this->ownerFor($fresh)) {
+                    $fresh->forceFill([
+                        'handoff_state'    => Conversation::HANDOFF_ASSIGNED,
+                        'assigned_user_id' => $owner,
+                        'assigned_at'      => now(),
+                    ])->save();
+
+                    return ['conversation' => $fresh, 'changed' => false, 'owner' => $owner, 'asignada' => true];
+                }
+
                 return ['conversation' => $fresh, 'changed' => false, 'owner' => $fresh->assigned_user_id];
             }
 
@@ -84,6 +99,13 @@ class Handoff
 
             return ['conversation' => $fresh, 'changed' => true, 'owner' => $owner];
         });
+
+        // Asignada por turno al reintentar: se deja constancia y se avisa,
+        // sin volver a agendar los seguimientos (ya corren desde el primer pedido).
+        if (! empty($result['asignada'])) {
+            $this->audit($result['conversation'], 'Derivación asignada por turno a '.$this->userName($result['owner']).'.', $actorUserId);
+            $this->notify($result['conversation'], $result['owner']);
+        }
 
         if ($result['changed']) {
             $this->audit(

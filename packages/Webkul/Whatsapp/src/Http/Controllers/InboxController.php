@@ -24,6 +24,7 @@ use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
+use Webkul\Whatsapp\Services\ConversacionesVisibles;
 use Webkul\Whatsapp\Services\ConversationResolver;
 use Webkul\Whatsapp\Services\Handoff;
 use Webkul\Whatsapp\Services\OutboundAttachment;
@@ -163,8 +164,13 @@ class InboxController extends Controller
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
 
+        // 404 si no es suya (spec tablero-por-asesor, D10).
+        app(ConversacionesVisibles::class)->exigir($conversation);
+
         if (! empty($data['lead_id'])) {
             $lead = LeadProxy::modelClass()::findOrFail($data['lead_id']);
+
+            abort_unless(app(ConversacionesVisibles::class)->puedeVerPedido($lead->id), 404);
 
             // Never let a chat point at another contact's order.
             if ($conversation->person_id && (int) $lead->person_id !== (int) $conversation->person_id) {
@@ -196,6 +202,9 @@ class InboxController extends Controller
         $data = $request->validate(['enabled' => 'required|boolean']);
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        // 404 si no es suya (spec tablero-por-asesor, D10).
+        app(ConversacionesVisibles::class)->exigir($conversation);
 
         // El canal tiene la IA bloqueada por configuracion. Dejar guardar el
         // switch en true daria un inbox que miente: la fila diria "encendido" y
@@ -242,6 +251,9 @@ class InboxController extends Controller
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
 
+        // 404 si no es suya (spec tablero-por-asesor, D10).
+        app(ConversacionesVisibles::class)->exigir($conversation);
+
         $result = $this->handoff->request(
             conversation: $conversation,
             reason: $data['reason'] ?? null,
@@ -259,6 +271,14 @@ class InboxController extends Controller
     public function claimHandoff(string $id): JsonResponse
     {
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        // 404 si no es suya (spec tablero-por-asesor, D10).
+        app(ConversacionesVisibles::class)->exigir($conversation);
+
+        // Tomar o reasignar una derivación es tarea de quien ve el total
+        // (spec tablero-por-asesor, D12): las sin asignar se reparten por
+        // turno y, si alguna queda, la asignan Administrador o Supervisores.
+        abort_unless(app(\Webkul\Admin\Helpers\Alcance::class)->veTotal(), 403, 'Solo Administrador y Supervisores asignan derivaciones.');
 
         try {
             $conversation = $this->handoff->claim($conversation, $this->userId());
@@ -282,6 +302,9 @@ class InboxController extends Controller
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
 
+        // 404 si no es suya (spec tablero-por-asesor, D10).
+        app(ConversacionesVisibles::class)->exigir($conversation);
+
         try {
             $conversation = $this->handoff->resolve(
                 $conversation,
@@ -303,6 +326,14 @@ class InboxController extends Controller
         $data = $request->validate(['user_id' => 'required|integer|exists:users,id']);
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        // 404 si no es suya (spec tablero-por-asesor, D10).
+        app(ConversacionesVisibles::class)->exigir($conversation);
+
+        // Tomar o reasignar una derivación es tarea de quien ve el total
+        // (spec tablero-por-asesor, D12): las sin asignar se reparten por
+        // turno y, si alguna queda, la asignan Administrador o Supervisores.
+        abort_unless(app(\Webkul\Admin\Helpers\Alcance::class)->veTotal(), 403, 'Solo Administrador y Supervisores asignan derivaciones.');
 
         try {
             $conversation = $this->handoff->reassign($conversation, (int) $data['user_id'], $this->userId());
@@ -875,6 +906,9 @@ class InboxController extends Controller
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
 
+        // 404 si no es suya (spec tablero-por-asesor, D10).
+        app(ConversacionesVisibles::class)->exigir($conversation);
+
         if (! $conversation->person_id && ! $conversation->lead_id) {
             return response()->json([
                 'message' => 'Asigná un contacto o lead a la conversación antes de dejar notas.',
@@ -965,6 +999,31 @@ class InboxController extends Controller
      * different format than Meta's "from".
      */
     protected function existingConversation(Request $request)
+    {
+        $conversation = $this->buscarConversacion($request);
+        $visibles = app(ConversacionesVisibles::class);
+
+        // Spec tablero-por-asesor, D10: 404 si la conversación, el contacto o
+        // el pedido no son del usuario. Un ejecutivo tampoco abre una
+        // conversación nueva a un número suelto: quedaría sin contacto ni
+        // pedido y ni él la vería después (D9).
+        if ($conversation) {
+            $visibles->exigir($conversation);
+        } elseif ($request->filled('person_id')) {
+            abort_unless($visibles->puedeVerContacto($request->input('person_id')), 404);
+        } elseif ($request->filled('lead_id')) {
+            abort_unless($visibles->puedeVerPedido($request->input('lead_id')), 404);
+        } elseif ($request->filled('phone')) {
+            abort_unless(app(\Webkul\Admin\Helpers\Alcance::class)->veTotal(), 404);
+        }
+
+        return $conversation;
+    }
+
+    /**
+     * La conversación que pide el request, sin mirar permisos.
+     */
+    protected function buscarConversacion(Request $request)
     {
         $model = ConversationProxy::modelClass();
 

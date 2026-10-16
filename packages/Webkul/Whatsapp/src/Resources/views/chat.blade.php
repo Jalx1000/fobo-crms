@@ -298,9 +298,16 @@
                             // "Sin asesor" = derived, nobody claimed it.
                             // "Sin contacto" = no person/lead linked. Two very
                             // different things; the labels must not blur them.
+                            // Spec tablero-por-asesor (D9, D12): las derivaciones sin
+                            // asignar las asignan Administrador y Supervisores, y las
+                            // conversaciones sin contacto las ve solo el Administrador.
+                            @if (app(\Webkul\Admin\Helpers\Alcance::class)->veTotal())
                             { value: 'pool', label: 'Sin asesor' },
+                            @endif
                             { value: 'mine', label: 'Míos' },
+                            @if (app(\Webkul\Admin\Helpers\Alcance::class)->sinRestriccion())
                             { value: 'unassigned', label: 'Sin contacto' },
+                            @endif
                         ],
                         stages: [],
                         stageFilter: null,
