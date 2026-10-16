@@ -11,7 +11,14 @@
 |
  */
 
-uses(\Tests\TestCase::class)->in('Feature');
+/*
+| Todo test de Feature corre dentro de una transacción que se deshace al
+| terminar: lo que crea, lo borra. Los tests usan la base de producción, así
+| que un test que deje registros los deja a la vista de los asesores (el
+| 16/10/2026 había 7663 actividades, 40 doctores y un producto de prueba).
+| TestCase corta además lo que no se puede deshacer (TRUNCATE, DROP, ALTER).
+*/
+uses(\Tests\TestCase::class, \Illuminate\Foundation\Testing\DatabaseTransactions::class)->in('Feature');
 
 /*
 |--------------------------------------------------------------------------

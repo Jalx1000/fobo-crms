@@ -44,23 +44,25 @@ function assignCiudadValue(int $productId, int $attrId, int $value): void
         'entity_type'   => 'products',
         'attribute_id'  => $attrId,
         'integer_value' => $value,
-        'created_at'    => now(),
-        'updated_at'    => now(),
     ]);
 }
 
+/**
+ * Antes borraba TODOS los valores de atributos de productos y hacía TRUNCATE
+ * de products, en producción. Ahora no hace falta: cada test corre en una
+ * transacción que se deshace, y los productos reales no tienen el atributo
+ * `ciudad_producto_sucursal`, así que solo cuentan los que crea el test.
+ */
 function teardownProductTables(): void
 {
-    DB::table('attribute_values')->where('entity_type', 'products')->delete();
-    DB::table('attributes')->where('code', 'ciudad_producto_sucursal')->delete();
-    DB::table('products')->truncate();
+    expect(DB::table('attributes')->where('code', 'ciudad_producto_sucursal')->exists())
+        ->toBeFalse('ciudad_producto_sucursal existe en la base: los conteos de este test dejarían de ser solo suyos.');
 }
 
 function authenticatedUser(): User
 {
-    $user = User::factory()->create([
-        'status' => 1,
-    ]);
+    // No hay factories en este proyecto: un usuario real, dentro de la transacción.
+    $user = User::findOrFail(1);
 
     Sanctum::actingAs($user);
 
@@ -70,19 +72,6 @@ function authenticatedUser(): User
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-
-
-/*
-| PELIGRO: este archivo hace DELETE/TRUNCATE sin transacción. Los tests corren
-| contra la base de producción (no hay .env.testing), y el 16/10/2026 borró
-| datos reales (valores de atributos de productos, doctor_specialty). Solo
-| corre contra una base de prueba (nombre que termine en «_test» o «_testing»).
-*/
-beforeEach(function () {
-    if (! preg_match('/_test(ing)?$/', (string) config('database.connections.'.config('database.default').'.database'))) {
-        $this->markTestSkipped('Destructivo: solo contra una base de prueba.');
-    }
-});
 
 it('requires authentication', function () {
     $response = test()->getJson(route('api.productos.por-ciudad-sucursal', ['ciudad_producto_sucursal' => 5]));
@@ -125,9 +114,9 @@ it('returns products matching the filter value', function () {
 
     $attrId = setupCiudadAtribute();
 
-    $p1 = createProduct('SKU-A', 'Producto A');
-    $p2 = createProduct('SKU-B', 'Producto B');
-    $p3 = createProduct('SKU-C', 'Producto C');
+    $p1 = createProduct(uniqid().'-SKU-A', 'Producto A');
+    $p2 = createProduct(uniqid().'-SKU-B', 'Producto B');
+    $p3 = createProduct(uniqid().'-SKU-C', 'Producto C');
 
     assignCiudadValue($p1, $attrId, 5);
     assignCiudadValue($p2, $attrId, 5);
@@ -156,9 +145,9 @@ it('always includes products with ciudad_producto_sucursal value = 10', function
 
     $attrId = setupCiudadAtribute();
 
-    $p1 = createProduct('SKU-A', 'Producto A');  // value = 5 (filter match)
-    $p2 = createProduct('SKU-B', 'Producto B');  // value = 10 (always included)
-    $p3 = createProduct('SKU-C', 'Producto C');  // value = 7 (excluded)
+    $p1 = createProduct(uniqid().'-SKU-A', 'Producto A');  // value = 5 (filter match)
+    $p2 = createProduct(uniqid().'-SKU-B', 'Producto B');  // value = 10 (always included)
+    $p3 = createProduct(uniqid().'-SKU-C', 'Producto C');  // value = 7 (excluded)
 
     assignCiudadValue($p1, $attrId, 5);
     assignCiudadValue($p2, $attrId, 10);
@@ -184,7 +173,7 @@ it('does not duplicate products that match both the filter and value 10', functi
 
     $attrId = setupCiudadAtribute();
 
-    $p1 = createProduct('SKU-A', 'Producto A');  // value = 10 AND filter is also 10
+    $p1 = createProduct(uniqid().'-SKU-A', 'Producto A');  // value = 10 AND filter is also 10
 
     assignCiudadValue($p1, $attrId, 10);
 
@@ -206,7 +195,7 @@ it('returns empty data when no products match and value 10 has no products', fun
 
     $attrId = setupCiudadAtribute();
 
-    $p1 = createProduct('SKU-A', 'Producto A');
+    $p1 = createProduct(uniqid().'-SKU-A', 'Producto A');
     assignCiudadValue($p1, $attrId, 3);
 
     $response = test()->getJson(route('api.productos.por-ciudad-sucursal', ['ciudad_producto_sucursal' => 99]));

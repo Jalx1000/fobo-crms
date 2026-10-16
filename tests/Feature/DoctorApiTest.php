@@ -5,31 +5,18 @@ use Illuminate\Support\Facades\DB;
 
 use function Pest\Laravel\get;
 
-
-/*
-| PELIGRO: este archivo hace DELETE/TRUNCATE sin transacción. Los tests corren
-| contra la base de producción (no hay .env.testing), y el 16/10/2026 borró
-| datos reales (valores de atributos de productos, doctor_specialty). Solo
-| corre contra una base de prueba (nombre que termine en «_test» o «_testing»).
-*/
-beforeEach(function () {
-    if (! preg_match('/_test(ing)?$/', (string) config('database.connections.'.config('database.default').'.database'))) {
-        $this->markTestSkipped('Destructivo: solo contra una base de prueba.');
-    }
-});
-
 it('retrieves doctor details with weekly schedule', function () {
-    // Clear tables
-    DB::table('doctor_specialty')->truncate();
-    DB::table('doctors')->truncate();
-    DB::table('doctor_shifts')->truncate();
-    DB::table('activities')->truncate();
-    DB::table('doctor_activities')->truncate();
+    // Solo los datos de este test: la transacción los deshace al terminar.
+    // (Antes vaciaba doctors, activities y más con TRUNCATE, en producción.)
+
+    // La API solo mira reservas desde «ahora»: con el reloj a las 08:00 la
+    // reserva de las 09:00 cuenta (antes el test solo pasaba de madrugada).
+    $this->travelTo(Carbon::now()->setTime(8, 0));
 
     // Create Doctor
     $doctorId = DB::table('doctors')->insertGetId([
         'name'       => 'Dr. Test',
-        'email'      => 'test@example.com',
+        'email'      => 'test-'.uniqid().'@example.com',
         'is_active'  => true,
         'created_at' => now(),
         'updated_at' => now(),
