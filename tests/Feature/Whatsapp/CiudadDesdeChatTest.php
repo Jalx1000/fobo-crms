@@ -37,7 +37,7 @@ beforeEach(function () {
     $this->lead = DB::table('leads')->insertGetId([
         'title'                  => 'Chat ciudad '.uniqid(), 'person_id' => $this->persona->id, 'user_id' => $this->defecto->id, 'status' => 1,
         'lead_pipeline_id'       => 1,
-        'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')->where('lead_pipeline_id', 1)->where('code', 'no-atenidos')->value('id'),
+        'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')->where('lead_pipeline_id', 1)->where('code', 'no-atendidos')->value('id'),
         'created_at'             => now(), 'updated_at' => now(),
     ]);
 
@@ -106,7 +106,7 @@ it('el pedido pasa al pipeline de su ciudad, en la misma etapa', function () {
     $lead = leadCiudad($this->lead);
 
     expect(DB::table('lead_pipelines')->where('id', $lead->lead_pipeline_id)->value('name'))->toBe('Cochabamba')
-        ->and(DB::table('lead_pipeline_stages')->where('id', $lead->lead_pipeline_stage_id)->value('code'))->toBe('no-atenidos');
+        ->and(DB::table('lead_pipeline_stages')->where('id', $lead->lead_pipeline_stage_id)->value('code'))->toBe('no-atendidos');
 });
 
 it('una derivación abierta a nombre del asesor por defecto pasa al nuevo asesor', function () {

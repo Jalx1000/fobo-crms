@@ -460,7 +460,7 @@ function cotizarYLimpiar($test, int $lead): void
 }
 
 it('al crear la cotización el pedido pasa de NO ATENIDOS a SOLICITUD RECIBIDA', function () {
-    $lead = pedidoEnEtapa($this, 1, 'no-atenidos');
+    $lead = pedidoEnEtapa($this, 1, 'no-atendidos');
 
     cotizarYLimpiar($this, $lead);
 
@@ -469,7 +469,7 @@ it('al crear la cotización el pedido pasa de NO ATENIDOS a SOLICITUD RECIBIDA',
 
 it('usa la SOLICITUD RECIBIDA del pipeline del pedido, no la de Santa Cruz', function () {
     $pipeline = (int) DB::table('lead_pipelines')->where('id', '!=', 1)->value('id');
-    $lead = pedidoEnEtapa($this, $pipeline, 'no-atenidos');
+    $lead = pedidoEnEtapa($this, $pipeline, 'no-atendidos');
 
     cotizarYLimpiar($this, $lead);
 

@@ -66,7 +66,7 @@ class CotizacionEnviada
             | asesor y, si el cliente no contesta, SIN INTERÉS.
             */
             app(\Webkul\Lead\Services\EtapaPedido::class)
-                ->mover((int) $lead->id, 'cotizacion-enviada', ['no-atenidos', 'solicitud-recibida']);
+                ->mover((int) $lead->id, 'cotizacion-enviada', [...\Webkul\Lead\Models\Stage::NO_ATENDIDOS, 'solicitud-recibida']);
 
             \Webkul\Whatsapp\Jobs\SeguimientoCotizacion::agendar((int) $lead->id, (int) $quote->id, $mensaje?->created_at ?? now());
         }

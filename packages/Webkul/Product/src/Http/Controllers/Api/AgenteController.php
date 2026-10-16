@@ -424,7 +424,7 @@ class AgenteController extends Controller
      * Con la cotización creada, el pedido pasa a SOLICITUD RECIBIDA.
      *
      * La etapa se busca por código dentro del pipeline del propio pedido (cada
-     * ciudad tiene el suyo, con ids distintos). Solo avanza desde NO ATENIDOS:
+     * ciudad tiene el suyo, con ids distintos). Solo avanza desde NO ATENDIDOS:
      * un pedido que ya está más adelante no retrocede por una cotización nueva.
      * Va por el repositorio y con los mismos eventos que el arrastre en el
      * kanban, así se registran las fechas de cambio de etapa.
@@ -433,7 +433,7 @@ class AgenteController extends Controller
     {
         $lead = \Webkul\Lead\Models\LeadProxy::modelClass()::find($leadId);
 
-        if (! $lead || $lead->stage?->code !== 'no-atenidos') {
+        if (! $lead || ! in_array($lead->stage?->code, \Webkul\Lead\Models\Stage::NO_ATENDIDOS, true)) {
             return;
         }
 

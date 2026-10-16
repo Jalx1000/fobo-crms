@@ -9,6 +9,14 @@ class Stage extends Model implements StageContract
 {
     public $timestamps = false;
 
+    /**
+     * Códigos de la primera etapa (el pedido todavía sin atender). El 16/10/2026
+     * se corrigió en el CRM «NO ATENIDOS» → «NO ATENDIDOS» y el código pasó de
+     * `no-atenidos` a `no-atendidos`: el pedido dejó de avanzar solo al recibir
+     * una cotización. Se aceptan los dos para que renombrarla no lo rompa de nuevo.
+     */
+    public const NO_ATENDIDOS = ['no-atendidos', 'no-atenidos'];
+
     protected $table = 'lead_pipeline_stages';
 
     /**
