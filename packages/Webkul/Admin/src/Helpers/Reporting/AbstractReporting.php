@@ -359,10 +359,107 @@ abstract class AbstractReporting
      */
     protected function sinCiudadPipelineIds(): array
     {
-        return \Illuminate\Support\Facades\DB::table('lead_pipelines')
+        return $this->sinCiudadIds ??= \Illuminate\Support\Facades\DB::table('lead_pipelines')
             ->whereRaw("LOWER(TRIM(name)) = 'sin ciudad'")
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Universo de pedidos del tablero
+    |--------------------------------------------------------------------------
+    |
+    | Las reglas que todas las tarjetas comparten viven acá y solo acá, para
+    | que los totales cuadren con sus desgloses (spec
+    | docs/specs/tablero-consistente.md). Un método de Reporting no arma su
+    | propio filtro de ciudad, permisos, ejecutivos ni «Sin ciudad».
+    |
+    */
+
+    /**
+     * Cache de los pipelines «Sin ciudad» (se consultan varias veces por request).
+     */
+    private ?array $sinCiudadIds = null;
+
+    /**
+     * Cache de los ids de los ejecutivos comerciales.
+     */
+    private ?array $ejecutivos = null;
+
+    /**
+     * Ciudad elegida en el filtro del tablero, o null para «Todas».
+     */
+    protected function pipelineFiltro(): ?int
+    {
+        return is_numeric(request('pipeline_id')) ? (int) request('pipeline_id') : null;
+    }
+
+    /**
+     * Asesores cuyos números puede ver el usuario logueado, o null si ve el
+     * total. Lo decide Alcance por ROL (spec tablero-por-asesor, D1–D3): un
+     * ejecutivo ve solo lo suyo; Administrador y Supervisores, todo.
+     *
+     * @return array<int, int>|null
+     */
+    protected function asesoresVisibles(): ?array
+    {
+        $userId = app(\Webkul\Admin\Helpers\Alcance::class)->userId();
+
+        return $userId === null ? null : [$userId];
+    }
+
+    /**
+     * Usuarios que aparecen en las tarjetas por asesor: solo el rol
+     * «Ejecutivo Comercial» (decisión D7 del 15/10/2026). Es por inclusión: un
+     * rol nuevo no aparece hasta que se decida.
+     *
+     * @return array<int, int>
+     */
+    protected function ejecutivosIds(): array
+    {
+        return $this->ejecutivos ??= \Illuminate\Support\Facades\DB::table('users')
+            ->join('roles', 'roles.id', '=', 'users.role_id')
+            ->where('roles.name', 'Ejecutivo Comercial')
+            ->pluck('users.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * Aplica a una query ya unida a `leads` el filtro de ciudad del tablero y
+     * el ACL del usuario. Con ACL, un pedido sin asesor no se ve: no es de
+     * nadie que el usuario pueda ver.
+     */
+    protected function pedidosDelTablero($query, string $leads = 'leads')
+    {
+        $query->when($this->pipelineFiltro(), fn ($q, $id) => $q->where("{$leads}.lead_pipeline_id", $id));
+
+        // null = sin restricción. Un array vacío SÍ se aplica (no ve a nadie):
+        // con when() se saltaría el filtro y mostraría toda la empresa.
+        if (! is_null($ids = $this->asesoresVisibles())) {
+            $query->whereIn("{$leads}.user_id", $ids);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Saca los pedidos «Sin ciudad». Es el único interruptor de esa regla
+     * mientras la pregunta P2 del spec siga abierta.
+     */
+    protected function excluirSinCiudad($query, string $pipelineColumn = 'leads.lead_pipeline_id')
+    {
+        return $query->when($this->sinCiudadPipelineIds(), fn ($q, $ids) => $q->whereNotIn($pipelineColumn, $ids));
+    }
+
+    /**
+     * Lo contrario de excluirSinCiudad(): se queda solo con los pedidos «Sin
+     * ciudad». Sirve para armar subconsultas (p. ej. cotizaciones a descartar).
+     */
+    protected function soloSinCiudad($query, string $pipelineColumn = 'leads.lead_pipeline_id')
+    {
+        return $query->whereIn($pipelineColumn, $this->sinCiudadPipelineIds());
     }
 }

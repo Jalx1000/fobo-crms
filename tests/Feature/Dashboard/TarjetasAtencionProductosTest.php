@@ -11,11 +11,13 @@ use Webkul\User\Models\User;
  *   CRM se llama NO ATENIDOS (código `no-atenidos`).
  * - Productos más solicitados contaba los productos cargados en el pedido, que
  *   casi nunca tiene ninguno (en octubre: 4 Stretch Film). Los productos están
- *   en las cotizaciones; se cuenta en cuántas cotizaciones aparece cada uno.
+ *   en las cotizaciones; se suman sus unidades (D3, 15/10/2026).
  * - Ninguna de las dos cuenta los pedidos del pipeline «Sin ciudad».
  *
  * Todo en enero de 2020, para no mezclarse con los datos reales.
  */
+require_once __DIR__.'/helpers.php';
+
 uses(DatabaseTransactions::class);
 
 beforeEach(function () {
@@ -32,44 +34,9 @@ beforeEach(function () {
     ]);
 });
 
-function tarjetaPedido($test, int $pipeline, string $etapa): int
-{
-    return DB::table('leads')->insertGetId([
-        'title'                  => 'Tarjeta '.uniqid(), 'user_id' => $test->asesor->id, 'status' => 1,
-        'lead_pipeline_id'       => $pipeline,
-        'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')->where('lead_pipeline_id', $pipeline)->where('code', $etapa)->value('id'),
-        'created_at'             => $test->fecha, 'updated_at' => $test->fecha,
-    ]);
-}
-
-function tarjetaCotizacion($test, int $lead, string $sku, int $cantidad): void
-{
-    $quote = DB::table('quotes')->insertGetId([
-        'subject'    => 'Tarjeta', 'user_id' => $test->asesor->id, 'person_id' => $test->persona, 'sub_total' => 0, 'grand_total' => 0,
-        'created_at' => $test->fecha, 'updated_at' => $test->fecha,
-    ]);
-
-    $producto = DB::table('products')->where('sku', $sku)->first();
-
-    DB::table('quote_items')->insert([
-        'quote_id' => $quote, 'product_id' => $producto->id, 'sku' => $sku, 'name' => $producto->name,
-        'quantity' => $cantidad, 'price' => 0, 'total' => 0, 'created_at' => $test->fecha, 'updated_at' => $test->fecha,
-    ]);
-
-    DB::table('lead_quotes')->insert(['lead_id' => $lead, 'quote_id' => $quote]);
-}
-
-function tarjeta(string $tipo): array
-{
-    return test()->withHeaders(['Accept' => 'application/json'])
-        ->get(route('admin.dashboard.stats', ['type' => $tipo, 'start' => '2020-01-01', 'end' => '2020-01-31']))
-        ->assertOk()
-        ->json('statistics');
-}
-
 it('cuenta los NO ATENIDOS como no atendidos', function () {
-    tarjetaPedido($this, 1, 'no-atenidos');
-    tarjetaPedido($this, 1, 'no-atenidos');
+    tarjetaPedido($this, 1, 'no-atendidos');
+    tarjetaPedido($this, 1, 'no-atendidos');
     tarjetaPedido($this, 1, 'solicitud-recibida');
 
     $s = tarjeta('leads-attention-by-users');
@@ -80,8 +47,8 @@ it('cuenta los NO ATENIDOS como no atendidos', function () {
 });
 
 it('atendidos vs no atendidos no cuenta los pedidos Sin ciudad', function () {
-    tarjetaPedido($this, 1, 'no-atenidos');
-    tarjetaPedido($this, $this->sinCiudad, 'no-atenidos');
+    tarjetaPedido($this, 1, 'no-atendidos');
+    tarjetaPedido($this, $this->sinCiudad, 'no-atendidos');
     tarjetaPedido($this, $this->sinCiudad, 'solicitud-recibida');
 
     $s = tarjeta('leads-attention-by-users');
@@ -91,7 +58,9 @@ it('atendidos vs no atendidos no cuenta los pedidos Sin ciudad', function () {
         ->and($s['attended'][$i])->toBe(0);
 });
 
-it('productos más solicitados cuenta en cuántas cotizaciones aparece cada producto', function () {
+// Desde el 15/10/2026 (D3) la torta se ordena por unidades cotizadas, no por
+// cantidad de cotizaciones: 40 rollos de Stretch van antes que 15 bolsas.
+it('productos más solicitados ordena por unidades cotizadas e informa las cotizaciones', function () {
     $lead = tarjetaPedido($this, 1, 'solicitud-recibida');
     tarjetaCotizacion($this, $lead, 'CM_00002', 10);
     tarjetaCotizacion($this, $lead, 'CM_00002', 5);
@@ -99,7 +68,7 @@ it('productos más solicitados cuenta en cuántas cotizaciones aparece cada prod
 
     $s = collect(tarjeta('quantity-products'));
 
-    expect($s->pluck('name')->first())->toBe('Bolsas Magia Verde')
+    expect($s->pluck('name')->first())->toBe('Stretch Film')
         ->and($s->firstWhere('name', 'Bolsas Magia Verde')['solicitudes'])->toBe(2)
         ->and((int) $s->firstWhere('name', 'Bolsas Magia Verde')['total_qty_ordered'])->toBe(15)
         ->and($s->firstWhere('name', 'Stretch Film')['solicitudes'])->toBe(1);
@@ -120,8 +89,8 @@ it('productos más solicitados no cuenta cotizaciones de pedidos Sin ciudad', fu
 });
 
 it('no atendidos por ciudad no muestra la porción Sin ciudad', function () {
-    tarjetaPedido($this, 1, 'no-atenidos');
-    tarjetaPedido($this, $this->sinCiudad, 'no-atenidos');
+    tarjetaPedido($this, 1, 'no-atendidos');
+    tarjetaPedido($this, $this->sinCiudad, 'no-atendidos');
 
     $s = tarjeta('leads-no-atendidos-por-ciudad');
 
@@ -135,8 +104,8 @@ it('atendidos vs no atendidos no trae la barra del usuario del agente', function
 });
 
 it('los prospectos son los pedidos en NO ATENIDOS', function () {
-    tarjetaPedido($this, 1, 'no-atenidos');
-    tarjetaPedido($this, 1, 'no-atenidos');
+    tarjetaPedido($this, 1, 'no-atendidos');
+    tarjetaPedido($this, 1, 'no-atendidos');
     tarjetaPedido($this, 1, 'solicitud-recibida');
 
     $total = app(\Webkul\Admin\Helpers\Reporting\Lead::class)

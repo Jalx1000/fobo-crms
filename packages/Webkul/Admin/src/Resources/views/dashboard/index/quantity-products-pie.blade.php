@@ -16,7 +16,7 @@
             <div class="w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex items-center justify-between p-4">
                     <p class="text-base font-semibold text-gray-600 dark:text-gray-300">
-                        Productos más solicitados
+                        {{ ($personal ?? false) ? 'Mis productos más solicitados' : 'Productos más solicitados' }}
                     </p>
                 </div>
 
@@ -30,7 +30,7 @@
                         <div class="flex flex-wrap justify-center gap-5">
                             <div class="flex items-start gap-2 max-w-[260px]" v-for="(stat, index) in report.statistics" :key="stat.id">
                                 <span class="h-3.5 w-3.5 rounded-sm" :style="{ backgroundColor: colors[index] }"></span>
-                                <p class="text-xs dark:text-gray-300 break-words">@{{ stat.name }} — @{{ stat.solicitudes }} @{{ stat.solicitudes === 1 ? 'cotización' : 'cotizaciones' }} (@{{ Number(stat.total_qty_ordered) }} u.)</p>
+                                <p class="text-xs dark:text-gray-300 break-words">@{{ stat.name }} — @{{ Number(stat.total_qty_ordered) }} u. · @{{ stat.solicitudes }} @{{ stat.solicitudes === 1 ? 'cotización' : 'cotizaciones' }}</p>
                             </div>
                         </div>
                     </div>
@@ -76,10 +76,11 @@
 
                 chartDatasets() {
                     // this.colors = this.chartLabels.map((l) => this.$admin.getLabelColor(l));
+                    // La porción es la cantidad cotizada (D3); la leyenda suma igual que el KPI.
                     return [{
                         data: this.report.statistics.map(({
-                            solicitudes
-                        }) => solicitudes),
+                            total_qty_ordered
+                        }) => Number(total_qty_ordered)),
                         backgroundColor: this.colors,
                     }];
                 }

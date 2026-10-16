@@ -50,6 +50,10 @@ class Person extends AbstractReporting
             ->resetModel()
             ->whereBetween('persons.created_at', [$startDate, $endDate]);
 
+        // Un ejecutivo cuenta solo sus contactos («Asesor Asignado» = él), igual
+        // que la lista de Contactos con permiso individual (spec tablero-por-asesor).
+        app(\Webkul\Admin\Helpers\Alcance::class)->leads($query, 'persons.user_id');
+
         if ($pipelineId && ($cityAttributeId = $this->getCityAttributeId())) {
             $query->leftJoin('attribute_values as city_av', function ($join) use ($cityAttributeId) {
                 $join->on('city_av.entity_id', '=', 'persons.id')
@@ -117,10 +121,8 @@ class Person extends AbstractReporting
 
         $items = $this->personRepository
             ->resetModel()
-            ->when(request('user_id'), function ($q) {
-                $q->leftJoin('leads', 'persons.id', '=', 'leads.person_id')
-                    ->where('leads.user_id', request('user_id'));
-            })
+            // `leads` se une una sola vez (abajo): ver Product::getTopSellingProductsByRevenue.
+            ->when(request('user_id'), fn ($q) => $q->where('leads.user_id', request('user_id')))
             ->when(request('organization_id'), function ($q) {
                 $q->where('persons.organization_id', request('organization_id'));
             })

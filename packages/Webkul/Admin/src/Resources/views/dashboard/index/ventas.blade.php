@@ -41,6 +41,11 @@
                             <p class="text-xs dark:text-gray-300">@{{ legendLabels[index] }}</p>
                         </div>
                     </div>
+
+                    <!-- Pedidos sin fila: supervisor, agente o sin asesor (D7). Filas + otros = total. -->
+                    <p v-if="report.statistics?.otros > 0" class="pb-2 text-center text-xs text-gray-500 dark:text-gray-400">
+                        + @{{ report.statistics.otros }} @{{ report.statistics.otros === 1 ? 'pedido' : 'pedidos' }} de otros usuarios o sin asesor
+                    </p>
                 </div>
             </div>
         </template>

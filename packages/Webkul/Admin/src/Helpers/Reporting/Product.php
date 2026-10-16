@@ -48,10 +48,10 @@ class Product extends AbstractReporting
         $items = $this->productRepository
             ->resetModel()
             ->with('product')
-            ->when(request('user_id'), function ($q) {
-                $q->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
-                    ->where('leads.user_id', request('user_id'));
-            })
+            // `leads` se une una sola vez (abajo). Unirla de nuevo con user_id
+            // daba «Not unique table/alias» desde que el alcance lo fuerza
+            // para los ejecutivos (spec tablero-por-asesor).
+            ->when(request('user_id'), fn ($q) => $q->where('leads.user_id', request('user_id')))
             ->when(request('organization_id'), function ($q) {
                 $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
                     ->where('persons.organization_id', request('organization_id'));
@@ -82,45 +82,60 @@ class Product extends AbstractReporting
     }
 
     /**
-     * Productos más solicitados: en cuántas cotizaciones aparece cada uno.
-     *
-     * Antes contaba los productos cargados en el pedido (lead_products), que
-     * casi nunca tiene ninguno: los productos están en las cotizaciones (en
-     * octubre de 2026, 4 Stretch Film contra 65 cotizaciones). Se ordena por
-     * cantidad de cotizaciones —sumar unidades mezclaría packs con rollos— y se
-     * informa también la cantidad pedida. Las cotizaciones de pedidos «Sin
-     * ciudad» no cuentan.
+     * Productos más solicitados: unidades cotizadas de cada producto, más en
+     * cuántas cotizaciones aparece (decisión D3 del 15/10/2026: la porción es
+     * la cantidad, p. ej. 4 cotizaciones que suman 29 bolsas = 29). Las
+     * cotizaciones de pedidos «Sin ciudad» no cuentan (P2 pendiente).
      */
     public function getTopSellingProductsByQuantity($limit = null): Collection
     {
-        $p = DB::getTablePrefix();
-        $sinCiudad = $this->sinCiudadPipelineIds();
-        $pipelineId = is_numeric(request('pipeline_id')) ? (int) request('pipeline_id') : null;
+        return $this->cotizadoPorProducto($this->startDate, $this->endDate)
+            ->take($limit ?? PHP_INT_MAX)
+            ->values();
+    }
 
-        return DB::table('quote_items')
+    /**
+     * Unidades cotizadas por producto (spec tablero-consistente, D3): la fuente
+     * de verdad de los productos es la cotización, no lo que se carga en el
+     * pedido (lead_products casi siempre va con cantidad 0). El KPI y la torta
+     * salen de acá, así que la torta siempre suma lo mismo que el KPI.
+     *
+     * Se toman las cotizaciones de los pedidos CREADOS en el rango, igual que
+     * el resto del tablero, con la ciudad y el ACL del pedido. Con $stageIds se
+     * limita a pedidos en esas etapas (p. ej. entregados). Mientras la
+     * pregunta P2 siga abierta, cada par KPI/torta conserva su regla de «Sin
+     * ciudad»: solicitados la deja afuera, vendidos la cuenta.
+     *
+     * @param  \Carbon\Carbon  $startDate
+     * @param  \Carbon\Carbon  $endDate
+     * @param  array<int, int>|null  $stageIds
+     * @return Collection<int, array{id: int, name: string, price: mixed, formatted_price: string, solicitudes: int, total_qty_ordered: float}>
+     */
+    protected function cotizadoPorProducto($startDate, $endDate, ?array $stageIds = null, bool $sinCiudadAfuera = true): Collection
+    {
+        $p = DB::getTablePrefix();
+
+        $query = DB::table('quote_items')
             ->join('quotes', 'quotes.id', '=', 'quote_items.quote_id')
+            ->join('lead_quotes', 'lead_quotes.quote_id', '=', 'quotes.id')
+            ->join('leads', 'leads.id', '=', 'lead_quotes.lead_id')
             ->join('products', 'products.id', '=', 'quote_items.product_id')
-            ->whereBetween('quotes.created_at', [$this->startDate, $this->endDate])
-            ->when(request('user_id'), fn ($q, $userId) => $q->where('quotes.user_id', $userId))
-            ->when(request('organization_id'), fn ($q, $orgId) => $q->whereIn('quotes.person_id',
-                DB::table('persons')->where('organization_id', $orgId)->select('id')
-            ))
-            // Con una ciudad elegida, solo las cotizaciones de pedidos de esa ciudad.
-            ->when($pipelineId, fn ($q) => $q->whereIn('quotes.id',
-                DB::table('lead_quotes')->join('leads', 'leads.id', '=', 'lead_quotes.lead_id')
-                    ->where('leads.lead_pipeline_id', $pipelineId)->select('lead_quotes.quote_id')
-            ))
-            ->when($sinCiudad, fn ($q) => $q->whereNotIn('quotes.id',
-                DB::table('lead_quotes')->join('leads', 'leads.id', '=', 'lead_quotes.lead_id')
-                    ->whereIn('leads.lead_pipeline_id', $sinCiudad)->select('lead_quotes.quote_id')
-            ))
+            ->whereBetween('leads.created_at', [$startDate, $endDate])
+            ->when($stageIds !== null, fn ($q) => $q->whereIn('leads.lead_pipeline_stage_id', $stageIds ?: [0]));
+
+        $this->pedidosDelTablero($query);
+
+        if ($sinCiudadAfuera) {
+            $this->excluirSinCiudad($query);
+        }
+
+        return $query
             ->groupBy('products.id', 'products.name', 'products.price')
             ->select('products.id', 'products.name', 'products.price')
             ->selectRaw("COUNT(DISTINCT {$p}quotes.id) as solicitudes")
-            ->selectRaw("SUM({$p}quote_items.quantity) as total_qty_ordered")
-            ->orderByDesc('solicitudes')
+            ->selectRaw("COALESCE(SUM({$p}quote_items.quantity), 0) as total_qty_ordered")
             ->orderByDesc('total_qty_ordered')
-            ->limit($limit)
+            ->orderByDesc('solicitudes')
             ->get()
             ->map(fn ($item) => [
                 'id'                => (int) $item->id,
@@ -133,57 +148,17 @@ class Product extends AbstractReporting
     }
 
     /**
-     * Gets the most sold products by quantity, considering only leads in the
-     * Won/Ganado stage (i.e. delivered orders) and an optional pipeline (ciudad) filter.
+     * Productos más vendidos: unidades cotizadas de los pedidos ENTREGADOS
+     * (D4/D5). Mismo método que el KPI «Total productos vendidos», así la
+     * torta suma lo mismo. Un entregado sin cotización no suma (D6).
      *
-     * @param  int  $limit
+     * @param  int|null  $limit
      */
     public function getTopSellingProductsByQuantitySold($limit = null): Collection
     {
-        $tablePrefix = DB::getTablePrefix();
-        $pipelineId = is_numeric(request('pipeline_id')) ? request('pipeline_id') : null;
-
-        $items = $this->productRepository
-            ->resetModel()
-            ->with('product')
-            ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
-            ->leftJoin('products', 'lead_products.product_id', '=', 'products.id')
-            ->when(request('user_id'), function ($q) {
-                $q->where('leads.user_id', request('user_id'));
-            })
-            ->when(request('organization_id'), function ($q) {
-                $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
-                    ->where('persons.organization_id', request('organization_id'));
-            })
-            ->when($pipelineId, function ($q) use ($pipelineId) {
-                $q->where('leads.lead_pipeline_id', $pipelineId);
-            })
-            ->select(
-                'products.id as product_id',
-                'products.name',
-                'products.price'
-            )
-            ->addSelect(DB::raw('SUM('.$tablePrefix.'lead_products.quantity) as total_qty_ordered'))
-            ->whereIn('leads.lead_pipeline_stage_id', $this->wonStageIds)
-            // Decisión de negocio: contar los entregados por FECHA DE CREACIÓN del
-            // lead (created_at), para que el tablero cuadre con Contactos/Leads y el
-            // embudo sume exactamente el total del período.
-            ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
-            ->having(DB::raw('SUM('.$tablePrefix.'lead_products.quantity)'), '>', 0)
-            ->groupBy('products.id', 'products.name', 'products.price')
-            ->orderBy('total_qty_ordered', 'DESC')
-            ->limit($limit)
-            ->get();
-
-        return $items->map(function ($item) {
-            return [
-                'id'                => $item->product_id,
-                'name'              => $item->name,
-                'price'             => $item->product?->price,
-                'formatted_price'   => core()->formatBasePrice($item->price),
-                'total_qty_ordered' => $item->total_qty_ordered,
-            ];
-        });
+        return $this->cotizadoPorProducto($this->startDate, $this->endDate, $this->wonStageIds, sinCiudadAfuera: false)
+            ->take($limit ?? PHP_INT_MAX)
+            ->values();
     }
 
     /**
@@ -206,23 +181,14 @@ class Product extends AbstractReporting
      */
     public function getTotalServices($startDate, $endDate): int
     {
-        $tablePrefix = DB::getTablePrefix();
-
-        return (int) $this->productRepository
-            ->resetModel()
-            ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
-            ->when(is_numeric(request('pipeline_id')) ? request('pipeline_id') : null, function ($q, $pipelineId) {
-                $q->where('leads.lead_pipeline_id', $pipelineId);
-            })
-            ->whereBetween('leads.created_at', [$startDate, $endDate])
-            ->sum(DB::raw($tablePrefix.'lead_products.quantity'));
+        // KPI «Total productos solicitados» = suma de la torta de solicitados (D3).
+        return (int) $this->cotizadoPorProducto($startDate, $endDate)->sum('total_qty_ordered');
     }
 
     /**
-     * Retrieves total products sold (delivered orders, i.e. won stage) and their
-     * progress. Counts quantity from won/delivered leads CREATED in the period
-     * (created_at), mirroring getTotalServicesProgress but restricted to the
-     * won/delivered stage, so the KPI reconciles with the rest of the dashboard.
+     * KPI «Total productos vendidos (Entregados)» y su progreso: unidades
+     * cotizadas de los pedidos entregados creados en el período (D4/D5). Es
+     * la suma de la torta «Productos más vendidos».
      */
     public function getTotalProductsSoldProgress(): array
     {
@@ -241,17 +207,9 @@ class Product extends AbstractReporting
      */
     public function getTotalProductsSold($startDate, $endDate): int
     {
-        $tablePrefix = DB::getTablePrefix();
-
-        return (int) $this->productRepository
-            ->resetModel()
-            ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
-            ->when(is_numeric(request('pipeline_id')) ? request('pipeline_id') : null, function ($q, $pipelineId) {
-                $q->where('leads.lead_pipeline_id', $pipelineId);
-            })
-            ->whereIn('leads.lead_pipeline_stage_id', $this->wonStageIds)
-            ->whereBetween('leads.created_at', [$startDate, $endDate])
-            ->sum(DB::raw($tablePrefix.'lead_products.quantity'));
+        // KPI «Total productos vendidos (Entregados)» = suma de la torta de más vendidos.
+        return (int) $this->cotizadoPorProducto($startDate, $endDate, $this->wonStageIds, sinCiudadAfuera: false)
+            ->sum('total_qty_ordered');
     }
 
     /**
@@ -265,7 +223,7 @@ class Product extends AbstractReporting
 
         $intervals = $this->generateTimeIntervals($this->startDate, $this->endDate, $period);
 
-        $groupColumn = $this->getGroupColumn('leads.created_at', $period);
+        $groupColumn = $this->getGroupColumn(DB::getTablePrefix().'leads.created_at', $period); // con prefijo kl_: si no, 500
 
         $tablePrefix = DB::getTablePrefix();
 
@@ -277,6 +235,8 @@ class Product extends AbstractReporting
                 DB::raw('SUM('.$tablePrefix.'lead_products.quantity) AS count')
             )
             ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
+            // Ciudad y alcance del asesor, como el resto del tablero.
+            ->tap(fn ($q) => $this->pedidosDelTablero($q))
             ->groupBy(DB::raw($groupColumn))
             ->orderBy(DB::raw($groupColumn));
 
@@ -298,10 +258,15 @@ class Product extends AbstractReporting
     }
 
     /**
-     * Returns units sold (quantity) per bucket for delivered orders (won stage),
-     * filtered by created_at and the optional pipeline (ciudad). Used by the
-     * dashboard evolution card. Returns the same shape as Lead::getOverTimeStats
-     * so the evolution payload can be built consistently.
+     * Ventas por intervalo, desde las cotizaciones de los pedidos ENTREGADOS
+     * (D4): `count` = unidades cotizadas, `total` = suma de `grand_total` de
+     * esas cotizaciones. Mismo universo que el KPI «Total productos vendidos»
+     * (fecha de creación del pedido, ciudad, ACL y «Sin ciudad» incluida), así
+     * la pestaña de Evolución suma lo mismo que el KPI. Devuelve la forma de
+     * Lead::getOverTimeStats para armar el payload igual.
+     *
+     * Las unidades se agregan por cotización antes del join: sumar
+     * `grand_total` sobre las líneas lo multiplicaría por la cantidad de ítems.
      *
      * @param  \Carbon\Carbon  $startDate
      * @param  \Carbon\Carbon  $endDate
@@ -310,27 +275,30 @@ class Product extends AbstractReporting
     {
         $intervals = $this->generateTimeIntervals($startDate, $endDate, $period);
 
-        $tablePrefix = DB::getTablePrefix();
+        $p = DB::getTablePrefix();
 
         // Raw expression: qualify with the real (prefixed) table name since this is a joined query.
-        $groupColumn = $this->getGroupColumn($tablePrefix.'leads.created_at', $period);
+        $groupColumn = $this->getGroupColumn($p.'leads.created_at', $period);
 
-        $pipelineId = is_numeric(request('pipeline_id')) ? request('pipeline_id') : null;
+        $unidades = DB::table('quote_items')
+            ->select('quote_id')
+            ->selectRaw('SUM(quantity) AS unidades')
+            ->groupBy('quote_id');
 
-        $results = $this->productRepository
-            ->resetModel()
-            ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
-            ->when($pipelineId, function ($q) use ($pipelineId) {
-                $q->where('leads.lead_pipeline_id', $pipelineId);
-            })
-            ->select(
-                DB::raw("$groupColumn AS date"),
-                DB::raw('SUM('.$tablePrefix.'lead_products.quantity) AS count')
-            )
-            ->whereIn('leads.lead_pipeline_stage_id', $this->wonStageIds)
-            ->whereBetween('leads.created_at', [$startDate, $endDate])
+        $query = DB::table('quotes')
+            ->join('lead_quotes', 'lead_quotes.quote_id', '=', 'quotes.id')
+            ->join('leads', 'leads.id', '=', 'lead_quotes.lead_id')
+            ->leftJoinSub($unidades, 'qi', 'qi.quote_id', '=', 'quotes.id')
+            ->whereIn('leads.lead_pipeline_stage_id', $this->wonStageIds ?: [0])
+            ->whereBetween('leads.created_at', [$startDate, $endDate]);
+
+        $this->pedidosDelTablero($query);
+
+        $results = $query
+            ->selectRaw("{$groupColumn} AS date")
+            ->selectRaw("COALESCE(SUM({$p}qi.unidades), 0) AS count")
+            ->selectRaw("COALESCE(SUM({$p}quotes.grand_total), 0) AS total")
             ->groupBy(DB::raw($groupColumn))
-            ->orderBy(DB::raw($groupColumn))
             ->get()
             ->keyBy('date');
 
@@ -342,7 +310,7 @@ class Product extends AbstractReporting
             $stats[] = [
                 'label' => $interval['label'],
                 'count' => $result ? (int) $result->count : 0,
-                'total' => 0,
+                'total' => $result ? (float) $result->total : 0,
             ];
         }
 

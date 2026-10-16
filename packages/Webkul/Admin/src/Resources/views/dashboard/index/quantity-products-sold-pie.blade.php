@@ -16,8 +16,12 @@
             <div class="w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex items-center justify-between p-4">
                     <p class="text-base font-semibold text-gray-600 dark:text-gray-300">
-                        Productos más vendidos
+                        {{ ($personal ?? false) ? 'Mis productos más vendidos' : 'Productos más vendidos' }}
                     </p>
+                </div>
+
+                <div class="px-4">
+                    @include('admin::dashboard.index.entregados-sin-cotizacion')
                 </div>
 
                 <div class="flex flex-col" v-if="report.statistics.length">
@@ -30,7 +34,7 @@
                         <div class="flex flex-wrap justify-center gap-5">
                             <div class="flex items-start gap-2 max-w-[260px]" v-for="(stat, index) in report.statistics" :key="stat.id">
                                 <span class="h-3.5 w-3.5 rounded-sm" :style="{ backgroundColor: colors[index] }"></span>
-                                <p class="text-xs dark:text-gray-300 break-words">@{{ stat.name }} — @{{ stat.total_qty_ordered }}</p>
+                                <p class="text-xs dark:text-gray-300 break-words">@{{ stat.name }} — @{{ Number(stat.total_qty_ordered) }} u.</p>
                             </div>
                         </div>
                     </div>

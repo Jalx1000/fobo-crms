@@ -197,9 +197,9 @@ class DashboardOrdersSheet extends DefaultValueBinder implements FromArray, Shou
             }
         }
 
-        if ($userIds = bouncer()->getAuthorizedUserIds()) {
-            $query->whereIn('leads.user_id', $userIds);
-        }
+        // Mismo alcance que el tablero, por rol (spec tablero-por-asesor, D7):
+        // un ejecutivo exporta solo sus pedidos; Administrador y Supervisores, todos.
+        app(\Webkul\Admin\Helpers\Alcance::class)->leads($query);
 
         return $query->orderBy('leads.id', 'desc');
     }

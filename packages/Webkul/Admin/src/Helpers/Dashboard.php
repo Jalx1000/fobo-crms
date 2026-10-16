@@ -133,9 +133,13 @@ class Dashboard
         return $this->productReporting->getTopSellingProductsByRevenue(5);
     }
 
+    /**
+     * Sin límite: la torta tiene que sumar lo mismo que el KPI «Total productos
+     * solicitados» (spec tablero-consistente, D3). El catálogo es chico.
+     */
     public function getTopSellingProductsByQuantity(): Collection
     {
-        return $this->productReporting->getTopSellingProductsByQuantity(5);
+        return $this->productReporting->getTopSellingProductsByQuantity();
     }
 
     /**
@@ -143,7 +147,8 @@ class Dashboard
      */
     public function getTopSellingProductsByQuantitySold(): Collection
     {
-        return $this->productReporting->getTopSellingProductsByQuantitySold(5);
+        // Sin límite: la torta suma lo mismo que el KPI de vendidos (D5).
+        return $this->productReporting->getTopSellingProductsByQuantitySold();
     }
 
     /**
@@ -204,6 +209,11 @@ class Dashboard
         return $this->leadReporting->getLeadsCountByPipelines();
     }
 
+    public function getEntregadosSinCotizacionStats(): array
+    {
+        return $this->leadReporting->getEntregadosSinCotizacion();
+    }
+
     public function getNotAttendedLeadsByCityStats(): array
     {
         return $this->leadReporting->getNotAttendedLeadsCountByPipelines();
@@ -219,7 +229,8 @@ class Dashboard
 
         return [
             'ventas'             => $this->leadReporting->getEvolution('ventas'),
-            'valor-ventas'       => $this->leadReporting->getEvolution('valor-ventas'),
+            // Valor de ventas = total de las cotizaciones de entregados (D4), no leads.lead_value.
+            'valor-ventas'       => $this->leadReporting->buildEvolutionPayload($units['current'], $units['previous'], 'total', 'currency', $units['period']),
             'pedidos-creados'    => $this->leadReporting->getEvolution('pedidos-creados'),
             'productos-vendidos' => $this->leadReporting->buildEvolutionPayload($units['current'], $units['previous'], 'count', 'number', $units['period']),
         ];

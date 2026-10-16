@@ -5,7 +5,9 @@ namespace Webkul\Admin\Http\Controllers;
 use Maatwebsite\Excel\Facades\Excel;
 use Webkul\Admin\Exports\Dashboard\DashboardExport;
 use Webkul\Admin\Exports\Dashboard\DashboardLeadsSheet;
+use Webkul\Admin\Helpers\Alcance;
 use Webkul\Admin\Helpers\Dashboard;
+use Webkul\Lead\Models\LeadProxy;
 use Webkul\Lead\Repositories\PipelineRepository;
 
 class DashboardController extends Controller
@@ -39,6 +41,7 @@ class DashboardController extends Controller
         'leads-por-ciudad'                => 'getLeadsByPipelinesStats',
         'leads-por-pipeline'              => 'getLeadsByPipelinesStats',
         'leads-no-atendidos-por-ciudad'   => 'getNotAttendedLeadsByCityStats',
+        'entregados-sin-cotizacion'       => 'getEntregadosSinCotizacionStats',
         'total-leads-by-stages'           => 'getTotalLeadsByStages',
         'total-leads-by-stages-over-time' => 'getTotalLeadsByStagesOverTime',
         'total-services'                  => 'getTotalServicesStats',
@@ -89,6 +92,8 @@ class DashboardController extends Controller
 
         $this->applyGlobalFilterDefaults();
 
+        $this->aplicarAlcance();
+
         /**
          * Resolve the helper AFTER injecting the global-filter defaults, because
          * the reporting reads start/end in its constructor.
@@ -119,6 +124,8 @@ class DashboardController extends Controller
         }
 
         $this->applyGlobalFilterDefaults();
+
+        $this->aplicarAlcance();
 
         /**
          * Translate the dashboard's global filter (pipeline_id + start/end) into
@@ -184,5 +191,37 @@ class DashboardController extends Controller
                 }
             }
         }
+    }
+
+    /**
+     * Quien no ve el total (spec tablero-por-asesor, D1–D3, D5) recibe solo lo
+     * suyo, en el servidor y para TODAS las tarjetas y el Excel:
+     *
+     *  - `user_id` se pisa con su id: lo que venga en la URL se ignora.
+     *  - Un scope global en Lead filtra cada consulta de Eloquent sobre leads.
+     *    Así una tarjeta que se olvide de filtrar no muestra la cartera de
+     *    otro. Las consultas con DB::table pasan por
+     *    AbstractReporting::pedidosDelTablero(), que usa la misma regla.
+     *
+     * El scope es estático (queda registrado en el modelo para todo el
+     * proceso), por eso NO guarda el id de quien lo registró: pregunta a
+     * Alcance en cada consulta. Si no, en un worker o en los tests, el
+     * siguiente usuario heredaría el filtro del anterior.
+     */
+    private function aplicarAlcance(): void
+    {
+        $alcance = app(Alcance::class);
+
+        if ($alcance->userId() === null) {
+            return;
+        }
+
+        request()->merge(['user_id' => $alcance->userId()]);
+        request()->query->set('user_id', $alcance->userId());
+
+        LeadProxy::modelClass()::addGlobalScope(
+            'alcance-tablero',
+            fn ($query) => app(Alcance::class)->leads($query->getQuery()),
+        );
     }
 }

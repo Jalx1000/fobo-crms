@@ -38,10 +38,11 @@ class Organization extends AbstractReporting
      */
     public function getTotalOrganizations($startDate, $endDate): int
     {
-        return $this->organizationRepository
-            ->resetModel()
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->count();
+        // Un ejecutivo cuenta solo las organizaciones a su nombre (spec tablero-por-asesor).
+        return app(\Webkul\Admin\Helpers\Alcance::class)->leads(
+            $this->organizationRepository->resetModel()->whereBetween('organizations.created_at', [$startDate, $endDate]),
+            'organizations.user_id'
+        )->count();
     }
 
     /**

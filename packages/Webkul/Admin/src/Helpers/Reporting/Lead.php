@@ -396,10 +396,10 @@ class Lead extends AbstractReporting
 
             $query = $this->excludeIgnoredRoles($query, 'users.id');
 
-            // bouncer()->getAuthorizedUserIds() returns null for global access (no restriction needed);
+            // asesoresVisibles() returns null for global access (no restriction needed);
             // it returns an array (possibly empty) when access must be scoped, and an empty array must
             // still be applied so it correctly yields zero rows rather than silently skipping the filter.
-            if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+            if (! is_null($userIds = $this->asesoresVisibles())) {
                 $query->whereIn('users.id', $userIds);
             }
 
@@ -463,7 +463,7 @@ class Lead extends AbstractReporting
 
         $query = $this->excludeIgnoredRoles($query, 'users.id');
 
-        if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+        if (! is_null($userIds = $this->asesoresVisibles())) {
             $query->whereIn('users.id', $userIds);
         }
 
@@ -479,9 +479,10 @@ class Lead extends AbstractReporting
         }
 
         $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
-        $usersQuery = $this->excludeIgnoredRoles($usersQuery, 'id');
+        // Filas = solo ejecutivos comerciales (D7). Lo de los demás va a «otros».
+        $usersQuery->whereIn('id', $this->ejecutivosIds() ?: [0]);
 
-        if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+        if (! is_null($userIds = $this->asesoresVisibles())) {
             $usersQuery->whereIn('id', $userIds);
         }
 
@@ -535,7 +536,7 @@ class Lead extends AbstractReporting
 
             $query = $this->excludeIgnoredRoles($query, 'users.id');
 
-            if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+            if (! is_null($userIds = $this->asesoresVisibles())) {
                 $query->whereIn('users.id', $userIds);
             }
 
@@ -552,9 +553,10 @@ class Lead extends AbstractReporting
         $previousCounts = $buildCounts($this->lastStartDate, $this->lastEndDate);
 
         $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
-        $usersQuery = $this->excludeIgnoredRoles($usersQuery, 'id');
+        // Filas = solo ejecutivos comerciales (D7). Lo de los demás va a «otros».
+        $usersQuery->whereIn('id', $this->ejecutivosIds() ?: [0]);
 
-        if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+        if (! is_null($userIds = $this->asesoresVisibles())) {
             $usersQuery->whereIn('id', $userIds);
         }
 
@@ -568,6 +570,7 @@ class Lead extends AbstractReporting
         }
 
         return [
+            'otros'        => $this->otrosPedidos($this->openStageIds()),
             'labels'        => $users,
             'data'          => $data,
             'previous_data' => $previousData,
@@ -586,6 +589,30 @@ class Lead extends AbstractReporting
      * actual. Mantiene el mismo filtro de pipeline, roles ignorados y ACL que
      * las demás métricas por usuario.
      */
+    /**
+     * Pedidos del rango que no son de un ejecutivo comercial (supervisor,
+     * agente o sin asesor): no tienen fila en los rankings por asesor (D7),
+     * pero tampoco se pierden: la tarjeta los muestra como «otros», así filas
+     * + otros = total. Para un ejecutivo da 0 (su alcance es solo él).
+     *
+     * @param  array<int, int>|null  $stageIds
+     */
+    private function otrosPedidos(?array $stageIds, bool $sinCiudadAfuera = false): int
+    {
+        $query = DB::table('leads')
+            ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
+            ->when($stageIds !== null, fn ($q) => $q->whereIn('leads.lead_pipeline_stage_id', $stageIds ?: [0]))
+            ->where(fn ($q) => $q->whereNull('leads.user_id')->orWhereNotIn('leads.user_id', $this->ejecutivosIds() ?: [0]));
+
+        $this->pedidosDelTablero($query);
+
+        if ($sinCiudadAfuera) {
+            $this->excluirSinCiudad($query);
+        }
+
+        return $query->count();
+    }
+
     public function getLeadsAttentionCountByUsers(): array
     {
         $tablePrefix = DB::getTablePrefix();
@@ -607,12 +634,12 @@ class Lead extends AbstractReporting
                 $q->where('leads.lead_pipeline_id', $pipelineId);
             })
             // Los pedidos «Sin ciudad» no cuentan en esta tarjeta.
-            ->when($this->sinCiudadPipelineIds(), fn ($q, $ids) => $q->whereNotIn('leads.lead_pipeline_id', $ids))
+            ->tap(fn ($q) => $this->excluirSinCiudad($q))
             ->groupBy('users.id', 'users.name');
 
         $query = $this->excludeIgnoredRoles($query, 'users.id');
 
-        if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+        if (! is_null($userIds = $this->asesoresVisibles())) {
             $query->whereIn('users.id', $userIds);
         }
 
@@ -627,14 +654,15 @@ class Lead extends AbstractReporting
         }
 
         $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
-        $usersQuery = $this->excludeIgnoredRoles($usersQuery, 'id');
+        // Filas = solo ejecutivos comerciales (D7). Lo de los demás va a «otros».
+        $usersQuery->whereIn('id', $this->ejecutivosIds() ?: [0]);
 
         // El usuario del agente («Agente») no es un encargado: no va en la tarjeta.
         if ($this->ignoredUserNames) {
             $usersQuery->whereNotIn('name', $this->ignoredUserNames);
         }
 
-        if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+        if (! is_null($userIds = $this->asesoresVisibles())) {
             $usersQuery->whereIn('id', $userIds);
         }
 
@@ -660,6 +688,7 @@ class Lead extends AbstractReporting
         }
 
         return [
+            'otros'        => $this->otrosPedidos(null, sinCiudadAfuera: true),
             'labels'       => $labels,
             'attended'     => $attended,
             'not_attended' => $notAttended,
@@ -699,9 +728,7 @@ class Lead extends AbstractReporting
                 })
                 ->groupBy('branch_id', 'branch_text');
 
-            $query = $this->excludeIgnoredRoles($query, 'users.id');
-
-            if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+            if (! is_null($userIds = $this->asesoresVisibles())) {
                 $query->whereIn('users.id', $userIds);
             }
 
@@ -765,7 +792,7 @@ class Lead extends AbstractReporting
 
             $query = $this->excludeIgnoredRoles($query, 'users.id');
 
-            if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+            if (! is_null($userIds = $this->asesoresVisibles())) {
                 $query->whereIn('users.id', $userIds);
             }
 
@@ -782,9 +809,10 @@ class Lead extends AbstractReporting
         $previousCounts = $buildCounts($this->lastStartDate, $this->lastEndDate);
 
         $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
-        $usersQuery = $this->excludeIgnoredRoles($usersQuery, 'id');
+        // Filas = solo ejecutivos comerciales (D7). Lo de los demás va a «otros».
+        $usersQuery->whereIn('id', $this->ejecutivosIds() ?: [0]);
 
-        if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+        if (! is_null($userIds = $this->asesoresVisibles())) {
             $usersQuery->whereIn('id', $userIds);
         }
 
@@ -798,6 +826,7 @@ class Lead extends AbstractReporting
         }
 
         return [
+            'otros'        => $this->otrosPedidos($this->wonStageIds),
             'labels'        => $users,
             'data'          => $data,
             'previous_data' => $previousData,
@@ -867,7 +896,7 @@ class Lead extends AbstractReporting
                 $query->whereNotIn('users.name', $this->ignoredUserNames);
             }
 
-            if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+            if (! is_null($userIds = $this->asesoresVisibles())) {
                 $query->whereIn('users.id', $userIds);
             }
 
@@ -884,13 +913,14 @@ class Lead extends AbstractReporting
         $previousAverages = $buildAverages($this->lastStartDate, $this->lastEndDate);
 
         $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
-        $usersQuery = $this->excludeIgnoredRoles($usersQuery, 'id');
+        // Filas = solo ejecutivos comerciales (D7). Lo de los demás va a «otros».
+        $usersQuery->whereIn('id', $this->ejecutivosIds() ?: [0]);
 
         if ($this->ignoredUserNames) {
             $usersQuery->whereNotIn('name', $this->ignoredUserNames);
         }
 
-        if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+        if (! is_null($userIds = $this->asesoresVisibles())) {
             $usersQuery->whereIn('id', $userIds);
         }
 
@@ -942,9 +972,7 @@ class Lead extends AbstractReporting
                 })
                 ->groupBy('branch_id', 'branch_text');
 
-            $query = $this->excludeIgnoredRoles($query, 'users.id');
-
-            if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+            if (! is_null($userIds = $this->asesoresVisibles())) {
                 $query->whereIn('users.id', $userIds);
             }
 
@@ -1009,9 +1037,7 @@ class Lead extends AbstractReporting
                 })
                 ->groupBy('leads.lead_pipeline_id');
 
-            $query = $this->excludeIgnoredRoles($query, 'users.id');
-
-            if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+            if (! is_null($userIds = $this->asesoresVisibles())) {
                 $query->whereIn('users.id', $userIds);
             }
 
@@ -1065,12 +1091,10 @@ class Lead extends AbstractReporting
                 $q->where('leads.lead_pipeline_id', $pipelineId);
             })
             // «Sin ciudad» no es una ciudad: no aparece en esta tarjeta.
-            ->when($this->sinCiudadPipelineIds(), fn ($q, $ids) => $q->whereNotIn('leads.lead_pipeline_id', $ids))
+            ->tap(fn ($q) => $this->excluirSinCiudad($q))
             ->groupBy('leads.lead_pipeline_id');
 
-        $query = $this->excludeIgnoredRoles($query, 'users.id');
-
-        if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+        if (! is_null($userIds = $this->asesoresVisibles())) {
             $query->whereIn('users.id', $userIds);
         }
 
@@ -1096,6 +1120,39 @@ class Lead extends AbstractReporting
         ];
     }
 
+    /**
+     * Pedidos ENTREGADOS del rango que no tienen ninguna cotización vinculada
+     * (D6 del spec tablero-consistente). Productos vendidos y valor de ventas
+     * salen de las cotizaciones, así que estos pedidos suman 0: el tablero los
+     * lista con su enlace para que el asesor cargue la cotización. Mismo
+     * universo que vendidos: ciudad, ACL y «Sin ciudad» incluida.
+     */
+    public function getEntregadosSinCotizacion(): array
+    {
+        $query = DB::table('leads')
+            ->leftJoin('users', 'users.id', '=', 'leads.user_id')
+            ->whereIn('leads.lead_pipeline_stage_id', $this->wonStageIds ?: [0])
+            ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
+            ->whereNotExists(fn ($q) => $q->from('lead_quotes')->whereColumn('lead_quotes.lead_id', 'leads.id'));
+
+        $this->pedidosDelTablero($query);
+
+        $pedidos = $query
+            ->orderByDesc('leads.created_at')
+            ->get(['leads.id', 'leads.title', 'users.name as asesor'])
+            ->map(fn ($lead) => [
+                'id'     => (int) $lead->id,
+                'title'  => $lead->title,
+                'asesor' => $lead->asesor,
+                'url'    => route('admin.leads.view', $lead->id),
+            ]);
+
+        return [
+            'total'   => $pedidos->count(),
+            'pedidos' => $pedidos->all(),
+        ];
+    }
+
     public function getVentasCountByPipelines(): array
     {
         $tablePrefix = DB::getTablePrefix();
@@ -1117,9 +1174,7 @@ class Lead extends AbstractReporting
                 })
                 ->groupBy('leads.lead_pipeline_id');
 
-            $query = $this->excludeIgnoredRoles($query, 'users.id');
-
-            if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
+            if (! is_null($userIds = $this->asesoresVisibles())) {
                 $query->whereIn('users.id', $userIds);
             }
 
@@ -1316,14 +1371,18 @@ class Lead extends AbstractReporting
      */
     public function getTotalWonLeadValue($startDate, $endDate): ?float
     {
-        return $this->leadRepository
-            ->resetModel()
-            ->when(is_numeric(request('pipeline_id')) ? request('pipeline_id') : null, function ($q, $pipelineId) {
-                $q->where('lead_pipeline_id', $pipelineId);
-            })
-            ->whereIn('lead_pipeline_stage_id', $this->wonStageIds)
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->sum('lead_value');
+        // Valor de ventas = total de las cotizaciones de los pedidos entregados
+        // (D4 del spec tablero-consistente), no leads.lead_value. Es la misma
+        // cifra que la pestaña «Valor de ventas» de Evolución y que el Excel.
+        $query = DB::table('quotes')
+            ->join('lead_quotes', 'lead_quotes.quote_id', '=', 'quotes.id')
+            ->join('leads', 'leads.id', '=', 'lead_quotes.lead_id')
+            ->whereIn('leads.lead_pipeline_stage_id', $this->wonStageIds ?: [0])
+            ->whereBetween('leads.created_at', [$startDate, $endDate]);
+
+        $this->pedidosDelTablero($query);
+
+        return (float) $query->sum('quotes.grand_total');
     }
 
     /**
@@ -1607,7 +1666,8 @@ class Lead extends AbstractReporting
         }
 
         $intervals = $this->generateTimeIntervals($this->startDate, $this->endDate, $period);
-        $groupColumn = $this->getGroupColumn('leads.created_at', $period);
+        // Expresión cruda: lleva el prefijo real de la tabla (kl_), si no daba 500.
+        $groupColumn = $this->getGroupColumn(DB::getTablePrefix().'leads.created_at', $period);
 
         $results = $this->leadRepository
             ->resetModel()

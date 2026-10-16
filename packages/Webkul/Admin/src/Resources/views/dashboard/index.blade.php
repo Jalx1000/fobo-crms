@@ -38,6 +38,10 @@
     @php
         $user = auth()->guard('user')->user();
         $isAdminRole = strtolower(optional($user->role)->name) === 'admin';
+
+        // Quien no ve el total ve solo lo suyo: los títulos dicen «Mis …»
+        // (spec tablero-por-asesor, D6). Las tarjetas lo leen como $personal.
+        $personal = ! app(\Webkul\Admin\Helpers\Alcance::class)->veTotal();
     @endphp
 
     <div class="mt-3.5 flex gap-4 max-xl:flex-wrap">
@@ -47,6 +51,7 @@
         <div class="flex flex-1 flex-col gap-4 max-xl:flex-auto">
             {{-- @include('admin::dashboard.index.revenue') --}}
             @include('admin::dashboard.index.over-all')
+            @include('admin::dashboard.index.entregados-sin-cotizacion')
             @include('admin::dashboard.index.leads-by-users')
             @include('admin::dashboard.index.evolution')
 

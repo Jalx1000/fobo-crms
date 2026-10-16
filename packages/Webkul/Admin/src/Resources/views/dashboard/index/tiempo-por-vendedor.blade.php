@@ -15,7 +15,7 @@
         <template v-else>
             <div class="grid gap-4 rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex flex-col justify-between gap-1">
-                    <p class="text-base font-semibold dark:text-gray-300">Tiempo en responder</p>
+                    <p class="text-base font-semibold dark:text-gray-300">{{ ($personal ?? false) ? 'Mi tiempo en responder' : 'Tiempo en responder' }}</p>
                     <p class="text-sm font-semibold text-gray-600 dark:text-gray-300">Promedio total: @{{ averageMinutesPerLead }} hrs</p>
                 </div>
 
