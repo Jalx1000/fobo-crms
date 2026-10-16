@@ -634,8 +634,8 @@ class Lead extends AbstractReporting
             ->when($pipelineId, function ($q) use ($pipelineId) {
                 $q->where('leads.lead_pipeline_id', $pipelineId);
             })
-            // Los pedidos «Sin ciudad» no cuentan en esta tarjeta.
-            ->tap(fn ($q) => $this->excluirSinCiudad($q))
+            // Los pedidos «Sin ciudad» SÍ cuentan (pedido del 16/10): son del
+            // asesor igual que los demás y el kanban los muestra.
             ->groupBy('users.id', 'users.name');
 
         $query = $this->excludeIgnoredRoles($query, 'users.id');
@@ -689,7 +689,7 @@ class Lead extends AbstractReporting
         }
 
         return [
-            'otros'        => $this->otrosPedidos(null, sinCiudadAfuera: true),
+            'otros'        => $this->otrosPedidos(null),
             'labels'       => $labels,
             'attended'     => $attended,
             'not_attended' => $notAttended,

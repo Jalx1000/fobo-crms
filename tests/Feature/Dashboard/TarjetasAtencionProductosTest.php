@@ -12,7 +12,9 @@ use Webkul\User\Models\User;
  * - Productos más solicitados contaba los productos cargados en el pedido, que
  *   casi nunca tiene ninguno (en octubre: 4 Stretch Film). Los productos están
  *   en las cotizaciones; se suman sus unidades (D3, 15/10/2026).
- * - Ninguna de las dos cuenta los pedidos del pipeline «Sin ciudad».
+ * - Atendidos vs no atendidos SÍ cuenta los pedidos «Sin ciudad» (16/10/2026: el
+ *   kanban de Bulmaro tenía 48 no atendidos y la tarjeta mostraba 2); productos
+ *   más solicitados sigue sin contarlos.
  *
  * Todo en enero de 2020, para no mezclarse con los datos reales.
  */
@@ -46,7 +48,7 @@ it('cuenta los NO ATENIDOS como no atendidos', function () {
         ->and($s['attended'][$i])->toBe(1);
 });
 
-it('atendidos vs no atendidos no cuenta los pedidos Sin ciudad', function () {
+it('atendidos vs no atendidos cuenta también los pedidos Sin ciudad', function () {
     tarjetaPedido($this, 1, 'no-atendidos');
     tarjetaPedido($this, $this->sinCiudad, 'no-atendidos');
     tarjetaPedido($this, $this->sinCiudad, 'solicitud-recibida');
@@ -54,8 +56,8 @@ it('atendidos vs no atendidos no cuenta los pedidos Sin ciudad', function () {
     $s = tarjeta('leads-attention-by-users');
     $i = array_search($this->asesor->name, $s['labels']);
 
-    expect($s['not_attended'][$i])->toBe(1)
-        ->and($s['attended'][$i])->toBe(0);
+    expect($s['not_attended'][$i])->toBe(2)
+        ->and($s['attended'][$i])->toBe(1);
 });
 
 // Desde el 15/10/2026 (D3) la torta se ordena por unidades cotizadas, no por
