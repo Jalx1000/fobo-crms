@@ -570,7 +570,7 @@ class Lead extends AbstractReporting
         }
 
         return [
-            'otros'        => $this->otrosPedidos($this->openStageIds()),
+            'otros'         => $this->otrosPedidos($this->openStageIds()),
             'labels'        => $users,
             'data'          => $data,
             'previous_data' => $previousData,
@@ -826,7 +826,7 @@ class Lead extends AbstractReporting
         }
 
         return [
-            'otros'        => $this->otrosPedidos($this->wonStageIds),
+            'otros'         => $this->otrosPedidos($this->wonStageIds),
             'labels'        => $users,
             'data'          => $data,
             'previous_data' => $previousData,
@@ -843,7 +843,6 @@ class Lead extends AbstractReporting
      */
     public function getAverageResponseTimeByUsers(): array
     {
-        $tablePrefix = DB::getTablePrefix();
         $pipelineId = is_numeric(request('pipeline_id')) ? request('pipeline_id') : null;
 
         /**
@@ -855,40 +854,26 @@ class Lead extends AbstractReporting
         $now = now()->toDateTimeString();
 
         /**
-         * Regla "por etapa actual": el reloj se mide desde created_at hasta la fecha
-         * de la ETAPA donde el lead está HOY (no la 1ª transición):
-         *   - Prospecto            -> NOW (sigue abierto, el tiempo aumenta)
-         *   - Confirmado           -> confirmed_at
-         *   - Entregado/Cancelado  -> closed_at  (ej. #161: 22-jun -> 29-jun, no 11 min)
-         * Un lead confirmado por error y devuelto a Prospecto vuelve a contar como
-         * abierto (cae en la rama Prospecto -> NOW).
+         * Regla "por etapa actual": el reloj va desde created_at hasta la fecha
+         * de la ETAPA donde el lead está HOY: abierto (NO ATENDIDOS) -> ahora;
+         * cotización enviada -> confirmed_at; cerrado -> closed_at. Se cuentan
+         * solo horas hábiles (HorasHabiles).
          */
-        $prospectoIds = implode(',', $this->prospectoStageIds ?: [0]);
-        $confirmadoIds = implode(',', $this->confirmedStageIds ?: [0]);
-
-        $buildAverages = function ($startDate, $endDate) use ($tablePrefix, $pipelineId, $now, $prospectoIds, $confirmadoIds) {
+        $buildAverages = function ($startDate, $endDate) use ($pipelineId, $now) {
             $query = $this->leadRepository
                 ->resetModel()
                 ->leftJoin('users', 'leads.user_id', '=', 'users.id')
                 ->select(
-                    'users.id as user_id',
-                    'users.name as user_name'
-                )
-                ->selectRaw(
-                    'AVG(TIMESTAMPDIFF(SECOND, '.$tablePrefix.'leads.created_at, '
-                    .'CASE '
-                    .'WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.$prospectoIds.') THEN ? '
-                    .'WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.$confirmadoIds.') THEN COALESCE('.$tablePrefix.'leads.confirmed_at, ?) '
-                    .'ELSE COALESCE('.$tablePrefix.'leads.closed_at, '.$tablePrefix.'leads.confirmed_at, ?) '
-                    .'END'
-                    .')) as avg_response_seconds',
-                    [$now, $now, $now]
+                    'users.name as user_name',
+                    'leads.created_at',
+                    'leads.lead_pipeline_stage_id',
+                    'leads.confirmed_at',
+                    'leads.closed_at'
                 )
                 ->whereBetween('leads.created_at', [$startDate, $endDate])
                 ->when($pipelineId, function ($q) use ($pipelineId) {
                     $q->where('leads.lead_pipeline_id', $pipelineId);
-                })
-                ->groupBy('users.id', 'users.name');
+                });
 
             $query = $this->excludeIgnoredRoles($query, 'users.id');
 
@@ -900,13 +885,28 @@ class Lead extends AbstractReporting
                 $query->whereIn('users.id', $userIds);
             }
 
-            $avgByUser = [];
+            /*
+            | Horas HÁBILES (lunes a viernes, 08:00–19:00; spec
+            | tiempo-en-responder), no las 24 h de los 7 días: un pedido del
+            | viernes 18:00 medido el lunes 09:00 lleva 2 h, no 63. El
+            | intervalo es el de siempre: hasta la fecha de su etapa actual.
+            */
+            $segundosPorAsesor = [];
 
             foreach ($query->get() as $row) {
-                $avgByUser[$row->user_name ?? '—'] = $row->avg_response_seconds ? (int) $row->avg_response_seconds : 0;
+                $hasta = match (true) {
+                    in_array((int) $row->lead_pipeline_stage_id, $this->prospectoStageIds, true) => $now,
+                    in_array((int) $row->lead_pipeline_stage_id, $this->confirmedStageIds, true) => $row->confirmed_at ?? $now,
+                    default                                                                      => $row->closed_at ?? $row->confirmed_at ?? $now,
+                };
+
+                $segundosPorAsesor[$row->user_name ?? '—'][] = \Webkul\Admin\Helpers\HorasHabiles::segundos(
+                    \Carbon\Carbon::parse($row->created_at),
+                    \Carbon\Carbon::parse($hasta)
+                );
             }
 
-            return $avgByUser;
+            return array_map(fn ($s) => (int) round(array_sum($s) / count($s)), $segundosPorAsesor);
         };
 
         $currentAverages = $buildAverages($this->startDate, $this->endDate);

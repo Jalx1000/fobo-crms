@@ -119,6 +119,12 @@ return [
     'horario_atencion' => ['desde' => '08:00', 'hasta' => '19:00'],
 
     /*
+    | Días laborales (ISO: 1 = lunes … 7 = domingo). Con horario_atencion son
+    | las horas hábiles de «Tiempo en responder» (spec tiempo-en-responder).
+    */
+    'dias_laborales' => [1, 2, 3, 4, 5],
+
+    /*
     | Lo que el agente dice cuando el cliente no está en la ciudad de las
     | plantas: no hace falta que venga, se le envía.
     */
