@@ -29,10 +29,10 @@
         /* Solo las columnas con tono: una etapa nueva sin tono queda como
            antes. Doble clase para ganarle a las utilidades `border` de Tailwind. */
 
-        /* Borde de color en toda la columna de la etapa (las tarjetas de
+        /* Solo el borde superior de la columna de la etapa (las tarjetas de
            los pedidos quedan como estaban). */
         .etapa-columna:is(.etapa-en-curso, .etapa-ganado, .etapa-perdido) {
-            border: 2px solid var(--etapa);
+            border-top: 4px solid var(--etapa);
         }
 
         /* Punto junto al nombre de la etapa. */
