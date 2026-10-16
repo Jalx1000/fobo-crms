@@ -18,11 +18,11 @@
         compilado y no incluiría clases nuevas.
     --}}
     <style>
-        .etapa-en-curso { --etapa: #f59e0b; }
+        .etapa-en-curso { --etapa: #facc15; } /* amarillo (el ámbar se veía naranja) */
         .etapa-ganado { --etapa: #16a34a; }
         .etapa-perdido { --etapa: #dc2626; }
 
-        .dark .etapa-en-curso { --etapa: #fbbf24; }
+        .dark .etapa-en-curso { --etapa: #fde047; }
         .dark .etapa-ganado { --etapa: #4ade80; }
         .dark .etapa-perdido { --etapa: #f87171; }
 
