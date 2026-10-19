@@ -16,7 +16,7 @@ class SessionController extends Controller
     public function create(): RedirectResponse|View
     {
         if (auth()->guard('user')->check()) {
-            return redirect()->route('admin.dashboard.index');
+            return $this->redirectToHome();
         }
 
         $previousUrl = url()->previous();
@@ -54,21 +54,13 @@ class SessionController extends Controller
             return redirect()->route('admin.session.create');
         }
 
+        if (! bouncer()->hasPermission('dashboard')) {
+            return $this->redirectToHome();
+        }
+
         $menus = menu()->getItems('admin');
 
         $availableNextMenu = $menus?->first();
-
-        if (! bouncer()->hasPermission('dashboard')) {
-            if (is_null($availableNextMenu)) {
-                session()->flash('error', trans('admin::app.users.not-permission'));
-
-                auth()->guard('user')->logout();
-
-                return redirect()->route('admin.session.create');
-            }
-
-            return redirect()->to($availableNextMenu->getUrl());
-        }
 
         $hasAccessToIntendedUrl = $this->canAccessIntendedUrl($menus, redirect()->getIntendedUrl());
 
@@ -87,6 +79,30 @@ class SessionController extends Controller
         auth()->guard('user')->logout();
 
         return redirect()->route('admin.session.create');
+    }
+
+    /**
+     * Where a logged-in user lands: the dashboard if their role allows it,
+     * otherwise the first menu they can see. Sending a role without the
+     * dashboard permission there ends in a 401 on every visit to the site.
+     */
+    protected function redirectToHome(): RedirectResponse
+    {
+        if (bouncer()->hasPermission('dashboard')) {
+            return redirect()->route('admin.dashboard.index');
+        }
+
+        $availableNextMenu = menu()->getItems('admin')?->first();
+
+        if (is_null($availableNextMenu)) {
+            session()->flash('error', trans('admin::app.users.not-permission'));
+
+            auth()->guard('user')->logout();
+
+            return redirect()->route('admin.session.create');
+        }
+
+        return redirect()->to($availableNextMenu->getUrl());
     }
 
     /**
