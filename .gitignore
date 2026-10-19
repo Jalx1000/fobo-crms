@@ -60,4 +60,3 @@ node_modules/
 
 # Dumps de base de datos (datos de clientes, nunca al repo)
 *.sql
-.env.railway
