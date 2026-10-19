@@ -69,6 +69,8 @@
                 </div>
             @else
                 @include('admin::dashboard.index.tiempo-por-vendedor')
+
+                @include('admin::dashboard.index.distribucion-tiempo-respuesta')
             @endif
 
             @include('admin::dashboard.index.tiempo-por-etapa')

@@ -109,10 +109,6 @@
                         @include('whatsapp::inbox')
                     </x-slot>
                 @endif
-
-                <x-slot:historial>
-                    @include('admin::contacts.persons.view.historial-ia')
-                </x-slot>
             </x-admin::activities>
 
             {!! view_render_event('admin.contact.persons.view.right.after', ['person' => $person]) !!}

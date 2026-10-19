@@ -629,8 +629,14 @@ class Lead extends AbstractReporting
      *   - "Atendidos"    = pedidos en TODAS las demás etapas (Confirmado,
      *                      Entregado, Cancelado y Sin interés).
      * Reemplaza la comparación actual-vs-anterior para este card; solo periodo
-     * actual. Mantiene el mismo filtro de pipeline, roles ignorados y ACL que
-     * las demás métricas por usuario.
+     * actual.
+     *
+     * Atendidos + No atendidos = total de "Total pedidos por etapa": se cuentan
+     * todos los pedidos del período, sin excluir roles ni aplicar el ACL. Antes
+     * los pedidos asignados a un Administrador quedaban afuera y la tarjeta daba
+     * menos (1503 vs 1510 desde el 28/05). La lista base de encargados sigue
+     * igual; un usuario fuera de ella (un administrador) sólo aparece si tiene
+     * pedidos en el período, y los pedidos sin asignar van en "Sin encargado".
      */
     public function getLeadsAttentionCountByUsers(): array
     {
@@ -654,24 +660,16 @@ class Lead extends AbstractReporting
             })
             ->groupBy('users.id', 'users.name');
 
-        $query = $this->excludeIgnoredRoles($query, 'users.id');
-
-        if ($this->ignoredUserNames) {
-            $query->whereNotIn('users.name', $this->ignoredUserNames);
-        }
-
-        if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
-            $query->whereIn('users.id', $userIds);
-        }
-
         // Se indexa por user_id (no por nombre) para que dos asesores homónimos
-        // no colisionen ni se sobreescriban sus conteos.
+        // no colisionen ni se sobreescriban sus conteos. '' = sin asignar.
         $attendedById = [];
         $notAttendedById = [];
+        $namesById = [];
 
         foreach ($query->get() as $row) {
-            $attendedById[$row->user_id] = (int) $row->attended;
-            $notAttendedById[$row->user_id] = (int) $row->not_attended;
+            $attendedById[$row->user_id ?? ''] = (int) $row->attended;
+            $notAttendedById[$row->user_id ?? ''] = (int) $row->not_attended;
+            $namesById[$row->user_id ?? ''] = $row->user_name;
         }
 
         $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
@@ -686,6 +684,12 @@ class Lead extends AbstractReporting
         }
 
         $users = $usersQuery->orderBy('name')->get(['id', 'name']);
+
+        // Con pedidos pero fuera de la lista base (p. ej. un administrador):
+        // se agregan para que la suma cuadre con "Total pedidos por etapa".
+        foreach (array_diff(array_keys($namesById), $users->pluck('id')->all()) as $id) {
+            $users->push((object) ['id' => $id, 'name' => $id === '' ? 'Sin encargado' : $namesById[$id]]);
+        }
 
         // Nombres que aparecen más de una vez: se desambiguan con el id para que
         // dos asesores homónimos no se muestren como barras idénticas en el chart.
@@ -1623,6 +1627,162 @@ class Lead extends AbstractReporting
             ->all();
     }
 
+    /**
+     * "Distribución del tiempo de respuesta": cuánto tarda cada movimiento de
+     * etapa, desde que el lead entra a una etapa hasta que pasa a la siguiente.
+     *
+     * - Sólo movimientos CERRADOS: el tramo abierto no se mide hasta "ahora",
+     *   que es justo lo que inflaba la tarjeta "Tiempo en responder".
+     * - Fuera los de menos de 1 minuto: son pasos automáticos del agente
+     *   (crea el lead y lo mueve en el mismo segundo) y dejaban el mejor en 0.
+     * - El movimiento es del responsable del lead (`leads.user_id`), y sólo
+     *   cuentan los leads de un Encargado.
+     * - En "Todos" cada movimiento pesa igual: no es el promedio de promedios.
+     *
+     * El periodo filtra los LEADS por created_at, como el resto del tablero.
+     */
+    public function getResponseTimeDistribution(): array
+    {
+        $managers = $this->getManagers();
+
+        // Sólo se acepta un encargado que el usuario puede ver.
+        $userId = is_numeric(request('user_id')) ? (int) request('user_id') : null;
+
+        if ($userId && ! in_array($userId, array_column($managers, 'id'), true)) {
+            $userId = null;
+        }
+
+        [$cte, $bindings] = $this->moveDurationsCte();
+
+        $porAsesor = [];
+
+        foreach (DB::select("{$cte} SELECT owner_id, COUNT(*) AS c FROM v GROUP BY owner_id", $bindings) as $row) {
+            $porAsesor[(int) $row->owner_id] = (int) $row->c;
+        }
+
+        $donde = $userId ? 'WHERE owner_id = ?' : '';
+        $filtro = $userId ? [$userId] : [];
+
+        $resumen = DB::selectOne("
+            {$cte}
+            SELECT COUNT(*) AS total,
+                   MIN(secs) AS min_secs,
+                   MAX(secs) AS max_secs,
+                   AVG(secs) AS avg_secs,
+                   SUM(secs < 86400) AS under_24h
+            FROM v {$donde}
+        ", array_merge($bindings, $filtro));
+
+        // Mediana: el valor del medio (o el promedio de los dos del medio).
+        $mediana = DB::selectOne("
+            {$cte}
+            SELECT AVG(secs) AS median_secs
+            FROM (
+                SELECT secs,
+                       ROW_NUMBER() OVER (ORDER BY secs) AS rn,
+                       COUNT(*) OVER () AS c
+                FROM v {$donde}
+            ) m
+            WHERE rn IN (FLOOR((c + 1) / 2), CEIL((c + 1) / 2))
+        ", array_merge($bindings, $filtro));
+
+        $conteos = array_fill(0, 14, 0);
+
+        foreach (DB::select("
+            {$cte}
+            SELECT LEAST(FLOOR(secs / 86400), 13) AS tramo, COUNT(*) AS c
+            FROM v {$donde}
+            GROUP BY tramo
+        ", array_merge($bindings, $filtro)) as $row) {
+            $conteos[(int) $row->tramo] = (int) $row->c;
+        }
+
+        $total = (int) $resumen->total;
+
+        $tramos = [];
+
+        foreach ($conteos as $dia => $c) {
+            $tramos[] = [
+                'from_day' => $dia,
+                'label'    => $dia === 13 ? '13+' : $dia.'-'.($dia + 1),
+                'count'    => $c,
+                'percent'  => $total ? round($c * 100 / $total, 1) : 0,
+            ];
+        }
+
+        return [
+            'users' => array_map(fn ($m) => $m + [
+                'count'    => $porAsesor[$m['id']] ?? 0,
+                'has_data' => isset($porAsesor[$m['id']]),
+            ], $managers),
+            'user_id'         => $userId,
+            'total'           => $total,
+            'min'             => $total ? (int) $resumen->min_secs : null,
+            'max'             => $total ? (int) $resumen->max_secs : null,
+            'avg'             => $total ? (int) round($resumen->avg_secs) : null,
+            'median'          => $total ? (int) round($mediana->median_secs) : null,
+            'count_under_24h' => (int) $resumen->under_24h,
+            'pct_under_24h'   => $total ? round($resumen->under_24h * 100 / $total, 1) : 0,
+            'buckets'         => $tramos,
+        ];
+    }
+
+    /**
+     * CTE `v` con un renglón por movimiento cerrado de >= 1 minuto:
+     * (owner_id, secs). La salida de cada etapa es la entrada a la siguiente
+     * en el log de actividades, vía LEAD().
+     *
+     * Los filtros van por lead (no por actividad), así la ventana de LEAD()
+     * sigue viendo todos los movimientos del lead.
+     *
+     * @return array{0: string, 1: array}
+     */
+    protected function moveDurationsCte(): array
+    {
+        $prefix = DB::getTablePrefix();
+        $pipelineId = is_numeric(request('pipeline_id')) ? (int) request('pipeline_id') : null;
+
+        $bindings = [$this->managerRoleName, $this->startDate, $this->endDate];
+        $extra = '';
+
+        if ($pipelineId) {
+            $extra .= ' AND l.lead_pipeline_id = ?';
+            $bindings[] = $pipelineId;
+        }
+
+        // Mismo alcance que applyUserScope(): un encargado sólo se ve a sí mismo.
+        foreach ([$this->scopedUserIds(), function_exists('bouncer') ? bouncer()->getAuthorizedUserIds() : null] as $ids) {
+            if (! is_null($ids)) {
+                $extra .= ' AND l.user_id IN ('.implode(',', array_map('intval', $ids ?: [0])).')';
+            }
+        }
+
+        $sql = "
+            WITH t AS (
+                SELECT l.user_id AS owner_id,
+                       TIMESTAMPDIFF(
+                           SECOND,
+                           a.created_at,
+                           LEAD(a.created_at) OVER (PARTITION BY la.lead_id ORDER BY a.created_at, a.id)
+                       ) AS secs
+                FROM {$prefix}activities a
+                JOIN {$prefix}lead_activities la ON la.activity_id = a.id
+                JOIN {$prefix}leads l ON l.id = la.lead_id
+                JOIN {$prefix}users u ON u.id = l.user_id
+                JOIN {$prefix}roles r ON r.id = u.role_id
+                WHERE JSON_UNQUOTE(JSON_EXTRACT(a.additional, '$.attribute')) = 'Etapa'
+                  AND r.name = ?
+                  AND l.created_at BETWEEN ? AND ?
+                  {$extra}
+            ),
+            v AS (
+                SELECT owner_id, secs FROM t WHERE secs IS NOT NULL AND secs >= 60
+            )
+        ";
+
+        return [$sql, $bindings];
+    }
+
     public function getVentasCountByBranches(): array
     {
         $tablePrefix = DB::getTablePrefix();
@@ -1754,8 +1914,13 @@ class Lead extends AbstractReporting
      * Leads "No atendidos" (etapa inicial "No atendido", $notAttendedStageIds)
      * agrupados por ciudad - cada pipeline representa una ciudad. Alimenta el
      * card doughnut "No atendidos por Ciudad". Cuenta por created_at y respeta
-     * el filtro de pipeline, los roles ignorados y el ACL, igual que el resto
-     * de métricas. Solo incluye ciudades con al menos un lead no atendido.
+     * el filtro de pipeline. Solo incluye ciudades con al menos un lead no
+     * atendido.
+     *
+     * Mismos filtros que "Total pedidos por etapa" (getOpenLeadsByStatesFixed),
+     * para que la suma de la torta sea el "No atendido" de esa tarjeta. Antes
+     * excluía los pedidos asignados a Administrador/Supervisores y aplicaba el
+     * ACL, y la torta daba menos que la tarjeta (239 vs 243 desde el 28/05).
      */
     public function getNotAttendedLeadsCountByPipelines(): array
     {
@@ -1764,9 +1929,15 @@ class Lead extends AbstractReporting
 
         $pipelines = $this->pipelineRepository->all();
 
-        $query = $this->leadRepository
+        $results = $this->leadRepository
             ->resetModel()
-            ->leftJoin('users', 'leads.user_id', '=', 'users.id')
+            ->when(is_numeric(request('user_id')) ? request('user_id') : null, function ($q, $userId) {
+                $q->where('leads.user_id', $userId);
+            })
+            ->when(is_numeric(request('organization_id')) ? request('organization_id') : null, function ($q, $organizationId) {
+                $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
+                    ->where('persons.organization_id', $organizationId);
+            })
             ->select(
                 'leads.lead_pipeline_id as pipeline_id',
                 DB::raw('COUNT(DISTINCT '.$tablePrefix.'leads.id) AS count')
@@ -1776,15 +1947,9 @@ class Lead extends AbstractReporting
             ->when($pipelineId, function ($q) use ($pipelineId) {
                 $q->where('leads.lead_pipeline_id', $pipelineId);
             })
-            ->groupBy('leads.lead_pipeline_id');
-
-        $query = $this->excludeIgnoredRoles($query, 'users.id');
-
-        if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
-            $query->whereIn('users.id', $userIds);
-        }
-
-        $results = $query->get()->keyBy('pipeline_id');
+            ->groupBy('leads.lead_pipeline_id')
+            ->get()
+            ->keyBy('pipeline_id');
 
         $labels = [];
         $data = [];

@@ -133,17 +133,22 @@ class Dashboard
         return $this->productReporting->getTopSellingProductsByRevenue(5);
     }
 
-    public function getTopSellingProductsByQuantity(): Collection
+    /**
+     * "Productos más solicitados": todos los productos, no los 5 primeros, para
+     * que la torta sume lo mismo que la tarjeta "Total productos solicitados".
+     */
+    public function getTopSellingProductsByQuantity(): array
     {
-        return $this->productReporting->getTopSellingProductsByQuantity(5);
+        return $this->productReporting->getRequestedProducts();
     }
 
     /**
-     * Returns most sold products (Won/Ganado stage, i.e. delivered) statistics.
+     * "Productos más vendidos": todos los productos entregados, para que la
+     * torta sume lo mismo que la tarjeta "Total productos vendidos (Entregados)".
      */
-    public function getTopSellingProductsByQuantitySold(): Collection
+    public function getTopSellingProductsByQuantitySold(): array
     {
-        return $this->productReporting->getTopSellingProductsByQuantitySold(5);
+        return $this->productReporting->getRequestedProducts(onlyDelivered: true);
     }
 
     /**
@@ -213,6 +218,15 @@ class Dashboard
     /**
      * Detalle paginado de "tiempo por etapa", una fila por lead.
      */
+    /**
+     * Distribución de lo que tarda cada movimiento de etapa (min, promedio,
+     * mediana, peor y tramos de 24 h), para "Todos" o un encargado.
+     */
+    public function getResponseTimeDistributionStats(): array
+    {
+        return $this->leadReporting->getResponseTimeDistribution();
+    }
+
     public function getStageDwellTimeStats(): array
     {
         return $this->leadReporting->getStageDwellTimeByLead();

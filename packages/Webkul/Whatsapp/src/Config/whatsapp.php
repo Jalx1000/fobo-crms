@@ -245,6 +245,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Seguimiento y cierre por falta de respuesta
+    |--------------------------------------------------------------------------
+    | Si le escribimos al cliente y no contesta: a las 16 h de su último
+    | mensaje (con 8 h de ventana todavía abierta) Sofía le manda un
+    | recordatorio de texto, y a las 72 h de nuestro último mensaje el pedido
+    | pasa a "Cliente sin interés" en su propio pipeline. Si vuelve a escribir,
+    | se reabre. Spec: tasks/spec-sin-respuesta-3-dias.md.
+    |
+    | Texto y no plantilla a propósito: las plantillas de reapertura tuvieron
+    | 0 respuestas de 36 en 30 días (medido el 15/10/2026).
+    |
+    | `since` vacío = todo apagado. Es también lo que hace que la regla corra
+    | sólo hacia adelante: los mensajes anteriores a esa fecha no cuentan, así
+    | que los pedidos que ya estaban parados al activarla no se cierran de golpe.
+    */
+    'auto_close' => [
+        'since'          => env('WHATSAPP_AUTO_CLOSE_SINCE'),
+        'followup_after' => (int) env('WHATSAPP_FOLLOWUP_HOURS', 16),
+        'close_after'    => (int) env('WHATSAPP_AUTO_CLOSE_HOURS', 72),
+        'user_id'        => (int) env('WHATSAPP_AUTO_CLOSE_USER_ID', 13), // usuario Sistema ("Agente")
+        'stages'         => ['no-atendido', 'cliente-contactado'],
+        'closed_stage'   => 'cliente-sin-inters',
+        'reopen_stage'   => 'cliente-contactado',
+        // Neutro a propósito: no supone de qué se habló. Nunca en mayúsculas.
+        'followup_text'  => 'Hola{nombre} 👋 ¿Te puedo ayudar en algo más? Cuando quieras, seguimos por aquí 🍷',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | AI Agent
     |--------------------------------------------------------------------------
     | Global default for the AI agent switch and the outbound webhook the

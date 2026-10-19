@@ -5,6 +5,7 @@ use Webkul\Doctor\Http\Controllers\Api\AvailabilityController;
 use Webkul\Doctor\Http\Controllers\Api\DoctorController;
 use Webkul\Doctor\Http\Controllers\Api\ProductoController;
 use Webkul\Doctor\Http\Controllers\Api\SpecialtyController;
+use Webkul\Doctor\Http\Controllers\Api\SucursalController;
 
 Route::prefix('api')->group(function () {
     Route::get('specialties', [SpecialtyController::class, 'index'])->name('api.specialties.index');
@@ -20,4 +21,8 @@ Route::prefix('api')->group(function () {
 Route::prefix('api')->middleware(['throttle:agent-api', 'auth:sanctum'])->group(function () {
     Route::get('productos/por-ciudad-sucursal', [ProductoController::class, 'porCiudadSucursal'])
         ->name('api.productos.por-ciudad-sucursal');
+
+    // Datos de retiro en forma magra: solo los 5 campos que usa el mensaje de sucursal.
+    Route::get('v1/kohlberg/sucursales', [SucursalController::class, 'index'])
+        ->name('api.kohlberg.sucursales');
 });

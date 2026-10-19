@@ -40,6 +40,16 @@ class Kernel extends ConsoleKernel
         $schedule->command('whatsapp:reactivar-agente')
             ->hourly()
             ->withoutOverlapping();
+
+        /*
+         * Recordatorio a las 16 h y cierre en "Cliente sin interés" a las 72 h
+         * cuando el cliente no contesta. No hace nada mientras
+         * WHATSAPP_AUTO_CLOSE_SINCE esté vacío. Cada 15 minutos para que el
+         * recordatorio salga cerca de las 16 h, con 8 h de ventana por delante.
+         */
+        $schedule->command('whatsapp:seguimiento-y-cierre')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping();
     }
 
     /**

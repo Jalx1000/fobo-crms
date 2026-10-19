@@ -14,6 +14,7 @@ use Webkul\Whatsapp\Gateways\Dto\StatusUpdate;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\ConversationResolver;
+use Webkul\Whatsapp\Services\SilenceTracker;
 
 /**
  * Persists whatever the active gateway hands back. Knows nothing about any
@@ -98,6 +99,10 @@ class IngestInboundPayload implements ShouldQueue
             'last_inbound_at' => now(), // reopens the 24h messaging window
             'unread_count'    => $conversation->unread_count + 1,
         ])->save();
+
+        // Volvió a escribir: si su pedido se cerró por falta de respuesta, se
+        // reabre. Nunca lanza: el mensaje del cliente ya quedó guardado.
+        app(SilenceTracker::class)->reopenIfAutoClosed($conversation);
 
         /*
          * Traer el archivo, si el mensaje trae uno. Va acá y no cuando alguien

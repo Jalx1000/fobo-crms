@@ -87,17 +87,24 @@ class Product extends AbstractReporting
     }
 
     /**
-     * Gets top-selling products by quantity.
+     * Productos solicitados: la única fuente de la tarjeta "Total productos
+     * solicitados" y de la torta "Productos más solicitados".
      *
-     * @param  int  $limit
+     * Antes cada una tenía su propia query y la torta se cortaba en 5, así que
+     * nunca cuadraban. Todas las etapas, por fecha de creación del pedido y sin
+     * los duplicados descartados.
+     *
+     * Con $onlyDelivered es la fuente de "Total productos vendidos
+     * (Entregados)" y de la torta "Productos más vendidos": la misma query,
+     * restringida a la etapa entregado.
+     *
+     * @param  \Carbon\Carbon  $startDate
+     * @param  \Carbon\Carbon  $endDate
      */
-    public function getTopSellingProductsByQuantity($limit = null): Collection
+    protected function requestedProductsQuery($startDate, $endDate, bool $onlyDelivered = false)
     {
-        $tablePrefix = DB::getTablePrefix();
-
-        $items = $this->productRepository
+        return $this->productRepository
             ->resetModel()
-            ->with('product')
             ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
             ->leftJoin('products', 'lead_products.product_id', '=', 'products.id')
             ->when(request('user_id'), function ($q) {
@@ -110,72 +117,35 @@ class Product extends AbstractReporting
             ->when(is_numeric(request('pipeline_id')) ? request('pipeline_id') : null, function ($q, $pipelineId) {
                 $q->where('leads.lead_pipeline_id', $pipelineId);
             })
-            ->select(
-                'products.id as product_id',
-                'products.name',
-                'products.price'
-            )
-            ->addSelect(DB::raw('SUM('.$tablePrefix.'lead_products.quantity) as total_qty_ordered'))
-            ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
-            ->having(DB::raw('SUM('.$tablePrefix.'lead_products.quantity)'), '>', 0)
-            ->groupBy('products.id', 'products.name', 'products.price')
-            ->orderBy('total_qty_ordered', 'DESC')
-            ->limit($limit)
-            ->get();
-
-        $items = $items->map(function ($item) {
-            return [
-                'id'                => $item->product_id,
-                'name'              => $item->name,
-                'price'             => $item->product?->price,
-                'formatted_price'   => core()->formatBasePrice($item->price),
-                'total_qty_ordered' => $item->total_qty_ordered,
-            ];
-        });
-
-        return $items;
+            ->when($onlyDelivered, function ($q) {
+                $q->whereIn('leads.lead_pipeline_stage_id', $this->wonStageIds ?: [0]);
+            })
+            ->whereNotIn('leads.lead_pipeline_stage_id', DiscardedLeads::stageIds())
+            ->whereBetween('leads.created_at', [$startDate, $endDate]);
     }
 
     /**
-     * Gets the most sold products by quantity, considering only leads in the
-     * Won/Ganado stage (i.e. delivered orders) and an optional pipeline (ciudad) filter.
+     * Gets top-selling products by quantity.
      *
      * @param  int  $limit
+     * @param  bool  $onlyDelivered  Sólo pedidos entregados (torta "Productos más vendidos").
      */
-    public function getTopSellingProductsByQuantitySold($limit = null): Collection
+    public function getTopSellingProductsByQuantity($limit = null, bool $onlyDelivered = false): Collection
     {
         $tablePrefix = DB::getTablePrefix();
-        $pipelineId = is_numeric(request('pipeline_id')) ? request('pipeline_id') : null;
 
-        $items = $this->productRepository
-            ->resetModel()
-            ->with('product')
-            ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
-            ->leftJoin('products', 'lead_products.product_id', '=', 'products.id')
-            ->when(request('user_id'), function ($q) {
-                $q->where('leads.user_id', request('user_id'));
-            })
-            ->when(request('organization_id'), function ($q) {
-                $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
-                    ->where('persons.organization_id', request('organization_id'));
-            })
-            ->when($pipelineId, function ($q) use ($pipelineId) {
-                $q->where('leads.lead_pipeline_id', $pipelineId);
-            })
+        $items = $this->requestedProductsQuery($this->startDate, $this->endDate, $onlyDelivered)
             ->select(
-                'products.id as product_id',
+                'lead_products.product_id',
                 'products.name',
                 'products.price'
             )
             ->addSelect(DB::raw('SUM('.$tablePrefix.'lead_products.quantity) as total_qty_ordered'))
-            ->whereIn('leads.lead_pipeline_stage_id', $this->wonStageIds)
-            // Decisión de negocio: contar los entregados por FECHA DE CREACIÓN del
-            // lead (created_at), para que el tablero cuadre con Contactos/Leads y el
-            // embudo sume exactamente el total del período.
-            ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
+            ->addSelect(DB::raw('COUNT(DISTINCT '.$tablePrefix.'lead_products.lead_id) as total_leads'))
             ->having(DB::raw('SUM('.$tablePrefix.'lead_products.quantity)'), '>', 0)
-            ->groupBy('products.id', 'products.name', 'products.price')
+            ->groupBy('lead_products.product_id', 'products.name', 'products.price')
             ->orderBy('total_qty_ordered', 'DESC')
+            ->orderBy('products.name')
             ->limit($limit)
             ->get();
 
@@ -183,11 +153,34 @@ class Product extends AbstractReporting
             return [
                 'id'                => $item->product_id,
                 'name'              => $item->name,
-                'price'             => $item->product?->price,
+                'price'             => $item->price,
                 'formatted_price'   => core()->formatBasePrice($item->price),
-                'total_qty_ordered' => $item->total_qty_ordered,
+                'total_qty_ordered' => (int) $item->total_qty_ordered,
+                'total_leads'       => (int) $item->total_leads,
             ];
         });
+    }
+
+    /**
+     * Torta + tabla: todos los productos y el total, que es el mismo número de
+     * la tarjeta "Total productos solicitados" (o "Total productos vendidos
+     * (Entregados)" con $onlyDelivered).
+     */
+    public function getRequestedProducts(bool $onlyDelivered = false): array
+    {
+        $products = $this->getTopSellingProductsByQuantity(null, $onlyDelivered);
+
+        return [
+            'products'    => $products->values(),
+            'total_qty'   => $onlyDelivered
+                ? $this->getTotalProductsSold($this->startDate, $this->endDate)
+                : $this->getTotalServices($this->startDate, $this->endDate),
+            // Pedidos distintos: un pedido con dos productos cuenta una vez.
+            'total_leads' => (int) $this->requestedProductsQuery($this->startDate, $this->endDate, $onlyDelivered)
+                ->where('lead_products.quantity', '>', 0)
+                ->distinct()
+                ->count('lead_products.lead_id'),
+        ];
     }
 
     /**
@@ -212,13 +205,7 @@ class Product extends AbstractReporting
     {
         $tablePrefix = DB::getTablePrefix();
 
-        return (int) $this->productRepository
-            ->resetModel()
-            ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
-            ->when(is_numeric(request('pipeline_id')) ? request('pipeline_id') : null, function ($q, $pipelineId) {
-                $q->where('leads.lead_pipeline_id', $pipelineId);
-            })
-            ->whereBetween('leads.created_at', [$startDate, $endDate])
+        return (int) $this->requestedProductsQuery($startDate, $endDate)
             ->sum(DB::raw($tablePrefix.'lead_products.quantity'));
     }
 
@@ -247,14 +234,7 @@ class Product extends AbstractReporting
     {
         $tablePrefix = DB::getTablePrefix();
 
-        return (int) $this->productRepository
-            ->resetModel()
-            ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
-            ->when(is_numeric(request('pipeline_id')) ? request('pipeline_id') : null, function ($q, $pipelineId) {
-                $q->where('leads.lead_pipeline_id', $pipelineId);
-            })
-            ->whereIn('leads.lead_pipeline_stage_id', $this->wonStageIds)
-            ->whereBetween('leads.created_at', [$startDate, $endDate])
+        return (int) $this->requestedProductsQuery($startDate, $endDate, true)
             ->sum(DB::raw($tablePrefix.'lead_products.quantity'));
     }
 

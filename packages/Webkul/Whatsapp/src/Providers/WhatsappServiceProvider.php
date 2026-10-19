@@ -10,6 +10,7 @@ use Webkul\Whatsapp\Console\Commands\BackfillConversationLeads;
 use Webkul\Whatsapp\Console\Commands\BackfillMessageBodies;
 use Webkul\Whatsapp\Console\Commands\DiscardDuplicateLeads;
 use Webkul\Whatsapp\Console\Commands\DiscardGhostLeads;
+use Webkul\Whatsapp\Console\Commands\FollowupAndClose;
 use Webkul\Whatsapp\Console\Commands\KommoCheck;
 use Webkul\Whatsapp\Console\Commands\ListTemplates;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
@@ -66,6 +67,7 @@ class WhatsappServiceProvider extends ServiceProvider
                 BackfillMessageBodies::class,
                 DiscardDuplicateLeads::class,
                 DiscardGhostLeads::class,
+                FollowupAndClose::class,
                 ReactivateAgent::class,
                 ResendFailedMessages::class,
                 KommoCheck::class,
