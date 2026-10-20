@@ -49,6 +49,10 @@ class WebhookController extends Controller
                 'channel' => $gateway->key(),
                 'reason'  => $auth->reason,
                 'ip'      => $request->ip(),
+                // Diagnóstico (20/10/2026): de qué objeto y página viene lo
+                // rechazado, para saber si es otra app de Meta. Nada secreto.
+                'object'  => $request->input('object'),
+                'entries' => collect((array) $request->input('entry', []))->pluck('id')->filter()->unique()->values()->all(),
             ]);
 
             return response()->json(['message' => 'Invalid signature'], 401);

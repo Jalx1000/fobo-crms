@@ -70,13 +70,15 @@ function asesorDe(int $lead): int
     return (int) DB::table('leads')->where('id', $lead)->value('user_id');
 }
 
+// Desde el 18/10/2026 Eduardo atiende solo Magia Verde en Santa Cruz (decisión
+// del usuario): el único asesor nacional, y el turno «sin ciudad», es Bulmaro.
 it('pasa al asesor nacional de su producto, con su contacto', function () {
-    $p = pedidoSinCiudad($this, $this->bulmaro, 'CM_00002'); // Magia Verde → Eduardo
+    $p = pedidoSinCiudad($this, $this->fabio, 'CM_00001'); // Stretch → Bulmaro
 
     asignar($p['lead']);
 
-    expect(asesorDe($p['lead']))->toBe($this->eduardo->id)
-        ->and((int) DB::table('persons')->where('id', $p['persona'])->value('user_id'))->toBe($this->eduardo->id);
+    expect(asesorDe($p['lead']))->toBe($this->bulmaro->id)
+        ->and((int) DB::table('persons')->where('id', $p['persona'])->value('user_id'))->toBe($this->bulmaro->id);
 });
 
 it('si ya es del asesor de su producto, no cambia', function () {
@@ -88,13 +90,13 @@ it('si ya es del asesor de su producto, no cambia', function () {
 });
 
 it('sin producto: si ya es de un asesor nacional no cambia; si no, va al turno nacional', function () {
-    $nacional = pedidoSinCiudad($this, $this->eduardo, null);
+    $nacional = pedidoSinCiudad($this, $this->bulmaro, null);
     asignar($nacional['lead']);
-    expect(asesorDe($nacional['lead']))->toBe($this->eduardo->id);
+    expect(asesorDe($nacional['lead']))->toBe($this->bulmaro->id);
 
-    $local = pedidoSinCiudad($this, $this->fabio, null); // Fabio atiende solo Santa Cruz
+    $local = pedidoSinCiudad($this, $this->eduardo, null); // Eduardo atiende solo Santa Cruz
     asignar($local['lead']);
-    expect(asesorDe($local['lead']))->toBeIn([$this->bulmaro->id, $this->eduardo->id]);
+    expect(asesorDe($local['lead']))->toBe($this->bulmaro->id);
 });
 
 it('no hace nada si el pedido ya no está esperando', function () {
@@ -182,10 +184,10 @@ it('solo la ciudad: quien atiende todo ahí; si no hay nadie, el turno nacional'
     asignar($laPaz['lead']);
     expect(asesorDe($laPaz['lead']))->toBe($this->gabriela->id);
 
-    // En Santa Cruz nadie atiende todo: el turno nacional, y Eduardo ya es de ahí.
+    // En Santa Cruz nadie atiende todo: el turno nacional (Bulmaro).
     $santaCruz = pedidoSinCiudad($this, $this->eduardo, null, 'no-atendidos', ($this->pipeline)('Santa Cruz'));
     asignar($santaCruz['lead']);
-    expect(asesorDe($santaCruz['lead']))->toBe($this->eduardo->id);
+    expect(asesorDe($santaCruz['lead']))->toBe($this->bulmaro->id);
 });
 
 it('con ciudad y producto, si el actual ya corresponde no cambia', function () {

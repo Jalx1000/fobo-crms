@@ -27,7 +27,8 @@ it('reparte por turno entre los ejecutivos sin ciudad, sin Mariano', function ()
     $nombres = collect(range(1, 4))->map(fn () => $r->asesorPorDefecto()?->name);
 
     expect($nombres)->not->toContain('Mariano Pinell')
-        ->and($nombres->unique()->sort()->values()->all())->toBe(['Bulmaro Vaca', 'Eduardo Lujan']);
+        // Desde el 18/10/2026 el único nacional es Bulmaro (Eduardo: solo Magia Verde en Santa Cruz).
+        ->and($nombres->unique()->values()->all())->toBe(['Bulmaro Vaca']);
 });
 
 it('sin ciudad conocida, porCiudad también usa el turno', function () {
