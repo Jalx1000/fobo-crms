@@ -51,8 +51,9 @@ class Clientes
         ?string $busqueda = null,
         int $limite = 30,
         int $offset = 0,
+        ?int $dueno = null,
     ): array {
-        $ids = $this->idsDeClientes($ciudades, $busqueda, $limite, $offset);
+        $ids = $this->idsDeClientes($ciudades, $busqueda, $limite, $offset, $dueno);
 
         if (! $ids) {
             return [];
@@ -123,6 +124,7 @@ class Clientes
         ?string $busqueda,
         int $limite,
         int $offset,
+        ?int $dueno = null,
     ): array {
         /*
          * Sin alias de tabla a propósito. Laravel le aplica el prefijo TAMBIÉN al
@@ -141,7 +143,10 @@ class Clientes
                 // El array vacío significa "no ve ninguna ciudad", no "ve todas":
                 // sin el [0] el whereIn se cae y devolvería la agenda entera.
                 fn ($q) => $q->whereIn('leads.lead_pipeline_id', $ciudades ?: [0]),
-            );
+            )
+            // Para un distribuidor, sólo sus clientes: con otra empresa en la misma
+            // ciudad, la agenda de la ciudad es la cartera del competidor.
+            ->when($dueno !== null, fn ($q) => $q->where('persons.user_id', $dueno));
 
         $this->aplicarBusqueda($query, $busqueda);
 

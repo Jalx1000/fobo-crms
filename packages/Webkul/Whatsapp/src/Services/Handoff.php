@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 use Webkul\Activity\Repositories\ActivityRepository;
+use Webkul\Core\Services\Distribuidores;
 use Webkul\User\Models\UserProxy;
 use Webkul\Whatsapp\Exceptions\HandoffConflictException;
 use Webkul\Whatsapp\Jobs\NotifyHandoff;
@@ -71,7 +72,14 @@ class Handoff
             }
 
             $cityId = $this->cities->resolve($fresh, $ciudad);
-            $owner = $this->cities->advisorFor($cityId);
+
+            /*
+             * Si el cliente ya es de un distribuidor, la derivación va a ESE: es su
+             * cliente, y el asesor de la ciudad puede ser de otra empresa. Sin dueño
+             * (cliente nuevo, o sin ciudad todavía), el ruteo de siempre por ciudad.
+             */
+            $owner = app(Distribuidores::class)->duenoDe($fresh->person_id ? (int) $fresh->person_id : null)
+                ?? $this->cities->advisorFor($cityId);
 
             $fresh->forceFill([
                 'ai_enabled'           => false,

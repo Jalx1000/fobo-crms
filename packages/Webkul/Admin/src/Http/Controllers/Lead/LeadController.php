@@ -711,7 +711,12 @@ class LeadController extends Controller
      */
     public function search(): AnonymousResourceCollection
     {
-        if (($ciudades = VisibilidadLeads::ciudades()) !== null) {
+        if ($yo = app(\Webkul\Core\Services\Distribuidores::class)->soloLoSuyo()) {
+            // Un distribuidor sólo encuentra lo asignado a él, aunque comparta ciudad.
+            $results = $this->leadRepository
+                ->pushCriteria(app(RequestCriteria::class))
+                ->findWhere(['user_id' => $yo]);
+        } elseif (($ciudades = VisibilidadLeads::ciudades()) !== null) {
             // Su grupo designa una ciudad: el buscador tiene que encontrar los
             // pedidos de esa ciudad, no sólo los que cargó él.
             $results = $this->leadRepository

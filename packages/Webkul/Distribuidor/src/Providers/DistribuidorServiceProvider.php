@@ -10,6 +10,8 @@ use Illuminate\Support\ServiceProvider;
 use Webkul\Distribuidor\Http\Middleware\EnsureDistribuidorAccess;
 use Webkul\Distribuidor\Listeners\AsignarDistribuidorDeZona;
 use Webkul\Distribuidor\Listeners\BidonesEnContacto;
+use Webkul\Distribuidor\Listeners\ClienteCambiaDeDistribuidor;
+use Webkul\Distribuidor\Listeners\DistribuidorDadoDeBaja;
 
 class DistribuidorServiceProvider extends ServiceProvider
 {
@@ -37,6 +39,14 @@ class DistribuidorServiceProvider extends ServiceProvider
          * los caminos: la API, el formulario web, el kanban y el Punto.
          */
         Event::listen('lead.city.synced', AsignarDistribuidorDeZona::class);
+
+        /*
+         * Un cliente es de UN distribuidor: si un encargado le cambia el dueño, sus
+         * pedidos abiertos y su conversación se mudan con él; si se da de baja a un
+         * distribuidor, sus clientes se reparten entre los demás de la ciudad.
+         */
+        Event::listen('contacts.person.update.after', ClienteCambiaDeDistribuidor::class);
+        Event::listen('settings.user.update.after', DistribuidorDadoDeBaja::class);
 
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 

@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Core\Services\AlcanceCiudades;
+use Webkul\Core\Services\Distribuidores;
 use Webkul\Lead\Models\PipelineProxy;
 use Webkul\Lead\Models\SourceProxy;
 use Webkul\Lead\Models\TypeProxy;
@@ -173,7 +174,14 @@ class ChatController extends Controller
          * Sin esto el filtro de ciudad era decorativo: bastaba con no mandar
          * `city` —o mandar la de otra ciudad— para ver la bandeja entera.
          */
-        if (($permitidas = $this->alcance->ciudadesDe()) !== null) {
+        if ($yo = app(Distribuidores::class)->soloLoSuyo()) {
+            /*
+             * Un distribuidor ve sólo las conversaciones de SUS clientes. Más estricto
+             * que la ciudad: en su ciudad puede haber otra empresa, y el pool —sin
+             * cliente todavía— no es de nadie, así que tampoco es suyo.
+             */
+            $query->whereIn('whatsapp_conversations.person_id', app(Distribuidores::class)->clientesDe($yo));
+        } elseif (($permitidas = $this->alcance->ciudadesDe()) !== null) {
             ConversationCity::restringirA($query, $permitidas);
         }
 
@@ -329,13 +337,17 @@ class ChatController extends Controller
              * mientras la ficha del cliente seguía contando el resto.
              */
             'leads' => function ($q) {
-                if (($ciudades = $this->alcance->ciudadesDe()) !== null) {
+                if ($yo = app(Distribuidores::class)->soloLoSuyo()) {
+                    $q->where('leads.user_id', $yo);
+                } elseif (($ciudades = $this->alcance->ciudadesDe()) !== null) {
                     $q->whereIn('leads.lead_pipeline_id', $ciudades);
                 }
 
                 $q->with('stage')->orderByDesc('id')->limit(10);
             },
         ])->findOrFail($id);
+
+        $this->exigirClienteDelDistribuidor((int) $person->id);
 
         // WhatsApp footprint of this contact (across all their conversations).
         $conversationIds = ConversationProxy::modelClass()::where('person_id', $person->id)->pluck('id');
@@ -511,6 +523,8 @@ class ChatController extends Controller
 
         $person = PersonProxy::modelClass()::findOrFail($personId);
 
+        $this->exigirClienteDelDistribuidor((int) $person->id);
+
         $pipeline = PipelineProxy::modelClass()::where('is_default', 1)->first()
             ?? PipelineProxy::modelClass()::firstOrFail();
 
@@ -587,5 +601,21 @@ class ChatController extends Controller
             'message'   => 'Contacto creado y vinculado.',
             'person_id' => $person->id,
         ]);
+    }
+
+    /**
+     * 403 si un distribuidor pide la ficha de un cliente que no es suyo.
+     *
+     * Estas rutas reciben una PERSONA y no una conversación, así que el middleware
+     * de alcance no las cubre: con el id de un cliente se leía su ficha —teléfono,
+     * pedidos, actividades— o se le abría un pedido, fuera de la empresa.
+     */
+    protected function exigirClienteDelDistribuidor(int $personId): void
+    {
+        $distribuidores = app(Distribuidores::class);
+
+        if (($yo = $distribuidores->soloLoSuyo()) && $distribuidores->duenoDe($personId) !== $yo) {
+            abort(403, $distribuidores->avisoClienteDeOtro($personId));
+        }
     }
 }

@@ -17,6 +17,7 @@ use Webkul\Admin\Http\Requests\AttributeForm;
 use Webkul\Admin\Http\Requests\MassDestroyRequest;
 use Webkul\Admin\Http\Resources\PersonResource;
 use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Core\Services\Distribuidores;
 use Webkul\Lead\Repositories\PipelineRepository;
 
 class PersonController extends Controller
@@ -131,6 +132,21 @@ class PersonController extends Controller
      */
     public function store(AttributeForm $request): RedirectResponse|JsonResponse
     {
+        /*
+         * Un distribuidor no puede abrir una segunda ficha para un cliente que ya
+         * existe: el teléfono es la identidad del cliente, y dos fichas con el mismo
+         * número lo dejarían repartido entre dos empresas.
+         */
+        if ($aviso = $this->avisoDeClienteRegistrado($request->input('contact_numbers'))) {
+            if (request()->ajax()) {
+                return response()->json(['message' => $aviso], 422);
+            }
+
+            session()->flash('error', $aviso);
+
+            return redirect()->back()->withInput();
+        }
+
         Event::dispatch('contacts.person.create.before');
 
         $person = $this->personRepository->create($request->all());
@@ -197,7 +213,13 @@ class PersonController extends Controller
      */
     public function search(): JsonResource
     {
-        if ($userIds = bouncer()->getAuthorizedUserIds()) {
+        if ($yo = app(Distribuidores::class)->soloLoSuyo()) {
+            // Un distribuidor sólo encuentra a sus clientes, aunque otro reparta en su
+            // misma ciudad.
+            $persons = $this->personRepository
+                ->pushCriteria(app(RequestCriteria::class))
+                ->findWhere(['user_id' => $yo]);
+        } elseif ($userIds = bouncer()->getAuthorizedUserIds()) {
             $persons = $this->personRepository
                 ->pushCriteria(app(RequestCriteria::class))
                 ->findWhereIn('user_id', $userIds);
@@ -309,5 +331,30 @@ class PersonController extends Controller
                 'message' => trans('admin::app.contacts.persons.index.delete-failed'),
             ], 400);
         }
+    }
+
+    /**
+     * El aviso si un distribuidor intenta dar de alta un teléfono que ya es de un
+     * cliente, o null si puede seguir.
+     *
+     * Sólo para distribuidores: un encargado sigue cargando como siempre.
+     */
+    protected function avisoDeClienteRegistrado($telefonos): ?string
+    {
+        if (! app(Distribuidores::class)->soloLoSuyo()) {
+            return null;
+        }
+
+        foreach ((array) $telefonos as $telefono) {
+            $numero = is_array($telefono) ? ($telefono['value'] ?? null) : $telefono;
+
+            if (! $numero || ! ($existente = $this->personRepository->findByPhone((string) $numero))) {
+                continue;
+            }
+
+            return app(Distribuidores::class)->avisoClienteDeOtro((int) $existente->id);
+        }
+
+        return null;
     }
 }

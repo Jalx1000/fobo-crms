@@ -4,7 +4,10 @@ namespace Webkul\Whatsapp\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Core\Services\AlcanceCiudades;
+use Webkul\Core\Services\Distribuidores;
+use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Support\ConversationCity;
 use Webkul\Whatsapp\Support\ConversationLocator;
 
@@ -30,7 +33,49 @@ use Webkul\Whatsapp\Support\ConversationLocator;
  */
 class EnsureConversationInScope
 {
-    public function __construct(protected AlcanceCiudades $alcance) {}
+    public function __construct(
+        protected AlcanceCiudades $alcance,
+        protected Distribuidores $distribuidores,
+    ) {}
+
+    /**
+     * La regla del distribuidor: la conversación tiene que ser de un cliente suyo.
+     *
+     * Sin conversación todavía (escribirle a un número por primera vez), se mira de
+     * quién es el número: si es cliente de otro distribuidor, no se le puede escribir.
+     */
+    protected function delDistribuidor(Request $request, Closure $next, int $yo)
+    {
+        $id = $this->conversacionDel($request);
+
+        if ($id) {
+            $personId = ConversationProxy::modelClass()::whereKey($id)->value('person_id');
+
+            $esSuya = $personId && $this->distribuidores->duenoDe((int) $personId) === $yo;
+
+            return $esSuya ? $next($request) : $this->rechazar($request, 'Esta conversación es de otro distribuidor.');
+        }
+
+        $personId = $request->input('person_id')
+            ?: ($request->input('phone')
+                ? app(PersonRepository::class)->findByPhone((string) $request->input('phone'))?->id
+                : null);
+
+        if ($personId && ! $this->distribuidores->puedeUsarCliente($yo, (int) $personId)) {
+            return $this->rechazar($request, $this->distribuidores->avisoClienteDeOtro((int) $personId));
+        }
+
+        return $next($request);
+    }
+
+    protected function rechazar(Request $request, string $mensaje)
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $mensaje], 403);
+        }
+
+        abort(403, $mensaje);
+    }
 
     /**
      * La conversación que el request toca, por cualquiera de sus dos caminos.
@@ -61,6 +106,16 @@ class EnsureConversationInScope
 
     public function handle(Request $request, Closure $next)
     {
+        /*
+         * Un distribuidor sólo toca las conversaciones de SUS clientes. Va antes que la
+         * ciudad y es más estricto: otro distribuidor de su misma ciudad es otra
+         * empresa, y una conversación sin cliente (el pool) no es de nadie, así que
+         * tampoco es suya.
+         */
+        if ($yo = $this->distribuidores->soloLoSuyo()) {
+            return $this->delDistribuidor($request, $next, $yo);
+        }
+
         $permitidas = $this->alcance->ciudadesDe();
 
         if ($permitidas === null) {

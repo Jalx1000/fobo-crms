@@ -78,6 +78,15 @@ class PersonRepository extends Repository
             }
         }
 
+        /*
+         * El cliente que da de alta un distribuidor es suyo. Sin dueño no lo vería
+         * nadie más que los encargados —él incluido—, y a nombre de otro sería
+         * regalarle el cliente a otra empresa.
+         */
+        if ($yo = app(\Webkul\Core\Services\Distribuidores::class)->soloLoSuyo()) {
+            $data['user_id'] = $yo;
+        }
+
         $person = parent::create($data);
 
         $this->attributeValueRepository->save(array_merge($data, [

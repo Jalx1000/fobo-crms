@@ -3,6 +3,7 @@
 namespace Webkul\Admin\Support;
 
 use Webkul\Core\Services\AlcanceCiudades;
+use Webkul\Core\Services\Distribuidores;
 
 /**
  * Qué leads puede ver el usuario: por CIUDAD si su grupo designa una, por DUEÑO
@@ -36,6 +37,14 @@ final class VisibilidadLeads
         string $columnaCiudad = 'leads.lead_pipeline_id',
         string $columnaDueno = 'leads.user_id',
     ): void {
+        // Un distribuidor ve SÓLO lo asignado a él, aunque otro reparta en su misma
+        // ciudad: cada uno es una empresa distinta. Va primero y gana sobre la ciudad.
+        if ($yo = app(Distribuidores::class)->soloLoSuyo()) {
+            $query->where($columnaDueno, $yo);
+
+            return;
+        }
+
         $alcance = app(AlcanceCiudades::class);
 
         if ($alcance->ciudadMandaSobreDueno()) {
@@ -58,6 +67,10 @@ final class VisibilidadLeads
      */
     public static function puedeVer($lead): bool
     {
+        if ($yo = app(Distribuidores::class)->soloLoSuyo()) {
+            return (int) $lead->user_id === $yo;
+        }
+
         $alcance = app(AlcanceCiudades::class);
 
         if ($alcance->ciudadMandaSobreDueno()) {

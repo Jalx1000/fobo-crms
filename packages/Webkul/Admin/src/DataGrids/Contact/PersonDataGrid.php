@@ -115,7 +115,11 @@ class PersonDataGrid extends DataGrid
             )
             ->leftJoin('organizations', 'persons.organization_id', '=', 'organizations.id');
 
-        if ($userIds = bouncer()->getAuthorizedUserIds()) {
+        if ($yo = app(\Webkul\Core\Services\Distribuidores::class)->soloLoSuyo()) {
+            // Un distribuidor ve sólo a sus clientes. Con el filtro de grupo veía los
+            // de cualquiera de su ciudad, que son de otras empresas.
+            $queryBuilder->where('persons.user_id', $yo);
+        } elseif ($userIds = bouncer()->getAuthorizedUserIds()) {
             $queryBuilder->whereIn('persons.user_id', $userIds);
         }
 

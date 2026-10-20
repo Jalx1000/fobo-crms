@@ -2,29 +2,28 @@
 
 namespace Webkul\Distribuidor\Listeners;
 
-use Illuminate\Support\Facades\Log;
-use Webkul\Distribuidor\Services\AsignacionDeZona;
+use Webkul\Distribuidor\Services\Reparto;
 
 /**
- * Deja cada pedido a nombre del distribuidor que reparte en su ciudad.
+ * Deja cada pedido a nombre del distribuidor que le corresponde.
  *
- * 🔴 El problema que resuelve: `LeadRepository::create()` asigna el pedido a quien esté
+ * 🔴 El problema original: `LeadRepository::create()` asigna el pedido a quien esté
  * autenticado. Cuando lo crea el agente de IA por la API, el autenticado es el DUEÑO
  * DEL TOKEN —un administrador—, así que el pedido quedaba a nombre de un admin y no
  * aparecía en la lista de quien tiene que salir a entregarlo.
  *
- * Quién asigna, en orden: el AGENTE manda el `user_id` que decidió, y esto lo VALIDA.
- * No es redundancia. El agente es un modelo de lenguaje eligiendo un id numérico: si se
- * equivoca, el pedido igual existe, igual tiene dueño, y le aparece a la persona
- * equivocada sin que nadie se entere. Acá se corrige y queda en el log.
+ * Con varios distribuidores por ciudad (cada uno una empresa), "el de la zona" ya no
+ * alcanza: el pedido va al dueño del cliente, y un cliente nuevo se reparte por
+ * turno. Las reglas viven en Reparto; esto sólo las engancha al único punto por el
+ * que pasan todos los caminos de alta.
  *
- * Además el agente no es el único que crea pedidos —están el formulario web, el kanban
- * y el Punto—, y esos caminos nunca van a leer el prompt del agente.
+ * El agente ya no elige distribuidor: si manda un user_id se ignora, porque lo
+ * decide el turno.
  */
 class AsignarDistribuidorDeZona
 {
     public function __construct(
-        protected AsignacionDeZona $zonas,
+        protected Reparto $reparto,
     ) {}
 
     public function handle($lead): void
@@ -33,41 +32,11 @@ class AsignarDistribuidorDeZona
             return;
         }
 
-        $correcto = $this->zonas->asesorQueCorresponde($lead);
-
-        // null significa "no hay nada que cambiar": o ya está bien, o esa ciudad no
-        // tiene distribuidor cargado. Dejarlo sin dueño es mejor que inventar uno.
-        if (! $correcto) {
-            return;
-        }
-
-        $anterior = $lead->user_id ? (int) $lead->user_id : null;
-
         /*
-         * Se escribe la columna directo y no con $lead->save().
-         *
-         * save() dispara los eventos de guardado del lead, y esto corre DENTRO del
-         * sincronizador de ciudad: un guardado completo acá vuelve a lanzar toda la
-         * cadena por un cambio de una sola columna. Lo que cambia es el dueño, nada más.
+         * Reparto escribe la columna directo y no con $lead->save(): esto corre DENTRO
+         * del sincronizador de ciudad, y un guardado completo volvería a lanzar toda la
+         * cadena por un cambio de una sola columna.
          */
-        $lead->newQuery()->whereKey($lead->id)->update(['user_id' => $correcto]);
-
-        // Y en memoria, para que quien tenga el objeto no siga leyendo el valor viejo.
-        $lead->user_id = $correcto;
-
-        /*
-         * Queda registrado SIEMPRE que se corrige, con el valor anterior.
-         *
-         * Es el único rastro de que el agente mandó un asesor equivocado. Sin esto, la
-         * corrección es invisible y nadie se entera de que el prompt quedó desfasado
-         * —por ejemplo, cuando entra un distribuidor nuevo y el agente sigue mandando
-         * el id del anterior—.
-         */
-        Log::info('Pedido reasignado al distribuidor de la zona', [
-            'lead_id'     => $lead->id,
-            'pipeline_id' => $lead->lead_pipeline_id,
-            'antes'       => $anterior,
-            'ahora'       => $correcto,
-        ]);
+        $this->reparto->asignarLead($lead);
     }
 }

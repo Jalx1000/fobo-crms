@@ -8,6 +8,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Webkul\Contact\Models\PersonProxy;
+use Webkul\Core\Services\Distribuidores;
 use Webkul\Distribuidor\Models\EntregaProxy;
 use Webkul\Distribuidor\Models\PagoProxy;
 use Webkul\Distribuidor\Repositories\PagoRepository;
@@ -42,7 +43,68 @@ class PuntoController extends Controller
         protected Bidones $bidones,
         protected Clientes $clientes,
         protected Recordatorios $recordatorios,
+        protected Distribuidores $distribuidores,
     ) {}
+
+    /*
+    |--------------------------------------------------------------------------
+    | Lo suyo y lo ajeno
+    |--------------------------------------------------------------------------
+    | Cada distribuidor es una empresa. Aunque repartan en la misma ciudad, uno no
+    | puede ver ni tocar el pedido, el cliente o la conversación del otro: se
+    | pelearían por el cliente. La ciudad sigue acotando (un distribuidor no vende
+    | fuera de su zona), y encima de la ciudad, para un distribuidor, manda el dueño.
+    |
+    | Un encargado o un administrador que entra al Punto no es distribuidor: para él
+    | estas tres funciones no hacen nada y ve lo de siempre.
+    */
+
+    /** Acota una consulta de pedidos a los asignados al distribuidor en sesión. */
+    protected function soloLoMio($query, string $columnaDueno = 'user_id')
+    {
+        if ($yo = $this->distribuidores->soloLoSuyo()) {
+            $query->where($columnaDueno, $yo);
+        }
+
+        return $query;
+    }
+
+    /**
+     * La ficha del cliente, si el distribuidor en sesión la puede tocar.
+     *
+     * Editar el nombre, el domicilio, el recordatorio o los bidones buscaba la ficha
+     * por id sin ningún control: cualquiera con sesión en el Punto podía cambiarle el
+     * domicilio al cliente de otra ciudad o de otra empresa.
+     */
+    protected function clienteMio(string|int $id)
+    {
+        $persona = PersonProxy::modelClass()::findOrFail($id);
+
+        $this->exigirClienteMio((int) $persona->id);
+
+        return $persona;
+    }
+
+    /** 403 si el pedido es de otro distribuidor. */
+    protected function exigirPedidoMio($lead): void
+    {
+        $yo = $this->distribuidores->soloLoSuyo();
+
+        abort_if($yo && (int) $lead->user_id !== $yo, 403, 'Ese pedido es de otro distribuidor.');
+    }
+
+    /**
+     * 403 si el cliente es de otro distribuidor. Uno sin dueño se puede atender: es
+     * de quien lo esté atendiendo.
+     */
+    protected function exigirClienteMio(?int $personId): void
+    {
+        $yo = $this->distribuidores->soloLoSuyo();
+
+        if ($yo && ! $this->distribuidores->puedeUsarCliente($yo, $personId)) {
+            abort(403, $this->distribuidores->avisoClienteDeOtro($personId));
+        }
+    }
 
     public function index()
     {
@@ -106,6 +168,22 @@ class PuntoController extends Controller
         $persona = app(\Webkul\Contact\Repositories\PersonRepository::class)
             ->findByPhone($data['telefono']);
 
+        /*
+         * El cliente de otro distribuidor: se avisa que existe y con quién está, y NO se
+         * devuelve nada de él. Antes salían su nombre, sus bidones y la ubicación GPS de
+         * su casa para cualquiera que tecleara el número.
+         */
+        $yo = $this->distribuidores->soloLoSuyo();
+
+        if ($persona && $yo && ! $this->distribuidores->puedeUsarCliente($yo, (int) $persona->id)) {
+            return response()->json([
+                'encontrado' => true,
+                'ajeno'      => true,
+                'aviso'      => $this->distribuidores->avisoClienteDeOtro((int) $persona->id),
+                'persona'    => null,
+            ]);
+        }
+
         return response()->json([
             'encontrado' => (bool) $persona,
             'persona'    => $persona ? $this->persona($persona) : null,
@@ -145,6 +223,22 @@ class PuntoController extends Controller
             return response()->json([
                 'message' => 'La ubicación necesita latitud y longitud.',
             ], 422);
+        }
+
+        /*
+         * El repositorio deduplica por teléfono y devuelve la ficha que ya existe. Si es
+         * de otro distribuidor, se corta acá: devolverla le entregaría el cliente de otra
+         * empresa con domicilio y todo.
+         */
+        $existente = app(\Webkul\Contact\Repositories\PersonRepository::class)
+            ->findByPhone($data['telefono']);
+
+        if ($existente && ($yo = $this->distribuidores->soloLoSuyo())
+            && ! $this->distribuidores->puedeUsarCliente($yo, (int) $existente->id)) {
+            return response()->json([
+                'message' => $this->distribuidores->avisoClienteDeOtro((int) $existente->id),
+                'ajeno'   => true,
+            ], 409);
         }
 
         $r = $this->pedidos->contacto($data['telefono'], $data['nombre']);
@@ -235,6 +329,9 @@ class PuntoController extends Controller
             'Esa ciudad no está en tu alcance.',
         );
 
+        // Venderle al cliente de otro distribuidor es exactamente la pelea que se evita.
+        $this->exigirClienteMio((int) $data['person_id']);
+
         $lead = DB::transaction(fn () => $this->pedidos->crear(
             (int) $data['person_id'],
             (int) $data['ciudad_id'],
@@ -281,6 +378,8 @@ class PuntoController extends Controller
             403,
             'Ese pedido no está en tu alcance.',
         );
+
+        $this->exigirPedidoMio($lead);
 
         $this->pedidos->avanzar((int) $id, config('distribuidor.etapas.'.$data['etapa']));
 
@@ -362,6 +461,19 @@ class PuntoController extends Controller
         ]);
 
         $lead = LeadProxy::modelClass()::findOrFail($id);
+
+        /*
+         * Cobrar no tenía ningún control: con el id de cualquier pedido —de otra ciudad
+         * o de otro distribuidor— se le registraba un pago. Ahora, como el resto del
+         * Punto: su ciudad, y si es distribuidor, su pedido.
+         */
+        abort_if(
+            ! $this->alcance->puedeVerCiudad((int) $lead->lead_pipeline_id),
+            403,
+            'Ese pedido no está en tu alcance.',
+        );
+
+        $this->exigirPedidoMio($lead);
 
         // Lo que falta cobrar del pedido: al contado es el total.
         $aCobrar = round((float) $lead->lead_value - $this->pagos->cobrado((int) $id), 2);
@@ -470,6 +582,13 @@ class PuntoController extends Controller
         $query->where('lead_pipeline_id', (int) $data['ciudad']);
 
         /*
+         * Y de la ciudad, sólo lo suyo si es distribuidor. "Trabajo de la ciudad" valía
+         * mientras había uno solo por ciudad; con varias empresas en la misma, cada una
+         * ve los pedidos que le tocaron.
+         */
+        $this->soloLoMio($query);
+
+        /*
          * El rango de fechas del historial. Sin rango, los últimos 100 de la sucursal,
          * que es con lo que se abre la pestaña.
          *
@@ -516,6 +635,8 @@ class PuntoController extends Controller
             'Ese pedido no está en tu alcance.',
         );
 
+        $this->exigirPedidoMio($lead);
+
         abort_if(! $lead->person, 404, 'Ese pedido no tiene un contacto asociado.');
 
         return view('distribuidor::whatsapp', [
@@ -557,6 +678,9 @@ class PuntoController extends Controller
                 'Esa ciudad no está en tu alcance.',
             );
         }
+
+        // Los clientes recientes de un distribuidor son los suyos, no los de su ciudad.
+        $this->soloLoMio($query);
 
         /*
          * Un cliente aparece UNA vez, con su pedido más reciente. Sin el
@@ -609,6 +733,9 @@ class PuntoController extends Controller
         $permitidas = array_column($this->alcance->sucursales(), 'id');
 
         abort_if(! in_array((int) $data['sucursal'], $permitidas, true), 403, 'Esa sucursal no está en tu alcance.');
+
+        // El último pedido de un cliente ajeno dice qué y cuánto le compra a otra empresa.
+        $this->exigirClienteMio((int) $personId);
 
         $ultimo = LeadProxy::modelClass()::with('products')
             ->where('person_id', $personId)
@@ -854,7 +981,7 @@ class PuntoController extends Controller
 
         $textos = array_intersect_key($data, array_flip(['direccion', 'referencia']));
 
-        $persona = PersonProxy::modelClass()::findOrFail($id);
+        $persona = $this->clienteMio($id);
 
         $precision = isset($data['precision']) ? (float) $data['precision'] : null;
         $delMapa = ($data['origen'] ?? 'gps') === 'mapa';
@@ -920,6 +1047,8 @@ class PuntoController extends Controller
             403,
             'Ese pedido no está en tu alcance.',
         );
+
+        $this->exigirPedidoMio($lead);
 
         /*
          * Un pedido cancelado no se edita: no hay nada que entregar, y editarlo lo
@@ -991,6 +1120,8 @@ class PuntoController extends Controller
             $data['busqueda'] ?? null,
             $porPagina + 1,
             ($pagina - 1) * $porPagina,
+            // La agenda de un distribuidor son SUS clientes, no los de la ciudad.
+            $this->distribuidores->soloLoSuyo(),
         );
 
         $hayMas = count($filas) > $porPagina;
@@ -1033,7 +1164,7 @@ class PuntoController extends Controller
 
         $personas = app(\Webkul\Contact\Repositories\PersonRepository::class);
 
-        $persona = PersonProxy::modelClass()::findOrFail($id);
+        $persona = $this->clienteMio($id);
 
         /*
          * 🔴 El teléfono es la IDENTIDAD del cliente en todo el Punto: se lo busca por
@@ -1049,8 +1180,17 @@ class PuntoController extends Controller
         $dueno = $personas->findByPhone($data['telefono']);
 
         if ($dueno && (int) $dueno->id !== (int) $persona->id) {
+            /*
+             * A un distribuidor no se le dice de qué cliente es el número —el nombre de
+             * un cliente de otra empresa es justo lo que no tiene que ver—, sino con qué
+             * distribuidor está. A un encargado, como siempre.
+             */
+            $yo = $this->distribuidores->soloLoSuyo();
+
             return response()->json([
-                'message' => 'Ese teléfono ya es de '.$dueno->name.'. Revisá el número.',
+                'message' => $yo && ! $this->distribuidores->puedeUsarCliente($yo, (int) $dueno->id)
+                    ? $this->distribuidores->avisoClienteDeOtro((int) $dueno->id)
+                    : 'Ese teléfono ya es de '.$dueno->name.'. Revisá el número.',
             ], 422);
         }
 
@@ -1112,7 +1252,7 @@ class PuntoController extends Controller
     {
         $data = $request->validate(['activo' => 'required|boolean']);
 
-        $persona = PersonProxy::modelClass()::findOrFail($id);
+        $persona = $this->clienteMio($id);
 
         $estado = $this->recordatorios->activar((int) $persona->id, (bool) $data['activo']);
 
@@ -1136,7 +1276,7 @@ class PuntoController extends Controller
             'retirados'  => 'nullable|integer|min:0',
         ]);
 
-        $persona = PersonProxy::modelClass()::findOrFail($id);
+        $persona = $this->clienteMio($id);
 
         $this->bidones->registrar(
             (int) $persona->id,
