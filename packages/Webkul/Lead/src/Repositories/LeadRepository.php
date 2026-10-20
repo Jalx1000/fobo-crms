@@ -456,10 +456,12 @@ class LeadRepository extends Repository
      * edición en línea, inbox). Al crear, el pedido queda a su nombre
      * (duenoPorDefecto). Sin usuario logueado —reparto, agente, jobs— Alcance
      * no restringe, así que el reparto automático sigue moviendo pedidos.
+     * El encargado nacional (Bulmaro) también, pero solo a otro Ejecutivo
+     * Comercial (20/10/2026); al pasarlo, deja de verlo.
      */
     protected function sinCambioDeAsesor(array $data): array
     {
-        if (array_key_exists('user_id', $data) && ! app(\Webkul\Admin\Helpers\Alcance::class)->veTotal()) {
+        if (array_key_exists('user_id', $data) && ! app(\Webkul\Admin\Helpers\Alcance::class)->asesorPermitido($data['user_id'])) {
             unset($data['user_id']);
         }
 

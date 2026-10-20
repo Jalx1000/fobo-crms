@@ -85,8 +85,9 @@ class QuoteRepository extends Repository
     {
         // El «Asesor de venta» lo cambian solo Administrador y Supervisores
         // (D13c). Las cotizaciones siguen al asesor de su pedido por
-        // Responsables::cotizacionesConElPedido, que no pasa por acá.
-        if (! app(\Webkul\Admin\Helpers\Alcance::class)->veTotal()) {
+        // Responsables::cotizacionesConElPedido, que no pasa por acá. El
+        // encargado nacional, solo a otro Ejecutivo Comercial (20/10/2026).
+        if (array_key_exists('user_id', $data) && ! app(\Webkul\Admin\Helpers\Alcance::class)->asesorPermitido($data['user_id'])) {
             unset($data['user_id']);
         }
 

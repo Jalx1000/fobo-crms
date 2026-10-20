@@ -157,3 +157,12 @@ Respondidas el 16/10/2026:
 Si se aplica la tabla tal cual, Mariano entra al turno nacional de los 4 productos: en las ciudades sin asesor
 local para ese producto (p. ej. Stretch o Magia Verde en Santa Cruz, Tarija, Sucre…) se reparte entre él y
 Bulmaro (Stretch) o Eduardo (Magia Verde), y le tocan también los que llegan sin ciudad. No se aplica: no se tocan datos de producción.
+
+## Encargado nacional (20/10/2026, pedido del usuario)
+
+| # | Decisión |
+|---|---|
+| E1 | Bulmaro, encargado de Bolivia, sigue como **Ejecutivo Comercial** con vista individual: ve solo lo suyo, sigue en el reparto y en las tarjetas por asesor. |
+| E2 | Puede **reasignar** sus pedidos, cotizaciones, contactos y derivaciones, **solo a otro Ejecutivo Comercial** activo. Al pasar un pedido, su cotización, contacto y conversación lo siguen (`Responsables::todoConElPedido`) y deja de verlos. |
+| E3 | Se marca en `reporting.encargados_nacionales` (env `ENCARGADOS_NACIONALES`, correos separados por coma; por defecto el de Bulmaro). La regla vive en `Alcance::asesorPermitido()`. |
+| E4 | Su lista de asesores (Pedidos, Cotizaciones, Contactos) trae solo ejecutivos comerciales. Administrador y Supervisores eligen entre todos, aunque su vista sea individual. |

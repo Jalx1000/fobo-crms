@@ -52,7 +52,7 @@
                 <x-admin::attributes
                     :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
                         // «Asesor Asignado» solo para quien puede cambiarlo (spec tablero-por-asesor, D13b).
-                        ['code', 'NOTIN', app(\Webkul\Admin\Helpers\Alcance::class)->veTotal() ? ['organization_id', 'job_title'] : ['organization_id', 'job_title', 'user_id']],
+                        ['code', 'NOTIN', app(\Webkul\Admin\Helpers\Alcance::class)->puedeReasignar() ? ['organization_id', 'job_title'] : ['organization_id', 'job_title', 'user_id']],
                         'entity_type' => 'persons',
                     ])"
                     :custom-validations="[

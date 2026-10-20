@@ -153,6 +153,14 @@ class AttributeRepository extends Repository
                 return $userRepository->where('users.name', 'like', '%'.urldecode($query).'%')->get();
             }
 
+            // El encargado nacional (Bulmaro) reasigna solo entre ejecutivos comerciales.
+            if ($currentUser && app(\Webkul\Admin\Helpers\Alcance::class)->esEncargado()) {
+                return $userRepository
+                    ->whereIn('users.id', \Webkul\Admin\Helpers\Alcance::ejecutivosActivos() ?: [0])
+                    ->where('users.name', 'like', '%'.urldecode($query).'%')
+                    ->get();
+            }
+
             if ($currentUser?->view_permission === 'group') {
                 $query = urldecode($query);
 

@@ -13,6 +13,9 @@ use Webkul\User\Models\User;
 uses(DatabaseTransactions::class);
 
 beforeEach(function () {
+    // Bulmaro como ejecutivo común: acá no es encargado nacional (ver EncargadoNacionalTest).
+    config(['reporting.encargados_nacionales' => []]);
+
     $this->bulmaro = User::where('name', 'Bulmaro Vaca')->firstOrFail();
     $this->eduardo = User::where('name', 'Eduardo Lujan')->firstOrFail();
     $this->mariano = User::where('name', 'Mariano Pinell')->firstOrFail();

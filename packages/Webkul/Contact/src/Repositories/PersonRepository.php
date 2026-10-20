@@ -105,8 +105,9 @@ class PersonRepository extends Repository
         | Supervisores lo cambian; para un ejecutivo se ignora lo que venga.
         | Y se normaliza solo si vino: la edición en línea de la ficha manda un
         | campo por vez, y antes cualquier otro campo dejaba el contacto sin asesor.
+        | El encargado nacional, solo a otro Ejecutivo Comercial (20/10/2026).
         */
-        if (! app(\Webkul\Admin\Helpers\Alcance::class)->veTotal()) {
+        if (array_key_exists('user_id', $data) && ! app(\Webkul\Admin\Helpers\Alcance::class)->asesorPermitido($data['user_id'])) {
             unset($data['user_id']);
         } elseif (array_key_exists('user_id', $data)) {
             $data['user_id'] = empty($data['user_id']) ? null : $data['user_id'];

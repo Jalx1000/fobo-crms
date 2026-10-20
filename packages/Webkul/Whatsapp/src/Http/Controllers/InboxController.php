@@ -333,7 +333,9 @@ class InboxController extends Controller
         // Tomar o reasignar una derivación es tarea de quien ve el total
         // (spec tablero-por-asesor, D12): las sin asignar se reparten por
         // turno y, si alguna queda, la asignan Administrador o Supervisores.
-        abort_unless(app(\Webkul\Admin\Helpers\Alcance::class)->veTotal(), 403, 'Solo Administrador y Supervisores asignan derivaciones.');
+        // El encargado nacional pasa las suyas, solo a otro Ejecutivo
+        // Comercial (20/10/2026).
+        abort_unless(app(\Webkul\Admin\Helpers\Alcance::class)->asesorPermitido($data['user_id']), 403, 'Solo Administrador y Supervisores asignan derivaciones; el encargado nacional, solo a un ejecutivo comercial.');
 
         try {
             $conversation = $this->handoff->reassign($conversation, (int) $data['user_id'], $this->userId());

@@ -3,6 +3,7 @@
 namespace Webkul\Admin\Helpers;
 
 use Illuminate\Contracts\Database\Query\Builder;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Qué datos puede ver el usuario actual: el total de la empresa o solo lo suyo.
@@ -52,6 +53,57 @@ class Alcance
         }
 
         return in_array($usuario->role?->name, (array) config('reporting.roles_sin_restriccion', ['Administrador']), true);
+    }
+
+    /**
+     * ¿Es encargado nacional? (Bulmaro, 20/10/2026, `reporting.encargados_nacionales`).
+     * Ve solo lo suyo, pero puede pasárselo a otro Ejecutivo Comercial.
+     */
+    public function esEncargado(): bool
+    {
+        $email = mb_strtolower((string) $this->usuario()?->email);
+
+        return $email !== '' && in_array($email, array_map('mb_strtolower', (array) config('reporting.encargados_nacionales', [])), true);
+    }
+
+    /**
+     * ¿Puede cambiar el asesor de algo (pedido, cotización, contacto,
+     * derivación)? Quien ve el total, o un encargado nacional.
+     */
+    public function puedeReasignar(): bool
+    {
+        return $this->veTotal() || $this->esEncargado();
+    }
+
+    /**
+     * ¿Puede dejar a $userId como asesor? Quien ve el total, a cualquiera; el
+     * encargado nacional, solo a un Ejecutivo Comercial activo (pedido del
+     * usuario: «solo puede reasignar a otro ejecutivo comercial»).
+     */
+    public function asesorPermitido(mixed $userId): bool
+    {
+        if ($this->veTotal()) {
+            return true;
+        }
+
+        return $this->esEncargado() && is_numeric($userId) && in_array((int) $userId, self::ejecutivosActivos(), true);
+    }
+
+    /**
+     * Ids de los ejecutivos comerciales activos: a quienes puede reasignar un
+     * encargado nacional.
+     *
+     * @return array<int, int>
+     */
+    public static function ejecutivosActivos(): array
+    {
+        return DB::table('users')
+            ->join('roles', 'roles.id', '=', 'users.role_id')
+            ->where('roles.name', 'Ejecutivo Comercial')
+            ->where('users.status', 1)
+            ->pluck('users.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     /**

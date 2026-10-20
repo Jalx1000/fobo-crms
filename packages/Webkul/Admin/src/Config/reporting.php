@@ -16,4 +16,12 @@ return [
 
     // Sin ninguna restricción en ningún módulo (D11).
     'roles_sin_restriccion' => ['Administrador'],
+
+    // Encargados nacionales (20/10/2026): ejecutivos comerciales que ven solo
+    // lo suyo pero pueden reasignar sus pedidos, cotizaciones, contactos y
+    // derivaciones a OTRO Ejecutivo Comercial. Correos, separados por coma.
+    'encargados_nacionales' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+        'ENCARGADOS_NACIONALES',
+        'bulmarovaca@imprimir.com.bo'
+    ))))),
 ];

@@ -35,7 +35,7 @@
                         :entity="$lead"
                         :url="route('admin.leads.attributes.update', $lead->id)"
                         :allow-edit="true"
-                        :read-only="app(\Webkul\Admin\Helpers\Alcance::class)->veTotal() ? [] : ['user_id']"
+                        :read-only="app(\Webkul\Admin\Helpers\Alcance::class)->puedeReasignar() ? [] : ['user_id']"
                     />
         
                     {!! view_render_event('admin.leads.view.attributes.form_controls.attributes.view.after', ['lead' => $lead]) !!}

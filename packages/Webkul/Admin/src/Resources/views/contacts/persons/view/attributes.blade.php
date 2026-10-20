@@ -27,7 +27,7 @@
                         :entity="$person"
                         :url="route('admin.contacts.persons.update', $person->id)"
                         :allow-edit="true"
-                        :read-only="app(\Webkul\Admin\Helpers\Alcance::class)->veTotal() ? [] : ['user_id']"
+                        :read-only="app(\Webkul\Admin\Helpers\Alcance::class)->puedeReasignar() ? [] : ['user_id']"
                     />
         
                     {!! view_render_event('admin.contacts.persons.view.attributes.form_controls.attributes_view.after', ['person' => $person]) !!}
