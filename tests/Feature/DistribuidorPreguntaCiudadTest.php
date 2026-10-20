@@ -146,8 +146,8 @@ it('manda una lista con las ciudades que tienen distribuidor y no repite', funct
 
 // ───────────────── la respuesta ─────────────────
 
-it('al tocar una ciudad la guarda en la ficha y le asigna distribuidor', function () {
-    ['ciudad' => $c, 'dist' => $dist] = preguntaEscenario();
+it('al tocar una ciudad la guarda en la ficha', function () {
+    ['ciudad' => $c] = preguntaEscenario();
 
     $conv = preguntaConversacion();
     app(PreguntaDeCiudad::class)->preguntar($conv);
@@ -156,8 +156,10 @@ it('al tocar una ciudad la guarda en la ficha y le asigna distribuidor', functio
 
     $personId = ConversationProxy::modelClass()::find($conv)->person_id;
 
+    // La ciudad queda en la ficha. El cliente no pasa a ningún distribuidor: sin dueño,
+    // sus pedidos los recibe el responsable, que con la ciudad ya sabe a quién dárselos.
     expect(preguntaCiudadDe($conv))->toBe($c)
-        ->and((int) DB::table('persons')->where('id', $personId)->value('user_id'))->toBe($dist->id);
+        ->and(DB::table('persons')->where('id', $personId)->value('user_id'))->toBeNull();
 });
 
 it('también entiende la ciudad escrita a mano', function () {

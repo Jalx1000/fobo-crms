@@ -41,6 +41,10 @@ class DistribuidorServiceProvider extends ServiceProvider
          */
         Event::listen('lead.city.synced', AsignarDistribuidorDeZona::class);
 
+        // Pedido marcado como entregado desde el CRM (kanban, ficha, API): recordatorio de
+        // recompra. El botón "Entregado" del Punto ya lo hacía; los otros caminos, no.
+        Event::listen('lead.city.synced', \Webkul\Distribuidor\Listeners\RecompraAlEntregar::class);
+
         /*
          * Un cliente es de UN distribuidor: si un encargado le cambia el dueño, sus
          * pedidos abiertos y su conversación se mudan con él; si se da de baja a un
@@ -70,6 +74,7 @@ class DistribuidorServiceProvider extends ServiceProvider
                 \Webkul\Distribuidor\Console\Commands\EnviarRecordatorios::class,
                 \Webkul\Distribuidor\Console\Commands\RepartirClientes::class,
                 \Webkul\Distribuidor\Console\Commands\PreguntarCiudad::class,
+                \Webkul\Distribuidor\Console\Commands\ProgramarRecompra::class,
             ]);
         }
 

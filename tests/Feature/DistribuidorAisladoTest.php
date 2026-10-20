@@ -48,14 +48,25 @@ function aisladoEscenario(): array
     $a = $crear('A');
     $b = $crear('B');
 
-    // La ciudad queda sólo con A y B, y A primero en el turno.
+    // La ciudad queda sólo con A y B.
     DB::table('distribuidor_zonas')->where('lead_pipeline_id', $ciudad)->delete();
     DB::table('distribuidor_zonas')->insert([
-        ['lead_pipeline_id' => $ciudad, 'user_id' => $a->id, 'ultima_asignacion_at' => null, 'created_at' => now(), 'updated_at' => now()],
-        ['lead_pipeline_id' => $ciudad, 'user_id' => $b->id, 'ultima_asignacion_at' => now(), 'created_at' => now(), 'updated_at' => now()],
+        ['lead_pipeline_id' => $ciudad, 'user_id' => $a->id, 'created_at' => now(), 'updated_at' => now()],
+        ['lead_pipeline_id' => $ciudad, 'user_id' => $b->id, 'created_at' => now(), 'updated_at' => now()],
     ]);
 
-    return ['ciudad' => $ciudad, 'a' => $a, 'b' => $b];
+    // El responsable de lo que no tiene distribuidor (en producción, Huascar).
+    $responsable = User::create([
+        'name'     => 'Responsable '.uniqid(),
+        'email'    => 'responsable-'.uniqid().'@test.local',
+        'password' => bcrypt('secret'),
+        'role_id'  => Role::where('name', 'Encargado')->value('id') ?? 1,
+        'status'   => 1,
+    ]);
+
+    config(['distribuidor.responsable_email' => $responsable->email]);
+
+    return ['ciudad' => $ciudad, 'a' => $a, 'b' => $b, 'responsable' => $responsable];
 }
 
 function aisladoTelefono(): string
@@ -114,45 +125,74 @@ function aisladoConversacion(?int $personId): int
 
 // ───────────────── el reparto ─────────────────
 
-it('reparte los clientes nuevos por turno entre los distribuidores de la ciudad', function () {
-    ['ciudad' => $c, 'a' => $a, 'b' => $b] = aisladoEscenario();
+it('el pedido del agente para un cliente sin distribuidor va al responsable', function () {
+    ['ciudad' => $c, 'responsable' => $r] = aisladoEscenario();
 
-    $primero = aisladoPedidoDelAgente($c, aisladoCliente());
-    $segundo = aisladoPedidoDelAgente($c, aisladoCliente());
-    $tercero = aisladoPedidoDelAgente($c, aisladoCliente());
+    $pedido = aisladoPedidoDelAgente($c, aisladoCliente());
 
-    expect((int) $primero->user_id)->toBe($a->id)
-        ->and((int) $segundo->user_id)->toBe($b->id)
-        ->and((int) $tercero->user_id)->toBe($a->id);
+    // Ni al administrador del token ni a un distribuidor al azar: al responsable,
+    // que lo reparte a mano.
+    expect((int) $pedido->user_id)->toBe($r->id)->not->toBe(1);
 });
 
-it('el cliente vuelve siempre a su distribuidor, aunque le toque el turno a otro', function () {
+it('el pedido del agente para un cliente de un distribuidor va a ese distribuidor', function () {
     ['ciudad' => $c, 'b' => $b] = aisladoEscenario();
 
-    // A es el siguiente del turno, pero el cliente ya es de B.
-    $cliente = aisladoCliente($b->id);
-
-    $pedido = aisladoPedidoDelAgente($c, $cliente);
+    $pedido = aisladoPedidoDelAgente($c, aisladoCliente($b->id));
 
     expect((int) $pedido->user_id)->toBe($b->id);
 });
 
-it('un pedido nunca queda a nombre del administrador del token', function () {
-    ['ciudad' => $c, 'a' => $a, 'b' => $b] = aisladoEscenario();
-
-    $pedido = aisladoPedidoDelAgente($c, aisladoCliente());
-
-    expect((int) $pedido->user_id)->not->toBe(1)
-        ->and([(int) $pedido->user_id])->toBeIn([[$a->id], [$b->id]]);
-});
-
-it('el cliente nuevo queda a nombre del distribuidor que le tocó', function () {
-    ['ciudad' => $c, 'a' => $a] = aisladoEscenario();
+it('el cliente sin distribuidor no queda a nombre del responsable', function () {
+    ['ciudad' => $c] = aisladoEscenario();
 
     $cliente = aisladoCliente();
     aisladoPedidoDelAgente($c, $cliente);
 
-    expect((int) DB::table('persons')->where('id', $cliente)->value('user_id'))->toBe($a->id);
+    // El responsable recibe el PEDIDO; la ficha queda libre hasta que la asigne a un
+    // distribuidor.
+    expect(DB::table('persons')->where('id', $cliente)->value('user_id'))->toBeNull();
+});
+
+it('un pedido de una ciudad sin distribuidores va al responsable', function () {
+    ['ciudad' => $c, 'responsable' => $r] = aisladoEscenario();
+
+    // La ciudad se queda sin distribuidores (el caso de "Sin ciudad", que no tiene
+    // etapas en esta base y no deja crear un pedido para probarlo directo).
+    DB::table('distribuidor_zonas')->where('lead_pipeline_id', $c)->delete();
+
+    $pedido = aisladoPedidoDelAgente($c, aisladoCliente());
+
+    expect((int) $pedido->user_id)->toBe($r->id);
+});
+
+it('el cliente que carga un distribuidor en el Punto queda suyo', function () {
+    ['ciudad' => $c, 'a' => $a] = aisladoEscenario();
+
+    $telefono = aisladoTelefono();
+
+    test()->actingAs($a, 'user')
+        ->postJson(route('admin.distribuidor.contacto.store'), ['telefono' => $telefono, 'nombre' => 'Nuevo de A'])
+        ->assertOk();
+
+    $personId = app(\Webkul\Contact\Repositories\PersonRepository::class)->findByPhone($telefono)->id;
+
+    expect((int) DB::table('persons')->where('id', $personId)->value('user_id'))->toBe($a->id);
+});
+
+it('cuando el responsable asigna el pedido a un distribuidor, el cliente pasa a ese distribuidor', function () {
+    ['ciudad' => $c, 'b' => $b, 'responsable' => $r] = aisladoEscenario();
+
+    $cliente = aisladoCliente();
+    $pedido = aisladoPedidoDelAgente($c, $cliente);
+    $otro = aisladoPedidoDelAgente($c, $cliente);
+
+    // El responsable, desde el CRM, le pone a B como asesor del pedido.
+    auth()->guard('user')->login($r);
+    app(LeadRepository::class)->update(['entity_type' => 'leads', 'user_id' => $b->id], $pedido->id);
+
+    expect((int) DB::table('persons')->where('id', $cliente)->value('user_id'))->toBe($b->id)
+        ->and((int) DB::table('leads')->where('id', $otro->id)->value('user_id'))->toBe($b->id);
 });
 
 // ───────────────── el Punto ─────────────────
@@ -359,8 +399,8 @@ it('reasignar un cliente mueve sus pedidos abiertos y su derivación, no los cer
         ->and((int) DB::table('whatsapp_conversations')->where('id', $conv)->value('assigned_user_id'))->toBe($b->id);
 });
 
-it('dar de baja a un distribuidor reparte sus clientes entre los demás de la ciudad', function () {
-    ['ciudad' => $c, 'a' => $a, 'b' => $b] = aisladoEscenario();
+it('dar de baja a un distribuidor pasa sus pedidos abiertos al responsable', function () {
+    ['ciudad' => $c, 'a' => $a, 'responsable' => $r] = aisladoEscenario();
 
     $cliente = aisladoCliente($a->id);
     $pedido = aisladoPedidoDelAgente($c, $cliente);
@@ -368,18 +408,8 @@ it('dar de baja a un distribuidor reparte sus clientes entre los demás de la ci
     $a->forceFill(['status' => 0])->save();
     event('settings.user.update.after', $a);
 
-    expect((int) DB::table('persons')->where('id', $cliente)->value('user_id'))->toBe($b->id)
-        ->and((int) DB::table('leads')->where('id', $pedido->id)->value('user_id'))->toBe($b->id);
-});
-
-it('un distribuidor dado de baja no recibe clientes nuevos', function () {
-    ['ciudad' => $c, 'a' => $a, 'b' => $b] = aisladoEscenario();
-
-    $a->forceFill(['status' => 0])->save();
-
-    foreach (range(1, 3) as $i) {
-        expect((int) aisladoPedidoDelAgente($c, aisladoCliente())->user_id)->toBe($b->id);
-    }
+    expect(DB::table('persons')->where('id', $cliente)->value('user_id'))->toBeNull()
+        ->and((int) DB::table('leads')->where('id', $pedido->id)->value('user_id'))->toBe($r->id);
 });
 
 // ───────────────── lo que no cambia ─────────────────

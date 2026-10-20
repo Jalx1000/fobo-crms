@@ -31,6 +31,9 @@ beforeEach(function () {
         'distribuidor.recordatorios.enabled'          => true,
         'distribuidor.recordatorios.template'         => 'recordatorio_pedido',
         'distribuidor.recordatorios.language'         => 'es',
+        // Estos casos prueban el cálculo por promedio: se apaga el plazo fijo (que en
+        // producción es 4 días). El plazo fijo tiene su propio caso más abajo.
+        'distribuidor.recordatorios.cadencia_fija'    => 0,
         'distribuidor.recordatorios.cadencia_defecto' => 7,
         'distribuidor.recordatorios.cadencia_minima'  => 3,
         'distribuidor.recordatorios.cadencia_maxima'  => 60,
@@ -53,8 +56,15 @@ function clienteParaRecordatorio(?string $telefono = null): array
     ]);
 
     $pipelineId = (int) DB::table('lead_pipelines')->orderBy('id')->value('id');
-    $stageId = (int) DB::table('lead_pipeline_stages')
-        ->where('lead_pipeline_id', $pipelineId)->orderBy('sort_order')->value('id');
+
+    // Entregado: el recordatorio es para clientes que ya recibieron su pedido. Con el
+    // pedido en curso no se les manda nada (ver "con un pedido en curso…").
+    $stageId = (int) (DB::table('lead_pipeline_stages')
+        ->where('lead_pipeline_id', $pipelineId)
+        ->where('code', config('distribuidor.etapas.entregado'))
+        ->value('id')
+        ?: DB::table('lead_pipeline_stages')
+            ->where('lead_pipeline_id', $pipelineId)->orderBy('sort_order')->value('id'));
 
     $leadId = (int) DB::table('leads')->insertGetId([
         'title'                  => 'Pedido recordatorio '.uniqid(),
@@ -382,8 +392,90 @@ it('manda la plantilla y cuenta el intento', function () {
         ->and($s->de($c['person_id'])->intentos)->toBe(1);
 });
 
+it('con un pedido en curso no se le manda el recordatorio', function () {
+    conPlantillaDeRecordatorio();
+
+    $c = clienteParaRecordatorio();
+    app(Recordatorios::class)->programarTrasEntrega($c['person_id'], now()->subDays(30));
+
+    // Ya volvió a pedir: tiene otro pedido sin entregar.
+    $abierta = (int) DB::table('lead_pipeline_stages')
+        ->where('lead_pipeline_id', $c['pipeline_id'])->orderBy('sort_order')->value('id');
+    DB::table('leads')->where('id', otroPedidoDe($c))->update(['lead_pipeline_stage_id' => $abierta]);
+
+    expect(app(\Webkul\Distribuidor\Services\RecordatorioDeRecompra::class)->enviarA($c['person_id']))->toBeFalse()
+        ->and(app(Recordatorios::class)->de($c['person_id'])->intentos)->toBe(0);
+});
+
+// ───────────────────── el plazo fijo de Sensia: 4 días ─────────────────────
+
+it('con plazo fijo, el recordatorio sale 4 días después de la entrega', function () {
+    config(['distribuidor.recordatorios.cadencia_fija' => 4]);
+
+    $c = clienteParaRecordatorio();
+    $entrega = now()->subDay()->startOfMinute();
+
+    $estado = app(Recordatorios::class)->programarTrasEntrega($c['person_id'], $entrega);
+
+    expect($estado->proximo_at->toDateTimeString())->toBe($entrega->copy()->addDays(4)->toDateTimeString());
+});
+
+it('marcar el pedido como entregado desde el CRM programa el recordatorio', function () {
+    config(['distribuidor.recordatorios.cadencia_fija' => 4]);
+
+    $c = clienteParaRecordatorio();
+    $lead = \Webkul\Lead\Models\Lead::find($c['lead_id']);
+
+    // Es el evento por el que pasa cualquier edición del pedido (kanban, ficha, API).
+    event('lead.city.synced', $lead);
+
+    expect(app(Recordatorios::class)->de($c['person_id'])->proximo_at)->not->toBeNull();
+});
+
+it('volver a guardar el mismo pedido entregado no reinicia los intentos', function () {
+    config(['distribuidor.recordatorios.cadencia_fija' => 4]);
+
+    $c = clienteParaRecordatorio();
+    $lead = \Webkul\Lead\Models\Lead::find($c['lead_id']);
+    $s = app(Recordatorios::class);
+
+    event('lead.city.synced', $lead);
+    $s->de($c['person_id'])->update(['intentos' => 2]);
+
+    event('lead.city.synced', $lead);   // otra edición del mismo pedido
+
+    expect($s->de($c['person_id'])->intentos)->toBe(2);
+});
+
+it('el comando programa a los clientes que ya tenían su pedido entregado', function () {
+    config(['distribuidor.recordatorios.cadencia_fija' => 4]);
+
+    $c = clienteParaRecordatorio();
+
+    test()->artisan('distribuidor:programar-recompra')->assertSuccessful();
+    expect(app(Recordatorios::class)->de($c['person_id'])->proximo_at)->toBeNull();   // modo prueba
+
+    test()->artisan('distribuidor:programar-recompra', ['--aplicar' => true])->assertSuccessful();
+    expect(app(Recordatorios::class)->de($c['person_id'])->proximo_at)->not->toBeNull();
+});
+
 it('sin plantilla aprobada no gasta un intento', function () {
-    // El catálogo real no tiene 'recordatorio_pedido': es el estado de hoy.
+    /*
+     * Un catálogo SIN la plantilla. Antes este caso usaba el catálogo real de Meta,
+     * que no tenía 'recordatorio_pedido'; desde que se creó y aprobó, el test dependía
+     * del estado de Meta y fallaba. El caso que prueba —qué pasa si la plantilla no
+     * está— se arma acá.
+     */
+    app()->instance(TemplateCatalog::class, new class extends TemplateCatalog
+    {
+        public function __construct() {}
+
+        public function find(string $name, string $language): ?array
+        {
+            return null;
+        }
+    });
+
     $c = clienteParaRecordatorio();
     $s = app(Recordatorios::class);
     $s->programarTrasEntrega($c['person_id'], now()->subDays(30));

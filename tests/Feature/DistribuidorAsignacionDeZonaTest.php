@@ -84,7 +84,19 @@ function pedidoComoElAgente(int $pipelineId, ?int $personId = null, ?int $userId
 
 // ───────────────── la asignación por zona ─────────────────
 
-it('el pedido que crea el agente queda en el distribuidor de la zona, no en el admin del token', function () {
+/** El responsable de lo que no tiene distribuidor (Huascar en esta instalación). */
+function responsableDeZona(): int
+{
+    $id = app(\Webkul\Distribuidor\Services\Reparto::class)->responsable();
+
+    if (! $id) {
+        test()->markTestSkipped('No hay responsable configurado en esta base.');
+    }
+
+    return $id;
+}
+
+it('el pedido que crea el agente para un cliente nuevo va al responsable, no al admin del token', function () {
     $palpala = ciudadDeZona('Palpalá');
 
     $lead = pedidoComoElAgente($palpala);
@@ -92,9 +104,10 @@ it('el pedido que crea el agente queda en el distribuidor de la zona, no en el a
 
     /*
      * Sin esto el pedido quedaba con user_id = 1 (Sofopolis, Administrador), que es el
-     * dueño del token `android` con el que entra el agente.
+     * dueño del token `android` con el que entra el agente. Un cliente nuevo no es de
+     * ningún distribuidor: lo recibe el responsable, que lo reparte a mano.
      */
-    expect((int) $lead->user_id)->toBe(distribuidorDe('Palpalá'))
+    expect((int) $lead->user_id)->toBe(responsableDeZona())
         ->and((int) $lead->user_id)->not->toBe(1);
 });
 
@@ -105,29 +118,44 @@ it('un pedido de Palpala no queda en el distribuidor de Jujuy', function () {
     expect((int) $lead->user_id)->not->toBe(distribuidorDe('San Salvador de Jujuy'));
 });
 
-it('corrige el distribuidor equivocado que mande el agente', function () {
+it('ignora el distribuidor que mande el agente', function () {
     $palpala = ciudadDeZona('Palpalá');
 
     // El agente manda al distribuidor de OTRA ciudad: es un id válido, existe, y es
-    // distribuidor. Nada salvo la zona dice que está mal.
+    // distribuidor. El agente no elige distribuidor: va al responsable.
     $lead = pedidoComoElAgente($palpala, null, distribuidorDe('San Salvador de Jujuy'));
     $lead->refresh();
 
-    expect((int) $lead->user_id)->toBe(distribuidorDe('Palpalá'));
+    expect((int) $lead->user_id)->toBe(responsableDeZona())
+        ->not->toBe(distribuidorDe('San Salvador de Jujuy'));
 });
 
-it('mudar el pedido de ciudad lo reasigna', function () {
+it('el pedido de un cliente de un distribuidor va a ese distribuidor', function () {
+    $palpala = ciudadDeZona('Palpalá');
+
+    $lead = pedidoComoElAgente($palpala, personaDePrueba());
+    DB::table('persons')->where('id', $lead->person_id)->update(['user_id' => distribuidorDe('Palpalá')]);
+
+    $otro = pedidoComoElAgente($palpala, (int) $lead->person_id);
+    $otro->refresh();
+
+    expect((int) $otro->user_id)->toBe(distribuidorDe('Palpalá'));
+});
+
+it('mudar el pedido a una ciudad donde el cliente no tiene distribuidor lo pasa al responsable', function () {
     $palpala = ciudadDeZona('Palpalá');
     $jujuy = ciudadDeZona('San Salvador de Jujuy');
 
-    $lead = pedidoComoElAgente($palpala);
+    $lead = pedidoComoElAgente($palpala, personaDePrueba());
+    DB::table('persons')->where('id', $lead->person_id)->update(['user_id' => distribuidorDe('Palpalá')]);
 
     DB::table('leads')->where('id', $lead->id)->update(['lead_pipeline_id' => $jujuy]);
     $lead->refresh();
     app(CitySyncService::class)->syncFromLead($lead, $palpala);
     $lead->refresh();
 
-    expect((int) $lead->user_id)->toBe(distribuidorDe('San Salvador de Jujuy'));
+    // Su distribuidor no reparte en Jujuy: lo decide el responsable.
+    expect((int) $lead->user_id)->toBe(responsableDeZona());
 });
 
 it('no pisa una asignacion manual al distribuidor correcto', function () {

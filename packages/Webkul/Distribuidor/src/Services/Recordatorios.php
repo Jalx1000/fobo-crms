@@ -78,6 +78,11 @@ class Recordatorios
      */
     public function cadenciaDe(int $personId): int
     {
+        // Un plazo fijo para todos, si el negocio lo eligió (hoy: 4 días).
+        if (($fija = (int) (config('distribuidor.recordatorios.cadencia_fija') ?? 0)) > 0) {
+            return $fija;
+        }
+
         $defecto = (int) (config('distribuidor.recordatorios.cadencia_defecto') ?? 7);
 
         if (! Schema::hasTable('distribuidor_entregas')) {
@@ -165,6 +170,32 @@ class Recordatorios
         ]);
 
         return $fila;
+    }
+
+    /**
+     * Programa el recordatorio por una entrega, sólo si esa entrega todavía no lo
+     * programó.
+     *
+     * Para los caminos que no son el botón "Entregado" del Punto: el kanban o la ficha
+     * del pedido en el CRM, y el comando que programa a los clientes que ya tenían
+     * entregas. Esos caminos pueden pasar varias veces por el mismo pedido (cada edición
+     * del lead vuelve a disparar el evento), y llamar a programarTrasEntrega() cada vez
+     * reiniciaría los intentos del ciclo.
+     */
+    public function programarSiCorresponde(int $personId, Carbon $entregadoAt): ?object
+    {
+        if (! $this->tablaLista() || ! $this->habilitado()) {
+            return null;
+        }
+
+        $fila = $this->de($personId);
+
+        // Ya está programado por esta entrega o por una posterior.
+        if ($fila?->proximo_at && $fila->proximo_at->gte($entregadoAt->copy()->addDays($this->cadenciaDe($personId)))) {
+            return $fila;
+        }
+
+        return $this->programarTrasEntrega($personId, $entregadoAt);
     }
 
     /**

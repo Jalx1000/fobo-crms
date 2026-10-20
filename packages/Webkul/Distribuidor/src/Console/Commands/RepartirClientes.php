@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Webkul\Core\Services\Distribuidores;
 use Webkul\Distribuidor\Services\Reparto;
+use Webkul\Lead\Services\CitySyncService;
 
 /**
  * Le pone dueño a los clientes que ya existen.
@@ -17,10 +18,9 @@ use Webkul\Distribuidor\Services\Reparto;
  *
  * Por cliente, en este orden:
  *   1. Ya es de un distribuidor de su ciudad: se queda con él.
- *   2. Sus pedidos ya están a nombre de un distribuidor de su ciudad: ese pasa a ser
- *      el dueño. Respeta el trabajo en curso en vez de mover clientes que alguien ya
- *      está atendiendo.
- *   3. Si no, el turno de su ciudad (round robin).
+ *   2. Sus pedidos están a nombre de un distribuidor de su ciudad: ese pasa a ser el
+ *      dueño. Así cada distribuidor conserva los pedidos que ya tenía.
+ *   3. Si no, sus pedidos abiertos pasan al responsable (Huascar), que los reparte.
  *
  * Sin --aplicar sólo muestra lo que haría. Nada cambia hasta que se lo pide.
  */
@@ -36,12 +36,17 @@ class RepartirClientes extends Command
     {
         $aplicar = (bool) $this->option('aplicar');
         $soloCiudad = $this->option('ciudad') ? (int) $this->option('ciudad') : null;
+        $responsable = $reparto->responsable();
 
         $this->line($aplicar ? '<comment>Aplicando cambios.</comment>' : '<info>Modo prueba: no se cambia nada. Usá --aplicar para escribir.</info>');
 
-        $plan = [];
+        if (! $responsable) {
+            $this->warn('No hay responsable configurado (DISTRIBUIDOR_RESPONSABLE_EMAIL): los pedidos sin distribuidor quedan como están.');
+        }
+
+        $aDistribuidor = [];
+        $alResponsable = [];
         $resumen = [];
-        $turnos = [];
 
         foreach ($this->clientes() as $personId) {
             $ciudad = $reparto->ciudadDelCliente($personId);
@@ -50,16 +55,9 @@ class RepartirClientes extends Command
                 continue;
             }
 
-            $candidatos = $distribuidores->deCiudad($ciudad);
             $clave = $ciudad ?: 0;
-            $resumen[$clave] ??= ['ya_tenia' => 0, 'por_pedidos' => 0, 'por_turno' => 0, 'sin_distribuidor' => 0];
-
-            if (! $candidatos) {
-                $resumen[$clave]['sin_distribuidor']++;
-
-                continue;
-            }
-
+            $resumen[$clave] ??= ['ya_tenia' => 0, 'por_pedidos' => 0, 'al_responsable' => 0];
+            $candidatos = $distribuidores->deCiudad($ciudad);
             $actual = $distribuidores->duenoDe($personId);
 
             if ($actual && in_array($actual, $candidatos, true)) {
@@ -68,43 +66,40 @@ class RepartirClientes extends Command
                 continue;
             }
 
-            if ($porPedidos = $this->distribuidorDeSusPedidos($personId, $ciudad, $candidatos)) {
-                $plan[] = [$personId, $ciudad, $porPedidos, 'sus pedidos'];
+            if ($candidatos && ($porPedidos = $this->distribuidorDeSusPedidos($personId, (int) $ciudad, $candidatos))) {
+                $aDistribuidor[] = [$personId, $porPedidos];
                 $resumen[$clave]['por_pedidos']++;
 
                 continue;
             }
 
-            // El turno se simula en memoria para que el modo prueba muestre el reparto
-            // real sin marcar a nadie como "ya recibió".
-            $turnos[$ciudad] ??= $this->ordenDelTurno($ciudad, $candidatos);
-            $siguiente = array_shift($turnos[$ciudad]);
-            $turnos[$ciudad][] = $siguiente;
-
-            $plan[] = [$personId, $ciudad, $siguiente, 'turno'];
-            $resumen[$clave]['por_turno']++;
+            if ($this->tienePedidosAbiertos($personId)) {
+                $alResponsable[] = $personId;
+                $resumen[$clave]['al_responsable']++;
+            }
         }
 
-        $this->mostrarResumen($resumen, $plan, $distribuidores);
+        $this->mostrarResumen($resumen, $aDistribuidor, $distribuidores);
 
-        if (! $aplicar || ! $plan) {
+        if (! $aplicar || (! $aDistribuidor && ! $alResponsable)) {
             return self::SUCCESS;
         }
 
-        DB::transaction(function () use ($plan, $reparto) {
-            foreach ($plan as [$personId, $ciudad, $userId]) {
+        DB::transaction(function () use ($aDistribuidor, $alResponsable, $reparto, $responsable) {
+            foreach ($aDistribuidor as [$personId, $userId]) {
                 $reparto->asignarCliente($personId, $userId);
+            }
 
-                // El turno avanza con cada asignación, para que lo próximo que entre
-                // siga el orden donde lo dejó este reparto.
-                DB::table('distribuidor_zonas')
-                    ->where('lead_pipeline_id', $ciudad)
-                    ->where('user_id', $userId)
-                    ->update(['ultima_asignacion_at' => now()->format('Y-m-d H:i:s.u')]);
+            if ($responsable && $alResponsable) {
+                DB::table('leads')
+                    ->whereIn('person_id', $alResponsable)
+                    ->whereNotIn('lead_pipeline_stage_id', $this->etapasCerradas())
+                    ->update(['user_id' => $responsable]);
             }
         });
 
-        $this->info(count($plan).' clientes asignados.');
+        $this->info(count($aDistribuidor).' clientes asignados a su distribuidor; '
+            .count($alResponsable).' con pedidos abiertos pasados al responsable.');
 
         return self::SUCCESS;
     }
@@ -123,7 +118,7 @@ class RepartirClientes extends Command
                     ->orWhereExists(fn ($s) => $s->from('whatsapp_conversations')->whereColumn('whatsapp_conversations.person_id', 'persons.id'))
                     ->orWhereExists(fn ($s) => $s->from('attribute_values')
                         ->join('attributes', 'attributes.id', '=', 'attribute_values.attribute_id')
-                        ->where('attributes.code', 'cliente_ciudad')
+                        ->where('attributes.code', CitySyncService::PERSON_CITY_ATTRIBUTE_CODE)
                         ->where('attribute_values.entity_type', 'persons')
                         ->whereColumn('attribute_values.entity_id', 'persons.id'));
             })
@@ -149,45 +144,43 @@ class RepartirClientes extends Command
         return $userId ? (int) $userId : null;
     }
 
-    /**
-     * Los distribuidores de la ciudad en el orden en que les toca: primero el que hace
-     * más tiempo que no recibe un cliente. El mismo criterio que Reparto::siguiente().
-     *
-     * @param  array<int, int>  $candidatos
-     * @return array<int, int>
-     */
-    protected function ordenDelTurno(int $ciudad, array $candidatos): array
+    protected function tienePedidosAbiertos(int $personId): bool
     {
-        return DB::table('distribuidor_zonas')
-            ->where('lead_pipeline_id', $ciudad)
-            ->whereIn('user_id', $candidatos)
-            ->orderBy('ultima_asignacion_at')
-            ->orderBy('user_id')
-            ->pluck('user_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
+        return DB::table('leads')
+            ->where('person_id', $personId)
+            ->whereNotIn('lead_pipeline_stage_id', $this->etapasCerradas())
+            ->exists();
     }
 
-    protected function mostrarResumen(array $resumen, array $plan, Distribuidores $distribuidores): void
+    /** @return array<int, int> */
+    protected function etapasCerradas(): array
+    {
+        return DB::table('lead_pipeline_stages')
+            ->whereIn('code', CitySyncService::CLOSED_STAGE_CODES)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all() ?: [0];
+    }
+
+    protected function mostrarResumen(array $resumen, array $aDistribuidor, Distribuidores $distribuidores): void
     {
         $ciudades = DB::table('lead_pipelines')->pluck('name', 'id');
 
         $this->table(
-            ['Ciudad', 'Ya tenían dueño', 'Por sus pedidos', 'Por turno', 'Sin distribuidor en la ciudad'],
+            ['Ciudad', 'Ya tenían dueño', 'Por sus pedidos', 'Pedidos abiertos al responsable'],
             collect($resumen)->map(fn ($r, $ciudad) => [
                 $ciudad ? ($ciudades[$ciudad] ?? "#{$ciudad}") : 'Sin ciudad',
                 $r['ya_tenia'],
                 $r['por_pedidos'],
-                $r['por_turno'],
-                $r['sin_distribuidor'],
+                $r['al_responsable'],
             ])->values()->all(),
         );
 
-        $porDistribuidor = collect($plan)->countBy(fn ($p) => $p[2]);
+        $porDistribuidor = collect($aDistribuidor)->countBy(fn ($p) => $p[1]);
 
         if ($porDistribuidor->isNotEmpty()) {
             $this->table(
-                ['Distribuidor', 'Clientes que recibe'],
+                ['Distribuidor', 'Clientes que conserva'],
                 $porDistribuidor->map(fn ($n, $userId) => [$distribuidores->nombre($userId)." (#{$userId})", $n])->values()->all(),
             );
         }

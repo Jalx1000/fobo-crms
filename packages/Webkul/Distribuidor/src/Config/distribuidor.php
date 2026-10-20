@@ -170,6 +170,15 @@ return [
         'cadencia_defecto' => (int) env('DISTRIBUIDOR_RECORDATORIO_CADENCIA', 7),
 
         /*
+        | Días FIJOS entre la entrega y el recordatorio, para todos los clientes.
+        |
+        | Sensia lo pidió así: 4 días después de la última entrega. Con un valor > 0
+        | manda sobre el promedio de cada cliente (cadencia_defecto, mínima y máxima
+        | dejan de usarse). En 0 vuelve el cálculo por promedio.
+        */
+        'cadencia_fija' => (int) env('DISTRIBUIDOR_RECORDATORIO_CADENCIA_FIJA', 4),
+
+        /*
         | Los topes del promedio.
         |
         | Mínimo: un cliente con dos entregas seguidas en días distintos de la misma
@@ -203,6 +212,20 @@ return [
         */
         'por_corrida' => (int) env('DISTRIBUIDOR_RECORDATORIO_POR_CORRIDA', 100),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Responsable de lo que no tiene distribuidor
+    |--------------------------------------------------------------------------
+    |
+    | Los pedidos que no son de ningún distribuidor —los que crea el agente de IA para
+    | un cliente sin distribuidor, los que no tienen ciudad, los de un distribuidor dado
+    | de baja— quedan a nombre de esta persona, que los reparte a mano. Hoy: Huascar.
+    |
+    | Por email y no por id: el id cambia entre bases (producción, pruebas), el email no.
+    |
+    */
+    'responsable_email' => env('DISTRIBUIDOR_RESPONSABLE_EMAIL', 'huascar.arze@gmail.com'),
 
     /*
     |--------------------------------------------------------------------------

@@ -46,6 +46,15 @@ class RecordatorioDeRecompra
             return false;
         }
 
+        /*
+         * Si ya tiene un pedido en curso, no se le pregunta "¿para cuándo coordinamos tu
+         * pedido?": ya pidió. No se registra envío, así el recordatorio no gasta un
+         * intento; la próxima entrega lo vuelve a programar.
+         */
+        if ($this->tienePedidoEnCurso($personId)) {
+            return false;
+        }
+
         $telefono = $this->telefonoDe($persona);
 
         if (! $telefono) {
@@ -89,6 +98,17 @@ class RecordatorioDeRecompra
         $this->recordatorios->registrarEnvio($personId);
 
         return true;
+    }
+
+    protected function tienePedidoEnCurso(int $personId): bool
+    {
+        return \Illuminate\Support\Facades\DB::table('leads')
+            ->where('person_id', $personId)
+            ->whereNotIn('lead_pipeline_stage_id', function ($q) {
+                $q->select('id')->from('lead_pipeline_stages')
+                    ->whereIn('code', \Webkul\Lead\Services\CitySyncService::CLOSED_STAGE_CODES);
+            })
+            ->exists();
     }
 
     protected function telefonoDe($persona): ?string

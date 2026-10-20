@@ -8,18 +8,19 @@ use Webkul\Core\Services\Distribuidores;
 use Webkul\Lead\Services\CitySyncService;
 
 /**
- * A qué distribuidor le toca cada cliente, y qué se mueve cuando cambia de dueño.
+ * A quién le toca cada pedido, y qué se mueve cuando un cliente cambia de dueño.
  *
  * Cada distribuidor es una empresa. Las reglas, en el orden en que se aplican:
  *
- *  1. Un cliente tiene UN dueño (`persons.user_id`). Si ya le compró a un
- *     distribuidor de esta ciudad, vuelve a ese: el cliente es de la empresa que lo
- *     atendió, y repartirlo entre dos es lo que las haría pelear.
- *  2. Un cliente nuevo se reparte por turno (round robin) entre los distribuidores
- *     activos de su ciudad: le toca al que hace más tiempo que no recibe uno.
- *  3. Nunca queda a nombre de un administrador, un encargado o el token del agente:
- *     esos roles no reparten. Sin distribuidor posible (ciudad desconocida) queda
- *     sin dueño hasta que se sepa la ciudad.
+ *  1. Un cliente tiene UN dueño (`persons.user_id`). Si es de un distribuidor de esta
+ *     ciudad, todos sus pedidos van a ese distribuidor: el cliente es de la empresa
+ *     que lo cargó o a la que se lo asignaron.
+ *  2. El cliente que un distribuidor está atendiendo en persona (el Punto) y no tenía
+ *     dueño, pasa a ser suyo.
+ *  3. Todo lo demás —pedidos del agente de IA para clientes sin distribuidor, pedidos
+ *     sin ciudad, clientes de un distribuidor dado de baja— queda a nombre del
+ *     RESPONSABLE (Huascar), que lo reparte a mano. Cuando lo asigna a un
+ *     distribuidor, el cliente entero pasa a ese distribuidor (regla 1 de ahí en más).
  *
  * Todos los pedidos abiertos del cliente y su conversación de WhatsApp siguen al
  * dueño: si el cliente se reasigna, se mueven con él.
@@ -31,14 +32,12 @@ class Reparto
     ) {}
 
     /**
-     * El distribuidor que atiende a este cliente en esta ciudad.
+     * El distribuidor dueño de este cliente en esta ciudad, o null si no tiene uno.
      *
-     * Si el cliente no tenía dueño en la ciudad, se lo asigna (y mueve sus pedidos
-     * abiertos de esa ciudad). Null si la ciudad no tiene distribuidores.
+     * Si el cliente no tenía dueño y lo está atendiendo un distribuidor de la ciudad
+     * (el Punto), queda a nombre de ese distribuidor.
      *
-     * @param  int|null  $preferido  Un distribuidor de la ciudad que está atendiendo al
-     *                               cliente en persona (el Punto): si el cliente no tenía
-     *                               dueño, se queda con él en vez de ir al turno.
+     * @param  int|null  $preferido  Distribuidor de la ciudad que está atendiendo al cliente.
      */
     public function duenoPara(?int $personId, ?int $pipelineId, ?int $preferido = null): ?int
     {
@@ -54,50 +53,32 @@ class Reparto
             return $actual;
         }
 
-        $nuevo = $preferido && in_array($preferido, $candidatos, true)
-            ? $preferido
-            : $this->siguiente((int) $pipelineId);
+        if ($preferido && in_array($preferido, $candidatos, true)) {
+            if ($personId) {
+                $this->asignarCliente($personId, $preferido);
+            }
 
-        if ($nuevo && $personId) {
-            $this->asignarCliente($personId, $nuevo);
+            return $preferido;
         }
 
-        return $nuevo;
+        return null;
     }
 
     /**
-     * El siguiente del turno en la ciudad, y lo marca como el último que recibió.
-     *
-     * Equitativo = le toca al que hace más tiempo que no recibe un cliente. Quien nunca
-     * recibió uno va primero (NULL ordena antes en MySQL), y entre empatados decide el
-     * id para que el orden sea estable.
-     *
-     * Con candado: dos pedidos que entran a la vez no pueden caerle al mismo.
+     * El responsable de lo que no tiene distribuidor (Huascar), o null si no está
+     * configurado o no existe.
      */
-    public function siguiente(int $pipelineId): ?int
+    public function responsable(): ?int
     {
-        return DB::transaction(function () use ($pipelineId) {
-            $fila = DB::table('distribuidor_zonas')
-                ->join('users', 'users.id', '=', 'distribuidor_zonas.user_id')
-                ->where('users.status', 1)
-                ->where('distribuidor_zonas.lead_pipeline_id', $pipelineId)
-                ->orderBy('distribuidor_zonas.ultima_asignacion_at')
-                ->orderBy('distribuidor_zonas.user_id')
-                ->lockForUpdate()
-                ->first(['distribuidor_zonas.id', 'distribuidor_zonas.user_id']);
+        $email = (string) config('distribuidor.responsable_email');
 
-            if (! $fila) {
-                return null;
-            }
+        if ($email === '') {
+            return null;
+        }
 
-            // Con microsegundos (la columna los guarda): con segundos, dos asignaciones en
-            // el mismo segundo empataban y le tocaba dos veces al mismo.
-            DB::table('distribuidor_zonas')
-                ->where('id', $fila->id)
-                ->update(['ultima_asignacion_at' => now()->format('Y-m-d H:i:s.u')]);
+        $id = DB::table('users')->where('email', $email)->where('status', 1)->value('id');
 
-            return (int) $fila->user_id;
-        });
+        return $id ? (int) $id : null;
     }
 
     /**
@@ -111,20 +92,18 @@ class Reparto
         $pipelineId = $lead->lead_pipeline_id ? (int) $lead->lead_pipeline_id : null;
         $actual = $lead->user_id ? (int) $lead->user_id : null;
 
-        /*
-         * Sólo cuenta como "preferido" el distribuidor que está en sesión cargando el
-         * pedido él mismo. El user_id que mande el agente por la API NO: el agente no
-         * elige distribuidor, eso es del turno.
-         */
         $enSesion = auth()->guard('user')->id();
         $enSesion = $enSesion ? (int) $enSesion : null;
         $personId = $lead->person_id ? (int) $lead->person_id : null;
 
+        $aMano = $actual && $enSesion && ! $this->esPedidoDeLaApi()
+            && ! $this->distribuidores->esDistribuidor($enSesion);
+
         /*
-         * Reasignación a mano: un encargado o administrador, desde el CRM, eligió a
-         * otro distribuidor de la ciudad como asesor del pedido. Gana sobre el dueño
-         * anterior y se lleva al cliente entero —ficha, pedidos abiertos y
-         * conversación—, porque un cliente no puede quedar repartido entre dos.
+         * Reasignación a mano: un encargado o administrador, desde el CRM, eligió a un
+         * distribuidor de la ciudad como asesor del pedido. Gana sobre el dueño anterior
+         * y se lleva al cliente entero —ficha, pedidos abiertos y conversación—, porque
+         * un cliente no puede quedar repartido entre dos empresas.
          *
          * Cada update de un pedido vuelve a pasar por acá (lead.city.synced), así que
          * sin esto el reparto deshacía la elección del encargado en el mismo request.
@@ -133,10 +112,7 @@ class Reparto
          * user_id que mande no es una decisión de nadie del equipo.
          */
         if (
-            $actual
-            && $enSesion
-            && ! $this->esPedidoDeLaApi()
-            && ! $this->distribuidores->esDistribuidor($enSesion)
+            $aMano
             && $this->distribuidores->esDistribuidorDe($actual, $pipelineId)
             && $actual !== $this->distribuidores->duenoDe($personId)
         ) {
@@ -147,15 +123,18 @@ class Reparto
             return $actual;
         }
 
+        // Sólo cuenta como "preferido" el distribuidor que carga el pedido él mismo.
         $preferido = $actual && $actual === $enSesion ? $actual : null;
 
         $dueno = $this->duenoPara($personId, $pipelineId, $preferido);
 
-        // Sin distribuidor posible: no se deja a nombre de un rol que no reparte.
-        if (! $dueno && $actual && ! $this->distribuidores->esDistribuidor($actual)) {
-            $dueno = null;
-        } elseif (! $dueno) {
-            return $actual;
+        if (! $dueno) {
+            /*
+             * Sin distribuidor: va al responsable (Huascar), que lo reparte. Así un pedido
+             * nunca queda a nombre de un administrador o del token del agente, donde no lo
+             * mira nadie. Sin responsable configurado, se deja como estaba.
+             */
+            $dueno = $this->responsable() ?? $actual;
         }
 
         if ($dueno !== $actual) {
@@ -184,15 +163,7 @@ class Reparto
     {
         DB::table('persons')->where('id', $personId)->update(['user_id' => $userId]);
 
-        $abiertos = DB::table('leads')
-            ->where('person_id', $personId)
-            ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', '!=', $userId))
-            ->whereNotIn('lead_pipeline_stage_id', $this->etapasCerradas())
-            ->pluck('id');
-
-        if ($abiertos->isNotEmpty()) {
-            DB::table('leads')->whereIn('id', $abiertos)->update(['user_id' => $userId]);
-        }
+        $this->moverPedidosAbiertos($personId, $userId);
 
         /*
          * La conversación ya "sigue" al cliente para la bandeja (se filtra por el dueño
@@ -206,56 +177,29 @@ class Reparto
     }
 
     /**
-     * Reparte los clientes de un distribuidor entre los demás de su ciudad.
+     * Los clientes de un distribuidor dado de baja pasan al responsable.
      *
-     * Para cuando se lo da de baja: sus clientes no pueden quedar a nombre de alguien
-     * que ya no entra al CRM. Cada cliente se reparte por el turno de SU ciudad.
+     * Un cliente a nombre de alguien que ya no entra al CRM no lo ve nadie. La ficha
+     * queda sin dueño y sus pedidos abiertos van al responsable, que decide a qué
+     * distribuidor dárselos.
      *
-     * @return array{repartidos: int, sin_ciudad: int}
+     * @return array{clientes: int, pedidos: int}
      */
-    public function repartirClientesDe(int $userId): array
+    public function liberarClientesDe(int $userId): array
     {
-        $resultado = ['repartidos' => 0, 'sin_ciudad' => 0];
+        $resultado = ['clientes' => 0, 'pedidos' => 0];
+        $responsable = $this->responsable();
 
         foreach (DB::table('persons')->where('user_id', $userId)->pluck('id') as $personId) {
-            $ciudad = $this->ciudadDelCliente((int) $personId);
-            $nuevo = $ciudad ? $this->siguienteSalvo($ciudad, $userId) : null;
+            DB::table('persons')->where('id', $personId)->update(['user_id' => null]);
+            $resultado['clientes']++;
 
-            if ($nuevo) {
-                $this->asignarCliente((int) $personId, $nuevo);
-                $resultado['repartidos']++;
-            } else {
-                // Sin ciudad o sin otro distribuidor: queda sin dueño y lo ven los
-                // encargados, en vez de seguir a nombre del que se fue.
-                DB::table('persons')->where('id', $personId)->update(['user_id' => null]);
-                $resultado['sin_ciudad']++;
+            if ($responsable) {
+                $resultado['pedidos'] += $this->moverPedidosAbiertos((int) $personId, $responsable);
             }
         }
 
         return $resultado;
-    }
-
-    /**
-     * El turno de la ciudad salteando a un distribuidor (el que se da de baja, que
-     * puede seguir activo en `users` mientras se lo reparte).
-     */
-    protected function siguienteSalvo(int $pipelineId, int $excluido): ?int
-    {
-        $candidatos = array_diff($this->distribuidores->deCiudad($pipelineId), [$excluido]);
-
-        if (! $candidatos) {
-            return null;
-        }
-
-        for ($i = 0; $i <= count($candidatos); $i++) {
-            $turno = $this->siguiente($pipelineId);
-
-            if ($turno !== $excluido) {
-                return $turno;
-            }
-        }
-
-        return null;
     }
 
     /**
@@ -282,6 +226,22 @@ class Reparto
             ->value('lead_pipeline_id');
 
         return $delPedido ? (int) $delPedido : null;
+    }
+
+    /** @return int Cuántos pedidos se movieron. */
+    protected function moverPedidosAbiertos(int $personId, int $userId): int
+    {
+        $abiertos = DB::table('leads')
+            ->where('person_id', $personId)
+            ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', '!=', $userId))
+            ->whereNotIn('lead_pipeline_stage_id', $this->etapasCerradas())
+            ->pluck('id');
+
+        if ($abiertos->isNotEmpty()) {
+            DB::table('leads')->whereIn('id', $abiertos)->update(['user_id' => $userId]);
+        }
+
+        return $abiertos->count();
     }
 
     /**
