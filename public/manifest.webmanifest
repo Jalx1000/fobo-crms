@@ -1,0 +1,17 @@
+{
+    "name": "Sensia CRM",
+    "short_name": "Sensia",
+    "description": "Punto de distribuidor y CRM de Sensia.",
+    "lang": "es",
+    "start_url": "/admin/login?app=1",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#7fbce3",
+    "theme_color": "#0b4aa6",
+    "icons": [
+        { "src": "/pwa/sensia-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "/pwa/sensia-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+        { "src": "/pwa/sensia-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    ]
+}
