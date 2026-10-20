@@ -206,6 +206,37 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Pregunta de ciudad por WhatsApp
+    |--------------------------------------------------------------------------
+    |
+    | Sin ciudad no hay distribuidor al que asignarle el cliente. Si el agente no la
+    | consiguió en la charla, el CRM se la pregunta con una lista de ciudades para
+    | tocar. Sólo se le ofrecen las ciudades que tienen distribuidor.
+    |
+    | 🔴 Tiene que salir dentro de las 24 h desde el último mensaje del cliente:
+    | después WhatsApp sólo deja escribirle con una plantilla aprobada. Por eso
+    | `ventana_horas` es 23 y no 24 — el margen cubre que el comando corre cada 10
+    | minutos.
+    |
+    */
+    'pregunta_ciudad' => [
+        'enabled' => (bool) env('DISTRIBUIDOR_PREGUNTAR_CIUDAD', true),
+
+        // Cuánto se espera desde el último mensaje del cliente antes de preguntar:
+        // se le da tiempo al agente a preguntarla él, sin que el cliente reciba la
+        // misma pregunta dos veces.
+        'tras_minutos' => (int) env('DISTRIBUIDOR_PREGUNTAR_CIUDAD_TRAS', 60),
+
+        'ventana_horas' => (int) env('DISTRIBUIDOR_PREGUNTAR_CIUDAD_VENTANA', 23),
+
+        'texto' => env('DISTRIBUIDOR_PREGUNTAR_CIUDAD_TEXTO', '¿De qué ciudad nos escribís? 📍 Así te asignamos al distribuidor de tu zona.'),
+
+        // Máximo 20 caracteres: es el botón que abre la lista en WhatsApp.
+        'boton' => env('DISTRIBUIDOR_PREGUNTAR_CIUDAD_BOTON', 'Elegir ciudad'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Formas de cobro
     |--------------------------------------------------------------------------
     | Cerradas a propósito: un campo libre acá vuelve imposible cuadrar la caja.

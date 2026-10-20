@@ -44,6 +44,7 @@ class Conversation extends Model implements ConversationContract
         'person_id',
         'lead_id',
         'last_inbound_at',
+        'ciudad_preguntada_at',
         'handoff_state',
         'handoff_reason',
         'handoff_source',
@@ -62,6 +63,7 @@ class Conversation extends Model implements ConversationContract
         'ai_enabled'           => 'boolean',
         'last_message_at'      => 'datetime',
         'last_inbound_at'      => 'datetime',
+        'ciudad_preguntada_at' => 'datetime',
         'handoff_requested_at' => 'datetime',
         'assigned_at'          => 'datetime',
     ];

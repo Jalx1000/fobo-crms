@@ -10,6 +10,7 @@ use Illuminate\Support\ServiceProvider;
 use Webkul\Distribuidor\Http\Middleware\EnsureDistribuidorAccess;
 use Webkul\Distribuidor\Listeners\AsignarDistribuidorDeZona;
 use Webkul\Distribuidor\Listeners\BidonesEnContacto;
+use Webkul\Distribuidor\Listeners\CiudadRespondida;
 use Webkul\Distribuidor\Listeners\ClienteCambiaDeDistribuidor;
 use Webkul\Distribuidor\Listeners\DistribuidorDadoDeBaja;
 
@@ -48,6 +49,9 @@ class DistribuidorServiceProvider extends ServiceProvider
         Event::listen('contacts.person.update.after', ClienteCambiaDeDistribuidor::class);
         Event::listen('settings.user.update.after', DistribuidorDadoDeBaja::class);
 
+        // La respuesta del cliente a la pregunta de ciudad por WhatsApp.
+        Event::listen('whatsapp.message.received', CiudadRespondida::class);
+
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
 
         $this->app['router']->aliasMiddleware('distribuidor_access', EnsureDistribuidorAccess::class);
@@ -64,6 +68,8 @@ class DistribuidorServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 \Webkul\Distribuidor\Console\Commands\EnviarRecordatorios::class,
+                \Webkul\Distribuidor\Console\Commands\RepartirClientes::class,
+                \Webkul\Distribuidor\Console\Commands\PreguntarCiudad::class,
             ]);
         }
 
@@ -83,9 +89,18 @@ class DistribuidorServiceProvider extends ServiceProvider
          * recordatorio dos veces al mismo cliente.
          */
         $this->app->booted(function () {
-            $this->app->make(Schedule::class)
-                ->command('distribuidor:recordatorios')
+            $schedule = $this->app->make(Schedule::class);
+
+            $schedule->command('distribuidor:recordatorios')
                 ->hourly()
+                ->withoutOverlapping();
+
+            /*
+             * La pregunta de ciudad, cada 10 minutos: tiene que salir antes de que se
+             * cierre la ventana de 24 h, y una corrida por hora dejaba muy poco margen.
+             */
+            $schedule->command('distribuidor:preguntar-ciudad')
+                ->everyTenMinutes()
                 ->withoutOverlapping();
         });
     }

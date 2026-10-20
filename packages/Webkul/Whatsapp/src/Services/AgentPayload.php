@@ -245,7 +245,13 @@ class AgentPayload
              */
             'es_conocido'  => (bool) $ultimo,
             'ciudad'       => $ciudadId ? $this->nombreDeCiudad($ciudadId) : null,
-            'distribuidor' => $ciudadId ? $this->distribuidorDe($ciudadId) : null,
+            /*
+             * El distribuidor DUEÑO del cliente, no "el de la ciudad": con varias empresas
+             * en la misma ciudad, el primero de la lista puede ser otro.
+             */
+            'distribuidor' => app(\Webkul\Core\Services\Distribuidores::class)->nombre(
+                app(\Webkul\Core\Services\Distribuidores::class)->duenoDe($personId)
+            ) ?? ($ciudadId ? $this->distribuidorDe($ciudadId) : null),
             'domicilio'    => $domicilio,
             // Con domicilio guardado no hay nada que preguntar: se confirma y se toma el
             // pedido. Sin domicilio sí hay que pedirlo, aunque sea un cliente viejo.
@@ -316,8 +322,14 @@ class AgentPayload
     public function asignacion(): array
     {
         return [
-            'nota' => 'Mandá el `user_id` del distribuidor de la ciudad del pedido. '
-                .'El CRM valida que corresponda a esa ciudad y lo corrige si no.',
+            /*
+             * El agente ya no elige distribuidor. Con varias empresas por ciudad, el CRM
+             * asigna: el cliente vuelve a su distribuidor, y uno nuevo va por turno. Un
+             * user_id que mande el agente se ignora.
+             */
+            'nota' => 'NO mandes user_id ni elijas distribuidor: el CRM lo asigna solo '
+                .'(el cliente vuelve a su distribuidor; uno nuevo se reparte por turno). '
+                .'Lo único que necesita es la ciudad del pedido.',
             'zonas' => $this->siExiste(
                 \Webkul\Distribuidor\Services\AsignacionDeZona::class,
                 fn ($s) => $s->zonas(),

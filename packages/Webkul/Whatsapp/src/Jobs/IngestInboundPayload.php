@@ -8,6 +8,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
 use Webkul\Whatsapp\Gateways\Dto\StatusUpdate;
@@ -99,6 +100,13 @@ class IngestInboundPayload implements ShouldQueue
             'last_inbound_at' => now(), // reopens the 24h messaging window
             'unread_count'    => $conversation->unread_count + 1,
         ])->save();
+
+        /*
+         * Aviso de "llegó un mensaje del cliente", para que otros módulos reaccionen
+         * sin que WhatsApp tenga que conocerlos. Hoy lo usa Distribuidor para leer la
+         * ciudad que el cliente eligió cuando se la preguntamos.
+         */
+        Event::dispatch('whatsapp.message.received', $created);
 
         /*
          * Traer el archivo, si el mensaje trae uno. Va acá y no cuando alguien
