@@ -14,8 +14,9 @@ use Illuminate\Support\Facades\Schema;
  * dueño: ve sólo lo que está asignado a él.
  *
  * Un usuario es distribuidor si está cargado en `distribuidor_zonas`, no por el
- * nombre de su rol: la tabla es lo que dice en qué ciudades reparte, y un rol se
- * renombra sin que nadie se entere.
+ * nombre de su rol: la tabla es lo que dice en qué ciudades reparte. La tabla se
+ * mantiene sola desde el rol y los grupos del usuario (Distribuidor\Services\
+ * ZonasDelDistribuidor), así que registrarlo en Configuración → Usuarios alcanza.
  *
  * El dueño de un cliente es `persons.user_id`. Todos sus pedidos y su conversación
  * de WhatsApp siguen a ese dueño, así un mismo cliente nunca queda repartido entre
