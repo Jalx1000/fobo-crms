@@ -46,6 +46,17 @@ class HorasHabiles
     }
 
     /**
+     * Largo de un día hábil (08:00–19:00 = 11 h): la unidad de «días» en la
+     * distribución del tiempo de respuesta.
+     */
+    public static function segundosPorDia(): int
+    {
+        [$abre, $cierra] = self::franja();
+
+        return max(1, Carbon::parse($abre)->diffInSeconds(Carbon::parse($cierra)));
+    }
+
+    /**
      * @return array{0: string, 1: string}
      */
     protected static function franja(): array

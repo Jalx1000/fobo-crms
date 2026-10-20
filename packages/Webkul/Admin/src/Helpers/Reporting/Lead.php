@@ -985,6 +985,128 @@ class Lead extends AbstractReporting
         return $entradas;
     }
 
+    /**
+     * Movimientos de un mismo usuario en un mismo minuto a partir de los cuales
+     * se consideran «en bloque» (limpieza del kanban, no respuestas).
+     */
+    public const MOVIMIENTOS_EN_BLOQUE = 5;
+
+    /**
+     * «Distribución del tiempo de respuesta», la de kohlberg (spec
+     * docs/specs/distribucion-tiempo-respuesta.md, 20/10/2026): cuánto tarda
+     * un pedido entre que entra a una etapa y pasa a la siguiente.
+     *
+     * Diferencias con kohlberg, decididas por el usuario:
+     * - Horas hábiles (HorasHabiles), igual que «Tiempo en responder»; un
+     *   «día» del histograma es un día hábil (11 h).
+     * - No cuentan los movimientos en bloque: un usuario que mueve
+     *   MOVIMIENTOS_EN_BLOQUE o más pedidos en el mismo minuto.
+     *
+     * Como en kohlberg no cuentan los pasos de menos de 1 minuto (reloj real).
+     * El primer tramo arranca en la creación: el pedido nace con su «Actualizado
+     * Etapa» a NO ATENDIDOS. Cuenta el movimiento que ocurrió en el período, de
+     * los pedidos que el tablero deja ver (ciudad, ejecutivo, permisos).
+     */
+    public function getResponseTimeDistribution(): array
+    {
+        $leads = $this->leadRepository
+            ->resetModel()
+            ->when($this->pipelineFiltro(), fn ($q, $id) => $q->where('leads.lead_pipeline_id', $id))
+            ->when($this->asesoresVisibles(), fn ($q, $ids) => $q->whereIn('leads.user_id', $ids))
+            ->select('leads.id')
+            ->get()
+            ->pluck('id');
+
+        $desde = $this->startDate->toDateTimeString();
+        $hasta = $this->endDate->toDateTimeString();
+
+        $enBloque = DB::table('activities')
+            ->where('type', 'system')
+            ->where('additional->attribute', 'Etapa')
+            ->whereNotNull('user_id')
+            ->whereBetween('created_at', [$desde, $hasta])
+            ->selectRaw("user_id, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') AS minuto")
+            ->groupBy('user_id', 'minuto')
+            ->havingRaw('COUNT(*) >= ?', [self::MOVIMIENTOS_EN_BLOQUE])
+            ->get()
+            ->mapWithKeys(fn ($r) => [$r->user_id.'|'.$r->minuto => true]);
+
+        $segundos = [];
+        $excluidos = 0;
+
+        foreach ($leads->chunk(1000) as $ids) {
+            $cambios = DB::table('activities')
+                ->join('lead_activities', 'lead_activities.activity_id', '=', 'activities.id')
+                ->whereIn('lead_activities.lead_id', $ids)
+                ->where('activities.type', 'system')
+                ->where('activities.additional->attribute', 'Etapa')
+                ->where('activities.created_at', '<=', $hasta)
+                ->orderBy('lead_activities.lead_id')
+                ->orderBy('activities.created_at')
+                ->orderBy('activities.id')
+                ->get(['lead_activities.lead_id', 'activities.created_at', 'activities.user_id']);
+
+            $anterior = null;
+
+            foreach ($cambios as $cambio) {
+                $mismoPedido = $anterior && $anterior->lead_id === $cambio->lead_id;
+
+                if ($mismoPedido && $cambio->created_at >= $desde) {
+                    $de = Carbon::parse($anterior->created_at);
+                    $a = Carbon::parse($cambio->created_at);
+
+                    if ($de->diffInSeconds($a) >= 60) {
+                        if (isset($enBloque[$cambio->user_id.'|'.substr($cambio->created_at, 0, 16)])) {
+                            $excluidos++;
+                        } else {
+                            $segundos[] = \Webkul\Admin\Helpers\HorasHabiles::segundos($de, $a);
+                        }
+                    }
+                }
+
+                $anterior = $cambio;
+            }
+        }
+
+        sort($segundos);
+
+        $total = count($segundos);
+        $dia = \Webkul\Admin\Helpers\HorasHabiles::segundosPorDia();
+        $menosDeUnDia = count(array_filter($segundos, fn ($s) => $s < $dia));
+
+        $conteos = array_fill(0, 14, 0);
+
+        foreach ($segundos as $s) {
+            $conteos[min(13, intdiv($s, $dia))]++;
+        }
+
+        $tramos = [];
+
+        foreach ($conteos as $d => $c) {
+            $tramos[] = [
+                'from_day' => $d,
+                'label'    => $d === 13 ? '13+' : $d.'-'.($d + 1),
+                'count'    => $c,
+                'percent'  => $total ? round($c * 100 / $total, 1) : 0,
+            ];
+        }
+
+        $medio = intdiv($total, 2);
+
+        return [
+            'total'               => $total,
+            'excluidos_en_bloque' => $excluidos,
+            'segundos_por_dia'    => $dia,
+            'min'                 => $total ? $segundos[0] : null,
+            'max'                 => $total ? $segundos[$total - 1] : null,
+            'avg'                 => $total ? (int) round(array_sum($segundos) / $total) : null,
+            'median'              => $total ? (int) round($total % 2 ? $segundos[$medio] : ($segundos[$medio - 1] + $segundos[$medio]) / 2) : null,
+            'count_under_1_day'   => $menosDeUnDia,
+            'pct_under_1_day'     => $total ? round($menosDeUnDia * 100 / $total, 1) : 0,
+            'buckets'             => $tramos,
+        ];
+    }
+
     public function getVentasCountByBranches(): array
     {
         $tablePrefix = DB::getTablePrefix();
@@ -1134,8 +1256,8 @@ class Lead extends AbstractReporting
             ->when($pipelineId, function ($q) use ($pipelineId) {
                 $q->where('leads.lead_pipeline_id', $pipelineId);
             })
-            // «Sin ciudad» no es una ciudad: no aparece en esta tarjeta.
-            ->tap(fn ($q) => $this->excluirSinCiudad($q))
+            // «Sin ciudad» va como una porción más (20/10/2026): sin ella la
+            // torta mostraba 42 de 155 no atendidos y no cuadraba con el kanban.
             ->groupBy('leads.lead_pipeline_id');
 
         if (! is_null($userIds = $this->asesoresVisibles())) {
@@ -1161,6 +1283,7 @@ class Lead extends AbstractReporting
         return [
             'labels' => $labels,
             'data'   => $data,
+            'total'  => array_sum($data),
         ];
     }
 

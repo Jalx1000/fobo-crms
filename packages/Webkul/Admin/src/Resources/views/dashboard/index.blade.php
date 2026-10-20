@@ -54,6 +54,7 @@
             @include('admin::dashboard.index.entregados-sin-cotizacion')
             @include('admin::dashboard.index.leads-by-users')
             @include('admin::dashboard.index.evolution')
+            @include('admin::dashboard.index.distribucion-tiempo-respuesta')
 
             @if ($isAdminRole)
                 <div class="grid grid-cols-3 gap-4 w-full">

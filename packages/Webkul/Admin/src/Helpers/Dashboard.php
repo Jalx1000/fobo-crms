@@ -189,6 +189,11 @@ class Dashboard
         return $this->leadReporting->getAverageResponseTimeByUsers();
     }
 
+    public function getResponseTimeDistributionStats(): array
+    {
+        return $this->leadReporting->getResponseTimeDistribution();
+    }
+
     public function getVentasByBranchesStats(): array
     {
         return $this->leadReporting->getVentasCountByBranches();
