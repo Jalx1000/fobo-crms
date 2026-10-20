@@ -14,9 +14,8 @@
 
         <template v-else>
             <div class="grid gap-4 rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
-                <div class="flex items-baseline justify-between gap-1">
+                <div class="flex flex-col justify-between gap-1">
                     <p class="text-base font-semibold dark:text-gray-300">{{ ($personal ?? false) ? 'Mis no atendidos por ciudad' : 'No atendidos por Ciudad' }}</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Total: <span class="font-semibold">@{{ report.statistics?.total ?? 0 }}</span></p>
                 </div>
 
                 <div class="flex w-full max-w-full flex-col gap-4">
@@ -24,14 +23,18 @@
                         ::labels="chartLabels"
                         ::datasets="chartDatasets"
                     />
-
-                    <div class="flex flex-wrap justify-center gap-5 pb-4">
-                        <div class="flex items-center gap-2" v-for="(color, index) in colors" :key="index">
-                            <span class="h-3.5 w-3.5 rounded-sm" :style="{ backgroundColor: color }"></span>
-                            <p class="text-xs dark:text-gray-300">@{{ legendLabels[index] }} (@{{ report.statistics?.data?.[index] ?? 0 }})</p>
-                        </div>
-                    </div>
                 </div>
+
+                <!-- Pedidos no atendidos por ciudad, «Sin ciudad» incluida. -->
+                @include('admin::dashboard.index.pie-table', [
+                    'rows'        => 'filas',
+                    'label'       => 'row.name',
+                    'labelHeader' => 'Ciudad',
+                    'value'       => 'row.count',
+                    'valueHeader' => 'Pedidos',
+                    'total'       => 'report.statistics?.total ?? 0',
+                    'colors'      => 'colors',
+                ])
             </div>
         </template>
     </script>
@@ -45,11 +48,16 @@
                     report: [],
                     colors: [],
                     isLoading: true,
-                    legendLabels: [],
                 }
             },
 
             computed: {
+                filas() {
+                    const data = this.report.statistics?.data ?? [];
+
+                    return (this.report.statistics?.labels ?? []).map((name, i) => ({ name, count: data[i] }));
+                },
+
                 chartLabels() {
                     return this.report.statistics?.labels ?? [];
                 },
@@ -58,7 +66,6 @@
                     const labels = this.report.statistics?.labels ?? [];
                     const data = this.report.statistics?.data ?? [];
                     this.colors = labels.map((l) => this.getColorForLabel(l));
-                    this.legendLabels = labels;
                     return [{
                         data: data,
                         backgroundColor: this.colors,

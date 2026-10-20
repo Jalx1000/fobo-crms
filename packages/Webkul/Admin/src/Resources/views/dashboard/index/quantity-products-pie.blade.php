@@ -26,14 +26,19 @@
                             ::labels="chartLabels"
                             ::datasets="chartDatasets"
                         />
-
-                        <div class="flex flex-wrap justify-center gap-5">
-                            <div class="flex items-start gap-2 max-w-[260px]" v-for="(stat, index) in report.statistics" :key="stat.id">
-                                <span class="h-3.5 w-3.5 rounded-sm" :style="{ backgroundColor: colors[index] }"></span>
-                                <p class="text-xs dark:text-gray-300 break-words">@{{ stat.name }} — @{{ Number(stat.total_qty_ordered) }} u. · @{{ stat.solicitudes }} @{{ stat.solicitudes === 1 ? 'cotización' : 'cotizaciones' }}</p>
-                            </div>
-                        </div>
                     </div>
+
+                    <!-- Unidades cotizadas por producto y en cuántas cotizaciones (D3). -->
+                    @include('admin::dashboard.index.pie-table', [
+                        'rows'        => 'report.statistics',
+                        'label'       => "row.name ?? 'Producto eliminado'",
+                        'labelHeader' => 'Producto',
+                        'value'       => 'Number(row.total_qty_ordered)',
+                        'valueHeader' => 'Unid.',
+                        'total'       => 'totalUnidades',
+                        'extra'       => ['header' => 'Cotiz.', 'value' => 'row.solicitudes', 'total' => 'totalCotizaciones'],
+                        'colors'      => 'colors',
+                    ])
                 </div>
 
                 <div class="flex flex-col gap-8 p-4" v-else>
@@ -56,18 +61,20 @@
             data() {
                 return {
                     report: [],
-                    colors: [
-                        '#8979FF',
-                        '#FF928A',
-                        '#3CC3DF',
-                        '#FFAE4C',
-                        '#6FD195',
-                    ],
+                    colors: [],
                     isLoading: true,
                 }
             },
 
             computed: {
+                totalUnidades() {
+                    return this.report.statistics.reduce((suma, row) => suma + Number(row.total_qty_ordered), 0);
+                },
+
+                totalCotizaciones() {
+                    return this.report.statistics.reduce((suma, row) => suma + Number(row.solicitudes), 0);
+                },
+
                 chartLabels() {
                     return this.report.statistics.map(({
                         name
@@ -101,17 +108,20 @@
                         })
                         .then(response => {
                             this.report = response.data;
-                            this.extendColors(this.report.statistics.length);
+                            this.colors = this.buildColors(this.report.statistics.length);
                             this.isLoading = false;
                         })
                         .catch(error => {});
                 },
-                extendColors(length) {
-                    while (this.colors.length < length) {
-                        const hue = Math.floor(Math.random() * 360);
-                        const newColor = `hsl(${hue}, 70%, 60%)`;
-                        this.colors.push(newColor);
-                    }
+                /**
+                 * Un color fijo por posición, como en kohlberg: los de siempre y,
+                 * después, tonos separados por el ángulo áureo. Antes eran al azar
+                 * y desde el 4.º producto salían repetidos o casi iguales.
+                 */
+                buildColors(length) {
+                    const base = ['#8979FF', '#FF928A', '#3CC3DF'];
+
+                    return Array.from({ length }, (_, i) => base[i] ?? `hsl(${Math.round((i * 137.508) % 360)}, 65%, 58%)`);
                 },
             }
         });
