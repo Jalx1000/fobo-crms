@@ -32,7 +32,13 @@ return new class extends Migration
             // lleva el prefijo de tabla (kl_), igual que cuando lo creó.
             $table->dropUnique(['lead_pipeline_id']);
 
-            $table->timestamp('ultima_asignacion_at')->nullable()->after('user_id');
+            /*
+             * Con microsegundos. Con segundos, dos clientes asignados en el mismo segundo
+             * dejaban a los distribuidores empatados, desempataba el id y le tocaba DOS
+             * veces seguidas al mismo: justo lo contrario de equitativo, y en el momento
+             * en que más importa (una ráfaga de pedidos).
+             */
+            $table->timestamp('ultima_asignacion_at', 6)->nullable()->after('user_id');
         });
     }
 

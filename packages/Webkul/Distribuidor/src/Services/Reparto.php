@@ -90,9 +90,11 @@ class Reparto
                 return null;
             }
 
+            // Con microsegundos (la columna los guarda): con segundos, dos asignaciones en
+            // el mismo segundo empataban y le tocaba dos veces al mismo.
             DB::table('distribuidor_zonas')
                 ->where('id', $fila->id)
-                ->update(['ultima_asignacion_at' => now()]);
+                ->update(['ultima_asignacion_at' => now()->format('Y-m-d H:i:s.u')]);
 
             return (int) $fila->user_id;
         });
