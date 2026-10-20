@@ -213,12 +213,12 @@ class PersonController extends Controller
      */
     public function search(): JsonResource
     {
-        if ($yo = app(Distribuidores::class)->soloLoSuyo()) {
+        if ($empresa = app(Distribuidores::class)->miEmpresa()) {
             // Un distribuidor sólo encuentra a sus clientes, aunque otro reparta en su
             // misma ciudad.
             $persons = $this->personRepository
                 ->pushCriteria(app(RequestCriteria::class))
-                ->findWhere(['user_id' => $yo]);
+                ->findWhereIn('user_id', $empresa);
         } elseif ($userIds = bouncer()->getAuthorizedUserIds()) {
             $persons = $this->personRepository
                 ->pushCriteria(app(RequestCriteria::class))

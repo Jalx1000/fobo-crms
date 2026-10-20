@@ -25,6 +25,14 @@ class UserDataGrid extends DataGrid
                 'users.horario',
                 'users.created_at'
             )
+            // En qué ciudades reparte, para revisar las zonas de un vistazo.
+            ->selectSub(
+                DB::table('distribuidor_zonas')
+                    ->join('lead_pipelines', 'lead_pipelines.id', '=', 'distribuidor_zonas.lead_pipeline_id')
+                    ->whereColumn('distribuidor_zonas.user_id', 'users.id')
+                    ->selectRaw('GROUP_CONCAT('.DB::getTablePrefix().'lead_pipelines.name ORDER BY '.DB::getTablePrefix()."lead_pipelines.name SEPARATOR ', ')"),
+                'distribuye_en'
+            )
             ->leftJoin('user_groups', 'users.id', '=', 'user_groups.user_id');
 
         if ($userIds = bouncer()->getAuthorizedUserIds()) {
@@ -93,6 +101,14 @@ class UserDataGrid extends DataGrid
 
                 return nl2br(e($row->horario));
             },
+        ]);
+
+        $this->addColumn([
+            'index'    => 'distribuye_en',
+            'label'    => trans('admin::app.settings.users.index.datagrid.distribuye-en'),
+            'type'     => 'string',
+            'sortable' => false,
+            'closure'  => fn ($row) => $row->distribuye_en ?: '—',
         ]);
 
         $this->addColumn([

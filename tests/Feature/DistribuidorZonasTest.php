@@ -2,54 +2,53 @@
 
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
-use Webkul\Core\Services\Distribuidores;
+use Webkul\Admin\Support\VisibilidadLeads;
 use Webkul\User\Models\Role;
 use Webkul\User\Models\User;
 
 /**
- * Un distribuidor se registra con rol Distribuidor + el grupo de su ciudad, y con eso
- * alcanza: su zona de reparto se carga sola.
+ * El alta de un distribuidor en Configuración → Usuarios.
  *
- * Antes la zona vivía en una tabla que nadie podía cargar desde el CRM. Un
- * distribuidor dado de alta después de crearla quedaba afuera y veía todo lo del
- * otro distribuidor de su ciudad.
+ * Dos datos separados, que antes el grupo mezclaba:
+ *   "Distribuye en"  -> en qué ciudades reparte (al menos una).
+ *   permiso + grupo  -> qué ve: individual, lo suyo; grupo, lo de su EMPRESA.
+ *
+ * Con el grupo haciendo las dos cosas, cinco distribuidores de Palpalá en el grupo
+ * "Palpalá" veían lo de los demás.
  */
 uses(DatabaseTransactions::class);
 
-/** Una ciudad con su grupo homónimo, recién creados. @return array{ciudad:int, grupo:int} */
-function zonasCiudad(string $nombre): array
+function zonasCiudad(): int
 {
-    $ciudad = (int) DB::table('lead_pipelines')->insertGetId([
-        'name' => $nombre, 'is_default' => 0, 'created_at' => now(), 'updated_at' => now(),
+    return (int) DB::table('lead_pipelines')->insertGetId([
+        'name' => 'Ciudad Zonas '.uniqid(), 'is_default' => 0, 'created_at' => now(), 'updated_at' => now(),
     ]);
-
-    $grupo = (int) DB::table('groups')->insertGetId([
-        'name' => $nombre, 'description' => $nombre, 'created_at' => now(), 'updated_at' => now(),
-    ]);
-
-    return ['ciudad' => $ciudad, 'grupo' => $grupo];
 }
 
-function zonasUsuario(string $rol, array $grupos): User
+function zonasGrupo(string $nombre): int
 {
-    $rolId = Role::where('name', $rol)->value('id');
-
-    if (! $rolId) {
-        test()->markTestSkipped("No existe el rol {$rol}.");
-    }
-
-    $user = User::create([
-        'name'            => "Zonas {$rol} ".uniqid(),
-        'email'           => 'zonas-'.uniqid().'@test.local',
-        'password'        => bcrypt('secret'),
-        'role_id'         => $rolId,
-        'status'          => 1,
-        'view_permission' => 'group',
+    return (int) DB::table('groups')->insertGetId([
+        'name' => $nombre, 'description' => $nombre, 'created_at' => now(), 'updated_at' => now(),
     ]);
+}
 
-    $user->groups()->sync($grupos);
+function zonasRol(string $nombre = 'Distribuidor'): int
+{
+    return (int) (Role::where('name', $nombre)->value('id') ?: test()->markTestSkipped("No existe el rol {$nombre}."));
+}
 
-    return $user;
+/** El formulario como lo manda la pantalla. */
+function zonasFormulario(array $cambios = []): array
+{
+    return array_merge([
+        'name'             => 'Distribuidor zonas '.uniqid(),
+        'email'            => 'zonas-'.uniqid().'@test.local',
+        'password'         => 'secret123',
+        'confirm_password' => 'secret123',
+        'role_id'          => zonasRol(),
+        'status'           => 1,
+        'view_permission'  => 'individual',
+    ], $cambios);
 }
 
 function zonasDe(int $userId): array
@@ -58,79 +57,118 @@ function zonasDe(int $userId): array
         ->pluck('lead_pipeline_id')->map(fn ($id) => (int) $id)->all();
 }
 
-it('al crear un distribuidor con el grupo de su ciudad, queda registrada su zona', function () {
-    $c = zonasCiudad('Ciudad Zonas '.uniqid());
-    $user = zonasUsuario('Distribuidor', [$c['grupo']]);
+function zonasAdmin()
+{
+    return test()->actingAs(getDefaultAdmin(), 'user');
+}
 
-    event('settings.user.create.after', $user);
+it('guarda las ciudades elegidas en "Distribuye en"', function () {
+    $a = zonasCiudad();
+    $b = zonasCiudad();
 
-    expect(zonasDe($user->id))->toBe([$c['ciudad']]);
+    $id = zonasAdmin()->postJson(route('admin.settings.users.store'), zonasFormulario(['ciudades_distribucion' => [$a, $b]]))
+        ->assertOk()->json('data.id');
+
+    expect(zonasDe($id))->toBe([$a, $b]);
 });
 
-it('dos distribuidores de la misma ciudad quedan registrados los dos', function () {
-    $c = zonasCiudad('Ciudad Zonas '.uniqid());
-    $a = zonasUsuario('Distribuidor', [$c['grupo']]);
-    $b = zonasUsuario('Distribuidor', [$c['grupo']]);
-
-    event('settings.user.create.after', $a);
-    event('settings.user.create.after', $b);
-
-    expect(DB::table('distribuidor_zonas')->where('lead_pipeline_id', $c['ciudad'])->pluck('user_id')->sort()->values()->all())
-        ->toBe(collect([$a->id, $b->id])->sort()->values()->all());
+it('no deja crear un distribuidor sin ciudad', function () {
+    zonasAdmin()->postJson(route('admin.settings.users.store'), zonasFormulario())
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('ciudades_distribucion');
 });
 
-it('al cambiarle el grupo, la zona sigue al grupo nuevo', function () {
-    $vieja = zonasCiudad('Ciudad Zonas '.uniqid());
-    $nueva = zonasCiudad('Ciudad Zonas '.uniqid());
-    $user = zonasUsuario('Distribuidor', [$vieja['grupo']]);
-    event('settings.user.create.after', $user);
-
-    $user->groups()->sync([$nueva['grupo']]);
-    event('settings.user.update.after', $user);
-
-    expect(zonasDe($user->id))->toBe([$nueva['ciudad']]);
+it('no deja darle permiso Global a un distribuidor', function () {
+    zonasAdmin()->postJson(route('admin.settings.users.store'), zonasFormulario([
+        'view_permission' => 'global', 'ciudades_distribucion' => [zonasCiudad()],
+    ]))->assertStatus(422)->assertJsonValidationErrors('view_permission');
 });
 
-it('un grupo que no es ciudad no le borra la zona', function () {
-    $c = zonasCiudad('Ciudad Zonas '.uniqid());
-    $user = zonasUsuario('Distribuidor', [$c['grupo']]);
-    event('settings.user.create.after', $user);
+it('no deja usar como empresa un grupo que se llama como una ciudad', function () {
+    $ciudad = zonasCiudad();
+    $grupo = zonasGrupo((string) DB::table('lead_pipelines')->where('id', $ciudad)->value('name'));
 
-    $otro = (int) DB::table('groups')->insertGetId(['name' => 'Grupo suelto '.uniqid(), 'description' => '-', 'created_at' => now(), 'updated_at' => now()]);
-    $user->groups()->sync([$otro]);
-    event('settings.user.update.after', $user);
-
-    expect(zonasDe($user->id))->toBe([$c['ciudad']]);
+    zonasAdmin()->postJson(route('admin.settings.users.store'), zonasFormulario([
+        'view_permission' => 'group', 'groups' => [$grupo], 'ciudades_distribucion' => [$ciudad],
+    ]))->assertStatus(422)->assertJsonValidationErrors('groups[]');
 });
 
-it('si deja de ser distribuidor, pierde la zona', function () {
-    $c = zonasCiudad('Ciudad Zonas '.uniqid());
-    $user = zonasUsuario('Distribuidor', [$c['grupo']]);
-    event('settings.user.create.after', $user);
+it('a un usuario que no es distribuidor no le pide ciudad ni le guarda zonas', function () {
+    $rol = Role::where('name', '!=', 'Distribuidor')->value('id');
 
-    $otroRol = Role::where('name', '!=', 'Distribuidor')->value('id');
-    $user->update(['role_id' => $otroRol]);
-    event('settings.user.update.after', $user->fresh());
+    $id = zonasAdmin()->postJson(route('admin.settings.users.store'), zonasFormulario([
+        'role_id' => $rol, 'view_permission' => 'global', 'ciudades_distribucion' => [zonasCiudad()],
+    ]))->assertOk()->json('data.id');
 
-    expect(zonasDe($user->id))->toBe([]);
+    expect(zonasDe($id))->toBe([]);
 });
 
-it('un encargado con el grupo de una ciudad no pasa a ser distribuidor', function () {
-    $c = zonasCiudad('Ciudad Zonas '.uniqid());
-    $rol = Role::where('name', '!=', 'Distribuidor')->where('name', '!=', 'Administrador')->value('name');
-    $user = zonasUsuario($rol, [$c['grupo']]);
+it('al editar, las zonas quedan exactamente como en el formulario', function () {
+    $vieja = zonasCiudad();
+    $nueva = zonasCiudad();
+    $form = zonasFormulario(['ciudades_distribucion' => [$vieja]]);
 
-    event('settings.user.create.after', $user);
+    $id = zonasAdmin()->postJson(route('admin.settings.users.store'), $form)->assertOk()->json('data.id');
 
-    expect(zonasDe($user->id))->toBe([]);
+    zonasAdmin()->putJson(route('admin.settings.users.update', $id), array_merge($form, ['ciudades_distribucion' => [$nueva]]))
+        ->assertOk();
+
+    expect(zonasDe($id))->toBe([$nueva])
+        ->and(zonasAdmin()->getJson(route('admin.settings.users.edit', $id))->json('data.ciudades_distribucion'))->toBe([$nueva]);
 });
 
-it('registrado en Configuración, ve sólo lo suyo', function () {
-    $c = zonasCiudad('Ciudad Zonas '.uniqid());
-    $user = zonasUsuario('Distribuidor', [$c['grupo']]);
-    event('settings.user.create.after', $user);
+it('si deja de ser distribuidor, pierde las zonas', function () {
+    $form = zonasFormulario(['ciudades_distribucion' => [zonasCiudad()]]);
+    $id = zonasAdmin()->postJson(route('admin.settings.users.store'), $form)->assertOk()->json('data.id');
 
-    test()->actingAs($user, 'user');
+    zonasAdmin()->putJson(route('admin.settings.users.update', $id), array_merge($form, [
+        'role_id' => Role::where('name', '!=', 'Distribuidor')->value('id'), 'view_permission' => 'global',
+    ]))->assertOk();
 
-    expect(app(Distribuidores::class)->soloLoSuyo())->toBe($user->id);
+    expect(zonasDe($id))->toBe([]);
+});
+
+// ─────────────────────────── qué ve cada uno ───────────────────────────
+
+/** Un distribuidor de la ciudad, con permiso y grupos dados. */
+function zonasDistribuidor(int $ciudad, string $permiso, array $grupos = []): User
+{
+    $user = User::create([
+        'name'    => 'Dist '.uniqid(), 'email' => 'dist-'.uniqid().'@test.local', 'password' => bcrypt('x'),
+        'role_id' => zonasRol(), 'status' => 1, 'view_permission' => $permiso,
+    ]);
+    $user->groups()->sync($grupos);
+    DB::table('distribuidor_zonas')->insert(['lead_pipeline_id' => $ciudad, 'user_id' => $user->id, 'created_at' => now(), 'updated_at' => now()]);
+
+    return $user;
+}
+
+function zonasLeadDe(User $dueno, int $ciudad): object
+{
+    return (object) ['user_id' => $dueno->id, 'lead_pipeline_id' => $ciudad];
+}
+
+it('con permiso Individual no ve el pedido de un compañero de empresa', function () {
+    $ciudad = zonasCiudad();
+    $empresa = zonasGrupo('Empresa '.uniqid());
+    $yo = zonasDistribuidor($ciudad, 'individual', [$empresa]);
+    $companero = zonasDistribuidor($ciudad, 'individual', [$empresa]);
+
+    test()->actingAs($yo, 'user');
+
+    expect(VisibilidadLeads::puedeVer(zonasLeadDe($yo, $ciudad)))->toBeTrue()
+        ->and(VisibilidadLeads::puedeVer(zonasLeadDe($companero, $ciudad)))->toBeFalse();
+});
+
+it('con permiso Grupo ve lo de su empresa y no lo de otra empresa de la misma ciudad', function () {
+    $ciudad = zonasCiudad();
+    $empresa = zonasGrupo('Empresa '.uniqid());
+    $yo = zonasDistribuidor($ciudad, 'group', [$empresa]);
+    $companero = zonasDistribuidor($ciudad, 'individual', [$empresa]);
+    $otraEmpresa = zonasDistribuidor($ciudad, 'individual', [zonasGrupo('Otra '.uniqid())]);
+
+    test()->actingAs($yo, 'user');
+
+    expect(VisibilidadLeads::puedeVer(zonasLeadDe($companero, $ciudad)))->toBeTrue()
+        ->and(VisibilidadLeads::puedeVer(zonasLeadDe($otraEmpresa, $ciudad)))->toBeFalse();
 });

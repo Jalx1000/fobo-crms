@@ -53,11 +53,6 @@ class DistribuidorServiceProvider extends ServiceProvider
         Event::listen('contacts.person.update.after', ClienteCambiaDeDistribuidor::class);
         Event::listen('settings.user.update.after', DistribuidorDadoDeBaja::class);
 
-        // Rol Distribuidor + grupo de su ciudad = zona de reparto, sin cargarla aparte.
-        // Después de la baja: si le cambian el rol, primero se liberan sus clientes.
-        Event::listen('settings.user.create.after', \Webkul\Distribuidor\Listeners\SincronizarZonasDelDistribuidor::class);
-        Event::listen('settings.user.update.after', \Webkul\Distribuidor\Listeners\SincronizarZonasDelDistribuidor::class);
-
         // La respuesta del cliente a la pregunta de ciudad por WhatsApp.
         Event::listen('whatsapp.message.received', CiudadRespondida::class);
 

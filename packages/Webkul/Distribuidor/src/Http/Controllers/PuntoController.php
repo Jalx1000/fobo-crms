@@ -62,8 +62,8 @@ class PuntoController extends Controller
     /** Acota una consulta de pedidos a los asignados al distribuidor en sesión. */
     protected function soloLoMio($query, string $columnaDueno = 'user_id')
     {
-        if ($yo = $this->distribuidores->soloLoSuyo()) {
-            $query->where($columnaDueno, $yo);
+        if ($empresa = $this->distribuidores->miEmpresa()) {
+            $query->whereIn($columnaDueno, $empresa);
         }
 
         return $query;
@@ -90,7 +90,7 @@ class PuntoController extends Controller
     {
         $yo = $this->distribuidores->soloLoSuyo();
 
-        abort_if($yo && (int) $lead->user_id !== $yo, 403, 'Ese pedido es de otro distribuidor.');
+        abort_if($yo && ! $this->distribuidores->esDeMiEmpresa((int) $lead->user_id), 403, 'Ese pedido es de otro distribuidor.');
     }
 
     /**
@@ -1120,8 +1120,8 @@ class PuntoController extends Controller
             $data['busqueda'] ?? null,
             $porPagina + 1,
             ($pagina - 1) * $porPagina,
-            // La agenda de un distribuidor son SUS clientes, no los de la ciudad.
-            $this->distribuidores->soloLoSuyo(),
+            // La agenda de un distribuidor son los clientes de SU empresa, no los de la ciudad.
+            $this->distribuidores->miEmpresa(),
         );
 
         $hayMas = count($filas) > $porPagina;

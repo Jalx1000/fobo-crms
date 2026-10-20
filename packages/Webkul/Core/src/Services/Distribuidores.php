@@ -31,6 +31,9 @@ class Distribuidores
     /** @var array<int, bool> */
     protected array $esDistribuidor = [];
 
+    /** @var array<int, array<int, int>> */
+    protected array $empresa = [];
+
     protected function tablaLista(): bool
     {
         static $existe = null;
@@ -68,6 +71,47 @@ class Distribuidores
         $userId = auth()->guard('user')->id();
 
         return $userId && $this->esDistribuidor((int) $userId) ? (int) $userId : null;
+    }
+
+    /**
+     * De quiénes puede ver lo suyo el distribuidor en sesión, o null si no es uno.
+     *
+     * Su EMPRESA, según su permiso de vista:
+     *   individual -> sólo él.
+     *   grupo      -> él y los usuarios de sus grupos. El grupo de un distribuidor es
+     *                 su empresa (nunca la ciudad: el formulario de usuario no deja).
+     *
+     * `soloLoSuyo()` dice quién es él (a nombre de quién se crea algo); esto dice qué
+     * ve. Con permiso individual, que es el caso de hoy, son lo mismo.
+     *
+     * @return array<int, int>|null
+     */
+    public function miEmpresa(): ?array
+    {
+        if (! $yo = $this->soloLoSuyo()) {
+            return null;
+        }
+
+        if (array_key_exists($yo, $this->empresa)) {
+            return $this->empresa[$yo];
+        }
+
+        $companeros = DB::table('users')->where('id', $yo)->value('view_permission') === 'group'
+            ? DB::table('user_groups as mio')
+                ->join('user_groups as otro', 'otro.group_id', '=', 'mio.group_id')
+                ->where('mio.user_id', $yo)
+                ->pluck('otro.user_id')
+                ->map(fn ($id) => (int) $id)
+                ->all()
+            : [];
+
+        return $this->empresa[$yo] = array_values(array_unique([$yo, ...$companeros]));
+    }
+
+    /** Si ese usuario es de la empresa del distribuidor en sesión. */
+    public function esDeMiEmpresa(?int $userId): bool
+    {
+        return $userId !== null && in_array($userId, $this->miEmpresa() ?? [], true);
     }
 
     /**
@@ -122,16 +166,17 @@ class Distribuidores
     }
 
     /**
-     * Si un distribuidor puede usar este cliente: es suyo, o todavía no es de nadie.
+     * Si un distribuidor puede usar este cliente: es de su empresa, o todavía no es
+     * de nadie.
      *
      * Un cliente sin dueño (datos viejos, o cargado por un encargado) lo puede tomar
-     * quien lo está atendiendo en la puerta; uno que ya es de otro distribuidor, no.
+     * quien lo está atendiendo en la puerta; uno que ya es de otra empresa, no.
      */
     public function puedeUsarCliente(int $userId, ?int $personId): bool
     {
         $dueno = $this->duenoDe($personId);
 
-        return $dueno === null || $dueno === $userId;
+        return $dueno === null || $dueno === $userId || $this->esDeMiEmpresa($dueno);
     }
 
     /**
@@ -155,8 +200,8 @@ class Distribuidores
      * Para las consultas que acotan por cliente sin tener la columna a mano: la
      * bandeja de WhatsApp filtra conversaciones por `person_id`.
      */
-    public function clientesDe(int $userId)
+    public function clientesDe(int|array $userIds)
     {
-        return DB::table('persons')->select('id')->where('user_id', $userId);
+        return DB::table('persons')->select('id')->whereIn('user_id', (array) $userIds);
     }
 }

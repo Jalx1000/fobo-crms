@@ -51,9 +51,9 @@ class Clientes
         ?string $busqueda = null,
         int $limite = 30,
         int $offset = 0,
-        ?int $dueno = null,
+        ?array $duenos = null,
     ): array {
-        $ids = $this->idsDeClientes($ciudades, $busqueda, $limite, $offset, $dueno);
+        $ids = $this->idsDeClientes($ciudades, $busqueda, $limite, $offset, $duenos);
 
         if (! $ids) {
             return [];
@@ -124,7 +124,7 @@ class Clientes
         ?string $busqueda,
         int $limite,
         int $offset,
-        ?int $dueno = null,
+        ?array $duenos = null,
     ): array {
         /*
          * Sin alias de tabla a propósito. Laravel le aplica el prefijo TAMBIÉN al
@@ -146,7 +146,7 @@ class Clientes
             )
             // Para un distribuidor, sólo sus clientes: con otra empresa en la misma
             // ciudad, la agenda de la ciudad es la cartera del competidor.
-            ->when($dueno !== null, fn ($q) => $q->where('persons.user_id', $dueno));
+            ->when($duenos !== null, fn ($q) => $q->whereIn('persons.user_id', $duenos));
 
         $this->aplicarBusqueda($query, $busqueda);
 

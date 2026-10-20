@@ -174,13 +174,13 @@ class ChatController extends Controller
          * Sin esto el filtro de ciudad era decorativo: bastaba con no mandar
          * `city` —o mandar la de otra ciudad— para ver la bandeja entera.
          */
-        if ($yo = app(Distribuidores::class)->soloLoSuyo()) {
+        if ($empresa = app(Distribuidores::class)->miEmpresa()) {
             /*
              * Un distribuidor ve sólo las conversaciones de SUS clientes. Más estricto
              * que la ciudad: en su ciudad puede haber otra empresa, y el pool —sin
              * cliente todavía— no es de nadie, así que tampoco es suyo.
              */
-            $query->whereIn('whatsapp_conversations.person_id', app(Distribuidores::class)->clientesDe($yo));
+            $query->whereIn('whatsapp_conversations.person_id', app(Distribuidores::class)->clientesDe($empresa));
         } elseif (($permitidas = $this->alcance->ciudadesDe()) !== null) {
             ConversationCity::restringirA($query, $permitidas);
         }
@@ -266,8 +266,8 @@ class ChatController extends Controller
             // un distribuidor, contarle lo de otros le dice cuánto tiene la otra
             // empresa.
             ->when(
-                $yo = app(Distribuidores::class)->soloLoSuyo(),
-                fn ($q) => $q->whereIn('whatsapp_conversations.person_id', app(Distribuidores::class)->clientesDe($yo)),
+                $empresa = app(Distribuidores::class)->miEmpresa(),
+                fn ($q) => $q->whereIn('whatsapp_conversations.person_id', app(Distribuidores::class)->clientesDe($empresa)),
                 fn ($q) => $q->when(
                     ($permitidas = $this->alcance->ciudadesDe()) !== null,
                     fn ($q) => ConversationCity::restringirA($q, $permitidas ?? [])
@@ -343,8 +343,8 @@ class ChatController extends Controller
              * mientras la ficha del cliente seguía contando el resto.
              */
             'leads' => function ($q) {
-                if ($yo = app(Distribuidores::class)->soloLoSuyo()) {
-                    $q->where('leads.user_id', $yo);
+                if ($empresa = app(Distribuidores::class)->miEmpresa()) {
+                    $q->whereIn('leads.user_id', $empresa);
                 } elseif (($ciudades = $this->alcance->ciudadesDe()) !== null) {
                     $q->whereIn('leads.lead_pipeline_id', $ciudades);
                 }
@@ -620,7 +620,7 @@ class ChatController extends Controller
     {
         $distribuidores = app(Distribuidores::class);
 
-        if (($yo = $distribuidores->soloLoSuyo()) && $distribuidores->duenoDe($personId) !== $yo) {
+        if ($distribuidores->soloLoSuyo() && ! $distribuidores->esDeMiEmpresa($distribuidores->duenoDe($personId))) {
             abort(403, $distribuidores->avisoClienteDeOtro($personId));
         }
     }

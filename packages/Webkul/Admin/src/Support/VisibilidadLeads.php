@@ -39,8 +39,8 @@ final class VisibilidadLeads
     ): void {
         // Un distribuidor ve SÓLO lo asignado a él, aunque otro reparta en su misma
         // ciudad: cada uno es una empresa distinta. Va primero y gana sobre la ciudad.
-        if ($yo = app(Distribuidores::class)->soloLoSuyo()) {
-            $query->where($columnaDueno, $yo);
+        if ($empresa = app(Distribuidores::class)->miEmpresa()) {
+            $query->whereIn($columnaDueno, $empresa);
 
             return;
         }
@@ -67,8 +67,8 @@ final class VisibilidadLeads
      */
     public static function puedeVer($lead): bool
     {
-        if ($yo = app(Distribuidores::class)->soloLoSuyo()) {
-            return (int) $lead->user_id === $yo;
+        if (app(Distribuidores::class)->soloLoSuyo()) {
+            return app(Distribuidores::class)->esDeMiEmpresa((int) $lead->user_id);
         }
 
         $alcance = app(AlcanceCiudades::class);

@@ -5,8 +5,10 @@ namespace Webkul\Admin\Http\Controllers\Settings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Prettus\Repository\Criteria\RequestCriteria;
 use Webkul\Admin\DataGrids\Settings\UserDataGrid;
@@ -15,6 +17,7 @@ use Webkul\Admin\Http\Requests\MassDestroyRequest;
 use Webkul\Admin\Http\Requests\MassUpdateRequest;
 use Webkul\Admin\Http\Resources\UserResource;
 use Webkul\Admin\Notifications\User\Create as UserCreatedNotification;
+use Webkul\Distribuidor\Services\ZonasDelDistribuidor;
 use Webkul\User\Repositories\GroupRepository;
 use Webkul\User\Repositories\RoleRepository;
 use Webkul\User\Repositories\UserRepository;
@@ -45,7 +48,12 @@ class UserController extends Controller
 
         $groups = $this->groupRepository->all();
 
-        return view('admin::settings.users.index', compact('roles', 'groups'));
+        // Para "Distribuye en": las ciudades, y qué rol lo hace aparecer.
+        $ciudades = DB::table('lead_pipelines')->orderBy('name')->get(['id', 'name']);
+
+        $rolDistribuidor = $roles->firstWhere('name', ZonasDelDistribuidor::ROL)?->id;
+
+        return view('admin::settings.users.index', compact('roles', 'groups', 'ciudades', 'rolDistribuidor'));
     }
 
     /**
@@ -73,11 +81,15 @@ class UserController extends Controller
             $data['password'] = bcrypt($data['password']);
         }
 
+        $this->validarDistribuidor($data);
+
         Event::dispatch('settings.user.create.before');
 
         $admin = $this->userRepository->create($data);
 
         $admin->groups()->sync($data['groups'] ?? []);
+
+        app(ZonasDelDistribuidor::class)->guardar((int) $admin->id, (int) $admin->role_id, (array) ($data['ciudades_distribucion'] ?? []));
 
         try {
             Mail::queue(new UserCreatedNotification($admin));
@@ -99,6 +111,8 @@ class UserController extends Controller
     public function edit(int $id): View|JsonResponse
     {
         $admin = $this->userRepository->with(['role', 'groups'])->findOrFail($id);
+
+        $admin->setAttribute('ciudades_distribucion', app(ZonasDelDistribuidor::class)->ciudadesDe((int) $admin->id));
 
         return new JsonResponse([
             'data'   => $admin,
@@ -135,11 +149,15 @@ class UserController extends Controller
             $data['status'] = true;
         }
 
+        $this->validarDistribuidor($data);
+
         Event::dispatch('settings.user.update.before', $id);
 
         $admin = $this->userRepository->update($data, $id);
 
         $admin->groups()->sync($data['groups'] ?? []);
+
+        app(ZonasDelDistribuidor::class)->guardar((int) $admin->id, (int) $admin->role_id, (array) ($data['ciudades_distribucion'] ?? []));
 
         Event::dispatch('settings.user.update.after', $admin);
 
@@ -147,6 +165,27 @@ class UserController extends Controller
             'data'    => $admin,
             'message' => trans('admin::app.settings.users.index.update-success'),
         ]);
+    }
+
+    /**
+     * Las reglas de un distribuidor: al menos una ciudad, permiso Grupo o Individual,
+     * y su grupo es su empresa, no una ciudad.
+     *
+     * Los grupos sólo cuentan con permiso de grupo: el formulario los oculta en los
+     * otros, pero el navegador puede mandarlos igual.
+     */
+    protected function validarDistribuidor(array $data): void
+    {
+        $errores = app(ZonasDelDistribuidor::class)->errores(
+            isset($data['role_id']) ? (int) $data['role_id'] : null,
+            $data['view_permission'] ?? null,
+            (array) ($data['ciudades_distribucion'] ?? []),
+            ($data['view_permission'] ?? null) === 'group' ? (array) ($data['groups'] ?? []) : [],
+        );
+
+        if ($errores) {
+            throw ValidationException::withMessages($errores);
+        }
     }
 
     /**

@@ -119,6 +119,9 @@
                             <!-- Users Horario -->
                             <p v-html="record.horario"></p>
 
+                            <!-- Ciudades donde distribuye -->
+                            <p class="truncate">@{{ record.distribuye_en }}</p>
+
                             <!-- Users Creation Date -->
                             <p>@{{ record.created_at }}</p>
 
@@ -372,8 +375,8 @@
                                         value="global"
                                         :label="trans('admin::app.settings.users.index.create.view-permission')"
                                     >
-                                        <!-- Default Option -->
-                                        <option  value="global" selected>
+                                        <!-- Default Option. Un distribuidor nunca ve todo el CRM. -->
+                                        <option v-if="! esDistribuidor" value="global" selected>
                                             @lang('admin::app.settings.users.index.create.global')
                                         </option>
 
@@ -447,6 +450,45 @@
                                 </x-admin::form.control-group>
                             </template>
 
+                            <!-- Distribuye en: sólo para el rol Distribuidor -->
+                            <template v-if="esDistribuidor">
+                                <x-admin::form.control-group>
+                                    <x-admin::form.control-group.label class="required">
+                                        @lang('admin::app.settings.users.index.create.distribuye-en')
+                                    </x-admin::form.control-group.label>
+
+                                    <v-field
+                                        name="ciudades_distribucion[]"
+                                        label="@lang('admin::app.settings.users.index.create.distribuye-en')"
+                                        multiple
+                                        v-model="user.ciudades_distribucion"
+                                        rules="required"
+                                    >
+                                        <select
+                                            name="ciudades_distribucion[]"
+                                            class="flex min-h-[39px] w-full rounded-md border px-3 py-2 text-sm text-gray-600 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
+                                            :class="[errors['ciudades_distribucion[]'] || errors['ciudades_distribucion'] ? 'border !border-red-600 hover:border-red-600' : '']"
+                                            multiple
+                                            v-model="user.ciudades_distribucion"
+                                        >
+                                            <option
+                                                v-for="ciudad in ciudades"
+                                                :value="ciudad.id"
+                                                :text="ciudad.name"
+                                            >
+                                            </option>
+                                        </select>
+                                    </v-field>
+
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        @lang('admin::app.settings.users.index.create.distribuye-en-info')
+                                    </p>
+
+                                    <x-admin::form.control-group.error name="ciudades_distribucion[]" />
+                                    <x-admin::form.control-group.error name="ciudades_distribucion" />
+                                </x-admin::form.control-group>
+                            </template>
+
                             {!! view_render_event('admin.settings.users.index.form.role_id.after') !!}
 
                             {!! view_render_event('admin.settings.users.index.form.status.before') !!}
@@ -509,6 +551,10 @@
 
                         groups: @json($groups),
 
+                        ciudades: @json($ciudades),
+
+                        rolDistribuidor: @json($rolDistribuidor),
+
                         user: {
                             view_permission: 'global',
                         },
@@ -532,6 +578,21 @@
 
                     selectedType() {
                         return this.user.id ? 'edit' : 'create';
+                    },
+
+                    esDistribuidor() {
+                        return this.rolDistribuidor !== null
+                            && Number(this.user.role_id) === Number(this.rolDistribuidor);
+                    },
+                },
+
+                watch: {
+                    // Al pasar a Distribuidor, Global deja de estar en la lista: sin esto
+                    // el select quedaba mostrando una opción que ya no existe.
+                    esDistribuidor(es) {
+                        if (es && (! this.user.view_permission || this.user.view_permission === 'global')) {
+                            this.user.view_permission = 'individual';
+                        }
                     },
                 },
 
@@ -557,6 +618,7 @@
                     openModal() {
                         this.user = {
                             groups: [],
+                            ciudades_distribucion: [],
                         };
 
                         this.$refs.userUpdateAndCreateModal.toggle();
@@ -605,6 +667,8 @@
                                 this.user = response.data.data;
 
                                 this.user.groups = this.user.groups.map(group => group.id);
+
+                                this.user.ciudades_distribucion ??= [];
 
                                 this.$refs.userUpdateAndCreateModal.toggle();
                             })

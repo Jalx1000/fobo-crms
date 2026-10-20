@@ -51,7 +51,7 @@ class EnsureConversationInScope
         if ($id) {
             $personId = ConversationProxy::modelClass()::whereKey($id)->value('person_id');
 
-            $esSuya = $personId && $this->distribuidores->duenoDe((int) $personId) === $yo;
+            $esSuya = $personId && $this->distribuidores->esDeMiEmpresa($this->distribuidores->duenoDe((int) $personId));
 
             return $esSuya ? $next($request) : $this->rechazar($request, 'Esta conversación es de otro distribuidor.');
         }

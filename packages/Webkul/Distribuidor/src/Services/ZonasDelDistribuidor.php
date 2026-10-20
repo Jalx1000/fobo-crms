@@ -4,116 +4,111 @@ namespace Webkul\Distribuidor\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Webkul\Core\Services\AlcanceCiudades;
 
 /**
- * Las ciudades en que reparte un distribuidor, tomadas de cómo se lo cargó en el CRM.
+ * En qué ciudades reparte un distribuidor: lo que se elige en "Distribuye en" del
+ * formulario de usuario (Configuración → Usuarios).
  *
- * Un distribuidor se registra en Configuración → Usuarios: rol "Distribuidor" y, como
- * grupo, el de su ciudad (el grupo se llama igual que la ciudad). Pero el aislamiento
- * y el reparto leen `distribuidor_zonas`, que sólo se sembró una vez al crear la tabla.
- * Cada distribuidor dado de alta después quedaba fuera: el CRM lo trataba como
- * encargado de su grupo y le mostraba todo lo de su ciudad, incluido lo del otro
- * distribuidor.
+ * Antes se deducía del nombre del grupo, y el grupo hacía dos trabajos a la vez —en
+ * qué ciudad reparte y qué ve—. Cinco distribuidores de Palpalá en el grupo
+ * "Palpalá" terminaban viendo lo de los otros. Ahora son dos datos:
  *
- * Esto mantiene la tabla igual a lo que dicen el rol y los grupos cada vez que se
- * guarda el usuario, así no hay un segundo lugar que alguien tenga que acordarse de
- * cargar.
+ *   "Distribuye en"   -> en qué ciudades recibe y entrega pedidos (esta tabla).
+ *   permiso + grupo   -> qué ve: individual, sólo lo suyo; grupo, lo de su EMPRESA.
  */
 class ZonasDelDistribuidor
 {
     public const ROL = 'Distribuidor';
 
-    /**
-     * Deja las zonas del usuario iguales a sus grupos de ciudad.
-     *
-     *   rol Distribuidor, con grupos de ciudad -> exactamente esas ciudades.
-     *   rol Distribuidor, sin grupo de ciudad  -> no se toca: borrarle las zonas por
-     *                                             un grupo mal elegido lo dejaría sin
-     *                                             sus clientes de un clic.
-     *   otro rol                               -> sin zonas: dejó de repartir.
-     *
-     * @return array{agregadas: int, quitadas: int}
-     */
-    public function sincronizar(int $userId): array
+    public function esRolDistribuidor(?int $roleId): bool
     {
-        $resultado = ['agregadas' => 0, 'quitadas' => 0];
+        return $roleId !== null
+            && DB::table('roles')->where('id', $roleId)->value('name') === self::ROL;
+    }
 
+    /** @return array<int, int> */
+    public function ciudadesDe(int $userId): array
+    {
         if (! Schema::hasTable('distribuidor_zonas')) {
-            return $resultado;
+            return [];
         }
 
-        $actuales = DB::table('distribuidor_zonas')->where('user_id', $userId)->pluck('lead_pipeline_id')
-            ->map(fn ($id) => (int) $id)->all();
+        return DB::table('distribuidor_zonas')->where('user_id', $userId)->orderBy('lead_pipeline_id')
+            ->pluck('lead_pipeline_id')->map(fn ($id) => (int) $id)->all();
+    }
 
-        if (! $this->tieneRolDistribuidor($userId)) {
-            $resultado['quitadas'] = DB::table('distribuidor_zonas')->where('user_id', $userId)->delete();
-
-            return $resultado;
+    /**
+     * Los errores del formulario para un distribuidor, campo => mensaje. Vacío si
+     * está bien o si no es distribuidor.
+     *
+     * @return array<string, string>
+     */
+    public function errores(?int $roleId, ?string $permiso, array $ciudades, array $grupos): array
+    {
+        if (! $this->esRolDistribuidor($roleId)) {
+            return [];
         }
 
-        $ciudades = $this->ciudadesDeSusGrupos($userId);
+        $errores = [];
 
-        if (! $ciudades) {
-            return $resultado;
+        if (! array_filter($ciudades)) {
+            $errores['ciudades_distribucion'] = trans('admin::app.settings.users.index.create.distribuidor-sin-ciudad');
         }
 
-        foreach (array_diff($ciudades, $actuales) as $pipelineId) {
+        if ($permiso === 'global') {
+            $errores['view_permission'] = trans('admin::app.settings.users.index.create.distribuidor-global');
+        }
+
+        /*
+         * Con permiso de grupo, un grupo que se llama como una ciudad juntaría en una
+         * misma "empresa" a todos los distribuidores de esa ciudad: es exactamente
+         * cómo se veían entre sí.
+         */
+        if ($permiso === 'group' && $grupos) {
+            $ciudades = DB::table('lead_pipelines')->pluck('name')
+                ->map(fn ($n) => AlcanceCiudades::normalizar((string) $n))->all();
+
+            $deCiudad = DB::table('groups')->whereIn('id', $grupos)->pluck('name')
+                ->first(fn ($n) => in_array(AlcanceCiudades::normalizar((string) $n), $ciudades, true));
+
+            if ($deCiudad) {
+                $errores['groups[]'] = trans('admin::app.settings.users.index.create.distribuidor-grupo-ciudad', ['grupo' => $deCiudad]);
+            }
+        }
+
+        return $errores;
+    }
+
+    /**
+     * Deja las zonas del usuario exactamente en esas ciudades. Si no es distribuidor,
+     * sin zonas: dejó de repartir.
+     *
+     * @param  array<int, int|string>  $ciudades
+     */
+    public function guardar(int $userId, ?int $roleId, array $ciudades): void
+    {
+        if (! Schema::hasTable('distribuidor_zonas')) {
+            return;
+        }
+
+        $nuevas = $this->esRolDistribuidor($roleId)
+            ? array_values(array_unique(array_map('intval', array_filter($ciudades))))
+            : [];
+
+        $actuales = $this->ciudadesDe($userId);
+
+        if ($sobran = array_diff($actuales, $nuevas)) {
+            DB::table('distribuidor_zonas')->where('user_id', $userId)->whereIn('lead_pipeline_id', $sobran)->delete();
+        }
+
+        foreach (array_diff($nuevas, $actuales) as $pipelineId) {
             DB::table('distribuidor_zonas')->insert([
                 'lead_pipeline_id' => $pipelineId,
                 'user_id'          => $userId,
                 'created_at'       => now(),
                 'updated_at'       => now(),
             ]);
-
-            $resultado['agregadas']++;
         }
-
-        if ($sobran = array_diff($actuales, $ciudades)) {
-            $resultado['quitadas'] = DB::table('distribuidor_zonas')
-                ->where('user_id', $userId)
-                ->whereIn('lead_pipeline_id', $sobran)
-                ->delete();
-        }
-
-        return $resultado;
-    }
-
-    public function tieneRolDistribuidor(int $userId): bool
-    {
-        return DB::table('users')
-            ->join('roles', 'roles.id', '=', 'users.role_id')
-            ->where('users.id', $userId)
-            ->where('roles.name', self::ROL)
-            ->exists();
-    }
-
-    /**
-     * Las ciudades cuyos nombres coinciden con los grupos del usuario.
-     *
-     * Sin distinguir mayúsculas ni espacios de más: "san salvador de jujuy " es la
-     * misma ciudad, y un error de tipeo así no puede dejar a alguien viendo de más.
-     *
-     * @return array<int, int>
-     */
-    protected function ciudadesDeSusGrupos(int $userId): array
-    {
-        $normalizar = fn (?string $nombre) => mb_strtolower(trim((string) $nombre));
-
-        $grupos = DB::table('user_groups')
-            ->join('groups', 'groups.id', '=', 'user_groups.group_id')
-            ->where('user_groups.user_id', $userId)
-            ->pluck('groups.name')
-            ->map($normalizar)
-            ->all();
-
-        if (! $grupos) {
-            return [];
-        }
-
-        return DB::table('lead_pipelines')->get(['id', 'name'])
-            ->filter(fn ($ciudad) => in_array($normalizar($ciudad->name), $grupos, true))
-            ->map(fn ($ciudad) => (int) $ciudad->id)
-            ->values()
-            ->all();
     }
 }
