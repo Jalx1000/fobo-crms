@@ -20,7 +20,9 @@ use Webkul\Lead\Services\CitySyncService;
  *   1. Ya es de un distribuidor de su ciudad: se queda con él.
  *   2. Sus pedidos están a nombre de un distribuidor de su ciudad: ese pasa a ser el
  *      dueño. Así cada distribuidor conserva los pedidos que ya tenía.
- *   3. Si no, sus pedidos abiertos pasan al responsable (Huascar), que los reparte.
+ *   3. Sin dueño y su ciudad tiene un solo distribuidor: ese.
+ *   4. Si no, sus pedidos abiertos pasan al responsable (Huascar), que los reparte.
+ *      Los clientes sin ciudad van siempre por acá: los ve sólo el responsable.
  *
  * Sin --aplicar sólo muestra lo que haría. Nada cambia hasta que se lo pide.
  */
@@ -56,7 +58,7 @@ class RepartirClientes extends Command
             }
 
             $clave = $ciudad ?: 0;
-            $resumen[$clave] ??= ['ya_tenia' => 0, 'por_pedidos' => 0, 'al_responsable' => 0];
+            $resumen[$clave] ??= ['ya_tenia' => 0, 'por_pedidos' => 0, 'unico' => 0, 'al_responsable' => 0];
             $candidatos = $distribuidores->deCiudad($ciudad);
             $actual = $distribuidores->duenoDe($personId);
 
@@ -69,6 +71,16 @@ class RepartirClientes extends Command
             if ($candidatos && ($porPedidos = $this->distribuidorDeSusPedidos($personId, (int) $ciudad, $candidatos))) {
                 $aDistribuidor[] = [$personId, $porPedidos];
                 $resumen[$clave]['por_pedidos']++;
+
+                continue;
+            }
+
+            // Sin dueño en una ciudad con UN solo distribuidor: no hay a quién más
+            // dárselo. Sin esto, el cliente que sólo escribió por WhatsApp (sin
+            // pedido) no lo veía nadie en su ciudad.
+            if (! $actual && count($candidatos) === 1) {
+                $aDistribuidor[] = [$personId, $candidatos[0]];
+                $resumen[$clave]['unico']++;
 
                 continue;
             }
@@ -167,11 +179,12 @@ class RepartirClientes extends Command
         $ciudades = DB::table('lead_pipelines')->pluck('name', 'id');
 
         $this->table(
-            ['Ciudad', 'Ya tenían dueño', 'Por sus pedidos', 'Pedidos abiertos al responsable'],
+            ['Ciudad', 'Ya tenían dueño', 'Por sus pedidos', 'Único distribuidor', 'Pedidos abiertos al responsable'],
             collect($resumen)->map(fn ($r, $ciudad) => [
                 $ciudad ? ($ciudades[$ciudad] ?? "#{$ciudad}") : 'Sin ciudad',
                 $r['ya_tenia'],
                 $r['por_pedidos'],
+                $r['unico'],
                 $r['al_responsable'],
             ])->values()->all(),
         );

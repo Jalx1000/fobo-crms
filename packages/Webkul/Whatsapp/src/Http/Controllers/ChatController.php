@@ -262,10 +262,16 @@ class ChatController extends Controller
             ->joinSub($rankeadas, 'ranked', fn ($join) => $join->on('ranked.ranked_id', '=', 'whatsapp_conversations.id'))
             ->where('ranked.rn', 1)
             // El mismo alcance que la lista: si el desplegable ofreciera una
-            // ciudad que la lista no muestra, elegirla daría cero resultados.
+            // ciudad que la lista no muestra, elegirla daría cero resultados. Y a
+            // un distribuidor, contarle lo de otros le dice cuánto tiene la otra
+            // empresa.
             ->when(
-                ($permitidas = $this->alcance->ciudadesDe()) !== null,
-                fn ($q) => ConversationCity::restringirA($q, $permitidas ?? [])
+                $yo = app(Distribuidores::class)->soloLoSuyo(),
+                fn ($q) => $q->whereIn('whatsapp_conversations.person_id', app(Distribuidores::class)->clientesDe($yo)),
+                fn ($q) => $q->when(
+                    ($permitidas = $this->alcance->ciudadesDe()) !== null,
+                    fn ($q) => ConversationCity::restringirA($q, $permitidas ?? [])
+                )
             )
             ->selectRaw(ConversationCity::sql().' as city_id, count(*) as total')
             ->groupByRaw(ConversationCity::sql())

@@ -213,9 +213,9 @@ it('el reparto en modo prueba no cambia nada', function () {
 
     $personId = (int) DB::table('persons')->insertGetId(['name' => 'Viejo '.uniqid(), 'created_at' => now(), 'updated_at' => now()]);
     DB::table('leads')->insert([
-        'title' => 'Pedido viejo', 'person_id' => $personId, 'lead_pipeline_id' => $c,
+        'title'                  => 'Pedido viejo', 'person_id' => $personId, 'lead_pipeline_id' => $c,
         'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')->where('lead_pipeline_id', $c)->value('id'),
-        'created_at' => now(), 'updated_at' => now(),
+        'created_at'             => now(), 'updated_at' => now(),
     ]);
 
     test()->artisan('distribuidor:repartir')->assertSuccessful();
@@ -228,12 +228,67 @@ it('el reparto aplicado respeta al distribuidor que ya tiene los pedidos del cli
 
     $personId = (int) DB::table('persons')->insertGetId(['name' => 'Viejo '.uniqid(), 'created_at' => now(), 'updated_at' => now()]);
     DB::table('leads')->insert([
-        'title' => 'Pedido viejo', 'person_id' => $personId, 'lead_pipeline_id' => $c, 'user_id' => $dist->id,
+        'title'                  => 'Pedido viejo', 'person_id' => $personId, 'lead_pipeline_id' => $c, 'user_id' => $dist->id,
         'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')->where('lead_pipeline_id', $c)->value('id'),
-        'created_at' => now(), 'updated_at' => now(),
+        'created_at'             => now(), 'updated_at' => now(),
     ]);
 
     test()->artisan('distribuidor:repartir', ['--aplicar' => true, '--ciudad' => $c])->assertSuccessful();
 
     expect((int) DB::table('persons')->where('id', $personId)->value('user_id'))->toBe($dist->id);
+});
+
+/** Un cliente de la ciudad que sólo escribió por WhatsApp: sin pedidos ni dueño. */
+function preguntaClienteSoloWhatsapp(int $ciudad): int
+{
+    $conv = preguntaConversacion();
+    $personId = (int) DB::table('whatsapp_conversations')->where('id', $conv)->value('person_id');
+
+    DB::table('attribute_values')->insert([
+        'entity_type'   => 'persons',
+        'entity_id'     => $personId,
+        'attribute_id'  => DB::table('attributes')->where('code', 'cliente_ciudad')->where('entity_type', 'persons')->value('id'),
+        'integer_value' => $ciudad,
+    ]);
+
+    return $personId;
+}
+
+it('en una ciudad con un solo distribuidor, el cliente sin dueño pasa a ser suyo aunque no tenga pedidos', function () {
+    ['ciudad' => $c, 'dist' => $dist] = preguntaEscenario();
+    $personId = preguntaClienteSoloWhatsapp($c);
+
+    test()->artisan('distribuidor:repartir', ['--aplicar' => true, '--ciudad' => $c])->assertSuccessful();
+
+    expect((int) DB::table('persons')->where('id', $personId)->value('user_id'))->toBe($dist->id);
+});
+
+it('con dos distribuidores en la ciudad, el cliente sin dueño no se le da a ninguno', function () {
+    ['ciudad' => $c] = preguntaEscenario();
+
+    $otro = User::create([
+        'name'     => 'Otro distribuidor '.uniqid(), 'email' => 'otro-'.uniqid().'@test.local',
+        'password' => bcrypt('secret'), 'role_id' => Role::where('name', 'Distribuidor')->value('id'), 'status' => 1,
+    ]);
+    DB::table('distribuidor_zonas')->insert(['lead_pipeline_id' => $c, 'user_id' => $otro->id, 'created_at' => now(), 'updated_at' => now()]);
+
+    $personId = preguntaClienteSoloWhatsapp($c);
+
+    test()->artisan('distribuidor:repartir', ['--aplicar' => true, '--ciudad' => $c])->assertSuccessful();
+
+    expect(DB::table('persons')->where('id', $personId)->value('user_id'))->toBeNull();
+});
+
+it('el desplegable de ciudades de la bandeja le cuenta al distribuidor sólo lo suyo', function () {
+    ['ciudad' => $c, 'dist' => $dist] = preguntaEscenario();
+
+    $mio = preguntaClienteSoloWhatsapp($c);
+    DB::table('persons')->where('id', $mio)->update(['user_id' => $dist->id]);
+    preguntaClienteSoloWhatsapp($c);   // de la ciudad, sin dueño
+    preguntaConversacion();             // sin ciudad
+
+    $respuesta = test()->actingAs($dist, 'user')->getJson(route('admin.whatsapp.cities'))->assertOk();
+
+    expect($respuesta->json('total'))->toBe(1)
+        ->and($respuesta->json('none.count'))->toBe(0);
 });
