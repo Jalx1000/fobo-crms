@@ -52,22 +52,27 @@ it('muestra el atributo una sola vez en la vista de producto', function () {
         'json_value'    => null,
         'datetime_value'=> null,
         'date_value'    => null,
-        'created_at'    => now(),
-        'updated_at'    => now(),
+        // Sin timestamps: attribute_values no los tiene en este esquema.
     ]);
 
     // Renderizar la sección de atributos
     $html = view('admin::products.view.attributes', ['product' => $product])->render();
 
-    // Verifica que el atributo custom se muestre exactamente una vez
-    expect(substr_count($html, 'Custom One'))
+    /*
+     * Verifica que el atributo custom se muestre exactamente una vez.
+     *
+     * Se cuenta la ETIQUETA visible y no el texto suelto: el mismo campo repite su
+     * nombre en los atributos `label="…"` y `placeholder="…"` del editor en línea, así
+     * que contar "Custom One" daba 3 para un único campo en pantalla.
+     */
+    expect(substr_count($html, '>Custom One</div>'))
         ->toBe(1);
 
     // Verifica que atributos por defecto no se dupliquen
-    expect(substr_count($html, __('installer::app.seeders.attributes.products.price')) <= 1)
-        ->toBeTrue();
-    expect(substr_count($html, __('installer::app.seeders.attributes.products.quantity')) <= 1)
-        ->toBeTrue();
-    expect(substr_count($html, __('installer::app.seeders.attributes.products.sku')) <= 1)
-        ->toBeTrue();
+    // Lo mismo para los atributos por defecto: etiquetas visibles, no texto suelto.
+    foreach (['price', 'quantity', 'sku'] as $codigo) {
+        $etiqueta = '>'.__('installer::app.seeders.attributes.products.'.$codigo).'</div>';
+
+        expect(substr_count($html, $etiqueta))->toBeLessThanOrEqual(1);
+    }
 });

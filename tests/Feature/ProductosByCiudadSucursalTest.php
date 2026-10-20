@@ -39,6 +39,17 @@ uses(DatabaseTransactions::class);
 
 function setupCiudadAtribute(): int
 {
+    // En una base con datos el atributo ya existe (código único por entidad):
+    // crearlo de nuevo choca contra el índice.
+    $existente = DB::table('attributes')
+        ->where('code', 'ciudad_producto_sucursal')
+        ->where('entity_type', 'products')
+        ->value('id');
+
+    if ($existente) {
+        return (int) $existente;
+    }
+
     $attrId = DB::table('attributes')->insertGetId([
         'code'            => 'ciudad_producto_sucursal',
         'name'            => 'Ciudad Producto Sucursal',
@@ -80,8 +91,7 @@ function assignCiudadValue(int $productId, int $attrId, int $value): void
         'entity_type'   => 'products',
         'attribute_id'  => $attrId,
         'integer_value' => $value,
-        'created_at'    => now(),
-        'updated_at'    => now(),
+        // Sin timestamps: attribute_values no los tiene en este esquema.
     ]);
 }
 
@@ -110,6 +120,21 @@ function requiereTablaDeProductosVacia(): void
     }
 
     teardownProductTables();
+
+    /*
+     * Con datos cargados, los totales absolutos de estos casos sólo cierran si ningún
+     * producto real tiene el atributo. Se les quita DENTRO de la transacción del test
+     * (DatabaseTransactions la revierte al terminar): para el endpoint la tabla queda
+     * "vacía" sin borrar un solo producto.
+     */
+    $atributo = DB::table('attributes')
+        ->where('code', 'ciudad_producto_sucursal')
+        ->where('entity_type', 'products')
+        ->value('id');
+
+    if ($atributo) {
+        DB::table('attribute_values')->where('attribute_id', $atributo)->delete();
+    }
 }
 
 function teardownProductTables(): void
@@ -137,9 +162,9 @@ function teardownProductTables(): void
 
 function authenticatedUser(): User
 {
-    $user = User::factory()->create([
-        'status' => 1,
-    ]);
+    // El modelo User de Krayin no trae factory (User::factory() no existe): se usa el
+    // administrador que ya tiene la instalación.
+    $user = getDefaultAdmin();
 
     Sanctum::actingAs($user);
 
@@ -178,6 +203,13 @@ it('returns 400 when ciudad_producto_sucursal param is zero or negative', functi
 it('returns 404 when attribute does not exist in the system', function () {
     requiereTablaDeProductosVacia();
     authenticatedUser();
+
+    // El atributo existe en una base con datos: para probar el 404 se lo quita dentro
+    // de la transacción, que se revierte al terminar.
+    DB::table('attributes')
+        ->where('code', 'ciudad_producto_sucursal')
+        ->where('entity_type', 'products')
+        ->delete();
 
     $response = test()->getJson(route('api.productos.por-ciudad-sucursal', ['ciudad_producto_sucursal' => 5]));
 

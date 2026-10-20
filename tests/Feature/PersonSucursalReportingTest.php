@@ -30,6 +30,13 @@ class PersonSucursalReportingTest extends TestCase
 
     public function test_leads_count_by_branches_uses_person_attribute()
     {
+        /*
+         * El reporte acota por lo que el usuario puede ver (bouncer), así que necesita
+         * a alguien en sesión. Sin esto moría con "view_permission on null" antes de
+         * llegar a contar nada. Un administrador ve todo: el reporte no se recorta.
+         */
+        $this->actingAs(\Webkul\User\Models\User::findOrFail(1), 'user');
+
         // Ensure the attribute exists (mimic migration)
         $attribute = Attribute::where('code', 'sucursal')
             ->where('entity_type', 'persons')
@@ -67,14 +74,32 @@ class PersonSucursalReportingTest extends TestCase
             'text_value'   => $sucursalValue,
         ]);
 
+        /*
+         * Un vendedor de verdad: el reporte es una estadística de ventas y deja afuera
+         * a Supervisores y Administradores, y también los pedidos SIN asesor (en SQL,
+         * `NULL NOT IN (…)` no es verdadero). Un pedido sin user_id no aparecía nunca,
+         * por más sucursal que tuviera el cliente.
+         */
+        $vendedor = DB::table('users')
+            ->join('roles', 'roles.id', '=', 'users.role_id')
+            ->whereNotIn('roles.name', ['Supervisores', 'Administrador'])
+            ->where('users.status', 1)
+            ->value('users.id');
+
+        if (! $vendedor) {
+            $this->markTestSkipped('No hay un vendedor activo fuera de los roles excluidos.');
+        }
+
         // Create a Lead linked to this Person
         $leadId = DB::table('leads')->insertGetId([
             'title'      => 'Test Lead',
             'person_id'  => $personId,
+            'user_id'    => $vendedor,
             'created_at' => now(),
             'updated_at' => now(),
-            // Add other required fields if necessary, assuming defaults or nullable
-            'lead_pipeline_stage_id' => 1, // Assuming stage 1 exists
+            // Una etapa que exista de verdad: el id 1 no está garantizado y la foreign
+            // key rechaza el pedido.
+            'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')->value('id'),
         ]);
 
         // Initialize Reporting Helper

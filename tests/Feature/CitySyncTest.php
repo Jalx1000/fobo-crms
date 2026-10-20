@@ -64,11 +64,17 @@ function makePerson(): int
 
 beforeEach(function () {
     /**
-     * Tarija (1) y Santa Cruz (3) son pipelines reales; el test solo lee sus ids
-     * de etapa por code, nunca los hardcodea.
+     * Dos ciudades reales de esta instalación, buscadas por NOMBRE. Este test venía
+     * de otra instalación (Tarija y Santa Cruz, ids 1 y 3, con otras etapas): con los
+     * ids fijos y los codes de allá, acá todos los pedidos se creaban con etapa 0 y
+     * fallaban por la foreign key antes de probar nada.
      */
-    $this->cityA = 1;
-    $this->cityB = 3;
+    $this->cityA = (int) DB::table('lead_pipelines')->where('name', 'like', 'Palpal%')->value('id');
+    $this->cityB = (int) DB::table('lead_pipelines')->where('name', 'San Salvador de Jujuy')->value('id');
+
+    if (! $this->cityA || ! $this->cityB) {
+        $this->markTestSkipped('Faltan las ciudades Palpalá o San Salvador de Jujuy.');
+    }
 });
 
 it('propaga la ciudad del lead al atributo Ciudad y a la persona al crear', function () {
@@ -79,7 +85,7 @@ it('propaga la ciudad del lead al atributo Ciudad y a la persona al crear', func
         'entity_type'            => 'leads',
         'person_id'              => $personId,
         'lead_pipeline_id'       => $this->cityA,
-        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'no-atendido'),
+        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'prospectos'),
     ]);
 
     expect(cityValueOf('leads', $lead->id, CitySyncService::LEAD_CITY_ATTRIBUTE_CODE))->toBe($this->cityA)
@@ -95,13 +101,13 @@ it('actualiza ambos atributos cuando el lead cambia de pipeline', function () {
         'entity_type'            => 'leads',
         'person_id'              => $personId,
         'lead_pipeline_id'       => $this->cityA,
-        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'no-atendido'),
+        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'prospectos'),
     ]);
 
     $repository->update([
         'entity_type'            => 'leads',
         'lead_pipeline_id'       => $this->cityB,
-        'lead_pipeline_stage_id' => stageIdIn($this->cityB, 'no-atendido'),
+        'lead_pipeline_stage_id' => stageIdIn($this->cityB, 'prospectos'),
     ], $lead->id);
 
     expect(cityValueOf('leads', $lead->id, CitySyncService::LEAD_CITY_ATTRIBUTE_CODE))->toBe($this->cityB)
@@ -117,7 +123,7 @@ it('mueve el lead de pipeline cuando solo cambia el atributo Ciudad, remapeando 
         'entity_type'            => 'leads',
         'person_id'              => $personId,
         'lead_pipeline_id'       => $this->cityA,
-        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'cliente-confirmado'),
+        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'pedidos-confirmado'),
     ]);
 
     // Solo se edita el atributo: el pipeline no viaja en el request.
@@ -129,7 +135,7 @@ it('mueve el lead de pipeline cuando solo cambia el atributo Ciudad, remapeando 
     $lead->refresh();
 
     expect((int) $lead->lead_pipeline_id)->toBe($this->cityB)
-        ->and((int) $lead->lead_pipeline_stage_id)->toBe(stageIdIn($this->cityB, 'cliente-confirmado'))
+        ->and((int) $lead->lead_pipeline_stage_id)->toBe(stageIdIn($this->cityB, 'pedidos-confirmado'))
         ->and(cityValueOf('persons', $personId, CitySyncService::PERSON_CITY_ATTRIBUTE_CODE))->toBe($this->cityB);
 });
 
@@ -142,13 +148,13 @@ it('deja ganar al pipeline cuando pipeline y atributo Ciudad cambian a la vez', 
         'entity_type'            => 'leads',
         'person_id'              => $personId,
         'lead_pipeline_id'       => $this->cityA,
-        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'no-atendido'),
+        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'prospectos'),
     ]);
 
     $repository->update([
         'entity_type'                             => 'leads',
         'lead_pipeline_id'                        => $this->cityB,
-        'lead_pipeline_stage_id'                  => stageIdIn($this->cityB, 'no-atendido'),
+        'lead_pipeline_stage_id'                  => stageIdIn($this->cityB, 'prospectos'),
         CitySyncService::LEAD_CITY_ATTRIBUTE_CODE => $this->cityA,
     ], $lead->id);
 
@@ -167,7 +173,7 @@ it('mueve los leads abiertos de la persona al cambiar cliente_ciudad, pero no lo
         'entity_type'            => 'leads',
         'person_id'              => $personId,
         'lead_pipeline_id'       => $this->cityA,
-        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'no-atendido'),
+        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'prospectos'),
     ]);
 
     $closed = $repository->create([
@@ -175,24 +181,16 @@ it('mueve los leads abiertos de la persona al cambiar cliente_ciudad, pero no lo
         'entity_type'            => 'leads',
         'person_id'              => $personId,
         'lead_pipeline_id'       => $this->cityA,
-        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'pedidos-entregados'),
+        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'pedido-entregado'),
     ]);
 
-    // "Cliente sin interés" y "Otros servicios" también cuentan como cerradas.
+    // Un pedido cancelado también cuenta como cerrado: no se muda.
     $discarded = $repository->create([
         'title'                  => 'Lead sin interes',
         'entity_type'            => 'leads',
         'person_id'              => $personId,
         'lead_pipeline_id'       => $this->cityA,
-        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'cliente-sin-inters'),
-    ]);
-
-    $other = $repository->create([
-        'title'                  => 'Lead otros servicios',
-        'entity_type'            => 'leads',
-        'person_id'              => $personId,
-        'lead_pipeline_id'       => $this->cityA,
-        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'otros-servicios'),
+        'lead_pipeline_stage_id' => stageIdIn($this->cityA, 'pedidos-cancelado'),
     ]);
 
     app(PersonRepository::class)->update([
@@ -203,12 +201,10 @@ it('mueve los leads abiertos de la persona al cambiar cliente_ciudad, pero no lo
     $open->refresh();
     $closed->refresh();
     $discarded->refresh();
-    $other->refresh();
 
     expect((int) $open->lead_pipeline_id)->toBe($this->cityB)
-        ->and((int) $open->lead_pipeline_stage_id)->toBe(stageIdIn($this->cityB, 'no-atendido'))
+        ->and((int) $open->lead_pipeline_stage_id)->toBe(stageIdIn($this->cityB, 'prospectos'))
         ->and(cityValueOf('leads', $open->id, CitySyncService::LEAD_CITY_ATTRIBUTE_CODE))->toBe($this->cityB)
         ->and((int) $closed->lead_pipeline_id)->toBe($this->cityA)
-        ->and((int) $discarded->lead_pipeline_id)->toBe($this->cityA)
-        ->and((int) $other->lead_pipeline_id)->toBe($this->cityA);
+        ->and((int) $discarded->lead_pipeline_id)->toBe($this->cityA);
 });
