@@ -103,7 +103,7 @@ class AttributeRepository extends Repository
      * `$entityType` es opcional por compatibilidad, pero pasarlo importa: el
      * mismo código puede existir en dos entidades. `nit` está en `persons` y en
      * `quotes`, y sin la entidad esta búsqueda devuelve siempre el primero que
-     * encuentra — así una cotización terminaba leyendo el id del atributo de la
+     * encuentra - así una cotización terminaba leyendo el id del atributo de la
      * persona y devolviendo null para un valor que sí estaba guardado.
      *
      * La caché también se indexa por entidad, no solo por código, o el primero
@@ -143,6 +143,16 @@ class AttributeRepository extends Repository
 
             $currentUser = auth()->guard('user')->user();
 
+            /*
+            | Quien puede cambiar el asesor (Administrador y Supervisores, por
+            | ROL: LeadRepository::sinCambioDeAsesor) elige entre todos, aunque
+            | su vista sea «individual» (Bulmaro, 20/10/2026): si no, la lista
+            | le ofrecía solo a sí mismo y no podía asignar a otro ejecutivo.
+            */
+            if ($currentUser && app(\Webkul\Admin\Helpers\Alcance::class)->veTotal()) {
+                return $userRepository->where('users.name', 'like', '%'.urldecode($query).'%')->get();
+            }
+
             if ($currentUser?->view_permission === 'group') {
                 $query = urldecode($query);
 
@@ -153,7 +163,8 @@ class AttributeRepository extends Repository
                     ->when(! empty($query), fn ($queryBuilder) => $queryBuilder->where('users.name', 'like', "%{$query}%"))
                     ->get();
             } elseif ($currentUser?->view_permission === 'individual') {
-                return $userRepository->where('users.id', $currentUser->id);
+                // ->get(): sin él devolvía la consulta sin ejecutar (lista vacía).
+                return $userRepository->where('users.id', $currentUser->id)->get();
             }
 
             return $userRepository->where('users.name', 'like', '%'.urldecode($query).'%')->get();
