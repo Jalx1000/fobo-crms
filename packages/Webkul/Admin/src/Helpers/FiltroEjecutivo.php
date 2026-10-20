@@ -3,6 +3,7 @@
 namespace Webkul\Admin\Helpers;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -15,10 +16,17 @@ use Illuminate\Support\Facades\DB;
  * ve el selector y el parámetro se le ignora, así una URL compartida por un
  * supervisor le muestra igual sus pedidos. Además el permiso de vista
  * (bouncer) se aplica antes: nadie llega por acá a una cartera ajena.
+ *
+ * La elección se recuerda en la cookie `global_ejecutivo` (20/10/2026), como
+ * la ciudad (`global_pipeline_id`) y las fechas: sobrevive a recargar y se
+ * comparte entre Tablero, Pedidos, Cotizaciones y Contactos. Si la URL trae
+ * el parámetro, manda la URL (vacío = «Todos los ejecutivos»).
  */
 class FiltroEjecutivo
 {
     public const PARAMETRO = 'ejecutivo';
+
+    public const COOKIE = 'global_ejecutivo';
 
     public static function disponible(): bool
     {
@@ -43,9 +51,29 @@ class FiltroEjecutivo
 
     public static function elegido(): ?int
     {
-        $valor = request()->query(self::PARAMETRO);
+        $valor = request()->query->has(self::PARAMETRO)
+            ? request()->query(self::PARAMETRO)
+            : request()->cookie(self::COOKIE);
 
         return is_numeric($valor) && self::disponible() ? (int) $valor : null;
+    }
+
+    /**
+     * Guarda en la cookie la elección que vino en la URL (las pantallas que
+     * navegan: Pedidos, Cotizaciones, Contactos). El tablero la guarda desde JS.
+     * httpOnly=false para que el JS del tablero lea la misma cookie.
+     */
+    public static function recordar(): void
+    {
+        if (! request()->query->has(self::PARAMETRO) || ! self::disponible()) {
+            return;
+        }
+
+        $valor = request()->query(self::PARAMETRO);
+
+        Cookie::queue(is_numeric($valor)
+            ? Cookie::make(self::COOKIE, (string) (int) $valor, 60 * 24 * 365, '/', null, false, false, false, 'Lax')
+            : Cookie::forget(self::COOKIE));
     }
 
     /**

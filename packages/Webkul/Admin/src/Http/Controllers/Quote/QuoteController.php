@@ -54,6 +54,9 @@ class QuoteController extends Controller
             return datagrid(QuoteDataGrid::class)->process();
         }
 
+        // El ejecutivo elegido queda recordado para Tablero, Pedidos, Cotizaciones y Contactos.
+        \Webkul\Admin\Helpers\FiltroEjecutivo::recordar();
+
         // Null for everyone else, and the view renders nothing: a template send
         // is billable, so the number is only meaningful to whoever answers for
         // the bill. Salespeople get the per-send warning in their flash instead.

@@ -76,6 +76,8 @@
 
                         <!-- Create button for person -->
                         <div class="flex items-center gap-x-2.5">
+                            @include('admin::leads.index.ejecutivo-filter', ['rutaEjecutivo' => 'admin.quotes.index'])
+
                             {!! view_render_event('admin.quotes.index.create_button.before') !!}
                             
                             @if (bouncer()->hasPermission('quotes.create'))

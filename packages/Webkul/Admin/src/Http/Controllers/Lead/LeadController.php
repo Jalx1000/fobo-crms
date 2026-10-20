@@ -69,6 +69,9 @@ class LeadController extends Controller
             return datagrid(LeadDataGrid::class)->process();
         }
 
+        // El ejecutivo elegido queda recordado para Tablero, Pedidos, Cotizaciones y Contactos.
+        FiltroEjecutivo::recordar();
+
         /**
          * Global city filter: shared (via the "global_pipeline_id" cookie) with the
          * dashboard so selecting a city persists across the whole app.

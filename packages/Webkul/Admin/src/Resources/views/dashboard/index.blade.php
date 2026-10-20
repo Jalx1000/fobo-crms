@@ -241,6 +241,10 @@
                     // Pedidos module). City: 'all'/empty => "Todas". Date: "from|to".
                     const savedCity = (document.cookie.match(/(?:^|;\s*)global_pipeline_id=([^;]*)/) || [])[1];
                     const savedDate = (document.cookie.match(/(?:^|;\s*)global_date_range=([^;]*)/) || [])[1];
+                    const savedEjecutivo = (document.cookie.match(/(?:^|;\s*)global_ejecutivo=([^;]*)/) || [])[1] || '';
+
+                    // Vacío para el ejecutivo comercial: no ve el selector.
+                    const ejecutivos = @json(\Webkul\Admin\Helpers\FiltroEjecutivo::disponible() ? \Webkul\Admin\Helpers\FiltroEjecutivo::opciones() : []);
 
                     let savedFrom = '';
                     let savedTo = '';
@@ -254,8 +258,7 @@
                     return {
                         pipelines: @json($pipelines->map(fn ($pipeline) => ['id' => $pipeline->id, 'name' => $pipeline->name])),
 
-                        // Vacío para el ejecutivo comercial: no ve el selector.
-                        ejecutivos: @json(\Webkul\Admin\Helpers\FiltroEjecutivo::disponible() ? \Webkul\Admin\Helpers\FiltroEjecutivo::opciones() : []),
+                        ejecutivos,
 
                         exportFormat: 'xlsx',
 
@@ -264,7 +267,9 @@
 
                             pipeline_id: (! savedCity || savedCity === 'all') ? '' : decodeURIComponent(savedCity),
 
-                            ejecutivo: '',
+                            // El recordado (cookie compartida con Pedidos, Cotizaciones y
+                            // Contactos), solo si sigue siendo una opción válida.
+                            ejecutivo: ejecutivos.find((e) => String(e.id) === savedEjecutivo)?.id ?? '',
 
                             start: savedFrom || "{{ $startDate->format('Y-m-d') }}",
 
@@ -287,6 +292,12 @@
                     // so e.g. changing the city doesn't accidentally seed a date range.
                     'filters.pipeline_id'(value) {
                         this.setCityCookie(value);
+                    },
+
+                    'filters.ejecutivo'(value) {
+                        const maxAge = value ? 60 * 60 * 24 * 365 : 0;
+
+                        document.cookie = `global_ejecutivo=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax`;
                     },
 
                     'filters.start'() {

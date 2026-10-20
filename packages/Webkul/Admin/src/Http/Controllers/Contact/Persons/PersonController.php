@@ -42,6 +42,9 @@ class PersonController extends Controller
             return datagrid(PersonDataGrid::class)->process();
         }
 
+        // El ejecutivo elegido queda recordado para Tablero, Pedidos, Cotizaciones y Contactos.
+        \Webkul\Admin\Helpers\FiltroEjecutivo::recordar();
+
         if ($redirect = $this->syncGlobalFilters()) {
             return $redirect;
         }

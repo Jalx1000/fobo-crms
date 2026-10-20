@@ -33,9 +33,18 @@ El mismo selector, **al lado del de ciudades del tablero**, con las mismas regla
 | T1 | Solo Administrador y Supervisores lo ven; al ejecutivo comercial ni se le envía (se decide en el servidor). |
 | T2 | El administrador que elige a un ejecutivo ve **exactamente lo que ve ese ejecutivo** en todas las tarjetas: es la misma regla con la que el tablero ya mostraba «solo lo mío» (`FiltroEjecutivo::usuarioDelTablero()` = el propio id del ejecutivo, o el elegido por quien ve el total). |
 | T3 | Esa regla reemplaza a `Alcance` en los 6 lugares que deciden de quién son los datos del tablero: `aplicarAlcance()` (scope de Lead + `user_id`), `asesoresVisibles()`, contactos, organizaciones, cotizaciones y la hoja de pedidos del Excel. Para un ejecutivo nada cambia. |
-| T4 | El Excel lleva el ejecutivo elegido. La elección no se guarda en cookie: al recargar vuelve a «Todos los ejecutivos». |
+| T4 | El Excel lleva el ejecutivo elegido. ~~La elección no se guarda en cookie~~ → ver «Sincronización» (20/10). |
 
-Fuera de alcance: contactos, cotizaciones e inbox de WhatsApp (cada uno ya tiene su regla).
+## Sincronización (20/10/2026, pedido del usuario)
+
+| # | Decisión |
+|---|---|
+| S1 | La elección se recuerda en la cookie `global_ejecutivo` (como `global_pipeline_id` y `global_date_range`): sobrevive a recargar y se comparte entre Tablero, Pedidos, Cotizaciones y Contactos. |
+| S2 | Si la URL trae `?ejecutivo=`, manda la URL; vacío = «Todos los ejecutivos» y borra la cookie. Pedidos, Cotizaciones y Contactos la guardan en el servidor (`FiltroEjecutivo::recordar()`); el tablero, desde su JS. |
+| S3 | Cotizaciones (`quotes.user_id`) y Contactos (`persons.user_id`) tienen el mismo selector y las mismas reglas B1–B3. |
+| S4 | En la hoja resumen del Excel, «Total de prospectos» pasa a «Pedidos abiertos (no atendidos + cotización enviada)», que es lo que cuenta. |
+
+Fuera de alcance: inbox de WhatsApp (ya tiene su regla).
 
 ## Comandos
 
@@ -61,6 +70,7 @@ packages/Webkul/Admin/src/Http/Controllers/DashboardController.php              
 packages/Webkul/Admin/src/Helpers/Reporting/*.php, Exports/Dashboard/DashboardOrdersSheet.php → limitarTablero()
 tests/Feature/Dashboard/TableroFiltroEjecutivoTest.php                           → tests del tablero
 tests/Feature/Lead/FiltroEjecutivoTest.php                                       → tests
+tests/Feature/Lead/EjecutivoRecordadoTest.php                                    → cookie, Cotizaciones y Contactos
 ```
 
 ## Estilo

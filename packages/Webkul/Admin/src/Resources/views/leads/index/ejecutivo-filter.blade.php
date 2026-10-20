@@ -4,12 +4,15 @@
     kanban y la lista la reenvían a su endpoint (FiltroEjecutivo).
     Solo Administrador y Supervisores: el ejecutivo comercial ve solo lo suyo
     y no tiene nada que filtrar (spec pedidos-filtro-ejecutivo, B1).
+    Se reusa en Cotizaciones y Contactos con `$rutaEjecutivo`; la elección
+    queda además en la cookie `global_ejecutivo` (FiltroEjecutivo::recordar).
 --}}
 @if (\Webkul\Admin\Helpers\FiltroEjecutivo::disponible())
 @php
     $ejecutivos = \Webkul\Admin\Helpers\FiltroEjecutivo::opciones();
     $ejecutivoElegido = \Webkul\Admin\Helpers\FiltroEjecutivo::elegido();
     $parametro = \Webkul\Admin\Helpers\FiltroEjecutivo::PARAMETRO;
+    $rutaEjecutivo ??= 'admin.leads.index';
 @endphp
 
 <select
@@ -19,13 +22,14 @@
 >
     {{-- Se conservan los demás parámetros: cambiar de ejecutivo no resetea la
          ciudad, la vista ni las fechas. --}}
-    <option value="{{ route('admin.leads.index', request()->except($parametro)) }}">
+    {{-- Vacío y no ausente: «todos» tiene que borrar la elección recordada. --}}
+    <option value="{{ route($rutaEjecutivo, array_merge(request()->except($parametro), [$parametro => ''])) }}">
         Ejecutivo comercial
     </option>
 
     @foreach ($ejecutivos as $ejecutivo)
         <option
-            value="{{ route('admin.leads.index', array_merge(request()->except($parametro), [$parametro => $ejecutivo->id])) }}"
+            value="{{ route($rutaEjecutivo, array_merge(request()->except($parametro), [$parametro => $ejecutivo->id])) }}"
             @selected($ejecutivoElegido === (int) $ejecutivo->id)
         >
             {{ $ejecutivo->name }}

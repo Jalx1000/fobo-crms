@@ -4,6 +4,7 @@ namespace Webkul\Admin\DataGrids\Quote;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Webkul\Admin\Helpers\FiltroEjecutivo;
 use Webkul\DataGrid\DataGrid;
 use Webkul\Whatsapp\Support\ContactChannel;
 
@@ -62,6 +63,9 @@ class QuoteDataGrid extends DataGrid
         if ($userIds = bouncer()->getAuthorizedUserIds()) {
             $queryBuilder->whereIn('quotes.user_id', $userIds);
         }
+
+        // Selector «Ejecutivo comercial» (dentro de lo que ya puede ver).
+        FiltroEjecutivo::aplicar($queryBuilder, 'quotes.user_id');
 
         $this->addFilter('id', 'quotes.id');
         $this->addFilter('user', 'quotes.user_id');

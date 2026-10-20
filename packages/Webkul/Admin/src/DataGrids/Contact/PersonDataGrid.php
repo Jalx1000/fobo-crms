@@ -6,6 +6,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Webkul\Admin\Helpers\CustomAttributeValueResolver;
+use Webkul\Admin\Helpers\FiltroEjecutivo;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Contact\Repositories\OrganizationRepository;
 use Webkul\Contact\Repositories\PersonRepository;
@@ -68,6 +69,9 @@ class PersonDataGrid extends DataGrid
         if ($userIds = bouncer()->getAuthorizedUserIds()) {
             $queryBuilder->whereIn('persons.user_id', $userIds);
         }
+
+        // Selector «Ejecutivo comercial» (dentro de lo que ya puede ver).
+        FiltroEjecutivo::aplicar($queryBuilder, 'persons.user_id');
 
         /**
          * Filtro global de ciudad (compartido con el tablero y Pedidos por el

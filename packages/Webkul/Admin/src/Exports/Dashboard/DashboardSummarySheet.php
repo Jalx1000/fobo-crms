@@ -45,7 +45,7 @@ class DashboardSummarySheet implements FromArray, ShouldAutoSize, WithHeadings, 
 
         return [
             ['Rango de fechas', $this->dashboard->getDateRange()],
-            ['Total de prospectos', $overall['total_leads']['current'] ?? 0],
+            ['Pedidos abiertos (no atendidos + cotización enviada)', $overall['total_leads']['current'] ?? 0],
             ['Valor promedio de lead', $overall['average_lead_value']['current'] ?? 0],
             ['Promedio de leads por día', $overall['average_leads_per_day']['current'] ?? 0],
             ['Productos totales', $overall['total_services']['current'] ?? 0],
