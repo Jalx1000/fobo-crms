@@ -1956,6 +1956,7 @@ return [
                 'mover-a'      => 'Move “:titulo” to…',
                 'etapa-actual' => 'Current stage',
                 'cancelar'     => 'Cancel',
+                'por-columna'  => 'More filters (by column)',
             ],
 
             'title'      => 'Leads',

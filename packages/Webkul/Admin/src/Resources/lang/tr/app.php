@@ -1775,6 +1775,7 @@ return [
                 'mover-a'      => '“:titulo” şuraya taşı…',
                 'etapa-actual' => 'Mevcut aşama',
                 'cancelar'     => 'İptal',
+                'por-columna'  => 'Daha fazla filtre (sütuna göre)',
             ],
 
             'title'      => 'Leads',

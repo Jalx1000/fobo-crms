@@ -67,6 +67,11 @@ class QuoteDataGrid extends DataGrid
         // Selector «Ejecutivo comercial» (dentro de lo que ya puede ver).
         FiltroEjecutivo::aplicar($queryBuilder, 'quotes.user_id');
 
+        // La plataforma elegida en «Filtros» (celular) llega por la URL, como
+        // en la lista de Pedidos; el selector propio de la tabla sigue
+        // funcionando por su lado.
+        ContactChannel::applyFilter($queryBuilder, request()->query('platform'), 'quotes.person_id');
+
         $this->addFilter('id', 'quotes.id');
         $this->addFilter('user', 'quotes.user_id');
         $this->addFilter('sales_person', 'users.name');

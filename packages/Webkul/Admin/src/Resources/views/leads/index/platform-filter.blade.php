@@ -10,6 +10,7 @@
 @php
     $channelOptions = \Webkul\Whatsapp\Support\ContactChannel::options();
     $appliedChannel = request('platform');
+    $rutaPlataforma ??= 'admin.leads.index';
 @endphp
 
 <select
@@ -18,13 +19,13 @@
 >
     {{-- Every other parameter is preserved: switching channel must not silently
          reset the city or the date range the user already picked. --}}
-    <option value="{{ route('admin.leads.index', array_merge(request()->except('platform'), ['platform' => ''])) }}">
+    <option value="{{ route($rutaPlataforma, array_merge(request()->except('platform'), ['platform' => ''])) }}">
         @lang('admin::app.common.channel')
     </option>
 
     @foreach ($channelOptions as $option)
         <option
-            value="{{ route('admin.leads.index', array_merge(request()->except('platform'), ['platform' => $option['value']])) }}"
+            value="{{ route($rutaPlataforma, array_merge(request()->except('platform'), ['platform' => $option['value']])) }}"
             @selected($appliedChannel === $option['value'])
         >
             {{ $option['label'] }}
