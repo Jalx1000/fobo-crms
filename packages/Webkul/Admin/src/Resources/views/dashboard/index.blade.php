@@ -48,7 +48,7 @@
         <!-- Left Section -->
         {!! view_render_event('admin.dashboard.index.content.left.before') !!}
 
-        <div class="flex flex-1 flex-col gap-4 max-xl:flex-auto">
+        <div class="flex min-w-0 flex-1 flex-col gap-4 max-xl:flex-auto max-xl:basis-full">
             {{-- @include('admin::dashboard.index.revenue') --}}
             @include('admin::dashboard.index.over-all')
             @include('admin::dashboard.index.entregados-sin-cotizacion')
@@ -57,7 +57,7 @@
             @include('admin::dashboard.index.distribucion-tiempo-respuesta')
 
             @if ($isAdminRole)
-                <div class="grid grid-cols-3 gap-4 w-full">
+                <div class="grid w-full grid-cols-3 gap-4 max-lg:grid-cols-1">
                     <div class="col-span-1 flex flex-col gap-4">
                         @include('admin::dashboard.index.ventas')
                     </div>
@@ -81,7 +81,7 @@
         <!-- Right Section -->
         {!! view_render_event('admin.dashboard.index.content.right.before') !!}
 
-        <div class="flex w-[378px] max-w-full flex-col gap-4 max-sm:w-full">
+        <div class="flex w-[378px] min-w-0 max-w-full flex-col gap-4 max-xl:w-full">
             {{-- Funel anterior --}}
             {{-- @include('admin::dashboard.index.open-leads-by-states') --}}
 

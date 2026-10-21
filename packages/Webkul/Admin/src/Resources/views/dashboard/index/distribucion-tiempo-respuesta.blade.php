@@ -43,7 +43,7 @@
 
                     <template v-else>
                         <!-- KPIs -->
-                        <div class="grid grid-cols-4 gap-3">
+                        <div class="grid grid-cols-4 gap-3 max-md:grid-cols-2">
                             <div class="rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-800">
                                 <p class="text-xs text-gray-500 dark:text-gray-400">Mejor</p>
                                 <p class="text-xl font-bold text-green-600 dark:text-green-300">@{{ hours(stats.min) }}</p>
@@ -182,7 +182,7 @@
 
                 hours(seconds) {
                     if (seconds === null || seconds === undefined) {
-                        return '—';
+                        return '-';
                     }
 
                     const h = seconds / 3600;
@@ -346,7 +346,7 @@
                                             const b = buckets[item.dataIndex];
                                             const tramo = b.from_day === 13 ? 'Día hábil 13 o más' : `Día hábil ${b.from_day} a ${b.from_day + 1}`;
 
-                                            return `${tramo} — ${b.percent}% de movimientos`;
+                                            return `${tramo} - ${b.percent}% de movimientos`;
                                         },
                                     },
                                 },
