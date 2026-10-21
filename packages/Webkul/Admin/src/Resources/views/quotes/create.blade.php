@@ -291,8 +291,8 @@
                 <div class="block w-full">
                     {!! view_render_event('admin.contacts.quotes.create.table.after') !!}
 
-                    <!-- Table -->
-                    <x-admin::table>
+                    <!-- Table. Celular: cada producto es una tarjeta (ver v-quote-item); sin encabezados. -->
+                    <x-admin::table class="max-lg:!min-w-0 max-lg:block max-lg:border-0 max-lg:[&>thead]:hidden max-lg:[&>tbody]:flex max-lg:[&>tbody]:flex-col max-lg:[&>tbody]:gap-3">
                         <!-- Table Head -->
                         <x-admin::table.thead>
                             <x-admin::table.thead.tr>
@@ -436,9 +436,13 @@
             type="text/x-template"
             id="v-quote-item-template"
         >
-            <x-admin::table.thead.tr>
+            {{--
+                Celular: la fila es una tarjeta de dos columnas; cada celda muestra
+                su nombre arriba (data-etiqueta), porque los encabezados no se ven.
+            --}}
+            <x-admin::table.thead.tr class="align-top max-lg:grid max-lg:grid-cols-2 max-lg:gap-x-3 max-lg:gap-y-3 max-lg:rounded-lg max-lg:border max-lg:border-gray-200 max-lg:p-3 dark:max-lg:border-gray-800">
                 <!-- Quote Product Name -->
-                <x-admin::table.td>
+                <x-admin::table.td class="max-lg:col-span-2 max-lg:block max-lg:!p-0 max-lg:whitespace-normal">
                     <x-admin::form.control-group class="!mb-0">
                         <x-admin::lookup
                             ::src="src"
@@ -451,7 +455,7 @@
                 </x-admin::table.td>
 
                 <!-- Quantity -->
-                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.quantity') }}">
                     <x-admin::form.control-group class="!mb-0">
 
                         <x-admin::form.control-group.control
@@ -469,7 +473,7 @@
                 </x-admin::table.td>
 
                 <!-- Price -->
-                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.price') }}">
                     <x-admin::form.control-group class="!mb-0">
                         <x-admin::form.control-group.control
                             type="inline"
@@ -487,7 +491,7 @@
                 </x-admin::table.td>
 
                 <!-- Total -->
-                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.amount') }}">
                     <x-admin::form.control-group class="!mb-0">
                         <x-admin::form.control-group.control
                             type="inline"
@@ -505,7 +509,7 @@
                 </x-admin::table.td>
 
                 <!-- Discount Amount -->
-                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.discount') }}">
                     <x-admin::form.control-group class="!mb-0">
                         <x-admin::form.control-group.control
                             type="inline"
@@ -523,7 +527,7 @@
                 </x-admin::table.td>
 
                 <!-- Tax Amount -->
-                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.tax') }}">
                     <x-admin::form.control-group class="!mb-0">
                         <x-admin::form.control-group.control
                             type="inline"
@@ -541,7 +545,7 @@
                 </x-admin::table.td>
 
                 <!-- Total with Discount -->
-                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.total') }}">
                     <x-admin::form.control-group class="!mb-0">
                         <x-admin::form.control-group.control
                             type="inline"
@@ -558,7 +562,7 @@
                 <!-- Action -->
                 <x-admin::table.td
                     v-if="$parent.products.length > 1"
-                    class="!px-2 ltr:text-right rtl:text-left"
+                    class="!px-2 ltr:text-right rtl:text-left max-lg:col-span-2 max-lg:block max-lg:!p-0"
                 >
                     <x-admin::form.control-group class="!mb-0">
                         <i
