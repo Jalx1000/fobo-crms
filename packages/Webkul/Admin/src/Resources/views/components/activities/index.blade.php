@@ -39,14 +39,19 @@
         <template v-else>
             {!! view_render_event('admin.components.activities.content.before') !!}
 
-            <div class="w-full rounded-md border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-                <div class="flex gap-2 overflow-x-auto border-b border-gray-200 dark:border-gray-800">
+            <div class="w-full rounded-md border border-gray-200 bg-white max-lg:rounded-none max-lg:border-x-0 dark:border-gray-800 dark:bg-gray-900">
+                {{-- Celular: pestañas en una línea que se desliza, con altura táctil. --}}
+                <div
+                    ref="pestanas"
+                    class="flex gap-2 overflow-x-auto border-b border-gray-200 max-lg:gap-0 max-lg:px-1 dark:border-gray-800"
+                >
                     {!! view_render_event('admin.components.activities.content.types.before') !!}
 
                     <div
                         v-for="type in types"
-                        class="cursor-pointer px-3 py-2.5 text-sm font-medium dark:text-white"
+                        class="shrink-0 cursor-pointer whitespace-nowrap px-3 py-2.5 text-sm font-medium max-lg:py-3 dark:text-white"
                         :class="{'border-brandColor border-b-2 !text-brandColor transition': selectedType == type.name }"
+                        :data-activa="selectedType == type.name ? 'si' : null"
                         @click="selectedType = type.name"
                     >
                         @{{ type.label }}
@@ -384,7 +389,7 @@
 
                         <div
                             v-show="selectedType == type.name"
-                            class="flex min-h-[100vh] flex-col"
+                            class="flex min-h-[100vh] flex-col max-lg:min-h-0"
                         >
                             <slot :name="type.name"></slot>
                         </div>
@@ -651,6 +656,20 @@
             },
 
             methods: {
+                /**
+                 * Celular: la fila de pestañas se desliza hasta la abierta
+                 * (WhatsApp queda a la derecha y no se veía cuál estaba activa).
+                 */
+                mostrarPestanaActiva() {
+                    const fila = this.$refs.pestanas;
+
+                    const activa = fila?.querySelector('[data-activa]');
+
+                    if (fila && activa && fila.scrollWidth > fila.clientWidth) {
+                        fila.scrollLeft = activa.offsetLeft - fila.offsetLeft - 12;
+                    }
+                },
+
                 get() {
                     this.isLoading = true;
 
@@ -659,6 +678,8 @@
                             this.activities = response.data.data;
 
                             this.isLoading = false;
+
+                            this.$nextTick(() => this.mostrarPestanaActiva());
                         })
                         .catch(error => {
                             console.error(error);

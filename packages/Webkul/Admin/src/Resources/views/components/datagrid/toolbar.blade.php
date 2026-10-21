@@ -1,4 +1,4 @@
-<template v-if="isLoading">
+<template v-if="isLoading && ! cargoUnaVez">
     <x-admin::shimmer.datagrid.toolbar />
 </template>
 

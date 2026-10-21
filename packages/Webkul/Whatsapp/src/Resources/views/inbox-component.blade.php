@@ -132,7 +132,7 @@
             <!-- Messages -->
             <div class="relative" :class="fullHeight ? 'flex min-h-0 flex-1 flex-col' : ''">
             <div ref="scroll" @scroll="onScroll" class="wa-scroll flex flex-col gap-1.5 overflow-y-auto bg-[#efeae2] px-4 py-3 dark:bg-[#0b141a]"
-                 :class="fullHeight ? 'flex-1' : 'h-[440px]'">
+                 :class="fullHeight ? 'flex-1' : 'h-[440px] max-lg:h-[60dvh]'">
                 <div v-if="isLoading" class="m-auto flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                     <x-admin::spinner /> <span>Cargando conversación…</span>
                 </div>
