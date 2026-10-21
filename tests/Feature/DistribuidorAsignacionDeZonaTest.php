@@ -190,15 +190,15 @@ it('una ciudad sin distribuidor no deja el pedido en cualquiera', function () {
 
 // ───────────────── "Asesor Asignado" sólo distribuidores ─────────────────
 
-it('el desplegable de asesor no ofrece administradores ni encargados', function () {
+it('el desplegable de asesor ofrece distribuidores y encargados, no administradores', function () {
     auth()->guard('user')->loginUsingId(1);
 
     $nombres = collect(app(AttributeRepository::class)->getLookUpOptions('distribuidores'))
         ->pluck('name');
 
-    $rolDistribuidor = DB::table('roles')->where('name', 'Distribuidor')->value('id');
+    $roles = DB::table('roles')->whereIn('name', ['Distribuidor', 'Encargado'])->pluck('id');
     $otros = DB::table('users')->where('status', 1)
-        ->where('role_id', '!=', $rolDistribuidor)->pluck('name');
+        ->whereNotIn('role_id', $roles)->pluck('name');
 
     expect($nombres)->not->toBeEmpty();
 

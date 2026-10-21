@@ -412,6 +412,46 @@ it('dar de baja a un distribuidor pasa sus pedidos abiertos al responsable', fun
         ->and((int) DB::table('leads')->where('id', $pedido->id)->value('user_id'))->toBe($r->id);
 });
 
+it('pasarle el cliente a un encargado mueve sus pedidos abiertos con él', function () {
+    ['ciudad' => $c, 'a' => $a, 'responsable' => $r] = aisladoEscenario();
+
+    $cliente = aisladoCliente($a->id);
+    $pedido = aisladoPedidoDelAgente($c, $cliente);
+
+    $persona = \Webkul\Contact\Models\Person::find($cliente);
+    $persona->update(['user_id' => $r->id]);
+    event('contacts.person.update.after', $persona);
+
+    expect((int) DB::table('leads')->where('id', $pedido->id)->value('user_id'))->toBe($r->id);
+});
+
+it('editar un cliente que ya era de un encargado no le saca los pedidos al distribuidor', function () {
+    ['ciudad' => $c, 'a' => $a, 'responsable' => $r] = aisladoEscenario();
+
+    $cliente = aisladoCliente($r->id);
+    $pedido = aisladoPedidoDelAgente($c, $cliente);
+    DB::table('leads')->where('id', $pedido->id)->update(['user_id' => $a->id]);
+
+    $persona = \Webkul\Contact\Models\Person::find($cliente);
+    $persona->update(['name' => 'Otro nombre']);
+    event('contacts.person.update.after', $persona);
+
+    expect((int) DB::table('leads')->where('id', $pedido->id)->value('user_id'))->toBe($a->id);
+});
+
+it('"Asesor Asignado" ofrece distribuidores y encargados, no administradores', function () {
+    ['a' => $a, 'responsable' => $r] = aisladoEscenario();
+
+    test()->actingAs(getDefaultAdmin(), 'user');
+
+    $ids = collect(app(\Webkul\Attribute\Repositories\AttributeRepository::class)->getLookUpOptions('distribuidores'))
+        ->pluck('id')->map(fn ($id) => (int) $id);
+
+    expect($ids)->toContain($a->id)
+        ->and($ids)->toContain($r->id)
+        ->and($ids)->not->toContain((int) getDefaultAdmin()->id);
+});
+
 // ───────────────── lo que no cambia ─────────────────
 
 it('un encargado sigue viendo los pedidos de toda la ciudad', function () {

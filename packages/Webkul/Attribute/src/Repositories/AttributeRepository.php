@@ -126,9 +126,9 @@ class AttributeRepository extends Repository
             $userRepository = app($lookup['repository'])->where('status', 1);
 
             /*
-             * Algunos campos sólo admiten usuarios de un rol. "Asesor Asignado" de un
-             * pedido es uno: el asesor de un pedido es quien lo reparte, así que no
-             * tiene sentido ofrecer administradores ni encargados.
+             * Algunos campos sólo admiten usuarios de ciertos roles. "Asesor Asignado"
+             * de un pedido es uno: lo atiende un distribuidor o un encargado, nunca
+             * un administrador.
              *
              * El rol lo declara el lookup en su config, no se decide acá: este método
              * lo comparten también "Propietario de Ventas" de cotizaciones y de
@@ -138,7 +138,7 @@ class AttributeRepository extends Repository
             if (! empty($lookup['role'])) {
                 $userRepository = $userRepository->whereHas(
                     'role',
-                    fn ($q) => $q->where('name', $lookup['role']),
+                    fn ($q) => $q->whereIn('name', (array) $lookup['role']),
                 );
             }
 

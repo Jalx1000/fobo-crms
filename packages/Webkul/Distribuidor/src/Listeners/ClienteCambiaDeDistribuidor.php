@@ -12,9 +12,11 @@ use Webkul\Distribuidor\Services\Reparto;
  * distribuidor, sus pedidos abiertos y su conversación de WhatsApp pasan con él.
  * Los cerrados se quedan con quien los entregó.
  *
- * Si el dueño nuevo no es distribuidor (un encargado se lo dejó a sí mismo, por
- * ejemplo), no se mueve nada: esos roles no reparten, y mover los pedidos a su
- * nombre los sacaría de la lista de quien tiene que entregarlos.
+ * Si el dueño nuevo es un encargado (Huascar se queda un cliente sin ciudad, por
+ * ejemplo), también se mueve, pero sólo cuando el dueño CAMBIÓ en esta edición:
+ * hay clientes viejos a nombre de un administrador o encargado (cargados por el
+ * agente), y editarles el teléfono no debe sacarle los pedidos al distribuidor
+ * que los está entregando.
  */
 class ClienteCambiaDeDistribuidor
 {
@@ -27,7 +29,11 @@ class ClienteCambiaDeDistribuidor
     {
         $userId = $person?->user_id ? (int) $person->user_id : null;
 
-        if (! $userId || ! $this->distribuidores->esDistribuidor($userId)) {
+        if (! $userId) {
+            return;
+        }
+
+        if (! $this->distribuidores->esDistribuidor($userId) && ! $person->wasChanged('user_id')) {
             return;
         }
 
