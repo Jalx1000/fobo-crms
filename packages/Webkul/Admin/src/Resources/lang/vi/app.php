@@ -301,6 +301,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'Xem thêm',
+                'ver-menos' => 'Thu gọn',
                 'actions'              => 'Hành động',
                 'no-records-available' => 'Không có Bản ghi nào.',
             ],

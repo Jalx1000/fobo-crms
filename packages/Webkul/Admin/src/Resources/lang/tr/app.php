@@ -301,6 +301,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'Daha fazla',
+                'ver-menos' => 'Daha az',
                 'actions'              => 'Eylemler',
                 'no-records-available' => 'Kayıt Bulunmuyor.',
             ],

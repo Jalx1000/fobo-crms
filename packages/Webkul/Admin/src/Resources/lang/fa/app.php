@@ -301,6 +301,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'بیشتر',
+                'ver-menos' => 'کمتر',
                 'actions'              => 'اقدامات',
                 'no-records-available' => 'رکوردی موجود نیست.',
             ],

@@ -336,6 +336,8 @@ return [
             ],
 
             'table' => [
+                'ver-mas'   => 'See more',
+                'ver-menos' => 'See less',
                 'actions'              => 'Actions',
                 'no-records-available' => 'No Records Available.',
             ],
