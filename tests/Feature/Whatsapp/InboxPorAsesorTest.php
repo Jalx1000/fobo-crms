@@ -201,3 +201,19 @@ it('el inbox no le muestra a un ejecutivo los filtros «Sin asesor» ni «Sin co
         ->and($deMariano)->toContain("value: 'pool'")->not->toContain("value: 'unassigned'")
         ->and($deJavier)->toContain("value: 'pool'")->toContain("value: 'unassigned'");
 });
+
+// «Pasar derivación» (21/10/2026): el botón lo ven solo Administrador y
+// Supervisores, y pasa la derivación a otro ejecutivo (WhatsApp y Messenger).
+it('el botón «Pasar derivación» lo ven solo Administrador y Supervisores, y pasa la derivación', function () {
+    expect(test()->actingAs($this->javier, 'user')->get(route('admin.whatsapp.index'))->assertOk()->getContent())->toContain('Elegí un ejecutivo')
+        ->and(test()->actingAs($this->mariano, 'user')->get(route('admin.whatsapp.index'))->getContent())->toContain('Elegí un ejecutivo')
+        ->and(test()->actingAs($this->eduardo, 'user')->get(route('admin.whatsapp.index'))->getContent())->not->toContain('Elegí un ejecutivo');
+
+    $messenger = bandejaConv($this->bulmaro->id);
+    $messenger->forceFill(['gateway' => 'messenger', 'handoff_state' => Conversation::HANDOFF_ASSIGNED, 'assigned_user_id' => $this->bulmaro->id, 'handoff_requested_at' => now()])->save();
+
+    \Illuminate\Support\Facades\Mail::fake();
+    test()->actingAs($this->mariano, 'user')
+        ->postJson(route('admin.whatsapp.handoff.reassign', ['id' => $messenger->id]), ['user_id' => $this->eduardo->id])
+        ->assertOk()->assertJsonPath('handoff.assigned_user.id', $this->eduardo->id);
+});

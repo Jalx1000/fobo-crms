@@ -616,6 +616,30 @@
                         Motivo: @{{ handoff.reason }}
                     </div>
 
+                    {{-- Pasar la derivación a otro ejecutivo: solo Administrador y
+                         Supervisores la ven (21/10/2026). WhatsApp y Messenger por igual. --}}
+                    @if (app(\Webkul\Admin\Helpers\Alcance::class)->veTotal())
+                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            <span>Pasar a</span>
+                            <select v-model="handoffPasarA"
+                                    class="rounded border border-current bg-transparent px-1.5 py-0.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
+                                <option value="">Elegí un ejecutivo…</option>
+                                <option v-for="e in ejecutivosDerivacion"
+                                        :key="e.id"
+                                        :value="e.id"
+                                        :disabled="handoff.assigned_user && handoff.assigned_user.id === e.id">
+                                    @{{ e.name }}
+                                </option>
+                            </select>
+                            <button type="button"
+                                    :disabled="handoffBusy || !handoffPasarA"
+                                    class="rounded border border-current px-2 py-0.5 font-semibold transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40"
+                                    @click="reassignHandoff()">
+                                Pasar derivación
+                            </button>
+                        </div>
+                    @endif
+
                     <!-- Default is to hand the conversation back to the agent, so
                          a closed handoff never leaves it silently unattended. -->
                     <label v-if="!handoff.pooled" class="mt-1.5 flex cursor-pointer items-center gap-1.5">
@@ -1531,6 +1555,9 @@
                     // Closing a handoff gives the conversation back to the agent
                     // unless the advisor unticks this.
                     handoffReactivateAi: true,
+                    // «Pasar derivación» (Administrador y Supervisores): a quién.
+                    handoffPasarA: '',
+                    ejecutivosDerivacion: @json(\Illuminate\Support\Facades\DB::table('users')->whereIn('id', \Webkul\Admin\Helpers\Alcance::ejecutivosActivos() ?: [0])->orderBy('name')->get(['id', 'name'])),
                     // Internal note composer (notes are Krayin note-activities)
                     composerMode: 'mensaje',
                     noteDraft: '',
@@ -2091,6 +2118,20 @@
                             this.agentNote = !this.aiEnabled;
                         })
                         .catch(err => this.notifyError(err, 'No se pudo cerrar la derivación.'))
+                        .finally(() => { this.handoffBusy = false; });
+                },
+
+                reassignHandoff() {
+                    if (!this.conversationId || this.handoffBusy || !this.handoffPasarA) return;
+
+                    this.handoffBusy = true;
+                    this.$axios.post(`${this.agentUrlBase}/${this.conversationId}/handoff/reassign`,
+                        { user_id: this.handoffPasarA })
+                        .then(res => {
+                            this.applyHandoff(res.data);
+                            this.handoffPasarA = '';
+                        })
+                        .catch(err => this.notifyError(err, 'No se pudo pasar la derivación.'))
                         .finally(() => { this.handoffBusy = false; });
                 },
 
