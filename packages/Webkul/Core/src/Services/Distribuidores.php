@@ -14,8 +14,8 @@ use Illuminate\Support\Facades\Schema;
  * dueño: ve sólo lo que está asignado a él.
  *
  * Un usuario es distribuidor si está cargado en `distribuidor_zonas`, no por el
- * nombre de su rol: la tabla es lo que dice en qué ciudades reparte. La tabla se
- * mantiene sola desde el rol y los grupos del usuario (Distribuidor\Services\
+ * nombre de su rol: la tabla es lo que dice en qué ciudades reparte. Se carga desde
+ * "Distribuye en" del formulario de usuario (Distribuidor\Services\
  * ZonasDelDistribuidor), así que registrarlo en Configuración → Usuarios alcanza.
  *
  * El dueño de un cliente es `persons.user_id`. Todos sus pedidos y su conversación

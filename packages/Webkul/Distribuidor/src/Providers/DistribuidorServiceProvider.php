@@ -85,9 +85,7 @@ class DistribuidorServiceProvider extends ServiceProvider
          * estar por quedarse sin agua"—, y correrlo cada minuto son 1.440 consultas
          * diarias para encontrar lo mismo.
          *
-         * 🔴 Esto no corre solo: necesita un proceso haciendo `php artisan schedule:run`
-         * cada minuto. Hoy el contenedor no tiene ninguno (ni cron ni un bucle en el
-         * supervisor), así que mientras tanto el comando hay que llamarlo a mano.
+         * Lo corre el bucle de `schedule:run` que levanta docker/entrypoint.sh.
          *
          * `withoutOverlapping` porque una corrida lenta —100 envíos contra la API de
          * Meta— puede pasarse de la hora, y dos corridas juntas le mandarían el mismo

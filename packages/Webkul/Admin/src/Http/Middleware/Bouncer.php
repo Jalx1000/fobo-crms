@@ -16,7 +16,7 @@ class Bouncer
     public function handle($request, \Closure $next, $guard = 'user')
     {
         if (! auth()->guard($guard)->check()) {
-            return redirect()->route('admin.session.create');
+            return $this->alLogin($request);
         }
 
         /**
@@ -28,7 +28,7 @@ class Bouncer
 
             session()->flash('error', __('admin::app.errors.401'));
 
-            return redirect()->route('admin.session.create');
+            return $this->alLogin($request);
         }
 
         /**
@@ -40,10 +40,28 @@ class Bouncer
 
             session()->flash('error', __('admin::app.errors.401'));
 
-            return redirect()->route('admin.session.create');
+            return $this->alLogin($request);
         }
 
         return $next($request);
+    }
+
+    /**
+     * Sin sesión: la página va al login; un pedido AJAX recibe un 401 marcado.
+     *
+     * Al AJAX no se le puede redirigir: axios sigue el 302 en silencio, recibe el
+     * HTML del login con 200 y la pantalla queda "colgada" sin decir nada. El
+     * encabezado lo distingue del 401 de "no tenés permiso", que también existe y
+     * no debe sacar a nadie de la página (ver plugins/axios.js).
+     */
+    protected function alLogin($request)
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['message' => trans('admin::app.common.unauthenticated')], 401)
+                ->header('X-Sesion-Vencida', '1');
+        }
+
+        return redirect()->route('admin.session.create');
     }
 
     /**
