@@ -1782,6 +1782,7 @@ return [
                 'mass-update'    => 'تحديث جماعي',
             ],
             'kanban' => [
+                'etapas' => 'المراحل',
                 'rotten-days'            => 'العميل الفاسد منذ :days أيام',
                 'empty-list'             => 'قائمة العملاء الخاصة بك فارغة',
                 'empty-list-description' => 'قم بإنشاء عميل لتنظيم أهدافك.',

@@ -1782,6 +1782,7 @@ return [
                 'mass-update'    => 'Toplu Güncelle',
             ],
             'kanban' => [
+                'etapas' => 'Aşamalar',
                 'rotten-days'            => 'Bu müşteri adayı :days gündür çürük',
                 'empty-list'             => 'Müşteri Adayı Listeniz Boş',
                 'empty-list-description' => 'Hedeflerinizi düzenlemek için bir müşteri adayı oluşturun.',

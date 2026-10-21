@@ -1782,6 +1782,7 @@ return [
                 'mass-update'    => 'Atualizar em Massa',
             ],
             'kanban' => [
+                'etapas' => 'Etapas',
                 'rotten-days'            => 'Negócio estagnado por :days dias',
                 'empty-list'             => 'Sua lista de Negócios está vazia',
                 'empty-list-description' => 'Adicione um negócio para organizar seus objetivos.',
