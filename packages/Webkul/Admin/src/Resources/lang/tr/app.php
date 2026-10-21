@@ -1760,6 +1760,23 @@ return [
             'text-generation-failed' => 'Metin çıkarma başarısız oldu. Dosya boş veya okunamaz olabilir.',
         ],
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'Filtreler',
+                'ciudad'       => 'Şehir',
+                'ejecutivo'    => 'Satış yöneticisi',
+                'plataforma'   => 'Platform',
+                'periodo'      => 'Dönem',
+                'rango'        => 'Tarih aralığı',
+                'vista'        => 'Görünüm',
+                'kanban'       => 'Kanban',
+                'lista'        => 'Liste',
+                'limpiar'      => 'Filtreleri temizle',
+                'mover'        => 'Taşı',
+                'mover-a'      => '“:titulo” şuraya taşı…',
+                'etapa-actual' => 'Mevcut aşama',
+                'cancelar'     => 'İptal',
+            ],
+
             'title'      => 'Leads',
             'create-btn' => 'Lead Oluştur',
             'datagrid'   => [

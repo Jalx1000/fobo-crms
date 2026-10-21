@@ -6,7 +6,8 @@
     <!-- Header -->
     {!! view_render_event('admin.leads.index.header.before') !!}
 
-    <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+    {{-- Celular: de borde a borde, sin el gris de alrededor. --}}
+    <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
         {!! view_render_event('admin.leads.index.header.left.before') !!}
 
         <div class="flex flex-col gap-2">
@@ -27,7 +28,8 @@
             @php
                 $clearDateUrl = request()->fullUrlWithQuery(['date_filter' => 'none', 'date_from' => null, 'date_to' => null]);
             @endphp
-            <div class="flex gap-2">
+            {{-- Celular: Hoy / Esta semana / Este mes están en «Filtros». --}}
+            <div class="flex gap-2 max-lg:hidden">
                 <a
                     href="{{ request('date_filter') == 'today' ? $clearDateUrl : request()->fullUrlWithQuery(['date_filter' => 'today', 'date_from' => null, 'date_to' => null]) }}"
                     class="secondary-button {{ request('date_filter') == 'today' ? 'active' : '' }}"
@@ -88,7 +90,7 @@
     {!! view_render_event('admin.leads.index.content.before') !!}
 
     <!-- Content -->
-    <div class="[&>*>*>*.toolbarRight]:max-lg:w-full [&>*>*>*.toolbarRight]:max-lg:justify-between [&>*>*>*.toolbarRight]:max-md:gap-y-2 [&>*>*>*.toolbarRight]:max-md:flex-wrap mt-3.5 [&>*>*:nth-child(1)]:max-lg:!flex-wrap">
+    <div class="[&>*>*>*.toolbarRight]:max-lg:w-full [&>*>*>*.toolbarRight]:max-lg:justify-between [&>*>*>*.toolbarRight]:max-md:gap-y-2 [&>*>*>*.toolbarRight]:max-md:flex-wrap mt-3.5 [&>*>*:nth-child(1)]:max-lg:!flex-wrap max-lg:mt-0">
         @if ((request()->view_type ?? "kanban") == "table")
             @include('admin::leads.index.table')
         @else

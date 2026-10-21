@@ -1931,6 +1931,23 @@ return [
         ],
 
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'Filters',
+                'ciudad'       => 'City',
+                'ejecutivo'    => 'Sales executive',
+                'plataforma'   => 'Platform',
+                'periodo'      => 'Period',
+                'rango'        => 'Date range',
+                'vista'        => 'View',
+                'kanban'       => 'Kanban',
+                'lista'        => 'List',
+                'limpiar'      => 'Clear filters',
+                'mover'        => 'Move',
+                'mover-a'      => 'Move “:titulo” to…',
+                'etapa-actual' => 'Current stage',
+                'cancelar'     => 'Cancel',
+            ],
+
             'title'      => 'Leads',
             'create-btn' => 'Create Lead',
 

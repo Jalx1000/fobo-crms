@@ -1760,6 +1760,23 @@ return [
             'text-generation-failed' => 'Falha na extração de texto. O arquivo pode estar vazio ou ilegível.',
         ],
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'Filtros',
+                'ciudad'       => 'Cidade',
+                'ejecutivo'    => 'Executivo comercial',
+                'plataforma'   => 'Plataforma',
+                'periodo'      => 'Período',
+                'rango'        => 'Intervalo de datas',
+                'vista'        => 'Visualização',
+                'kanban'       => 'Kanban',
+                'lista'        => 'Lista',
+                'limpiar'      => 'Limpar filtros',
+                'mover'        => 'Mover',
+                'mover-a'      => 'Mover “:titulo” para…',
+                'etapa-actual' => 'Etapa atual',
+                'cancelar'     => 'Cancelar',
+            ],
+
             'title'      => 'Oportunidades',
             'create-btn' => 'Adicionar Negócio',
             'datagrid'   => [

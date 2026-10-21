@@ -1784,6 +1784,23 @@ return [
             'text-generation-failed' => 'La extracción de texto falló. El archivo podría estar vacío o ilegible.',
         ],
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'Filtros',
+                'ciudad'       => 'Ciudad',
+                'ejecutivo'    => 'Ejecutivo comercial',
+                'plataforma'   => 'Plataforma',
+                'periodo'      => 'Período',
+                'rango'        => 'Rango de fechas',
+                'vista'        => 'Vista',
+                'kanban'       => 'Kanban',
+                'lista'        => 'Lista',
+                'limpiar'      => 'Limpiar filtros',
+                'mover'        => 'Mover',
+                'mover-a'      => 'Mover «:titulo» a…',
+                'etapa-actual' => 'Etapa actual',
+                'cancelar'     => 'Cancelar',
+            ],
+
             'title'      => 'Pedidos',
             'create-btn' => 'Crear Pedido',
             'datagrid'   => [
