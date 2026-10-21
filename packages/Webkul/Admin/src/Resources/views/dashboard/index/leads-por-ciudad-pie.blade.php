@@ -18,7 +18,7 @@
                     <p class="text-base font-semibold dark:text-gray-300">No atendidos por Ciudad</p>
                 </div>
 
-                <div class="flex w-full max-w-full flex-col gap-4">
+                <div class="flex w-full max-w-full flex-col gap-4 max-lg:mx-auto max-lg:w-[240px]">
                     <x-admin::charts.doughnut
                         ::labels="chartLabels"
                         ::datasets="chartDatasets"

@@ -21,15 +21,15 @@
         <!-- Total Sales Section -->
         <template v-else>
             <!-- Stats Cards -->
-            <div class="grid grid-cols-3 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
+            <div class="grid grid-cols-3 gap-3 max-lg:gap-px max-lg:bg-gray-200 dark:max-lg:bg-gray-800">
                 <!-- Average Revenue Card (Oculto) -->
                 <!--
-                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:rounded-none max-lg:border-0 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         @lang('admin::app.dashboard.index.over-all.average-lead-value')
                     </p>
 
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 max-lg:flex-wrap max-lg:gap-x-1.5 max-lg:gap-y-0">
                         <p class="text-xl font-bold dark:text-gray-300">
                             @{{ $admin.formatPrice(Math.round(report.statistics.average_lead_value.current)) }}
                         </p>
@@ -52,7 +52,7 @@
                 -->
                 
                 <!-- Total de Contactos (personas registradas en el intervalo) -->
-                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:rounded-none max-lg:border-0 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p
                         class="text-xs font-medium text-gray-600 dark:text-gray-300"
                         title="@lang('admin::app.dashboard.index.over-all.total-persons-hint')"
@@ -60,7 +60,7 @@
                         @lang('admin::app.dashboard.index.over-all.total-persons')
                     </p>
 
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 max-lg:flex-wrap max-lg:gap-x-1.5 max-lg:gap-y-0">
                         <p class="text-xl font-bold dark:text-gray-300">
                             @{{ Math.round(report.statistics.total_persons.current) }}
                         </p>
@@ -83,12 +83,12 @@
                 </div>
                 
                 <!-- Average Lead Per Day
-                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:rounded-none max-lg:border-0 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         @lang('admin::app.dashboard.index.over-all.average-leads-per-day')
                     </p>
 
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 max-lg:flex-wrap max-lg:gap-x-1.5 max-lg:gap-y-0">
                         <p class="text-xl font-bold dark:text-gray-300">
                             @{{ Math.round(report.statistics.average_leads_per_day.current) }}
                         </p>
@@ -110,12 +110,12 @@
                 </div> -->
 
                 <!-- Total Services -->
-                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:rounded-none max-lg:border-0 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         Total productos solicitados
                     </p>
 
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 max-lg:flex-wrap max-lg:gap-x-1.5 max-lg:gap-y-0">
                         <p class="text-xl font-bold dark:text-gray-300">
                             @{{ Math.round(report.statistics.total_services.current) }}
                         </p>
@@ -137,12 +137,12 @@
                 </div>
 
                 <!-- Total Products Sold (delivered) -->
-                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:rounded-none max-lg:border-0 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         Total productos vendidos (Entregados)
                     </p>
 
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 max-lg:flex-wrap max-lg:gap-x-1.5 max-lg:gap-y-0">
                         <p class="text-xl font-bold dark:text-gray-300">
                             @{{ Math.round(report.statistics.total_products_sold.current) }}
                         </p>
@@ -164,12 +164,12 @@
                 </div>
 
                 <!-- Total Quotes -->
-                <!-- <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <!-- <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:rounded-none max-lg:border-0 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         @lang('admin::app.dashboard.index.over-all.total-quotations')
                     </p>
 
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 max-lg:flex-wrap max-lg:gap-x-1.5 max-lg:gap-y-0">
                         <p class="text-xl font-bold dark:text-gray-300">
                             @{{ report.statistics.total_quotations.current }}
                         </p>
@@ -191,12 +191,12 @@
                 </div> -->
                 
                 <!-- Total Persons -->
-                <!-- <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <!-- <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:rounded-none max-lg:border-0 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         @lang('admin::app.dashboard.index.over-all.total-persons')
                     </p>
 
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 max-lg:flex-wrap max-lg:gap-x-1.5 max-lg:gap-y-0">
                         <p class="text-xl font-bold dark:text-gray-300">
                             @{{ report.statistics.total_persons.current }}
                         </p>
@@ -218,12 +218,12 @@
                 </div> -->
                 
                 <!-- Total Organizations -->
-                <!-- <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <!-- <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:rounded-none max-lg:border-0 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         @lang('admin::app.dashboard.index.over-all.total-organizations')
                     </p>
 
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 max-lg:flex-wrap max-lg:gap-x-1.5 max-lg:gap-y-0">
                         <p class="text-xl font-bold dark:text-gray-300">
                             @{{ report.statistics.total_organizations.current }}
                         </p>
