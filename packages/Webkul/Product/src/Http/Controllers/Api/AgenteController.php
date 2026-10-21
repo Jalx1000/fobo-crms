@@ -388,7 +388,11 @@ class AgenteController extends Controller
             \Illuminate\Support\Facades\Event::dispatch('quote.create.after', $quote);
 
             return $quote;
-        });
+        // Hasta 3 intentos: dos cotizaciones del mismo pedido a la vez se
+        // trababan al actualizar el valor del pedido (deadlock, 19/10 #1075)
+        // y fallaban las dos. Todo lo de adentro es base de datos: repetirlo
+        // es seguro.
+        }, 3);
 
         if ($conversation->lead_id) {
             $this->aSolicitudRecibida((int) $conversation->lead_id);
@@ -900,7 +904,7 @@ class AgenteController extends Controller
             $conversation->forceFill(['last_message_at' => now()])->save();
 
             return $creados;
-        });
+        }, 3); // Reintenta si choca con otro envío a la misma conversación (deadlock, 05/10).
 
         // Encadenados: el orden de la galería es el orden en que el cliente los
         // tiene que ver, y workers en paralelo no garantizan ninguno.
