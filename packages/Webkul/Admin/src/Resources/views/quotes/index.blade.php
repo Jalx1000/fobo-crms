@@ -4,8 +4,8 @@
     </x-slot>
 
     <v-qoute>
-        <div class="flex flex-col gap-4">
-            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+        <div class="flex flex-col gap-4 max-lg:gap-0">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                 <div class="flex flex-col gap-2">
                     <!-- Bredcrumbs -->
                     <x-admin::breadcrumbs name="quotes" />
@@ -40,8 +40,8 @@
             type="text/x-template"
             id="v-qoute-template"
         >
-            <div class="flex flex-col gap-4">
-                <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+            <div class="flex flex-col gap-4 max-lg:gap-0">
+                <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                     <div class="flex flex-col gap-2">
                         <!-- Bredcrumbs -->
                         <x-admin::breadcrumbs name="quotes" />
@@ -73,7 +73,13 @@
                 {!! view_render_event('admin.quotes.index.datagrid.before') !!}
             
                 <!-- DataGrid -->
-                <x-admin::datagrid :src="route('admin.quotes.index')" />
+                {{-- Celular, como la lista de Pedidos: de borde a borde, con el buscador
+                     y el botón de filtros de la tabla en una banda blanca compacta.
+                     En Sensia no hay ejecutivo ni plataforma, así que no hace falta
+                     un panel aparte: el botón abre directo los filtros por columna. --}}
+                <div class="max-lg:-mx-3 max-lg:[&_.datagrid-toolbar]:gap-2 max-lg:[&_.datagrid-toolbar]:border-t-0 max-lg:[&_.datagrid-toolbar]:px-3 max-lg:[&_.datagrid-toolbar]:py-2 max-lg:[&_.toolbarLeft]:w-full max-lg:[&_.toolbarLeft]:gap-x-2 max-lg:[&_.rounded-t-lg]:rounded-none max-lg:[&_.rounded-t-lg]:border-x-0 max-lg:[&_.table-responsive]:rounded-none max-lg:[&_.table-responsive]:border-x-0">
+                    <x-admin::datagrid :src="route('admin.quotes.index')" />
+                </div>
 
                 {!! view_render_event('admin.quotes.index.datagrid.after') !!}
             </div>

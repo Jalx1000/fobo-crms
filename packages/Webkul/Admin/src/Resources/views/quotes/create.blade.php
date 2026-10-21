@@ -23,15 +23,19 @@
             request()->all()
         ))"
     >
-        <div class="flex flex-col gap-4">
-            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 max-lg:sticky max-lg:top-[62px] max-lg:z-[10] max-lg:shadow-sm">
+        <div class="flex flex-col gap-4 max-lg:gap-0">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 max-lg:sticky max-lg:top-[62px] max-lg:z-[10] max-lg:shadow-sm">
                 <div class="flex flex-col gap-2">
                     <x-admin::breadcrumbs
                         name="quotes.create"
                     />
 
-                    <div class="text-xl font-bold dark:text-white">
-                        @lang('admin::app.quotes.create.title')
+                    <div class="flex items-center gap-1">
+                        <x-admin::layouts.volver listado="admin.quotes.index" />
+
+                        <div class="text-xl font-bold dark:text-white">
+                            @lang('admin::app.quotes.create.title')
+                        </div>
                     </div>
                 </div>
 
@@ -65,8 +69,8 @@
             type="text/x-template"
             id="v-quote-template"
         >
-            <div class="box-shadow flex flex-col gap-4 rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-                <div class="flex w-full gap-2 border-b border-gray-200 dark:border-gray-800">
+            <div class="box-shadow flex flex-col gap-4 rounded-lg border border-gray-200 bg-white max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex w-full gap-2 border-b border-gray-200 max-lg:gap-0 max-lg:overflow-x-auto dark:border-gray-800">
                     {!! view_render_event('admin.contacts.quotes.create.tabs.before') !!}
 
                     <template
@@ -76,7 +80,7 @@
                         <a
                             :href="'#' + tab.id"
                             :class="[
-                                'inline-block px-3 py-2.5 border-b-2  text-sm font-medium ',
+                                'inline-block px-3 py-2.5 border-b-2  text-sm font-medium max-lg:shrink-0 max-lg:whitespace-nowrap max-lg:py-3',
                                 activeTab === tab.id
                                 ? 'text-brandColor border-brandColor dark:brandColor dark:brandColor'
                                 : 'text-gray-600 dark:text-gray-300  border-transparent hover:text-gray-800 hover:border-gray-400 dark:hover:border-gray-400  dark:hover:text-white'

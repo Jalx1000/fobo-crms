@@ -1775,6 +1775,7 @@ return [
                 'mover-a'      => 'Mover “:titulo” para…',
                 'etapa-actual' => 'Etapa atual',
                 'cancelar'     => 'Cancelar',
+                'por-columna'  => 'Mais filtros (por coluna)',
             ],
 
             'title'      => 'Oportunidades',

@@ -1775,6 +1775,7 @@ return [
                 'mover-a'      => 'انتقال «:titulo» به…',
                 'etapa-actual' => 'مرحله فعلی',
                 'cancelar'     => 'لغو',
+                'por-columna'  => 'فیلترهای بیشتر (بر اساس ستون)',
             ],
 
             'title'      => 'سرنخ‌ها',

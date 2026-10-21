@@ -1799,6 +1799,7 @@ return [
                 'mover-a'      => 'Mover «:titulo» a…',
                 'etapa-actual' => 'Etapa actual',
                 'cancelar'     => 'Cancelar',
+                'por-columna'  => 'Más filtros (por columna)',
             ],
 
             'title'      => 'Pedidos',

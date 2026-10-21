@@ -1775,6 +1775,7 @@ return [
                 'mover-a'      => 'Chuyển “:titulo” sang…',
                 'etapa-actual' => 'Giai đoạn hiện tại',
                 'cancelar'     => 'Hủy',
+                'por-columna'  => 'Thêm bộ lọc (theo cột)',
             ],
 
             'title'      => 'Khách Hàng Tiềm Năng',
