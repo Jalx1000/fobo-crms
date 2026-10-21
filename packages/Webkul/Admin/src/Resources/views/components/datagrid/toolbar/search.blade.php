@@ -57,7 +57,7 @@
                     -->
                     <select
                         v-if="platformColumn"
-                        class="w-max cursor-pointer appearance-none rounded-lg border bg-white px-3 py-1.5 leading-6 text-gray-600 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                        class="datagrid-plataforma w-max cursor-pointer appearance-none rounded-lg border bg-white px-3 py-1.5 leading-6 text-gray-600 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
                         :value="selectedPlatform"
                         @change="applyPlatform"
                     >

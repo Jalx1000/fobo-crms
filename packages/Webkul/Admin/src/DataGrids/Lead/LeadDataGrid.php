@@ -165,6 +165,11 @@ class LeadDataGrid extends DataGrid
             }
         }
 
+        // La plataforma elegida en «Filtros» (celular) llega por la URL, como
+        // en el kanban (LeadController::get); el selector propio de la tabla
+        // sigue funcionando por su lado.
+        ContactChannel::applyFilter($queryBuilder, request()->query('platform'), 'leads.person_id');
+
         if (! is_null(request()->input('rotten_lead.in'))) {
             $queryBuilder->havingRaw($tablePrefix.'rotten_lead = '.request()->input('rotten_lead.in'));
         }

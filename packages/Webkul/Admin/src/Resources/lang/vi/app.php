@@ -2094,6 +2094,8 @@ return [
         ],
     ],
     'layouts' => [
+        'volver' => 'Quay lại danh sách',
+
         'mobile-nav' => [
             'title' => 'Điều hướng chính',
             'more'  => 'Thêm',

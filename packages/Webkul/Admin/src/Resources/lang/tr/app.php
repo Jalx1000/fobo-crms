@@ -2094,6 +2094,8 @@ return [
         ],
     ],
     'layouts' => [
+        'volver' => 'Listeye dön',
+
         'mobile-nav' => [
             'title' => 'Ana gezinme',
             'more'  => 'Daha fazla',
