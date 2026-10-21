@@ -11,16 +11,20 @@
         :action="route('admin.leads.update', $lead->id)"
         method="PUT"
     >
-        <div class="flex flex-col gap-4">
-            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+        <div class="flex flex-col gap-4 max-lg:gap-0">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                 <div class="flex flex-col gap-2">
                     <x-admin::breadcrumbs 
                         name="leads.edit" 
                         :entity="$lead"
                     />
 
-                    <div class="text-xl font-bold dark:text-white">
-                        @lang('admin::app.leads.edit.title')
+                    <div class="flex items-center gap-1">
+                        <x-admin::layouts.volver listado="admin.leads.index" :parametros="['pipeline_id' => $lead->lead_pipeline_id]" />
+
+                        <div class="text-xl font-bold dark:text-white">
+                            @lang('admin::app.leads.edit.title')
+                        </div>
                     </div>
                 </div>
 
@@ -61,7 +65,7 @@
             type="text/x-template"
             id="v-lead-edit-template"
         >
-            <div class="box-shadow flex flex-col gap-4 rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+            <div class="box-shadow flex flex-col gap-4 rounded-lg border border-gray-200 bg-white max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex gap-2 border-b border-gray-200 dark:border-gray-800">
                     <!-- Tabs -->
                     <template v-for="tab in tabs" :key="tab.id">

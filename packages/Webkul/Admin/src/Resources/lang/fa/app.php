@@ -2094,6 +2094,8 @@ return [
         ],
     ],
     'layouts' => [
+        'volver' => 'بازگشت به فهرست',
+
         'mobile-nav' => [
             'title' => 'ناوبری اصلی',
             'more'  => 'بیشتر',

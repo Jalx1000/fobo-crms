@@ -2150,6 +2150,8 @@ return [
         ],
     ],
     'layouts' => [
+        'volver' => 'Volver al listado',
+
         'mobile-nav' => [
             'title' => 'Navegación principal',
             'more'  => 'Más',

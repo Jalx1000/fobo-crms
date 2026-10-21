@@ -2333,6 +2333,8 @@ return [
     ],
 
     'layouts' => [
+        'volver' => 'Back to list',
+
         'mobile-nav' => [
             'title' => 'Main navigation',
             'more'  => 'More',

@@ -2094,6 +2094,8 @@ return [
         ],
     ],
     'layouts' => [
+        'volver' => 'Voltar para a lista',
+
         'mobile-nav' => [
             'title' => 'Navegação principal',
             'more'  => 'Mais',
