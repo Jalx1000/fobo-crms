@@ -2325,6 +2325,11 @@ return [
     ],
 
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'Main navigation',
+            'more'  => 'More',
+        ],
+
         'app-version'          => 'Version: :version',
         'dashboard'            => 'Dashboard',
         'leads'                => 'Leads',

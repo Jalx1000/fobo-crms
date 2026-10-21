@@ -145,7 +145,7 @@
         <!-- chat column -->
         <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
             <!-- Header -->
-            <div class="flex items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900 max-lg:flex-wrap max-lg:gap-2 max-lg:px-3 max-lg:py-2">
                 <div class="-m-1 flex items-center gap-3 rounded-md p-1"
                      :class="context.personId ? 'cursor-pointer transition hover:bg-gray-200/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-800' : ''"
                      :title="context.personId ? 'Ver detalle del cliente' : null"
@@ -159,7 +159,7 @@
                     </div>
                     <div class="flex flex-col">
                         <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">@{{ context.name }}</div>
-                        <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                             <span v-if="context.phone">@{{ context.phone }}</span>
                             <!-- A channel that does not use phone numbers is not
                                  a contact missing one: saying "Sin número" there
@@ -267,13 +267,14 @@
                     </div>
                 </div>
 
-                <div class="flex items-center gap-3">
+                <!-- Celular: pasan a su propia fila, a lo ancho. -->
+                <div class="flex items-center gap-3 max-lg:w-full max-lg:justify-between">
                     <!-- Derive to a human. Hidden once one is already open: the
                          banner above the composer drives it from there. -->
                     <button v-if="conversationId && !handoff.open"
                             type="button"
                             :disabled="handoffBusy"
-                            class="rounded-md border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/20"
+                            class="rounded-md border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-50 max-lg:h-9 max-lg:px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-40 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/20"
                             @click="requestHandoff()">
                         Derivar a asesor
                     </button>
@@ -492,7 +493,7 @@
             </div>
 
             <!-- Composer -->
-            <div class="border-t border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900">
+            <div class="border-t border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900 max-lg:pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
                 <!-- reply preview -->
                 <div v-if="replyingTo" class="mb-2 flex items-center justify-between rounded-md border-l-2 border-brandColor bg-black/5 px-2 py-1 text-xs dark:bg-white/10">
                     <div class="min-w-0">
@@ -584,7 +585,7 @@
                      :class="handoff.pooled
                         ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
                         : 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300'">
-                    <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center justify-between gap-2 max-lg:flex-col max-lg:items-stretch">
                         <span>
                             <template v-if="handoff.pooled">
                                 El cliente pidió un asesor y <strong>nadie la tomó todavía</strong>.
@@ -597,7 +598,7 @@
                             </template>
                         </span>
 
-                        <span class="flex shrink-0 items-center gap-2">
+                        <span class="flex shrink-0 items-center gap-2 max-lg:[&>button]:h-10 max-lg:[&>button]:flex-1">
                             {{-- Tomar: solo Administrador y Supervisores (spec tablero-por-asesor, D12). --}}
                             <button v-if="handoff.pooled && {{ app(\Webkul\Admin\Helpers\Alcance::class)->veTotal() ? 'true' : 'false' }}" type="button" :disabled="handoffBusy"
                                     class="rounded bg-red-600 px-2 py-1 font-semibold text-white transition hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-40"
@@ -619,7 +620,7 @@
                     {{-- Pasar la derivación a otro ejecutivo: solo Administrador y
                          Supervisores la ven (21/10/2026). WhatsApp y Messenger por igual. --}}
                     @if (app(\Webkul\Admin\Helpers\Alcance::class)->veTotal())
-                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5 max-lg:[&>button]:h-10 max-lg:[&>select]:h-10 max-lg:[&>select]:flex-1">
                             <span>Pasar a</span>
                             <select v-model="handoffPasarA"
                                     class="rounded border border-current bg-transparent px-1.5 py-0.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
@@ -873,7 +874,7 @@
                         @keydown.enter.meta.exact.prevent="send"
                         @keydown.down="qrMove($event, 1)"
                         @keydown.up="qrMove($event, -1)"
-                        class="max-h-28 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                        class="max-h-28 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 max-lg:text-base focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                     ></textarea>
 
                     <button type="button" @click="send" :disabled="!canSubmit"

@@ -2319,6 +2319,11 @@ return [
         ],
     ],
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'Navegación principal',
+            'more'  => 'Más',
+        ],
+
         'app-version' => 'Versión: :version',
         'dashboard'   => 'Tablero',
         'leads'       => 'Pedidos',

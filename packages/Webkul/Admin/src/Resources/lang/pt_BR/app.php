@@ -2074,6 +2074,11 @@ return [
         ],
     ],
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'Navegação principal',
+            'more'  => 'Mais',
+        ],
+
         'app-version' => 'Versão: :version',
         'dashboard'   => 'Início',
         'leads'       => 'Oportunidades',
