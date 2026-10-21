@@ -11,9 +11,9 @@
         :action="route('admin.contacts.persons.store')"
         enctype="multipart/form-data"
     >
-        <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-4 max-lg:gap-0">
             <!-- Header -->
-            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 max-lg:sticky max-lg:top-[62px] max-lg:z-[10] max-lg:shadow-sm">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 max-lg:sticky max-lg:top-[62px] max-lg:z-[10] max-lg:shadow-sm">
                 <div class="flex flex-col gap-2">
                     {!! view_render_event('admin.persons.create.breadcrumbs.before') !!}
 
@@ -22,8 +22,12 @@
 
                     {!! view_render_event('admin.persons.create.breadcrumbs.after') !!}
 
-                    <div class="text-xl font-bold dark:text-white">
-                        @lang('admin::app.contacts.persons.create.title')
+                    <div class="flex items-center gap-1">
+                        <x-admin::layouts.volver listado="admin.contacts.persons.index" />
+
+                        <div class="text-xl font-bold dark:text-white">
+                            @lang('admin::app.contacts.persons.create.title')
+                        </div>
                     </div>
                 </div>
 
@@ -45,7 +49,7 @@
             </div>
 
             <!-- Form fields -->
-            <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:px-3 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
                 {!! view_render_event('admin.persons.create.form_controls.before') !!}
 
                 <x-admin::attributes

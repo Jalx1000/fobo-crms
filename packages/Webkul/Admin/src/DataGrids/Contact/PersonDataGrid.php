@@ -73,6 +73,11 @@ class PersonDataGrid extends DataGrid
         // Selector «Ejecutivo comercial» (dentro de lo que ya puede ver).
         FiltroEjecutivo::aplicar($queryBuilder, 'persons.user_id');
 
+        // La plataforma elegida en «Filtros» (celular) llega por la URL, como
+        // en Pedidos y Cotizaciones; el selector propio de la tabla sigue
+        // funcionando por su lado.
+        ContactChannel::applyFilter($queryBuilder, request()->query('platform'), 'persons.id');
+
         /**
          * Filtro global de ciudad (compartido con el tablero y Pedidos por el
          * parámetro «pipeline_id» y la cookie «global_pipeline_id»). La ciudad
