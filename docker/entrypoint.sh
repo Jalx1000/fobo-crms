@@ -27,19 +27,25 @@ log "Puerto: $PORT"
 rm -f /etc/apache2/mods-enabled/mpm_event.* /etc/apache2/mods-enabled/mpm_worker.*
 [ -e /etc/apache2/mods-enabled/mpm_prefork.load ] || a2enmod mpm_prefork >/dev/null
 
-# 2. Uploads (storage/app) en el volumen de Railway para que sobrevivan deploys
-if [ -n "$RAILWAY_VOLUME_MOUNT_PATH" ] && [ -d "$RAILWAY_VOLUME_MOUNT_PATH" ]; then
-    if [ ! -d "$RAILWAY_VOLUME_MOUNT_PATH/app" ]; then
-        log "Inicializando storage/app en el volumen $RAILWAY_VOLUME_MOUNT_PATH"
-        cp -a storage/app "$RAILWAY_VOLUME_MOUNT_PATH/app"
+# 2. Uploads (storage/app) en un volumen para que sobrevivan deploys. Dos formas:
+#    - Railway: el volumen se monta en otra ruta ($RAILWAY_VOLUME_MOUNT_PATH, o
+#      $STORAGE_VOLUME_PATH en otra plataforma) y storage/app pasa a ser un enlace.
+#    - EasyPanel / docker: el volumen se monta directo en storage/app.
+#    En los dos, el volumen llega con dueño root y Laravel escribe como www-data:
+#    sin el chown de abajo, subir un archivo da "Unable to create a directory".
+VOLUMEN="${STORAGE_VOLUME_PATH:-$RAILWAY_VOLUME_MOUNT_PATH}"
+if [ -n "$VOLUMEN" ] && [ -d "$VOLUMEN" ]; then
+    if [ ! -d "$VOLUMEN/app" ]; then
+        log "Inicializando storage/app en el volumen $VOLUMEN"
+        cp -a storage/app "$VOLUMEN/app"
     fi
     rm -rf storage/app
-    ln -s "$RAILWAY_VOLUME_MOUNT_PATH/app" storage/app
-    chown -R www-data:www-data "$RAILWAY_VOLUME_MOUNT_PATH/app"
+    ln -s "$VOLUMEN/app" storage/app
 fi
 
 mkdir -p storage/app/public storage/framework/{cache/data,sessions,views} storage/logs bootstrap/cache
-chown -R www-data:www-data storage/framework storage/logs bootstrap/cache
+# storage/app/ con barra: si es un enlace al volumen, el chown entra al volumen.
+chown -R www-data:www-data storage/app/ storage/framework storage/logs bootstrap/cache
 
 # 3. Esperar a MySQL
 if [ -n "$DB_HOST" ]; then
