@@ -84,7 +84,7 @@
         <!-- chat column -->
         <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
             <!-- Header -->
-            <div class="flex items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900 max-lg:flex-wrap max-lg:gap-2 max-lg:px-3 max-lg:py-2">
                 <div class="-m-1 flex items-center gap-3 rounded-md p-1"
                      :class="context.personId ? 'cursor-pointer transition hover:bg-gray-200/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-800' : ''"
                      :title="context.personId ? 'Ver detalle del cliente' : null"
@@ -98,7 +98,7 @@
                     </div>
                     <div class="flex flex-col">
                         <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">@{{ context.name }}</div>
-                        <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                             <span v-if="context.phone">@{{ context.phone }}</span>
                             <span v-else class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Sin número</span>
 
@@ -117,8 +117,8 @@
                     </div>
                 </div>
 
-                <!-- AI agent switch -->
-                <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-300"
+                <!-- AI agent switch. Celular: pasa a su propia fila, a la derecha. -->
+                <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-300 max-lg:ml-auto"
                        :class="agentToggling ? 'opacity-50 pointer-events-none' : ''">
                     <span>Agente IA</span>
                     <span class="relative inline-flex h-5 w-9 items-center">
@@ -440,7 +440,7 @@
             </div>
 
             <!-- Composer -->
-            <div class="border-t border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900">
+            <div class="border-t border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900 max-lg:pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
                 <!-- reply preview -->
                 <div v-if="replyingTo" class="mb-2 flex items-center justify-between rounded-md border-l-2 border-brandColor bg-black/5 px-2 py-1 text-xs dark:bg-white/10">
                     <div class="min-w-0">
@@ -482,7 +482,7 @@
                             @keydown.enter.exact.prevent="sendNote"
                             @keydown.enter.ctrl.exact.prevent="sendNote"
                             @keydown.enter.meta.exact.prevent="sendNote"
-                            class="max-h-28 flex-1 resize-none rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-gray-800 focus:border-amber-500 focus:outline-none dark:border-amber-700 dark:bg-amber-900/20 dark:text-gray-100"
+                            class="max-h-28 flex-1 resize-none rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-gray-800 max-lg:text-base focus:border-amber-500 focus:outline-none dark:border-amber-700 dark:bg-amber-900/20 dark:text-gray-100"
                         ></textarea>
                         <button type="button" @click="sendNote" :disabled="!noteDraft.trim() || noteSaving"
                                 aria-label="Guardar nota interna"
@@ -523,7 +523,7 @@
                             <span v-if="handoffWaiting" class="opacity-70">· hace @{{ handoffWaiting }}</span>
                         </span>
 
-                        <span class="flex shrink-0 gap-1.5">
+                        <span class="flex shrink-0 gap-1.5 max-lg:w-full max-lg:[&>button]:h-10 max-lg:[&>button]:flex-1">
                             <button v-if="handoff.pooled" type="button" @click="claimHandoff" :disabled="handoffBusy"
                                     class="rounded-md bg-amber-600 px-2.5 py-1 font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50">
                                 Tomar conversación
@@ -690,7 +690,7 @@
                         @keydown.enter.meta.exact.prevent="send"
                         @keydown.down="qrMove($event, 1)"
                         @keydown.up="qrMove($event, -1)"
-                        class="max-h-28 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                        class="max-h-28 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 max-lg:text-base focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                     ></textarea>
 
                     <button type="button" @click="send" :disabled="!draft.trim()"

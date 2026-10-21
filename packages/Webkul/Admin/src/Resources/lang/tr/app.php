@@ -2074,6 +2074,11 @@ return [
         ],
     ],
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'Ana gezinme',
+            'more'  => 'Daha fazla',
+        ],
+
         'app-version' => 'Sürüm: :version',
         'dashboard'   => 'Gösterge Paneli',
         'leads'       => 'Leadler',

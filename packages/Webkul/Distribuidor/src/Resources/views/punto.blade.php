@@ -34,7 +34,8 @@
 
     @pushOnce('scripts')
         <script type="text/x-template" id="v-punto-template">
-            <div class="mx-auto w-full max-w-5xl pb-28">
+            {{-- max-lg:pb-48: la barra del total queda encima de la barra inferior del celular. --}}
+            <div class="mx-auto w-full max-w-5xl pb-28 max-lg:pb-48">
 
                 {{--
                     ── Encabezado: UN solo selector de lugar ──
@@ -947,9 +948,12 @@
                     </template>
                 </template>
 
-                {{-- ── Barra fija: el total y la acción, al alcance del pulgar ── --}}
+                {{--
+                    ── Barra fija: el total y la acción, al alcance del pulgar ──
+                    En el celular va justo arriba de la barra inferior de módulos (56px).
+                --}}
                 <div v-if="vista === 'nuevo' && sucursal"
-                     class="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
+                     class="fixed inset-x-0 bottom-0 z-30 max-lg:bottom-[calc(56px+env(safe-area-inset-bottom))] border-t border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
                     <div class="mx-auto flex max-w-5xl items-center gap-3">
                         <div class="shrink-0">
                             <div class="text-xs uppercase text-gray-600 dark:text-gray-400">Total</div>

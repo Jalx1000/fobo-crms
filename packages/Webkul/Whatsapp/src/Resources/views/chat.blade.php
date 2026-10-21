@@ -3,7 +3,7 @@
         WhatsApp
     </x-slot>
 
-    <div class="px-4 py-3">
+    <div class="px-4 py-3 max-lg:p-0">
         <v-whatsapp-chat
             conversations-url="{{ route('admin.whatsapp.conversations') }}"
             link-person-url-base="{{ url(config('app.admin_path').'/whatsapp/conversations') }}"
@@ -42,7 +42,10 @@
 
     @pushOnce('scripts')
         <script type="text/x-template" id="v-whatsapp-chat-template">
-            <div class="flex h-[calc(100vh-110px)] overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+            <!-- Celular: pantalla completa entre el encabezado (62px) y la barra
+                 inferior; con un chat abierto la barra se esconde (clase
+                 «chat-abierto» en <body>) y el chat baja hasta el borde. -->
+            <div class="flex h-[calc(100vh-110px)] overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 max-lg:fixed max-lg:inset-x-0 max-lg:top-[62px] max-lg:bottom-[calc(56px+env(safe-area-inset-bottom))] max-lg:h-auto max-lg:rounded-none max-lg:border-0 [.chat-abierto_&]:max-lg:bottom-0">
                 <!-- ────────── Conversation list ──────────
                      Mobile: master-detail — the list fills the screen until a
                      conversation is chosen; the thread replaces it with a back button. -->
@@ -50,20 +53,33 @@
                      :class="selected ? 'hidden' : 'flex'">
                     <!-- search + filters -->
                     <div class="flex flex-col gap-2 border-b border-gray-200 p-3 dark:border-gray-800">
-                        <div class="relative">
+                        <div class="flex items-center gap-2">
+                        <div class="relative flex-1">
                             <span class="icon-search absolute left-2.5 top-1/2 -translate-y-1/2 text-base text-gray-400"></span>
                             <input
                                 v-model="search"
                                 @input="debouncedLoad"
                                 type="text"
                                 placeholder="Buscar o empezar un chat"
-                                class="w-full rounded-lg border border-transparent bg-gray-100 py-2 pl-8 pr-3 text-sm text-gray-800 transition-all focus:border-brandColor focus:bg-white focus:outline-none dark:bg-gray-800 dark:text-gray-200 dark:focus:bg-gray-900"
+                                class="w-full rounded-lg border border-transparent bg-gray-100 py-2 pl-8 pr-3 text-sm text-gray-800 transition-all focus:border-brandColor focus:bg-white focus:outline-none dark:bg-gray-800 dark:text-gray-200 dark:focus:bg-gray-900 max-lg:h-11 max-lg:text-base"
                             >
                         </div>
 
-                        <div class="flex gap-1.5">
+                        <!-- Celular: ciudad y etapa van plegadas detrás de este botón. -->
+                        <button type="button"
+                                class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-600 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:text-gray-300 dark:hover:bg-gray-800 lg:hidden"
+                                :class="filtrosAbiertos ? 'bg-gray-100 dark:bg-gray-800' : ''"
+                                :aria-expanded="filtrosAbiertos ? 'true' : 'false'"
+                                aria-label="Filtros por ciudad y etapa"
+                                @click="filtrosAbiertos = !filtrosAbiertos">
+                            <span class="icon-filter text-2xl"></span>
+                            <span v-if="filtrosActivos" class="absolute right-1 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brandColor px-1 text-[10px] font-bold text-white">@{{ filtrosActivos }}</span>
+                        </button>
+                        </div>
+
+                        <div class="wa-scroll flex gap-1.5 overflow-x-auto pb-0.5">
                             <button v-for="f in filters" :key="f.value" type="button"
-                                    class="rounded-full px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
+                                    class="shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor max-lg:h-9 max-lg:px-3.5 max-lg:text-[13px]"
                                     :class="filter === f.value
                                         ? 'bg-brandColor text-white'
                                         : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'"
@@ -83,12 +99,13 @@
                             sin clasificar — una cola que si no se muestra, no
                             la mira nadie.
                         -->
-                        <div v-if="cities.length || noneCity.count" class="flex items-center gap-2">
+                        <div v-if="cities.length || noneCity.count" class="flex items-center gap-2"
+                             :class="filtrosAbiertos ? '' : 'max-lg:hidden'">
                             <label for="wa-city" class="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-300">
                                 Ciudad
                             </label>
                             <select id="wa-city" v-model="cityFilter" @change="onCityChange()"
-                                    class="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:border-brandColor focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200">
+                                    class="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 max-lg:h-10 max-lg:text-base focus:border-brandColor focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200">
                                 <option :value="null">Todas (@{{ citiesTotal }})</option>
                                 <option v-for="city in cities" :key="city.id" :value="city.id">
                                     @{{ city.name }} (@{{ city.count }})
@@ -100,9 +117,10 @@
                         </div>
 
                         <!-- stage filter: chips from the default pipeline -->
-                        <div v-if="stages.length" class="wa-scroll flex gap-1.5 overflow-x-auto pb-0.5">
+                        <div v-if="stages.length" class="wa-scroll flex gap-1.5 overflow-x-auto pb-0.5"
+                             :class="filtrosAbiertos ? '' : 'max-lg:hidden'">
                             <button type="button"
-                                    class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
+                                    class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium transition max-lg:h-8 max-lg:px-3 max-lg:text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
                                     :class="!stageFilter
                                         ? 'bg-sky-600 text-white'
                                         : 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300'"
@@ -110,7 +128,7 @@
                                 Todas las etapas
                             </button>
                             <button v-for="s in stages" :key="s" type="button"
-                                    class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
+                                    class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium transition max-lg:h-8 max-lg:px-3 max-lg:text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
                                     :class="stageFilter === s
                                         ? 'bg-sky-600 text-white'
                                         : 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300'"
@@ -226,7 +244,7 @@
                      :class="selected ? 'flex' : 'hidden'">
                     <button v-if="selected" type="button"
                             aria-label="Volver a la lista de conversaciones"
-                            class="flex items-center gap-1.5 border-b border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brandColor lg:hidden dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800"
+                            class="flex items-center gap-1.5 border-b border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition max-lg:h-11 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brandColor lg:hidden dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800"
                             @click="selected = null">
                         <span class="icon-left-arrow text-lg"></span> Conversaciones
                     </button>
@@ -288,6 +306,8 @@
                     return {
                         conversations: [],
                         selected: null,
+                        // Celular: filas de ciudad y etapa desplegadas.
+                        filtrosAbiertos: false,
                         search: '',
                         filter: 'all',
                         filters: [
@@ -345,6 +365,19 @@
                             phone: c.phone ?? null,
                         };
                     },
+
+                    // Cuántos filtros plegados están puestos (el número del botón en el celular).
+                    filtrosActivos() {
+                        return [this.cityFilter, this.stageFilter].filter(v => v !== null && v !== '').length;
+                    },
+                },
+
+                watch: {
+                    // Celular: con un chat abierto se esconde la barra inferior,
+                    // como en WhatsApp, y la caja de texto queda en el borde.
+                    selected(conversacion) {
+                        document.body.classList.toggle('chat-abierto', !!conversacion);
+                    },
                 },
 
                 mounted() {
@@ -358,6 +391,7 @@
                 },
 
                 beforeUnmount() {
+                    document.body.classList.remove('chat-abierto');
                     if (this.pollTimer) clearInterval(this.pollTimer);
                     if (this.searchTimer) clearTimeout(this.searchTimer);
                 },

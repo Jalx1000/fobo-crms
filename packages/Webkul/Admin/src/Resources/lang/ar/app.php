@@ -2074,6 +2074,11 @@ return [
         ],
     ],
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'التنقل الرئيسي',
+            'more'  => 'المزيد',
+        ],
+
         'app-version' => 'الإصدار: :version',
         'dashboard'   => 'لوحة القيادة',
         'leads'       => 'العملاء المحتملين',

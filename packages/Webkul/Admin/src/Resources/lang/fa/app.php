@@ -2074,6 +2074,11 @@ return [
         ],
     ],
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'ناوبری اصلی',
+            'more'  => 'بیشتر',
+        ],
+
         'app-version' => 'نسخه: :version',
         'dashboard'   => 'داشبورد',
         'leads'       => 'لیدها',

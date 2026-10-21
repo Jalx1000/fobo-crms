@@ -8,6 +8,7 @@
         id="v-sidebar-drawer-template"
     >
         <x-admin::drawer
+            ref="drawer"
             position="left"
             width="280px"
             class="lg:hidden [&>:nth-child(3)]:!m-0 [&>:nth-child(3)]:!rounded-l-none [&>:nth-child(3)]:max-sm:!w-[80%]"
@@ -103,6 +104,9 @@
             },
 
             mounted() {
+                // «Más» de la barra inferior del celular abre este menú.
+                this.$emitter.on('mobile-nav:more', () => this.$refs.drawer?.open());
+
                 const activeElement = document.querySelector('.menu-item .menu-link.bg-brandColor');
 
                 if (activeElement) {

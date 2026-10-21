@@ -2074,6 +2074,11 @@ return [
         ],
     ],
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'Điều hướng chính',
+            'more'  => 'Thêm',
+        ],
+
         'app-version' => 'Phiên Bản : :version',
         'dashboard'   => 'Bảng Điều Khiển',
         'leads'       => 'Leads',
