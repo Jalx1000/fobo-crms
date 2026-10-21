@@ -123,7 +123,7 @@
         ))"
     >
         <div class="flex flex-col gap-4">
-            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 max-lg:sticky max-lg:top-[62px] max-lg:z-[10] max-lg:shadow-sm">
                 <div class="flex flex-col gap-2">
                     <x-admin::breadcrumbs
                         name="quotes.create"
@@ -380,7 +380,8 @@
                         <!-- Table Head -->
                         <x-admin::table.thead>
                             <x-admin::table.thead.tr>
-                                <x-admin::table.th class="!px-2 !py-2.5">
+                                {{-- w-[220px]: la columna del producto se aplastaba contra «Medida» (la tabla es table-fixed). --}}
+                                <x-admin::table.th class="!w-[220px] !px-2 !py-2.5">
                                     @lang('admin::app.quotes.create.product-name')
                                 </x-admin::table.th>
 
