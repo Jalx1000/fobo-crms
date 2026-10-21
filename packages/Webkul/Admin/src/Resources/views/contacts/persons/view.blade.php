@@ -4,11 +4,12 @@
     </x-slot>
 
     <!-- Content -->
-    <div class="flex gap-4 max-lg:flex-wrap">
+    {{-- Celular: de borde a borde, sin el gris entre bloques (como la ficha del pedido). --}}
+    <div class="flex gap-4 max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-0">
         <!-- Left Panel -->
         {!! view_render_event('admin.contact.persons.view.left.before', ['person' => $person]) !!}
 
-        <div class="max-lg:min-w-full max-lg:max-w-full [&>div:last-child]:border-b-0 lg:sticky lg:top-[73px] flex min-w-[394px] max-w-[394px] flex-col self-start rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <div class="max-lg:min-w-full max-lg:max-w-full max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 [&>div:last-child]:border-b-0 lg:sticky lg:top-[73px] flex min-w-[394px] max-w-[394px] flex-col self-start rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
             <!-- Person Information -->
             <div class="flex w-full flex-col gap-2 border-b border-gray-200 p-4 dark:border-gray-800">
                 <!-- Breadcrumbs -->
@@ -32,12 +33,17 @@
 
                 
                 <!-- Title -->
-                <div class="mb-4 flex flex-col gap-0.5">
+                {{-- Celular: el nombre con «←» va primero, antes de las etiquetas. --}}
+                <div class="mb-4 flex flex-col gap-0.5 max-lg:-order-1 max-lg:mb-0">
                     {!! view_render_event('admin.contact.persons.view.title.before', ['person' => $person]) !!}
 
-                    <h3 class="text-lg font-bold dark:text-white">
-                        {{ $person->name }}
-                    </h3>
+                    <div class="flex items-center gap-1">
+                        <x-admin::layouts.volver listado="admin.contacts.persons.index" />
+
+                        <h3 class="text-lg font-bold dark:text-white">
+                            {{ $person->name }}
+                        </h3>
+                    </div>
 
                     {!! view_render_event('admin.contact.persons.view.title.after', ['person' => $person]) !!}
                 </div>
@@ -84,7 +90,7 @@
         {!! view_render_event('admin.contact.persons.view.left.after', ['person' => $person]) !!}
 
         <!-- Right Panel -->
-        <div class="flex w-full flex-col gap-4 rounded-lg">
+        <div class="flex w-full flex-col gap-4 rounded-lg max-lg:gap-0 max-lg:[&>*]:!rounded-none">
             {!! view_render_event('admin.contact.persons.view.right.before', ['person' => $person]) !!}
 
             <!-- Activities -->
