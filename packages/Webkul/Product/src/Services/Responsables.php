@@ -83,8 +83,8 @@ class Responsables
      * escrito en el contacto y en el lead para que el handoff caiga en la
      * misma persona.
      *
-     * Devuelve null cuando nadie atiende esa combinación: la cotización queda
-     * con el dueño que tenía —o sin dueño— y visible como tal.
+     * Cuando nadie atiende esa combinación va al asesor por defecto (el turno
+     * nacional). Devuelve null solo si tampoco hay ese.
      */
     public function asignar(Conversation $conversation, Product $producto, ?string $ciudad)
     {
@@ -95,8 +95,11 @@ class Responsables
 
         $candidatos = $this->candidatos($producto, $ciudad);
 
+        // Nadie en la matriz para este producto y ciudad (Magia Verde o Tapas
+        // en Tarija, por ejemplo): el asesor por defecto, el turno nacional
+        // -hoy Bulmaro-. Antes quedaba sin asesor (decisión del 21/10/2026).
         if ($candidatos->isEmpty()) {
-            return null;
+            return $this->escribirAsesor($conversation, $this->asesorPorDefecto());
         }
 
         /*
@@ -117,6 +120,14 @@ class Responsables
             // tampoco: el turno decide.
             : $this->siguiente($producto, $ciudad);
 
+        return $this->escribirAsesor($conversation, $asesor);
+    }
+
+    /**
+     * Deja al asesor en el contacto, el pedido y sus cotizaciones.
+     */
+    protected function escribirAsesor(Conversation $conversation, $asesor)
+    {
         if (! $asesor) {
             return null;
         }

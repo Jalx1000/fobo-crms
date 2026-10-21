@@ -180,9 +180,11 @@ it('dijo la ciudad y después el producto: se aplica producto × ciudad', functi
 });
 
 it('solo la ciudad: quien atiende todo ahí; si no hay nadie, el turno nacional', function () {
-    $laPaz = pedidoSinCiudad($this, $this->bulmaro, null, 'no-atendidos', ($this->pipeline)('La Paz'));
+    // Gabriela no tiene Stretch Film en La Paz (tabla del 20/10): no atiende
+    // todo ahí, así que va al turno nacional (decisión del 21/10/2026).
+    $laPaz = pedidoSinCiudad($this, $this->eduardo, null, 'no-atendidos', ($this->pipeline)('La Paz'));
     asignar($laPaz['lead']);
-    expect(asesorDe($laPaz['lead']))->toBe($this->gabriela->id);
+    expect(asesorDe($laPaz['lead']))->toBe($this->bulmaro->id);
 
     // En Santa Cruz nadie atiende todo: el turno nacional (Bulmaro).
     $santaCruz = pedidoSinCiudad($this, $this->eduardo, null, 'no-atendidos', ($this->pipeline)('Santa Cruz'));
@@ -197,4 +199,25 @@ it('con ciudad y producto, si el actual ya corresponde no cambia', function () {
     asignar($p['lead']);
 
     expect(asesorDe($p['lead']))->toBe($this->gabriela->id);
+});
+
+// Decisión del 21/10/2026: si nadie de la tabla atiende ese producto en esa
+// ciudad (Magia Verde o Tapas fuera de Santa Cruz, La Paz y Cochabamba), va
+// al turno nacional: Bulmaro. Antes quedaba con quien estaba, o sin asesor.
+it('producto que nadie atiende en esa ciudad → Bulmaro, por el job y por el agente', function () {
+    $p = pedidoSinCiudad($this, $this->eduardo, 'CM_00002');
+    DB::table('attribute_values')->where('entity_type', 'leads')->where('entity_id', $p['lead'])->delete();
+
+    $responsables = app(\Webkul\Product\Services\Responsables::class);
+    $magiaVerde = \Webkul\Product\Models\Product::where('sku', 'CM_00002')->firstOrFail();
+    $tapas = \Webkul\Product\Models\Product::where('sku', 'CM_00004')->firstOrFail();
+
+    expect($responsables->candidatos($magiaVerde, 'Tarija'))->toBeEmpty()
+        ->and($responsables->asignar($p['conv'], $tapas, 'Tarija')?->id)->toBe($this->bulmaro->id)
+        ->and(asesorDe($p['lead']))->toBe($this->bulmaro->id);
+
+    // El job: el pedido estaba con Eduardo y pidió Magia Verde en Tarija.
+    $q = pedidoSinCiudad($this, $this->eduardo, 'CM_00002', 'no-atendidos', ($this->pipeline)('Tarija'));
+    asignar($q['lead']);
+    expect(asesorDe($q['lead']))->toBe($this->bulmaro->id);
 });

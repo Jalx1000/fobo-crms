@@ -72,7 +72,8 @@ class AsignarSinCiudad implements ShouldQueue
         }
 
         $nuevo = match (true) {
-            (bool) $producto => $responsables->siguiente($producto, $ciudad),
+            // Si nadie atiende ese producto ahí, el asesor por defecto (21/10/2026).
+            (bool) $producto => $responsables->siguiente($producto, $ciudad) ?? $responsables->asesorPorDefecto(),
             (bool) $ciudad   => $responsables->porCiudad($ciudad),
             default          => $responsables->asesorPorDefecto(),
         };
