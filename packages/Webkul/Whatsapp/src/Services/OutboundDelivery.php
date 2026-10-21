@@ -3,6 +3,8 @@
 namespace Webkul\Whatsapp\Services;
 
 use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
+use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\Conversation;
@@ -72,6 +74,55 @@ class OutboundDelivery
             'body'       => $caption,
             'media_name' => $filename,
             'payload'    => $payload,
+        ], $sender);
+    }
+
+    /**
+     * Botones o lista.
+     *
+     * El `body` guardado es el enunciado de la pregunta, no las opciones: es lo
+     * que el asesor necesita leer en el inbox para entender qué se le preguntó.
+     * El menú completo viaja en `payload`, de donde el job lo reconstruye — lo
+     * que el controlador tenía en memoria no sobrevive al encolado, la fila sí.
+     */
+    public function interactivo(Conversation $conversation, OutboundInteractive $interactive, string $sender = 'ia'): Message
+    {
+        return $this->encolar($conversation, [
+            'type'    => 'interactive',
+            'body'    => $interactive->label(),
+            'payload' => ['interactive' => $interactive->toArray()],
+        ], $sender);
+    }
+
+    /**
+     * Texto que el agente marcó como menú pero no entra en los límites de Meta.
+     *
+     * Sale como texto con la numeración reescrita a «1.» y el motivo guardado en
+     * `payload.interactive_skipped`, para que la degradación sea diagnosticable
+     * sin adivinar.
+     */
+    public function textoDegradado(Conversation $conversation, string $texto, string $motivo, string $sender = 'ia'): Message
+    {
+        return $this->encolar($conversation, [
+            'type'    => 'text',
+            'body'    => $texto,
+            'payload' => ['interactive_skipped' => $motivo],
+        ], $sender);
+    }
+
+    /**
+     * Plantilla aprobada. No pasa por `bloqueoPara()`: es justamente lo que se
+     * manda cuando la ventana de 24 h está cerrada.
+     *
+     * El `body` guardado es el texto ya completado —lo que leyó el cliente—;
+     * nombre y parámetros viajan en `payload` para que el job arme el envío.
+     */
+    public function plantilla(Conversation $conversation, OutboundTemplate $template, string $sender = 'human'): Message
+    {
+        return $this->encolar($conversation, [
+            'type'    => 'template',
+            'body'    => $template->rendered(),
+            'payload' => ['template' => $template->toArray()],
         ], $sender);
     }
 

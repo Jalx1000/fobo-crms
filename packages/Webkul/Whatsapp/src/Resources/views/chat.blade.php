@@ -44,10 +44,13 @@
                         <div class="relative">
                             <span class="icon-search absolute left-2.5 top-1/2 -translate-y-1/2 text-base text-gray-400"></span>
                             <input
+                                ref="buscador"
                                 v-model="search"
                                 @input="debouncedLoad"
+                                @keydown.esc="search = ''; $event.target.blur(); debouncedLoad()"
                                 type="text"
-                                placeholder="Buscar o empezar un chat"
+                                placeholder="Buscar o empezar un chat   (/)"
+                                aria-keyshortcuts="/"
                                 class="w-full rounded-lg border border-transparent bg-gray-100 py-2 pl-8 pr-3 text-sm text-gray-800 transition-all focus:border-brandColor focus:bg-white focus:outline-none dark:bg-gray-800 dark:text-gray-200 dark:focus:bg-gray-900"
                             >
                         </div>
@@ -101,8 +104,10 @@
                                  :class="selected?.id === c.id ? 'bg-gray-100 dark:bg-gray-800' : ''"
                                  role="button"
                                  tabindex="0"
+                                 :data-conversacion="c.id"
                                  @click="select(c)"
-                                 @keydown.enter.prevent="select(c)">
+                                 @keydown.enter.prevent="select(c)"
+                                 @keydown.space.prevent="select(c)">
                                 <!-- selected accent -->
                                 <span v-if="selected?.id === c.id" class="absolute inset-y-0 left-0 w-1 bg-brandColor"></span>
 
@@ -264,14 +269,79 @@
                         .catch(() => {});
                     // Keep the list fresh (previews, unread badges) while open.
                     this.pollTimer = setInterval(() => this.load(true), 10000);
+
+                    document.addEventListener('keydown', this.atajos);
                 },
 
                 beforeUnmount() {
                     if (this.pollTimer) clearInterval(this.pollTimer);
                     if (this.searchTimer) clearTimeout(this.searchTimer);
+                    document.removeEventListener('keydown', this.atajos);
                 },
 
                 methods: {
+                    /**
+                     * Moverse entre conversaciones sin soltar el teclado.
+                     *
+                     * j / k y las flechas, el convenio que ya conoce cualquiera
+                     * que use Gmail o un cliente de correo. Con 30 chats
+                     * abiertos, ir al siguiente con el mouse cuesta un segundo
+                     * por conversación; acá no.
+                     *
+                     * `/` enfoca el buscador, que es el otro movimiento que se
+                     * repite todo el día.
+                     */
+                    atajos(event) {
+                        /*
+                         * Nada de atajos mientras se escribe: la `j` de «jueves»
+                         * no debe cambiar de conversación. Se mira el foco real y
+                         * no una bandera, porque el foco es la única fuente
+                         * confiable de «esta persona está tecleando».
+                         */
+                        const el = document.activeElement;
+                        const escribiendo = el && (
+                            ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)
+                            || el.isContentEditable
+                        );
+
+                        // Con un modificador la tecla es de otro: Ctrl+J, Cmd+K…
+                        if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+                        if (event.key === '/' && ! escribiendo) {
+                            event.preventDefault();
+                            this.$refs.buscador?.focus();
+
+                            return;
+                        }
+
+                        if (escribiendo) return;
+
+                        const abajo = event.key === 'j' || event.key === 'ArrowDown';
+                        const arriba = event.key === 'k' || event.key === 'ArrowUp';
+
+                        if (! abajo && ! arriba) return;
+                        if (! this.conversations.length) return;
+
+                        event.preventDefault();
+
+                        const actual = this.conversations.findIndex(c => c.id === this.selected?.id);
+
+                        // Sin selección, j entra por arriba y k por abajo.
+                        const siguiente = actual === -1
+                            ? (abajo ? 0 : this.conversations.length - 1)
+                            : Math.min(Math.max(actual + (abajo ? 1 : -1), 0), this.conversations.length - 1);
+
+                        this.select(this.conversations[siguiente]);
+
+                        // Que la fila elegida se vea: si no, el asesor navega a
+                        // ciegas en cuanto pasa del alto de la lista.
+                        this.$nextTick(() => {
+                            document
+                                .querySelector('[data-conversacion="' + this.conversations[siguiente].id + '"]')
+                                ?.scrollIntoView({ block: 'nearest' });
+                        });
+                    },
+
                     load(background = false) {
                         if (!background) this.listLoading = true;
 

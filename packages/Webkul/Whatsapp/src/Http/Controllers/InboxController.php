@@ -25,6 +25,7 @@ use Webkul\Whatsapp\Models\HandoffProxy;
 use Webkul\Whatsapp\Models\Message;
 use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Repositories\HandoffRepository;
+use Webkul\Whatsapp\Services\ConversacionesVisibles;
 use Webkul\Whatsapp\Services\ConversationResolver;
 use Webkul\Whatsapp\Services\HandoffPresenter;
 use Webkul\Whatsapp\Services\OutboundDelivery;
@@ -122,7 +123,7 @@ class InboxController extends Controller
     {
         $data = $request->validate(['enabled' => 'required|boolean']);
 
-        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        $conversation = $this->conversacionVisible($id);
 
         $conversation->update(['ai_enabled' => $data['enabled']]);
 
@@ -142,11 +143,19 @@ class InboxController extends Controller
      */
     public function claimHandoff(string $id, ActivityRepository $activities): JsonResponse
     {
-        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        $conversation = $this->conversacionVisible($id);
 
         $userId = auth()->guard('user')->id();
 
         $previo = $this->handoffs->abiertoDe($conversation->id);
+
+        // Solo el asesor asignado puede tomarla (spec tablero-por-asesor, D14).
+        if ($previo && $previo->state === 'abierto' && ! app(ConversacionesVisibles::class)->puedeTomar($previo, $userId)) {
+            return response()->json([
+                'message' => 'Esta derivación está asignada a otro asesor.',
+                'handoff' => $this->handoffPresenter->paraInbox($previo, $userId),
+            ], 403);
+        }
 
         $handoff = $this->handoffs->tomar($conversation->id, $userId);
 
@@ -193,7 +202,7 @@ class InboxController extends Controller
 
         $reactivar = $data['reactivar_ia'] ?? true;
 
-        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        $conversation = $this->conversacionVisible($id);
 
         $userId = auth()->guard('user')->id();
 
@@ -239,7 +248,7 @@ class InboxController extends Controller
      */
     public function handoffHistory(string $id): JsonResponse
     {
-        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        $conversation = $this->conversacionVisible($id);
 
         $handoffs = HandoffProxy::modelClass()::query()
             ->with(['asesor', 'cerradaPor'])
@@ -372,7 +381,7 @@ class InboxController extends Controller
             // Reuse an existing conversation already linked to this person/lead
             // (inbound links person_id reliably); otherwise resolve by phone.
             $conversation = $existing
-                ?? $resolver->findOrCreate($data['phone'], $data['name'] ?? null);
+                ?? $this->conversacionParaEnviar($resolver, $data['phone'], $data['name'] ?? null);
 
             $message = MessageProxy::modelClass()::create([
                 'conversation_id' => $conversation->id,
@@ -424,7 +433,7 @@ class InboxController extends Controller
             ], 422);
         }
 
-        $conversation = $existing ?? $resolver->findOrCreate($data['phone'], $data['name'] ?? null);
+        $conversation = $existing ?? $this->conversacionParaEnviar($resolver, $data['phone'], $data['name'] ?? null);
 
         $archivo = $request->file('archivo');
         $kind = $this->kindDe($archivo->getMimeType());
@@ -583,7 +592,7 @@ class InboxController extends Controller
                 return response()->json(['message' => 'No se encontró la conversación.'], 422);
             }
 
-            $conversation = $resolver->findOrCreate($data['phone'], $data['name'] ?? null);
+            $conversation = $this->conversacionParaEnviar($resolver, $data['phone'], $data['name'] ?? null);
         }
 
         if (! $this->gateways->for($conversation)->capabilities()->canSend('location')) {
@@ -623,6 +632,8 @@ class InboxController extends Controller
      */
     public function media(Message $message): StreamedResponse
     {
+        app(ConversacionesVisibles::class)->exigir($message->conversation);
+
         $ruta = $message->media_path ?: $this->rutaDelProveedor($message);
 
         abort_if(blank($ruta) || ! Storage::disk('local')->exists($ruta), 404);
@@ -682,7 +693,7 @@ class InboxController extends Controller
     {
         $data = $request->validate(['comment' => 'required|string']);
 
-        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        $conversation = $this->conversacionVisible($id);
 
         if (! $conversation->person_id && ! $conversation->lead_id) {
             return response()->json([
@@ -769,11 +780,53 @@ class InboxController extends Controller
     }
 
     /**
+     * La conversación por id, solo si el usuario la puede ver (404 si no).
+     */
+    protected function conversacionVisible(string $id)
+    {
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        app(ConversacionesVisibles::class)->exigir($conversation);
+
+        return $conversation;
+    }
+
+    /**
+     * Busca o crea la conversación de un teléfono para enviarle algo, y
+     * verifica que el usuario la pueda ver: dentro de una transacción, un 404
+     * deshace la conversación (y el contacto) que `findOrCreate` acababa de
+     * dar de alta.
+     */
+    protected function conversacionParaEnviar(ConversationResolver $resolver, string $phone, ?string $name)
+    {
+        return DB::transaction(function () use ($resolver, $phone, $name) {
+            $conversation = $resolver->findOrCreate($phone, $name);
+
+            app(ConversacionesVisibles::class)->exigir($conversation);
+
+            return $conversation;
+        });
+    }
+
+    /**
      * Find an existing conversation, preferring the reliable person_id/lead_id
      * link (set at inbound ingestion) over the phone which may be stored in a
      * different format than Meta's "from".
      */
     protected function existingConversation(Request $request)
+    {
+        $conversation = $this->buscarConversacion($request);
+
+        // Lo que se encuentre por id, contacto, lead o teléfono tiene que ser
+        // visible para el usuario (spec tablero-por-asesor, D10–D12).
+        if ($conversation) {
+            app(ConversacionesVisibles::class)->exigir($conversation);
+        }
+
+        return $conversation;
+    }
+
+    protected function buscarConversacion(Request $request)
     {
         $model = ConversationProxy::modelClass();
 
@@ -848,14 +901,95 @@ class InboxController extends Controller
              * fuera relativa al admin y la imagen salía rota, aunque el archivo
              * hubiera llegado perfecto al cliente.
              */
-            'media'     => $this->mediaDe($message),
-            'location'  => $this->ubicacionDe($message),
-            'contact'   => $this->contactoDe($message),
-            'replyTo'   => $message->replyTo ? [
+            'media'       => $this->mediaDe($message),
+            'location'    => $this->ubicacionDe($message),
+            'contact'     => $this->contactoDe($message),
+            'noSoportado' => $this->motivoNoSoportado($message),
+            // Nombre y botones, para que el asesor vea que fue una plantilla y
+            // qué opciones tuvo el cliente; el texto ya viene en `text`.
+            'template'    => $message->type === 'template' ? [
+                'name'    => $message->payload['template']['name'] ?? null,
+                'buttons' => $message->payload['template']['buttons'] ?? [],
+            ] : null,
+            'replyTo'     => $message->replyTo ? [
                 'author'  => $message->replyTo->direction === 'inbound' ? 'Cliente' : 'Agente',
                 'preview' => \Illuminate\Support\Str::limit((string) $message->replyTo->body, 60),
             ] : null,
         ];
+    }
+
+    /**
+     * Por qué un mensaje llegó como `unsupported`, en palabras para el asesor.
+     *
+     * Meta manda `type: "unsupported"` cuando el cliente envía algo que la Cloud
+     * API no sabe representar —códigos de verificación, encuestas, mensajes de
+     * ver-una-vez— y en ese caso **NO INCLUYE EL CONTENIDO**: el payload trae el
+     * error y nada más. El texto no se perdió acá: nunca llegó.
+     *
+     * Decirlo explícitamente evita la conclusión natural y equivocada de que el
+     * CRM se tragó el mensaje, que es media hora de alguien buscando un bug que
+     * no existe.
+     *
+     * @return array<string, string>|null
+     */
+    protected function motivoNoSoportado($message): ?array
+    {
+        if ($message->type !== 'unsupported') {
+            return null;
+        }
+
+        $payload = (array) ($message->payload ?? []);
+
+        // Dos formas: los mensajes viejos guardan el objeto del mensaje plano;
+        // los nuevos lo envuelven junto al sobre del webhook.
+        $mensaje = (array) ($payload['mensaje'] ?? $payload);
+        $error = (array) ($mensaje['errors'][0] ?? []);
+
+        return [
+            // El código de Meta, para poder buscarlo en su documentación.
+            'codigo'  => (string) ($error['code'] ?? ''),
+            'detalle' => (string) ($error['error_data']['details'] ?? $error['title'] ?? 'Tipo de mensaje no admitido por WhatsApp.'),
+
+            /*
+             * Si en algún nivel del payload viniera un texto, se muestra.
+             *
+             * Hoy Meta no lo manda para `unsupported` —comprobado en tres
+             * mensajes—, pero el asesor necesita el código cuando el número se
+             * usa para recibir verificaciones. Si algún día Meta lo incluye, o
+             * si llega por otra forma de mensaje no soportado, aparece sin que
+             * haya que tocar código.
+             */
+            'texto' => $this->textoEnElPayload($payload),
+        ];
+    }
+
+    /**
+     * Busca cualquier texto aprovechable en un payload de forma desconocida.
+     *
+     * Recorre el árbol buscando las claves donde WhatsApp pone texto. No es
+     * adivinanza: son las claves que usa en los tipos que sí documenta.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    protected function textoEnElPayload(array $payload): ?string
+    {
+        $claves = ['body', 'text', 'caption', 'code', 'otp'];
+
+        $buscar = function (array $nodo) use (&$buscar, $claves): ?string {
+            foreach ($nodo as $clave => $valor) {
+                if (is_string($valor) && $valor !== '' && in_array((string) $clave, $claves, true)) {
+                    return $valor;
+                }
+
+                if (is_array($valor) && ($encontrado = $buscar($valor)) !== null) {
+                    return $encontrado;
+                }
+            }
+
+            return null;
+        };
+
+        return $buscar($payload);
     }
 
     /**

@@ -18,6 +18,7 @@ use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Product\Models\ProductProxy;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
+use Webkul\Whatsapp\Services\ConversacionesVisibles;
 
 /**
  * Standalone WhatsApp page: the conversation list pane. The thread itself is
@@ -97,6 +98,10 @@ class ChatController extends Controller
             });
         }
 
+        // Solo las conversaciones que el usuario puede ver (spec
+        // tablero-por-asesor, D10–D11).
+        app(ConversacionesVisibles::class)->aplicar($query);
+
         match ($request->input('filter')) {
             'unassigned' => $query->whereNull('person_id')->whereNull('lead_id'),
             'unread'     => $query->where('unread_count', '>', 0),
@@ -165,6 +170,8 @@ class ChatController extends Controller
             'tags',
             'leads' => fn ($q) => $q->with('stage')->orderByDesc('id')->limit(10),
         ])->findOrFail($id);
+
+        abort_unless(app(ConversacionesVisibles::class)->puedeVerContacto($person->id), 404);
 
         // WhatsApp footprint of this contact (across all their conversations).
         $conversationIds = ConversationProxy::modelClass()::where('person_id', $person->id)->pluck('id');
@@ -371,6 +378,8 @@ class ChatController extends Controller
 
         $person = PersonProxy::modelClass()::findOrFail($personId);
 
+        abort_unless(app(ConversacionesVisibles::class)->puedeVerContacto($person->id), 404);
+
         $pipeline = PipelineProxy::modelClass()::where('is_default', 1)->first()
             ?? PipelineProxy::modelClass()::firstOrFail();
 
@@ -475,6 +484,8 @@ class ChatController extends Controller
     public function linkPerson(Request $request, string $id, PersonRepository $persons): JsonResponse
     {
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        app(ConversacionesVisibles::class)->exigir($conversation);
 
         if ($conversation->person_id) {
             return response()->json(['message' => 'La conversación ya tiene un contacto asignado.'], 422);

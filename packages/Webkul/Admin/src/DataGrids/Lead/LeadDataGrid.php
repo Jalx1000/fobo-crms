@@ -94,6 +94,7 @@ class LeadDataGrid extends DataGrid
                 'users.name as sales_person',
                 'persons.id as person_id',
                 'persons.name as person_name',
+                'persons.contact_numbers as person_phone',
                 'tags.name as tag_name',
                 'lead_pipelines.rotten_days as pipeline_rotten_days',
                 'lead_pipelines.name as pipeline_name',
@@ -158,6 +159,9 @@ class LeadDataGrid extends DataGrid
         $this->addFilter('lead_source_name', 'lead_sources.id');
         // $this->addFilter('lead_type_name', 'lead_types.id');
         $this->addFilter('person_name', 'persons.name');
+        // Sin esto la búsqueda haría `WHERE person_phone LIKE …` sobre un alias,
+        // que MySQL no acepta en WHERE.
+        $this->addFilter('person_phone', 'persons.contact_numbers');
         // $this->addFilter('type', 'lead_pipeline_stages.code');
         $this->addFilter('stage', 'lead_pipeline_stages.id');
         $this->addFilter('tag_name', 'tags.name');
@@ -185,7 +189,7 @@ class LeadDataGrid extends DataGrid
             'index'              => 'sales_person',
             'label'              => trans('admin::app.leads.index.datagrid.sales-person'),
             'type'               => 'string',
-            'searchable'         => false,
+            'searchable'         => true,
             'sortable'           => true,
             'filterable'         => true,
             'filterable_type'    => 'searchable_dropdown',
@@ -242,7 +246,7 @@ class LeadDataGrid extends DataGrid
             'index'              => 'tag_name',
             'label'              => trans('admin::app.leads.index.datagrid.tag-name'),
             'type'               => 'string',
-            'searchable'         => false,
+            'searchable'         => true,
             'sortable'           => true,
             'filterable'         => true,
             'filterable_type'    => 'searchable_dropdown',
@@ -260,7 +264,7 @@ class LeadDataGrid extends DataGrid
             'index'              => 'person_name',
             'label'              => trans('admin::app.leads.index.datagrid.contact-person'),
             'type'               => 'string',
-            'searchable'         => false,
+            'searchable'         => true,
             'sortable'           => true,
             'filterable'         => true,
             'filterable_type'    => 'searchable_dropdown',
@@ -330,11 +334,49 @@ class LeadDataGrid extends DataGrid
             },
         ]);
 
+        /*
+        | La descripción es donde el asesor escribe lo que el cliente pidió
+        | («3 dormitorios, zona norte, hasta 120 mil»), así que es el campo más
+        | valioso de la búsqueda global y estaba excluido.
+        |
+        | Sigue oculta como columna: en una tabla ocuparía todo el ancho. Oculto
+        | y buscable son cosas distintas — `visibility` controla si se muestra,
+        | `searchable` si entra en la búsqueda.
+        */
         $this->addColumn([
             'index'      => 'description',
             'label'      => trans('admin::app.leads.index.datagrid.description'),
             'type'       => 'string',
+            'searchable' => true,
             'visibility' => false,
+        ]);
+
+        /*
+        | Teléfono del contacto, buscable y visible.
+        |
+        | `contact_numbers` es JSON —[{"label":"work","value":"59176616013"}]—
+        | así que el LIKE corre contra el texto del JSON y encuentra el número.
+        | Es tosco pero funciona, y evita un join extra a una tabla que no
+        | existe: los teléfonos no están normalizados en filas.
+        |
+        | OJO: busca por dígitos tal como están guardados. Tecleando «76616013»
+        | lo encuentra; tecleando «+591 766 16013» con espacios, no.
+        */
+        $this->addColumn([
+            'index'      => 'person_phone',
+            'label'      => 'Teléfono',
+            'type'       => 'string',
+            'searchable' => true,
+            'sortable'   => false,
+            'closure'    => function ($row) {
+                $numeros = json_decode($row->person_phone ?? '[]', true);
+
+                if (! is_array($numeros) || ! $numeros) {
+                    return '—';
+                }
+
+                return e(collect($numeros)->pluck('value')->filter()->implode(' · '));
+            },
         ]);
 
         $this->addColumn([

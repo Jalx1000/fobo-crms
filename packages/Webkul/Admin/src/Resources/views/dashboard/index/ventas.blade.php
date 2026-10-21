@@ -15,7 +15,7 @@
         <template v-else>
             <div class="grid gap-4 rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex flex-col justify-between gap-1">
-                    <p class="text-base font-semibold dark:text-gray-300">Ventas por vendedor</p>
+                    <p class="text-base font-semibold dark:text-gray-300">{{ ($personal ?? false) ? 'Mis ventas' : 'Ventas por vendedor' }}</p>
                 </div>
 
                 <div class="flex w-full max-w-full flex-col gap-4">

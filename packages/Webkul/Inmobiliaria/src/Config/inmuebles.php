@@ -190,8 +190,20 @@ return [
     */
     'limite_busqueda_default' => 3,   // Sofía ofrece 2-3, no una lista larga
     'limite_busqueda_max'     => 10,
-    'media_cantidad_default'  => 4,
-    'media_cantidad_max'      => 8,   // tope duro: no inundar el chat del cliente
+    /*
+    | Cuántos archivos se le mandan al cliente de una.
+    |
+    | Diez y no cuatro: una galería corta obliga al cliente a pedir «¿tenés más
+    | fotos?» y al asesor a contestar, que es justo la fricción que esto venía a
+    | sacar. Diez alcanza para recorrer un departamento completo.
+    |
+    | NUNCA SE DUPLICA PARA LLEGAR AL NÚMERO: si el inmueble tiene 3 fotos, se
+    | mandan 3. La selección es un `limit` sobre la consulta, así que pedir 10
+    | cuando hay 3 devuelve 3 filas distintas; no hay relleno ni repetición en
+    | ningún punto del camino.
+    */
+    'media_cantidad_default'  => 10,
+    'media_cantidad_max'      => 10,  // tope duro: no inundar el chat del cliente
 
     /*
     |--------------------------------------------------------------------------
@@ -220,6 +232,20 @@ return [
     | todavía no se revalidó: mejor una foto por link que ninguna foto.
     */
     'media' => [
+        /*
+        | Dos pedidos idénticos de media dentro de esta ventana cuentan como uno.
+        | Mide en segundos. 0 desactiva la deduplicación.
+        */
+        'idempotencia_segundos' => (int) env('INMO_MEDIA_IDEMPOTENCIA_SEGUNDOS', 60),
+
+        /*
+        | Cuánto se recuerda qué fotos ya recibió un cliente, en minutos, para
+        | no repetirle la misma imagen. Se compara por CONTENIDO (md5), así que
+        | dos propiedades duplicadas en el catálogo con las mismas fotos no se
+        | envían dos veces. 0 desactiva la deduplicación.
+        */
+        'dedup_minutos' => (int) env('INMO_MEDIA_DEDUP_MINUTOS', 1440),
+
         'entrega'          => 'media_id',
         'fallback'         => 'url_firmada',
         'ttl_dias'         => 30,   // Meta retiene el media_id ~30 días
@@ -229,17 +255,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Asesor de guardia
+    | Asesor por defecto
     |--------------------------------------------------------------------------
-    | A quién derivar cuando el cliente elige "Hablar con un asesor" al principio
-    | de la conversación, sin haber hablado de ningún inmueble todavía. Ahí no
-    | hay titular que resolver ni lead que consultar.
+    | UN SOLO USUARIO para todo lo que no tiene dueño todavía:
+    |   - los leads nuevos sin propietario elegido (los del agente y los que se
+    |     cargan a mano dejando el campo vacío; si alguien elige otro, se respeta);
+    |   - las derivaciones de una conversación sin lead ("Hablar con un asesor"
+    |     en el primer menú).
     |
-    | En null, esa derivación devuelve 409 y el agente no puede cumplir lo que
-    | acaba de ofrecer en su menú. Ponerle un id es lo que hace que esa opción
-    | del menú funcione.
+    | Antes eran dos configs (guardia = Pedro, leads nuevos = Fernando) y una
+    | derivación sin lead terminaba en alguien distinto del dueño del lead que
+    | se creaba después. Hoy: Fernando (id 6).
+    |
+    | `INMOBILIARIA_ASESOR_GUARDIA` se sigue leyendo para no romper instalaciones
+    | que ya la tenían. En null, la derivación sin lead devuelve 409.
     */
-    'asesor_por_defecto' => env('INMOBILIARIA_ASESOR_GUARDIA', 4),  // Sofia (rol Asesor)
+    'asesor_por_defecto' => env('LEADS_ASESOR_POR_DEFECTO_ID', env('INMOBILIARIA_ASESOR_GUARDIA', 6)),
 
     /*
     |--------------------------------------------------------------------------
@@ -251,6 +282,42 @@ return [
     | Si el nombre no existe, se cae a `is_default` como antes.
     */
     'pipeline' => 'Inmobiliaria C21',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Quiénes son asesores
+    |--------------------------------------------------------------------------
+    | Roles que pueden ser propietario de un lead y titular de un inmueble. Los
+    | selectores solo muestran usuarios activos con alguno de estos roles: un
+    | administrador que configura el CRM no atiende clientes.
+    |
+    | Es la única lista: el selector de leads, el de inmuebles y la validación
+    | del formulario de inmuebles leen de acá.
+    */
+    'roles_asesores' => ['Asesor', 'Supervisores'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Leads sin interés
+    |--------------------------------------------------------------------------
+    | Un lead pasa a la etapa «Sin interés» por dos caminos:
+    |   - el agente detecta que el cliente no tiene interés o no califica
+    |     (`POST …/conversations/{id}/sin-interes`);
+    |   - el cliente no escribe hace `dias` días (comando programado).
+    |
+    | `etapas_automaticas`: SOLO desde estas etapas se mueve por silencio. Un
+    | lead en «Reserva» o «Anticipo» que pasa tres días callado no es un lead
+    | sin interés: es una operación en curso, y moverlo lo sacaría del kanban
+    | del asesor justo cuando más importa.
+    |
+    | Si el cliente vuelve a escribir con interés y el agente registra la
+    | solicitud, el lead vuelve a la primera etapa (no se crea otro).
+    */
+    'sin_interes' => [
+        'etapa'              => env('LEADS_ETAPA_SIN_INTERES', 'sin-inters'),
+        'dias'               => (int) env('LEADS_SIN_INTERES_DIAS', 3),
+        'etapas_automaticas' => array_filter(explode(',', (string) env('LEADS_SIN_INTERES_DESDE', 'prospectos'))),
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -284,7 +351,7 @@ return [
          | siguiente, sin dejar al cliente esperando un día entero.
          */
         'cerrar_sin_respuesta_horas' => 8,
-        'devolver_tras_minutos' => 60,
-        'supervisor_user_id'    => null,
+        'devolver_tras_minutos'      => 60,
+        'supervisor_user_id'         => null,
     ],
 ];

@@ -20,7 +20,7 @@
         </div>
 
         <div class="detail-row">
-            <span class="label">Prospecto:</span> {{ $details['customer_name'] }}
+            <span class="label">Contacto:</span> {{ $details['customer_name'] }}
         </div>
         <div class="detail-row">
             <span class="label">Fecha Confirmación:</span> {{ $details['confirmation_date'] }}

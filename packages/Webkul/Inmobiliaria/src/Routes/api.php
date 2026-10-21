@@ -26,6 +26,7 @@ Route::prefix('api/v1/inmobiliaria')
         Route::post('conversations/{id}/solicitud', [LeadController::class, 'solicitud']);
         Route::post('conversations/{id}/captacion', [LeadController::class, 'captacion']);
         Route::post('conversations/{id}/postventa', [LeadController::class, 'postventa']);
+        Route::post('conversations/{id}/sin-interes', [LeadController::class, 'sinInteres']);
 
         Route::post('conversations/{id}/handoff', [HandoffController::class, 'derivar']);
     });

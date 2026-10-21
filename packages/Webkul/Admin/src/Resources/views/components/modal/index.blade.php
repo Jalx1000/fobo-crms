@@ -114,6 +114,32 @@
     </script>
 
     <script type="module">
+        /*
+        | Pila de modales abiertos, compartida por todas las instancias.
+        |
+        | Hace falta una pila y no un booleano por modal porque Escape tiene que
+        | cerrar SOLO el de arriba: con un selector de inmuebles abierto sobre un
+        | modal de edición, Escape cierra el selector y deja la edición intacta.
+        | Sin pila se cerrarían los dos y el asesor perdería lo que estaba
+        | escribiendo.
+        |
+        | El listener se registra una sola vez, no uno por modal: el CRM tiene
+        | decenas de modales en una página y cada uno con su listener es
+        | trabajo repetido en cada pulsación de tecla.
+        */
+        const modalesAbiertos = [];
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape' || ! modalesAbiertos.length) return;
+
+            // Un campo de texto puede estar usando Escape para lo suyo —cerrar
+            // un autocompletado, por ejemplo—. Si alguien ya lo atendió, no se
+            // cierra el modal encima.
+            if (event.defaultPrevented) return;
+
+            modalesAbiertos[modalesAbiertos.length - 1].close();
+        });
+
         app.component('v-modal', {
             template: '#v-modal-template',
 
@@ -141,8 +167,18 @@
                 window.addEventListener('resize', this.checkScreenSize);
             },
 
+            mounted() {
+                // Un modal que nace abierto (`is-active`) también va a la pila:
+                // si no, Escape no lo cierra hasta que alguien lo reabra.
+                if (this.isOpen) this.registrar(true);
+            },
+
             beforeUnmount() {
                 window.removeEventListener('resize', this.checkScreenSize);
+
+                // Sin esto, un modal destruido por un cambio de ruta queda en la
+                // pila y Escape intenta cerrar un componente que ya no existe.
+                this.registrar(false);
             },
 
             computed: {
@@ -192,14 +228,30 @@
                     this.isMobile = window.innerWidth < 640;
                 },
                 
+                /**
+                 * Entra o sale de la pila y ajusta el scroll del documento.
+                 *
+                 * El scroll se devuelve solo cuando NO queda ningún modal
+                 * abierto. Antes, cerrar el de arriba de dos lo devolvía con el
+                 * de abajo todavía abierto, y la página de atrás se movía por
+                 * debajo del modal.
+                 */
+                registrar(abierto) {
+                    const i = modalesAbiertos.indexOf(this);
+
+                    if (abierto && i === -1) {
+                        modalesAbiertos.push(this);
+                    } else if (! abierto && i !== -1) {
+                        modalesAbiertos.splice(i, 1);
+                    }
+
+                    document.body.style.overflow = modalesAbiertos.length ? 'hidden' : 'auto';
+                },
+
                 toggle() {
                     this.isOpen = ! this.isOpen;
 
-                    if (this.isOpen) {
-                        document.body.style.overflow = 'hidden';
-                    } else {
-                        document.body.style.overflow ='auto';
-                    }
+                    this.registrar(this.isOpen);
 
                     this.$emit('toggle', { isActive: this.isOpen });
                 },
@@ -207,7 +259,7 @@
                 open() {
                     this.isOpen = true;
 
-                    document.body.style.overflow = 'hidden';
+                    this.registrar(true);
 
                     this.$emit('open', { isActive: this.isOpen });
                 },
@@ -215,7 +267,7 @@
                 close() {
                     this.isOpen = false;
 
-                    document.body.style.overflow = 'auto';
+                    this.registrar(false);
 
                     this.$emit('close', { isActive: this.isOpen });
                 }

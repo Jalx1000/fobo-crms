@@ -111,8 +111,14 @@ class HandoffRepository extends Repository
     public function autoderivar(int $conversationId, int $userId): ?Handoff
     {
         if ($vigente = $this->abiertoDe($conversationId)) {
-            // Ya derivada y sin dueño en la conversación: la toma quien escribe.
-            return $vigente->state === 'abierto'
+            // Ya derivada: la toma quien escribe solo si es el asesor asignado
+            // (o si no tiene asignado). Escribir no le quita la derivación al
+            // asesor al que se la dieron (spec tablero-por-asesor, D14).
+            $esSuya = $vigente->user_id === null
+                || (int) $vigente->user_id === $userId
+                || app(\Webkul\Admin\Helpers\Alcance::class)->sinRestriccion();
+
+            return $vigente->state === 'abierto' && $esSuya
                 ? $this->tomar($conversationId, $userId)
                 : null;
         }

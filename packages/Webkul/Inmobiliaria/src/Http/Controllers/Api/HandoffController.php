@@ -6,6 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Webkul\Inmobiliaria\Repositories\InmuebleRepository;
+use Webkul\Lead\Models\LeadProxy;
 use Webkul\User\Models\UserProxy;
 use Webkul\Whatsapp\Jobs\NotifyHandoff;
 use Webkul\Whatsapp\Models\ConversationProxy;
@@ -13,12 +14,14 @@ use Webkul\Whatsapp\Repositories\HandoffRepository;
 use Webkul\Whatsapp\Services\AgentPayload;
 
 /**
- * Derivación al asesor titular.
+ * Derivación de la conversación a un asesor.
  *
- * Vive en este módulo y no en WhatsApp porque para saber A QUIÉN derivar hay que
- * resolver el titular a partir del código del inmueble, y eso es conocimiento
- * del catálogo. El módulo de WhatsApp aporta la mecánica; el inmobiliario, la
- * regla de negocio.
+ * SE DERIVA AL DUEÑO DEL LEAD, NO AL TITULAR DEL INMUEBLE (spec
+ * tablero-por-asesor, D13). Un asesor solo ve las conversaciones de sus leads
+ * (D10) y solo el asignado puede tomar la derivación (D14): derivarle al
+ * titular un lead ajeno le dejaba una derivación que no podía ver y que nadie
+ * más podía tomar. El código del inmueble queda como referencia, para que el
+ * asesor sepa por qué casa preguntó el cliente.
  */
 class HandoffController extends Controller
 {
@@ -45,11 +48,12 @@ class HandoffController extends Controller
             return response()->json(['message' => "No existe el inmueble {$datos['codigo']}."], 404);
         }
 
-        $titular = $this->activo($inmueble?->user_id) ?? $this->fallback($conversation);
+        $titular = $this->duenoDelLead($conversation)
+            ?? $this->activo(config('inmobiliaria.inmuebles.asesor_por_defecto'));
 
         if (! $titular) {
             return response()->json([
-                'message' => 'No hay a quién derivar: el inmueble no tiene asesor titular y la conversación no tiene dueño.',
+                'message' => 'No hay a quién derivar: la conversación no tiene lead con dueño activo y no hay asesor por defecto.',
             ], 409);
         }
 
@@ -102,24 +106,28 @@ class HandoffController extends Controller
     }
 
     /**
-     * A quién derivar cuando no vino un código de inmueble.
+     * El dueño del lead de la conversación, si sigue activo.
      *
-     * Se usa el dueño del lead de la conversación. Si tampoco hay, se responde
-     * 409 en vez de elegir a cualquiera: derivar al azar es peor que no derivar,
-     * porque el cliente queda esperando a alguien que no sabe que lo esperan.
+     * Primero el lead vinculado a la conversación; si no tiene, el lead más
+     * reciente del contacto — el mismo que el inbox muestra como «su» lead.
+     * Si no hay ninguno (el cliente eligió «Hablar con un asesor» en el primer
+     * menú, antes de que exista un lead), el llamador cae al asesor por defecto.
      */
-    protected function fallback($conversation): ?int
+    protected function duenoDelLead($conversation): ?int
     {
-        // El dueño del lead, si la conversación ya generó uno.
-        if ($titular = $this->activo($conversation->lead?->user_id)) {
-            return $titular;
+        if ($dueno = $this->activo($conversation->lead?->user_id)) {
+            return $dueno;
         }
 
-        /*
-        | "Hablar con un asesor" es una opción del PRIMER menú del agente: ahí
-        | no hay inmueble ni lead todavía. Sin un asesor de guardia, esa opción
-        | devolvería 409 y el agente no podría cumplir lo que acaba de ofrecer.
-        */
-        return $this->activo(config('inmobiliaria.inmuebles.asesor_por_defecto'));
+        if (! $conversation->person_id) {
+            return null;
+        }
+
+        $lead = LeadProxy::modelClass()::where('person_id', $conversation->person_id)
+            ->orderByRaw('status = 1 desc')
+            ->latest('id')
+            ->first();
+
+        return $this->activo($lead?->user_id);
     }
 }

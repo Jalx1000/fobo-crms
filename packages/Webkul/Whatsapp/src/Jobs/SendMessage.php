@@ -9,8 +9,10 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Str;
 use Throwable;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
 use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
+use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\GatewayManager;
 use Webkul\Whatsapp\Models\Message;
@@ -62,6 +64,17 @@ class SendMessage implements ShouldQueue
         $payload = (array) ($message->payload ?? []);
 
         return match ($message->type) {
+            'interactive' => $gateway->sendInteractive(
+                $message->conversation,
+                OutboundInteractive::fromArray((array) ($payload['interactive'] ?? [])),
+                $message->replyTo?->wa_message_id,
+            ),
+
+            'template' => $gateway->sendTemplate(
+                $message->conversation,
+                OutboundTemplate::fromArray((array) ($payload['template'] ?? [])),
+            ),
+
             'location' => $gateway->sendLocation($message->conversation, new OutboundLocation(
                 latitude: (float) $payload['latitude'],
                 longitude: (float) $payload['longitude'],

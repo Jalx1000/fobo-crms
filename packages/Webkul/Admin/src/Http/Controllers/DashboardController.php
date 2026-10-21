@@ -5,7 +5,9 @@ namespace Webkul\Admin\Http\Controllers;
 use Maatwebsite\Excel\Facades\Excel;
 use Webkul\Admin\Exports\Dashboard\DashboardExport;
 use Webkul\Admin\Exports\Dashboard\DashboardLeadsSheet;
+use Webkul\Admin\Helpers\Alcance;
 use Webkul\Admin\Helpers\Dashboard;
+use Webkul\Lead\Models\LeadProxy;
 use Webkul\Lead\Repositories\PipelineRepository;
 
 class DashboardController extends Controller
@@ -24,6 +26,15 @@ class DashboardController extends Controller
         'top-selling-products'            => 'getTopSellingProducts',
         'quantity-products'               => 'getTopSellingProductsByQuantity',
         'quantity-products-sold'          => 'getTopSellingProductsByQuantitySold',
+
+        // Inmuebles. Los `quantity-products*` de arriba se dejan registrados
+        // porque otras instancias del CRM sí venden productos; en esta el
+        // tablero usa estos.
+        'inmuebles-solicitados'           => 'getInmueblesMasSolicitados',
+        'inmuebles-cerrados'              => 'getInmueblesCerrados',
+        'salud-cartera'                   => 'getSaludDeCarteraStats',
+        'operacion-whatsapp'              => 'getOperacionWhatsappStats',
+        'metas'                           => 'getMetasStats',
         'top-persons'                     => 'getTopPersons',
         'open-leads-by-states'            => 'getOpenLeadsByStates',
         'open-leads-by-states-fixed'      => 'getOpenLeadsByStatesFixed',
@@ -69,6 +80,8 @@ class DashboardController extends Controller
             'startDate' => $dashboardHelper->getStartDate(),
             'endDate'   => $dashboardHelper->getEndDate(),
             'pipelines' => $this->pipelineRepository->all(['id', 'name']),
+            // Títulos «Mis …» para quien ve solo sus leads (D7).
+            'personal'  => ! app(Alcance::class)->veTotal(),
         ]);
     }
 
@@ -87,7 +100,15 @@ class DashboardController extends Controller
             ], 422);
         }
 
+        // Metas está oculta para todos (D4b); quien no ve el total tampoco
+        // puede pedirla por URL.
+        if ($type === 'metas' && ! app(Alcance::class)->veTotal()) {
+            abort(403);
+        }
+
         $this->applyGlobalFilterDefaults();
+
+        $this->aplicarAlcance();
 
         /**
          * Resolve the helper AFTER injecting the global-filter defaults, because
@@ -119,6 +140,8 @@ class DashboardController extends Controller
         }
 
         $this->applyGlobalFilterDefaults();
+
+        $this->aplicarAlcance();
 
         /**
          * Translate the dashboard's global filter (pipeline_id + start/end) into
@@ -184,5 +207,35 @@ class DashboardController extends Controller
                 }
             }
         }
+    }
+
+    /**
+     * Recorta el tablero a los leads del usuario si no ve el total (spec
+     * tablero-por-asesor, D1–D3 y D6).
+     *
+     * Dos mecanismos, porque el reporting consulta de dos formas:
+     *   - casi todo pasa por el modelo Lead → un scope global por `user_id`
+     *     cubre las tarjetas sin tocar cada consulta;
+     *   - las consultas que arrancan en otras tablas (productos, contactos,
+     *     inmuebles) ya respetan `request('user_id')` → se fija al del usuario.
+     *
+     * Fijar `user_id` además impide pedir el de otro asesor por URL: lo que
+     * venga en la query se pisa.
+     */
+    private function aplicarAlcance(): void
+    {
+        $userId = app(Alcance::class)->userId();
+
+        if ($userId === null) {
+            return;
+        }
+
+        request()->merge(['user_id' => $userId]);
+        request()->query->set('user_id', $userId);
+
+        LeadProxy::modelClass()::addGlobalScope(
+            'alcance-tablero',
+            fn ($query) => $query->where('leads.user_id', $userId),
+        );
     }
 }

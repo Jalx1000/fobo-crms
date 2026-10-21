@@ -5,11 +5,12 @@ namespace Webkul\Whatsapp\Providers;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
-use Webkul\Whatsapp\Console\Commands\DescargarMediaHistorica;
 use Webkul\Whatsapp\Console\Commands\CerrarHandoffsAbandonados;
+use Webkul\Whatsapp\Console\Commands\DescargarMediaHistorica;
 use Webkul\Whatsapp\Console\Commands\EscalarHandoffs;
 use Webkul\Whatsapp\Console\Commands\KommoCheck;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
+use Webkul\Whatsapp\Console\Commands\RecontactarAntesDeCerrar;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
 
@@ -39,6 +40,7 @@ class WhatsappServiceProvider extends ServiceProvider
                 EscalarHandoffs::class,
                 KommoCheck::class,
                 NormalizePhones::class,
+                RecontactarAntesDeCerrar::class,
                 RepairGateway::class,
                 WebhookInfo::class,
             ]);

@@ -10,6 +10,7 @@ use Webkul\Admin\Http\Controllers\Settings\Marketing\CampaignsController;
 use Webkul\Admin\Http\Controllers\Settings\Marketing\EventController;
 use Webkul\Admin\Http\Controllers\Settings\PipelineController;
 use Webkul\Admin\Http\Controllers\Settings\RoleController;
+use Webkul\Admin\Http\Controllers\Settings\SalesGoalController;
 use Webkul\Admin\Http\Controllers\Settings\SettingController;
 use Webkul\Admin\Http\Controllers\Settings\SourceController;
 use Webkul\Admin\Http\Controllers\Settings\TagController;
@@ -212,6 +213,24 @@ Route::prefix('settings')->group(function () {
         Route::put('edit/{id}', 'update')->name('admin.settings.sources.update');
 
         Route::delete('{id}', 'destroy')->name('admin.settings.sources.delete');
+    });
+
+    /**
+     * Metas de venta. Solo fijan el objetivo: el avance lo calcula el tablero
+     * contra los leads, no se guarda acá.
+     */
+    Route::controller(SalesGoalController::class)->prefix('metas')->group(function () {
+        Route::get('', 'index')->name('admin.settings.metas.index');
+
+        Route::get('create', 'create')->name('admin.settings.metas.create');
+
+        Route::post('create', 'store')->name('admin.settings.metas.store');
+
+        Route::get('edit/{id}', 'edit')->name('admin.settings.metas.edit');
+
+        Route::put('edit/{id}', 'update')->name('admin.settings.metas.update');
+
+        Route::delete('{id}', 'destroy')->name('admin.settings.metas.delete');
     });
 
     /**

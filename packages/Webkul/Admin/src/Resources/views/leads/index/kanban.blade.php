@@ -27,10 +27,13 @@
 
                 {!! view_render_event('admin.leads.index.kanban.content.before') !!}
 
-                <div class="flex gap-2.5 overflow-x-auto">
+                {{-- En el teléfono cada etapa ocupa casi todo el ancho y el scroll
+                     "encaja" columna por columna; el borde de la siguiente queda a
+                     la vista para que se note que hay más etapas a la derecha. --}}
+                <div class="flex gap-2.5 overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:scroll-px-4 overscroll-x-contain">
                     <!-- Stage Cards -->
                     <div
-                        class="flex min-w-[275px] max-w-[275px] flex-col gap-1 rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+                        class="flex min-w-[275px] max-w-[275px] flex-col gap-1 rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 max-md:min-w-[85vw] max-md:max-w-[85vw] max-md:snap-start"
                         v-for="(stage, index) in stageLeads"
                     >
                         {!! view_render_event('admin.leads.index.kanban.content.stage.header.before') !!}
@@ -46,8 +49,9 @@
                                 @if (bouncer()->hasPermission('leads.create'))
                                     <a
                                         :href="'{{ route('admin.leads.create') }}' + '?stage_id=' + stage.id"
-                                        class="icon-add cursor-pointer rounded p-1 text-lg text-gray-600 transition-all hover:bg-gray-200 hover:text-gray-800 dark:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-white"
+                                        class="icon-add cursor-pointer rounded p-1 text-lg text-gray-600 transition-all hover:bg-gray-200 hover:text-gray-800 dark:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-white max-md:flex max-md:h-11 max-md:w-11 max-md:items-center max-md:justify-center max-md:text-2xl"
                                         target="_blank"
+                                        aria-label="@lang('admin::app.leads.index.kanban.create-lead-btn')"
                                     >
                                     </a>
                                 @endif
@@ -87,11 +91,11 @@
 
                         <!-- Draggable Stage Lead Cards -->
                         <draggable
-                            class="flex h-[calc(100vh-317px)] flex-col gap-2 overflow-y-auto p-2"
+                            class="flex h-[calc(100vh-317px)] flex-col gap-2 overflow-y-auto overscroll-y-contain p-2 max-md:h-[65dvh]"
                             :class="{ 'justify-center': stage.leads.data.length === 0 }"
                             ghost-class="draggable-ghost"
                             handle=".lead-item"
-                            v-bind="{animation: 200}"
+                            v-bind="dragOptions"
                             :list="stage.leads.data"
                             item-key="id"
                             group="leads"
@@ -147,11 +151,11 @@
                                             <x-admin::avatar ::name="element.person?.name || ''" />
 
                                             <div class="flex flex-col gap-0.5">
-                                                <span class="text-xs font-medium">
+                                                <span class="text-xs font-medium max-md:text-sm">
                                                     @{{ element.person?.name || '' }}
                                                 </span>
 
-                                                <span class="text-[10px] leading-normal">
+                                                <span class="text-[10px] leading-normal max-md:text-xs">
                                                     @{{ element.person?.organization?.name || '' }}
                                                 </span>
                                             </div>
@@ -161,9 +165,17 @@
                                             class="group relative"
                                             v-if="element.rotten_days > 0"
                                         >
-                                            <span class="icon-rotten cursor-default text-xl text-rose-600"></span>
+                                            {{-- El tooltip depende de hover, que en pantallas táctiles
+                                                 no existe: ahí se muestran los días junto al ícono. --}}
+                                            <span class="flex items-center gap-0.5 text-rose-600">
+                                                <span class="icon-rotten cursor-default text-xl" aria-hidden="true"></span>
 
-                                            <div class="absolute -top-1 right-7 hidden w-max flex-col items-center group-hover:flex">
+                                                <span class="text-xs font-semibold md:hidden">
+                                                    @{{ "@lang('admin::app.leads.view.rotten-days', ['days' => 'replaceDays'])".replace('replaceDays', element.rotten_days) }}
+                                                </span>
+                                            </span>
+
+                                            <div class="absolute -top-1 right-7 hidden w-max flex-col items-center md:group-hover:flex">
                                                 <span class="whitespace-no-wrap relative rounded-md bg-black px-4 py-2 text-xs leading-none text-white shadow-lg">
                                                     @{{ "@lang('admin::app.leads.index.kanban.rotten-days', ['days' => 'replaceDays'])".replace('replaceDays', element.rotten_days) }}
                                                 </span>
@@ -178,7 +190,7 @@
                                     {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.title.before') !!}
 
                                     <!-- Lead Title -->
-                                    <p class="text-xs font-medium">
+                                    <p class="text-xs font-medium max-md:text-sm">
                                         @{{ element.title }}
                                     </p>
 
@@ -435,7 +447,31 @@
                     }
 
                     return totalAmount;
-                }
+                },
+
+                /**
+                 * Opciones de SortableJS para las tarjetas.
+                 *
+                 * En pantallas táctiles la tarjeta entera es el "handle", así que
+                 * el mismo gesto sirve para hacer scroll y para arrastrar.
+                 *
+                 * @return {object}
+                 */
+                dragOptions() {
+                    // Sin `delay`, en Android Sortable toma el gesto apenas el dedo
+                    // toca la tarjeta: el toque nunca llega a ser un "click" y el
+                    // lead no se puede abrir. Con mantener presionado:
+                    //   - toque corto        → abre el lead
+                    //   - deslizar           → scroll (pasa el umbral y se cancela)
+                    //   - mantener ~0,3 s    → arrastrar a otra etapa
+                    // `delayOnTouchOnly` deja el mouse de escritorio como estaba.
+                    return {
+                        animation: 200,
+                        delay: 300,
+                        delayOnTouchOnly: true,
+                        touchStartThreshold: 8,
+                    };
+                },
             },
 
             mounted () {

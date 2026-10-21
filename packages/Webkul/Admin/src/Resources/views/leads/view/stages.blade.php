@@ -21,6 +21,12 @@
             class="flex w-full max-w-full"
             :class="{'opacity-50 pointer-events-none': isUpdating}"
         >
+            {{-- En el teléfono las etapas no entran en una fila: se desplazan
+                 horizontalmente dentro de su propio contenedor y el selector
+                 Ganado/Perdido queda fijo a la derecha. No se puede meter el
+                 dropdown adentro del scroller porque su menú es absolute y el
+                 overflow lo recortaría. --}}
+            <div class="flex min-w-0 max-md:flex-1 max-md:overflow-x-auto max-md:[scrollbar-width:none]">
             <!-- Stages Item -->
             <template v-for="stage in stages">
                 {!! view_render_event('admin.leads.view.stages.items.before', ['lead' => $lead]) !!}
@@ -41,11 +47,12 @@
 
                 {!! view_render_event('admin.leads.view.stages.items.after', ['lead' => $lead]) !!}
             </template>
+            </div>
 
             {!! view_render_event('admin.leads.view.stages.items.dropdown.before', ['lead' => $lead]) !!}
 
             <!-- Won/Lost Stage Item -->
-            <x-admin::dropdown position="bottom-right">
+            <x-admin::dropdown position="bottom-right" class="shrink-0">
                 <x-slot:toggle>
                     {!! view_render_event('admin.leads.view.stages.items.dropdown.toggle.before', ['lead' => $lead]) !!}
 

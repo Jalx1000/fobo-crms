@@ -16,7 +16,7 @@
             <div class="w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex items-center justify-between p-4">
                     <p class="text-base font-semibold text-gray-600 dark:text-gray-300">
-                        Productos más vendidos
+                        {{ ($personal ?? false) ? 'Mis inmuebles cerrados' : 'Inmuebles cerrados' }}
                     </p>
                 </div>
 
@@ -91,7 +91,7 @@
                 getStats(filters) {
                     this.isLoading = true;
                     var filters = Object.assign({}, filters);
-                    filters.type = 'quantity-products-sold';
+                    filters.type = 'inmuebles-cerrados';
                     this.$axios.get("{{ route('admin.dashboard.stats') }}", {
                             params: filters
                         })

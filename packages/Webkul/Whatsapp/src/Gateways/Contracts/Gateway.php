@@ -7,8 +7,10 @@ use Illuminate\Http\Response;
 use Webkul\Whatsapp\Gateways\Dto\Capabilities;
 use Webkul\Whatsapp\Gateways\Dto\DownloadedMedia;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
 use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
+use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
 use Webkul\Whatsapp\Gateways\Dto\WebhookSecurity;
@@ -101,6 +103,35 @@ interface Gateway
      * @throws \Webkul\Whatsapp\Gateways\UnsupportedCapability
      */
     public function sendLocation(Conversation $conversation, OutboundLocation $location): SendResult;
+
+    /**
+     * Send an interactive message (quick-reply buttons or a list).
+     *
+     * Recibe el DTO ya validado contra los límites de WhatsApp, no un array
+     * crudo: así el driver no tiene que verificar nada y un título de 25
+     * caracteres falla al construirlo, con el campo y el límite nombrados, en
+     * lugar de volver como «invalid parameter» desde Graph API.
+     *
+     * Un gateway sin botones nativos degrada a texto numerado en vez de fallar:
+     * el cliente igual tiene que poder contestar.
+     */
+    public function sendInteractive(
+        Conversation $conversation,
+        OutboundInteractive $interactive,
+        ?string $replyToProviderId = null,
+    ): SendResult;
+
+    /**
+     * Envía una plantilla aprobada: lo único que se puede mandar con la ventana
+     * de 24 h cerrada.
+     *
+     * Sin degradación a texto: fuera de la ventana un texto libre no llega, y
+     * dentro de ella no hace falta plantilla. Un driver que no las soporta tira
+     * UnsupportedCapability.
+     *
+     * @throws \Webkul\Whatsapp\Gateways\UnsupportedCapability
+     */
+    public function sendTemplate(Conversation $conversation, OutboundTemplate $template): SendResult;
 
     /**
      * Upload a local file to the provider and return its media id, or null if

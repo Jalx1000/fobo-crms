@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Webkul\Inmobiliaria\Console\Commands\MarcarLeadsSinInteres;
 use Webkul\Inmobiliaria\Console\Commands\RollbackInmobiliaria;
 use Webkul\Inmobiliaria\Console\Commands\SeedInmuebles;
 use Webkul\Inmobiliaria\Console\Commands\SetupInmobiliaria;
@@ -69,6 +70,7 @@ class InmobiliariaServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->commands([
+                MarcarLeadsSinInteres::class,
                 SetupInmobiliaria::class,
                 RollbackInmobiliaria::class,
                 SeedInmuebles::class,

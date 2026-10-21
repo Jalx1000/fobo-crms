@@ -183,12 +183,12 @@ class InmuebleController extends Controller
     }
 
     /**
-     * Solo usuarios con rol Asesor pueden ser titulares.
+     * Solo usuarios con rol de asesor (ver `roles_asesores`) pueden ser titulares.
      */
     protected function asesores()
     {
         return $this->usuarios->getModel()->newQuery()
-            ->whereHas('role', fn ($q) => $q->where('name', 'Asesor'))
+            ->whereHas('role', fn ($q) => $q->whereIn('name', config('inmobiliaria.inmuebles.roles_asesores', ['Asesor'])))
             ->orderBy('name')
             ->get();
     }

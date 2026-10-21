@@ -55,6 +55,34 @@
         .wa-nav:hover { background: rgba(24,28,36,.98); }
         .wa-nav--prev { left: 18px; }
         .wa-nav--next { right: 18px; }
+        /*
+        | Área táctil de 44px donde se toca con el dedo.
+        |
+        | `pointer: coarse` y no un breakpoint de ancho: lo que importa es cómo
+        | se apunta, no cuánto mide la pantalla. Una tablet grande con dedo
+        | necesita 44px; un portátil angosto con mouse, no — y agrandarlo ahí
+        | desarmaría la barra del visor de fotos sin motivo.
+        |
+        | Se excluyen los botones dentro de una frase (los de `underline`, como
+        | «reactivarlo»): son texto, y darles 44px de alto rompe el renglón.
+        |
+        | El asesor usa esto parado en la puerta de un departamento, con una
+        | mano. Un fallo de toque acá manda algo al cliente equivocado.
+        */
+        @media (pointer: coarse) {
+            .wa-tbtn { height: 44px; width: 44px; }
+
+            .wa-inbox button:not(.underline),
+            .wa-inbox [role="button"]:not(.underline) {
+                min-height: 44px;
+            }
+
+            /* Los de solo icono también necesitan ancho, no solo alto. */
+            .wa-inbox button:not(.underline):empty,
+            .wa-inbox button:not(.underline) > .wa-vicon {
+                min-width: 44px;
+            }
+        }
         .wa-counter {
             position: absolute; top: 18px; right: 18px; z-index: 10;
             border-radius: 9999px; border: 1px solid rgba(255,255,255,.12);
@@ -72,7 +100,7 @@
     </style>
 
     <script type="text/x-template" id="v-whatsapp-inbox-template">
-        <div class="relative flex overflow-hidden"
+        <div class="wa-inbox relative flex overflow-hidden"
              :class="fullHeight ? 'h-full' : 'rounded-lg border border-gray-200 dark:border-gray-800'">
         <!-- chat column -->
         <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -84,7 +112,8 @@
                      :role="context.personId ? 'button' : null"
                      :tabindex="context.personId ? 0 : null"
                      @click="openProfile"
-                     @keydown.enter="openProfile">
+                     @keydown.enter="openProfile"
+                     @keydown.space.prevent="openProfile">
                     <div class="flex h-10 w-10 items-center justify-center rounded-full text-sm font-medium"
                          :class="avatarColor(context.name)">
                         @{{ initials }}
@@ -97,8 +126,15 @@
 
                             <!-- 24h WhatsApp window -->
                             <span v-if="window.applies && window.open"
-                                  class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                                  title="Tiempo restante para enviar texto libre">
+                                  class="rounded-full px-1.5 py-0.5 text-[11px] font-medium"
+                                  :class="{
+                                      'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300': windowUrgencia === 'holgada',
+                                      'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300': windowUrgencia === 'pronto',
+                                      'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300': windowUrgencia === 'ya',
+                                  }"
+                                  :title="windowUrgencia === 'holgada'
+                                      ? 'Tiempo restante para enviar texto libre'
+                                      : 'La ventana de 24h está por cerrarse: después solo se podrá escribir si el cliente vuelve a escribir'">
                                 @{{ windowLabel }} restantes
                             </span>
                             <span v-else-if="window.applies && !window.open"
@@ -205,6 +241,21 @@
 
                             <div v-else-if="msg.type === 'text'" class="whitespace-pre-wrap break-words" v-html="formatText(msg.text)"></div>
 
+                            <!-- Plantilla de Meta: el texto que leyó el cliente y los botones que tuvo -->
+                            <div v-else-if="msg.type === 'template'" class="min-w-[200px]">
+                                <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-60"
+                                   :title="msg.template?.name">Plantilla</p>
+
+                                <div class="whitespace-pre-wrap break-words" v-html="formatText(msg.text)"></div>
+
+                                <div v-if="msg.template?.buttons?.length" class="mt-2 flex flex-col gap-1">
+                                    <span v-for="boton in msg.template.buttons" :key="boton"
+                                          class="rounded-md border border-gray-300 bg-white/40 px-2 py-1 text-center text-xs font-medium opacity-80 dark:border-gray-600 dark:bg-black/10">
+                                        @{{ boton }}
+                                    </span>
+                                </div>
+                            </div>
+
                             <div v-else-if="msg.type === 'image'">
                                 <img v-if="msg.media" :src="msg.media.url"
                                      @click="openLightbox(msg.media.url, chatImageUrls())"
@@ -266,7 +317,45 @@
                                 <span v-else class="italic text-gray-500">Contacto sin datos</span>
                             </div>
 
-                            <div v-else class="italic text-gray-500">Tipo no soportado</div>
+                            {{--
+                                Mensaje que WhatsApp no sabe representar: códigos de
+                                verificación, encuestas, ver-una-vez.
+
+                                Se explica en lugar de decir «Tipo no soportado»,
+                                porque ese cartel hacía pensar que el CRM perdió el
+                                mensaje. Meta no manda el contenido de estos
+                                mensajes: el texto nunca llegó acá. Decirlo ahorra
+                                que alguien busque un bug que no existe.
+                            --}}
+                            <div v-else-if="msg.type === 'unsupported'"
+                                 class="flex max-w-[280px] items-start gap-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                                <span class="icon-warning shrink-0 text-base" aria-hidden="true"></span>
+                                <span>
+                                    {{-- Si Meta llegó a mandar el texto, es lo único
+                                         que importa: va primero y destacado. --}}
+                                    <template v-if="msg.noSoportado?.texto">
+                                        <b class="select-all font-mono text-sm">@{{ msg.noSoportado.texto }}</b>
+                                        <span class="mt-0.5 block opacity-70">
+                                            WhatsApp marcó este mensaje como no admitido, pero traía este texto.
+                                        </span>
+                                    </template>
+
+                                    <template v-else>
+                                        El cliente envió un mensaje que WhatsApp no permite recibir
+                                        <span class="whitespace-nowrap">(código de verificación, encuesta o similar)</span>.
+                                        <b>WhatsApp no entrega su contenido</b>, así que no se puede leer desde acá.
+                                    </template>
+
+                                    <span v-if="msg.noSoportado?.codigo" class="mt-0.5 block opacity-70">
+                                        Error de WhatsApp @{{ msg.noSoportado.codigo }}
+                                    </span>
+                                </span>
+                            </div>
+
+                            <div v-else class="italic text-gray-500">
+                                Tipo no soportado
+                                <span v-if="msg.type" class="opacity-70">(@{{ msg.type }})</span>
+                            </div>
 
                             <!-- why it failed: the agent is who needs this, not the log -->
                             <div v-if="msg.status === 'failed' && msg.error"
@@ -364,7 +453,8 @@
                     <div class="flex flex-wrap items-start justify-between gap-2">
                         <div class="min-w-0">
                             <p class="font-semibold">
-                                <template v-if="!handoff.tomado">Derivada a un asesor · sin tomar</template>
+                                <template v-if="!handoff.tomado && handoff.is_mine">Derivada a vos · sin tomar</template>
+                                <template v-else-if="!handoff.tomado">Derivada a @{{ handoff.asesor?.name ?? 'un asesor' }} · sin tomar</template>
                                 <template v-else-if="handoff.is_mine">La estás atendiendo vos</template>
                                 <template v-else>La atiende @{{ handoff.asesor?.name ?? 'otro asesor' }}</template>
                                 <span class="font-normal opacity-80">· @{{ handoffEspera }}</span>
@@ -377,7 +467,8 @@
 
                         <div class="flex shrink-0 flex-col items-end gap-1">
                             <div class="flex items-center gap-2">
-                                <button v-if="!handoff.tomado" type="button" :disabled="handoffBusy"
+                                <!-- El asesor asignado o un administrador (spec tablero-por-asesor, D14). -->
+                                <button v-if="!handoff.tomado && handoff.puede_tomar" type="button" :disabled="handoffBusy"
                                         class="rounded-md bg-amber-600 px-2.5 py-1 font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                                         @click="claimHandoff">
                                     Tomar
@@ -425,6 +516,31 @@
                         <button type="button" aria-label="Descartar aviso"
                                 class="ml-2 rounded text-amber-600 transition hover:text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                                 @click="agentNote = false">✕</button>
+                    </div>
+
+                    {{--
+                        Aviso de cierre de la ventana de 24 h.
+
+                        Va acá, encima del compositor, y no solo en el badge del
+                        encabezado: el asesor mira el cuadro de texto mientras
+                        escribe, no la cabecera. Un badge que cambia de color
+                        arriba no lo ve nadie en medio de una conversación.
+
+                        Aparece recién a las 3 h restantes. Mostrarlo las 24 h
+                        sería un cartel permanente, y un aviso permanente deja de
+                        ser un aviso a los dos días.
+                    --}}
+                    <div v-if="windowUrgencia !== 'holgada' && window.open"
+                         class="mb-2 flex items-start gap-2 rounded-md px-3 py-1.5 text-xs"
+                         :class="windowUrgencia === 'ya'
+                             ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
+                             : 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300'"
+                         role="status">
+                        <span class="icon-warning shrink-0 text-base" aria-hidden="true"></span>
+                        <span>
+                            Quedan <b>@{{ windowLabel }}</b> para escribirle sin plantilla.
+                            Después solo se puede responder si el cliente vuelve a escribir.
+                        </span>
                     </div>
 
                 <div class="relative flex items-end gap-2">
@@ -1534,6 +1650,29 @@
                     const h = Math.floor(s / 3600);
                     const m = Math.floor((s % 3600) / 60);
                     return h > 0 ? `${h}h ${m}m` : `${m}m`;
+                },
+
+                /**
+                 * Cuánto apremia la ventana de 24 h: 'holgada', 'pronto' o 'ya'.
+                 *
+                 * Antes el aviso solo existía DESPUÉS de cerrarse, que es cuando
+                 * ya no se puede hacer nada. A 8 horas y a 20 minutos el badge se
+                 * veía igual de verde, así que el asesor se enteraba tarde.
+                 *
+                 * Los cortes son 3 h y 1 h. A 3 horas todavía se puede llamar al
+                 * cliente o mandarle algo que reabra la conversación; a 1 hora el
+                 * margen es de minutos y el aviso tiene que molestar.
+                 */
+                windowUrgencia() {
+                    const s = this.window.seconds_left;
+
+                    if (! this.window.applies || ! this.window.open) return 'ya';
+                    if (s == null) return 'holgada';
+
+                    if (s <= 3600) return 'ya';
+                    if (s <= 3 * 3600) return 'pronto';
+
+                    return 'holgada';
                 },
 
                 // Hide shared-media tabs with nothing in them (Kommo relays

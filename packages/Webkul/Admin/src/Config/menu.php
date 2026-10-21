@@ -133,6 +133,14 @@ return [
         'icon-class' => 'icon-settings-pipeline',
     ],
     [
+        'key'        => 'settings.lead.metas',
+        'name'       => 'Metas de venta',
+        'info'       => 'Objetivos de cierre y monto por asesor y por equipo.',
+        'route'      => 'admin.settings.metas.index',
+        'sort'       => 4,
+        'icon-class' => 'icon-dashboard',
+    ],
+    [
         'key'        => 'settings.lead.sources',
         'name'       => 'admin::app.layouts.sources',
         'info'       => 'admin::app.layouts.sources-info',

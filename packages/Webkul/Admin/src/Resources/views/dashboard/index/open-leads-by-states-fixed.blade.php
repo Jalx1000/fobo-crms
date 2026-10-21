@@ -16,7 +16,7 @@
             <div class="grid gap-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex items-center justify-between gap-1">
                     <p class="text-base font-semibold dark:text-gray-300">
-                        Total contactos
+                        {{ ($personal ?? false) ? 'Mis contactos' : 'Total contactos' }}
                     </p>
                 </div>
 

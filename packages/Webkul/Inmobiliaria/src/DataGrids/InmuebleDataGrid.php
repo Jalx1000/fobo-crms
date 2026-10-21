@@ -27,8 +27,29 @@ class InmuebleDataGrid extends DataGrid
                 'inmuebles.zona',
                 'inmuebles.precio',
                 'inmuebles.moneda',
+                'inmuebles.dormitorios',
+                'inmuebles.banos',
+                'inmuebles.parqueos',
                 'users.name as asesor'
-            );
+            )
+            /*
+            | La portada, en una subconsulta correlacionada y no con un join.
+            |
+            | Un join contra inmueble_medias multiplicaría la fila por cada foto
+            | y habría que agrupar todo el resto. Replica el orden de
+            | Inmueble::portada(): la marcada como portada primero, si no la
+            | primera foto por orden.
+            */
+            ->selectSub(function ($query) {
+                $query->from('inmueble_medias')
+                    ->select('id')
+                    ->whereColumn('inmueble_medias.inmueble_id', 'inmuebles.id')
+                    ->where('tipo', 'foto')
+                    ->orderByDesc('es_portada')
+                    ->orderBy('orden')
+                    ->orderBy('id')
+                    ->limit(1);
+            }, 'portada_id');
 
         $this->addFilter('id', 'inmuebles.id');
         $this->addFilter('codigo', 'inmuebles.codigo');
@@ -38,12 +59,43 @@ class InmuebleDataGrid extends DataGrid
         $this->addFilter('estado', 'inmuebles.estado');
         $this->addFilter('zona', 'inmuebles.zona');
         $this->addFilter('asesor', 'users.name');
+        $this->addFilter('dormitorios', 'inmuebles.dormitorios');
+        $this->addFilter('banos', 'inmuebles.banos');
+        $this->addFilter('parqueos', 'inmuebles.parqueos');
 
         return $queryBuilder;
     }
 
     public function prepareColumns(): void
     {
+        /*
+        | La portada va primera porque es por donde se escanea la cartera: el
+        | asesor reconoce «el dúplex de la esquina», no «C21-0043».
+        |
+        | El hueco punteado cuando no hay foto no es decorativo: un inmueble sin
+        | fotos es trabajo pendiente que hoy nadie detecta hasta que un cliente
+        | las pide.
+        */
+        $this->addColumn([
+            'index'      => 'portada_id',
+            'label'      => 'Foto',
+            'type'       => 'string',
+            'sortable'   => false,
+            'searchable' => false,
+            'filterable' => false,
+            'closure'    => function ($row) {
+                if (! $row->portada_id) {
+                    return '<div class="flex h-12 w-16 items-center justify-center rounded border border-dashed '
+                        .'border-gray-300 text-[10px] text-gray-400 dark:border-gray-700" '
+                        .'title="Sin fotos cargadas" aria-label="Sin fotos cargadas">Sin foto</div>';
+                }
+
+                return '<img src="'.route('admin.inmuebles.medias.archivo', $row->portada_id).'" '
+                    .'alt="Portada de '.e($row->codigo).'" loading="lazy" decoding="async" '
+                    .'class="h-12 w-16 rounded object-cover" />';
+            },
+        ]);
+
         $this->addColumn([
             'index'      => 'codigo',
             'label'      => 'Código',
@@ -117,6 +169,44 @@ class InmuebleDataGrid extends DataGrid
             'searchable' => true,
             'filterable' => true,
         ]);
+
+        /*
+        | Dormitorios, baños y parqueos.
+        |
+        | Los campos existían en la tabla desde el principio pero no se veían ni
+        | se podían filtrar, así que la pregunta más común del cliente —«¿tenés
+        | algo de 2 o 3 dormitorios en Equipetrol?»— se contestaba abriendo
+        | inmuebles de a uno con el cliente esperando en el chat.
+        |
+        | El filtro `integer` admite varios valores con OR, que es exactamente
+        | «2 o 3». El dropdown llega hasta 5 porque arriba de eso la cartera es
+        | marginal y se busca por texto.
+        */
+        foreach ([
+            'dormitorios' => 'Dorm.',
+            'banos'       => 'Baños',
+            'parqueos'    => 'Parq.',
+        ] as $campo => $etiqueta) {
+            $this->addColumn([
+                'index'              => $campo,
+                'label'              => $etiqueta,
+                'type'               => 'integer',
+                'sortable'           => true,
+                'filterable'         => true,
+                'filterable_type'    => 'dropdown',
+                'filterable_options' => $this->opciones([
+                    '0' => 'Sin dato',
+                    '1' => '1',
+                    '2' => '2',
+                    '3' => '3',
+                    '4' => '4',
+                    '5' => '5 o más',
+                ]),
+                // Un guion y no un 0: «0 baños» es un dato cargado mal, «—» es
+                // un dato que falta. Para el asesor no son lo mismo.
+                'closure' => fn ($row) => ($row->{$campo} ?? null) ? (string) $row->{$campo} : '—',
+            ]);
+        }
 
         $this->addColumn([
             'index'    => 'precio',

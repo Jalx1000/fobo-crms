@@ -147,6 +147,79 @@ class Dashboard
     }
 
     /**
+     * Inmuebles más consultados en el período.
+     *
+     * Reemplaza a «Productos más solicitados»: en una inmobiliaria lo que se
+     * ofrece son inmuebles, y vivían en otra tabla (`inmueble_lead`), así que
+     * la tarjeta de productos mostraba el conteo de algo que nadie carga.
+     *
+     * El helper se resuelve con `app()` y no por el constructor para no atar el
+     * paquete Admin al de Inmobiliaria: Admin es la base, Inmobiliaria es la
+     * extensión, y la dependencia al revés rompería una instancia sin ella.
+     */
+    public function getInmueblesMasSolicitados(): Collection
+    {
+        return $this->inmuebleReporting()->getMasSolicitados(5);
+    }
+
+    /**
+     * Inmuebles efectivamente cerrados, con las mismas etapas que el resto del
+     * tablero.
+     */
+    public function getInmueblesCerrados(): Collection
+    {
+        return $this->inmuebleReporting()->getCerrados(5);
+    }
+
+    /**
+     * Estado de la cartera: por estado y cuántos sin fotos.
+     *
+     * @return array<string, mixed>
+     */
+    public function getSaludDeCarteraStats(): array
+    {
+        return $this->inmuebleReporting()->getSaludDeCartera();
+    }
+
+    /**
+     * Avance de las metas del período.
+     *
+     * Toma el período del mes de la fecha de inicio del filtro, no del día de
+     * hoy: si el gerente mira septiembre, quiere las metas de septiembre.
+     *
+     * @return array<string, mixed>
+     */
+    public function getMetasStats(): array
+    {
+        return app(\Webkul\Admin\Helpers\Reporting\Metas::class)
+            ->getAvance($this->leadReporting->getStartDate()->format('Y-m'));
+    }
+
+    /**
+     * Estado operativo de WhatsApp: lo que requiere atención ahora mismo.
+     *
+     * No toma el filtro de fechas del tablero a propósito. A un gerente no le
+     * sirve «cuántas quedaron sin responder en agosto»; le sirve cuántas hay
+     * sin responder en este momento, que es sobre lo que puede actuar.
+     *
+     * @return array<string, mixed>
+     */
+    public function getOperacionWhatsappStats(): array
+    {
+        return app(\Webkul\Whatsapp\Helpers\Reporting\Operacion::class)->getResumen();
+    }
+
+    /**
+     * El reporte de inmuebles, con el mismo rango de fechas que el resto.
+     */
+    protected function inmuebleReporting(): \Webkul\Inmobiliaria\Helpers\Reporting\Inmueble
+    {
+        return app(\Webkul\Inmobiliaria\Helpers\Reporting\Inmueble::class)
+            ->setStartDate($this->leadReporting->getStartDate())
+            ->setEndDate($this->leadReporting->getEndDate());
+    }
+
+    /**
      * Returns top selling products statistics.
      */
     public function getTopPersons(): Collection

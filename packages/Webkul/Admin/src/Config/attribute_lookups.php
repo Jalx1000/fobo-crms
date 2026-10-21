@@ -32,6 +32,17 @@ return [
         'repository'   => 'Webkul\User\Repositories\UserRepository',
     ],
 
+    /*
+     | Usuarios con rol de asesor. Es el lookup del propietario de los leads;
+     | `users` sigue igual para el resto de las entidades (contactos, etc.).
+     | Los roles se leen de `inmobiliaria.inmuebles.roles_asesores`.
+     */
+    'asesores' => [
+        'name'         => 'Asesores',
+        'repository'   => 'Webkul\User\Repositories\UserRepository',
+        'roles_config' => 'inmobiliaria.inmuebles.roles_asesores',
+    ],
+
     'organizations' => [
         'name'         => 'Organizations',
         'repository'   => 'Webkul\Contact\Repositories\OrganizationRepository',

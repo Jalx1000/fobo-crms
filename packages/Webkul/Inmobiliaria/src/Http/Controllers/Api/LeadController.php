@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Inmobiliaria\Repositories\InmuebleRepository;
+use Webkul\Inmobiliaria\Services\SinInteres;
+use Webkul\Lead\Models\LeadProxy;
 use Webkul\Lead\Models\PipelineProxy;
 use Webkul\Lead\Models\SourceProxy;
 use Webkul\Lead\Models\TypeProxy;
@@ -50,6 +52,7 @@ class LeadController extends Controller
         protected LeadRepository $leads,
         protected PersonRepository $personas,
         protected InmuebleRepository $inmuebles,
+        protected SinInteres $sinInteres,
     ) {}
 
     /**
@@ -104,6 +107,42 @@ class LeadController extends Controller
     }
 
     /**
+     * El cliente no tiene interés o no califica (otra ciudad, otra zona, fuera
+     * de presupuesto, «ya no me interesa»).
+     *
+     * Mueve a «Sin interés» los leads abiertos del contacto, con el motivo en
+     * su timeline. Si la conversación todavía no tiene lead, no hay nada que
+     * mover y responde igual 200: para el agente el resultado es el mismo.
+     */
+    public function sinInteres(Request $request, string $id): JsonResponse
+    {
+        $datos = $request->validate([
+            'motivo' => 'required|string|max:500',
+        ]);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        $movidos = [];
+
+        if ($conversation->person_id) {
+            $leads = LeadProxy::modelClass()::with(['stage', 'pipeline'])
+                ->where('person_id', $conversation->person_id)
+                ->get();
+
+            foreach ($leads as $lead) {
+                if ($this->sinInteres->mover($lead, $datos['motivo'])) {
+                    $movidos[] = $lead->id;
+                }
+            }
+        }
+
+        return response()->json([
+            'message' => $movidos ? 'Lead movido a Sin interés.' : 'No había leads abiertos para mover.',
+            'leads'   => $movidos,
+        ]);
+    }
+
+    /**
      * Cliente con una operación ya en curso.
      */
     public function postventa(Request $request, string $id): JsonResponse
@@ -146,8 +185,54 @@ class LeadController extends Controller
             ], 409);
         }
 
-        $lead = DB::transaction(function () use ($conversation, $nombre, $titulo, $detalle, $valor, $pipeline, $etapa, $tipo, $codigosInteres) {
+        $actualizado = false;
+
+        $lead = DB::transaction(function () use ($conversation, $nombre, $titulo, $detalle, $valor, $pipeline, $etapa, $tipo, $codigosInteres, &$actualizado) {
+            // Bloquea la conversación: dos llamadas casi simultáneas del agente
+            // se ejecutan una detrás de otra, y la segunda ya encuentra el lead
+            // que creó la primera.
+            $conversation = ConversationProxy::modelClass()::whereKey($conversation->getKey())->lockForUpdate()->first();
+
             $persona = $this->persona($conversation, $nombre);
+
+            /*
+             * UN LEAD ABIERTO POR CONTACTO Y TIPO.
+             *
+             * El agente llama a este endpoint más de una vez en la misma
+             * conversación: primero con lo poco que sabe («Busca inmueble») y
+             * de nuevo cuando junta más datos («Busca departamento hasta USD
+             * 150.000»). Crear uno por llamada dejaba dos y tres leads por
+             * cliente en el kanban. Si ya hay uno abierto del mismo tipo, se
+             * actualiza ese con lo último que juntó el agente.
+             */
+            if ($abierto = $this->leadAbierto($persona->id, $tipo->id, $conversation->lead_id)) {
+                // Estaba en «Sin interés» y el cliente volvió: se reactiva el
+                // mismo lead en vez de abrir otro.
+                $this->sinInteres->reactivar($abierto->loadMissing(['stage', 'pipeline']));
+                $abierto->refresh();
+
+                $abierto->forceFill(array_filter([
+                    'title'       => $titulo,
+                    'description' => $detalle,
+                    // Un presupuesto en 0 es «no lo dijo», no «bajó a cero».
+                    'lead_value'  => $valor > 0 ? $valor : null,
+                ], fn ($v) => $v !== null))->save();
+
+                Event::dispatch('lead.update.after', $abierto);
+
+                if ($codigosInteres) {
+                    $this->inmuebles->vincularCodigos($abierto->id, $codigosInteres);
+                }
+
+                $conversation->forceFill([
+                    'person_id' => $persona->id,
+                    'lead_id'   => $conversation->lead_id ?? $abierto->id,
+                ])->save();
+
+                $actualizado = true;
+
+                return $abierto;
+            }
 
             Event::dispatch('lead.create.before');
 
@@ -184,10 +269,37 @@ class LeadController extends Controller
         });
 
         return response()->json([
-            'message'    => 'Lead creado.',
+            'message'    => $actualizado ? 'Lead actualizado.' : 'Lead creado.',
+            'actualizado' => $actualizado,
             'lead_id'    => $lead->id,
             'referencia' => self::REFERENCIAS[$flujo]." #{$lead->id}",
         ]);
+    }
+
+    /**
+     * El lead abierto de este contacto para este tipo, si hay uno.
+     *
+     * «Abierto» = no está en una etapa de cierre (ganado o perdido, según
+     * `reporting.stages`). Si el cliente ya cerró o desistió y vuelve a
+     * escribir, corresponde un lead nuevo. Prefiere el lead vinculado a la
+     * conversación; si no, el más reciente.
+     */
+    protected function leadAbierto(int $personaId, int $tipoId, ?int $leadDeLaConversacion)
+    {
+        $cerradas = DB::table('lead_pipeline_stages')
+            ->whereIn('code', array_merge(
+                (array) config('reporting.stages.won', []),
+                (array) config('reporting.stages.lost', []),
+            ))
+            ->pluck('id');
+
+        return LeadProxy::modelClass()::query()
+            ->where('person_id', $personaId)
+            ->where('lead_type_id', $tipoId)
+            ->whereNotIn('lead_pipeline_stage_id', $cerradas)
+            ->orderByRaw('id = ? desc', [(int) $leadDeLaConversacion])
+            ->latest('id')
+            ->first();
     }
 
     /**

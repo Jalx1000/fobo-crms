@@ -7,8 +7,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Webkul\Admin\Mail\ConfirmedLeadNotification;
 use Webkul\Warehouse\Repositories\WarehouseRepository;
 
@@ -46,14 +46,16 @@ class NotifyWarehouseManager implements ShouldQueue
             $warehouseRepository = app(WarehouseRepository::class);
             $warehouse = $warehouseRepository->find($this->warehouseId);
 
-            if (!$warehouse) {
+            if (! $warehouse) {
                 Log::error("Lead Notification: Warehouse not found (ID: {$this->warehouseId}) for Lead #{$this->lead->id}");
+
                 return;
             }
 
             $emails = $warehouse->contact_emails;
             if (empty($emails)) {
                 Log::warning("Lead Notification: No contact emails found for Warehouse '{$warehouse->name}' (Lead #{$this->lead->id})");
+
                 return;
             }
 
@@ -68,10 +70,10 @@ class NotifyWarehouseManager implements ShouldQueue
             Log::info("Lead Notification: Email sent to Warehouse '{$warehouse->name}' for Lead #{$this->lead->id}");
 
         } catch (\Exception $e) {
-            Log::error("Lead Notification Error: " . $e->getMessage(), [
+            Log::error('Lead Notification Error: '.$e->getMessage(), [
                 'lead_id'      => $this->lead->id,
                 'warehouse_id' => $this->warehouseId,
-                'trace'        => $e->getTraceAsString()
+                'trace'        => $e->getTraceAsString(),
             ]);
 
             throw $e; // Throw exception to trigger retry

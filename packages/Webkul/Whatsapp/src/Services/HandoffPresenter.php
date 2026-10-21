@@ -31,6 +31,7 @@ class HandoffPresenter
                 'referencia' => null,
                 'asesor'     => null,
                 'is_mine'    => false,
+                'puede_tomar' => false,
                 'opened_at'  => null,
                 'taken_at'   => null,
             ];
@@ -49,6 +50,8 @@ class HandoffPresenter
                 : null,
             // Para que el botón diga "Cerrar" y no "Tomar" cuando ya es tuyo.
             'is_mine'    => $viewerId !== null && (int) $handoff->user_id === (int) $viewerId,
+            // La misma regla que valida el servidor: el asignado o un administrador.
+            'puede_tomar' => app(ConversacionesVisibles::class)->puedeTomar($handoff, $viewerId),
             'opened_at'  => optional($handoff->opened_at)->toIso8601String(),
             'taken_at'   => optional($handoff->taken_at)->toIso8601String(),
         ];

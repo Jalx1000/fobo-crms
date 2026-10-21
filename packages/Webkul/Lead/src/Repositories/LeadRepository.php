@@ -139,14 +139,14 @@ class LeadRepository extends Repository
             $data['expected_close_date'] = null;
         }
 
-        if (empty($data['user_id'])) {
-            $assignedId = null;
+        $data = $this->sinCambioDeAsesor($data);
 
-            if (auth()->guard('user')->check()) {
-                $assignedId = auth()->guard('user')->user()->id;
-            } elseif (auth()->check()) {
-                $assignedId = auth()->id();
-            }
+        if (empty($data['user_id'])) {
+            // El asesor por defecto configurado gana sobre quien lo crea: todo
+            // lead nuevo sin propietario elegido va a esa persona.
+            $assignedId = $this->asesorPorDefecto()
+                ?? auth()->guard('user')->id()
+                ?? auth()->id();
 
             if (! $assignedId) {
                 $userRepo = app(\Webkul\User\Repositories\UserRepository::class);
@@ -197,6 +197,8 @@ class LeadRepository extends Repository
      */
     public function update(array $data, $id, $attributes = [])
     {
+        $data = $this->sinCambioDeAsesor($data);
+
         // Sanitize foreign key values
         $foreignKeys = ['lead_source_id', 'lead_type_id', 'user_id'];
         foreach ($foreignKeys as $key) {
@@ -374,5 +376,47 @@ class LeadRepository extends Repository
         $user = auth()->guard('user')->user();
 
         return $user && in_array(optional($user->role)->name, ['Supervisores', 'Administrador'], true);
+    }
+
+    /**
+     * Usuario al que van los leads nuevos sin propietario
+     * (`inmobiliaria.inmuebles.asesor_por_defecto`, el mismo de las derivaciones).
+     *
+     * Devuelve null si no está configurado o si el usuario ya no está activo:
+     * asignar leads a una cuenta dada de baja los dejaría sin nadie que los vea.
+     */
+    protected function asesorPorDefecto(): ?int
+    {
+        $id = config('inmobiliaria.inmuebles.asesor_por_defecto');
+
+        if (! $id) {
+            return null;
+        }
+
+        $activo = app(\Webkul\User\Repositories\UserRepository::class)
+            ->resetModel()
+            ->where('id', $id)
+            ->where('status', 1)
+            ->exists();
+
+        return $activo ? (int) $id : null;
+    }
+
+    /**
+     * Quita `user_id` de los datos si el usuario no puede elegir el asesor.
+     *
+     * Solo Administrador y Supervisores asignan o cambian el asesor de un lead
+     * (spec tablero-por-asesor, D15). Se filtra acá y no en cada controlador
+     * porque por este método pasan todos los caminos —formulario, edición en
+     * línea de la ficha, kanban— y un control en el front se saltea armando
+     * el request a mano. Sin usuario logueado (agente, jobs) no se toca nada.
+     */
+    protected function sinCambioDeAsesor(array $data): array
+    {
+        if (array_key_exists('user_id', $data) && ! app(\Webkul\Admin\Helpers\Alcance::class)->veTotal()) {
+            unset($data['user_id']);
+        }
+
+        return $data;
     }
 }

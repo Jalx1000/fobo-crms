@@ -125,6 +125,13 @@ class AttributeRepository extends Repository
         if (Str::contains($lookup['repository'], 'UserRepository')) {
             $userRepository = app($lookup['repository'])->where('status', 1);
 
+            // Lookups como `asesores` limitan la lista a ciertos roles.
+            if (! empty($lookup['roles_config'])) {
+                $roles = (array) config($lookup['roles_config'], []);
+
+                $userRepository = $userRepository->whereHas('role', fn ($q) => $q->whereIn('name', $roles));
+            }
+
             $currentUser = auth()->guard('user')->user();
 
             if ($currentUser?->view_permission === 'group') {

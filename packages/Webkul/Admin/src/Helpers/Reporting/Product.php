@@ -48,15 +48,13 @@ class Product extends AbstractReporting
         $items = $this->productRepository
             ->resetModel()
             ->with('product')
-            ->when(request('user_id'), function ($q) {
-                $q->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
-                    ->where('leads.user_id', request('user_id'));
-            })
             ->when(request('organization_id'), function ($q) {
                 $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
                     ->where('persons.organization_id', request('organization_id'));
             })
             ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
+            // Asesor: solo sus leads (spec tablero-por-asesor).
+            ->when(is_numeric(request('user_id')) ? request('user_id') : null, fn ($q, $userId) => $q->where('leads.user_id', $userId))
             ->leftJoin('products', 'lead_products.product_id', '=', 'products.id')
             ->select('*')
             ->addSelect(DB::raw('SUM('.$tablePrefix.'lead_products.amount) as revenue'))
@@ -94,6 +92,8 @@ class Product extends AbstractReporting
             ->resetModel()
             ->with('product')
             ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
+            // Asesor: solo sus leads (spec tablero-por-asesor).
+            ->when(is_numeric(request('user_id')) ? request('user_id') : null, fn ($q, $userId) => $q->where('leads.user_id', $userId))
             ->leftJoin('products', 'lead_products.product_id', '=', 'products.id')
             ->when(request('user_id'), function ($q) {
                 $q->where('leads.user_id', request('user_id'));
@@ -146,6 +146,8 @@ class Product extends AbstractReporting
             ->resetModel()
             ->with('product')
             ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
+            // Asesor: solo sus leads (spec tablero-por-asesor).
+            ->when(is_numeric(request('user_id')) ? request('user_id') : null, fn ($q, $userId) => $q->where('leads.user_id', $userId))
             ->leftJoin('products', 'lead_products.product_id', '=', 'products.id')
             ->when(request('user_id'), function ($q) {
                 $q->where('leads.user_id', request('user_id'));
@@ -210,6 +212,8 @@ class Product extends AbstractReporting
         return (int) $this->productRepository
             ->resetModel()
             ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
+            // Asesor: solo sus leads (spec tablero-por-asesor).
+            ->when(is_numeric(request('user_id')) ? request('user_id') : null, fn ($q, $userId) => $q->where('leads.user_id', $userId))
             ->when(is_numeric(request('pipeline_id')) ? request('pipeline_id') : null, function ($q, $pipelineId) {
                 $q->where('leads.lead_pipeline_id', $pipelineId);
             })
@@ -245,6 +249,8 @@ class Product extends AbstractReporting
         return (int) $this->productRepository
             ->resetModel()
             ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
+            // Asesor: solo sus leads (spec tablero-por-asesor).
+            ->when(is_numeric(request('user_id')) ? request('user_id') : null, fn ($q, $userId) => $q->where('leads.user_id', $userId))
             ->when(is_numeric(request('pipeline_id')) ? request('pipeline_id') : null, function ($q, $pipelineId) {
                 $q->where('leads.lead_pipeline_id', $pipelineId);
             })
@@ -271,6 +277,8 @@ class Product extends AbstractReporting
         $query = $this->productRepository
             ->resetModel()
             ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
+            // Asesor: solo sus leads (spec tablero-por-asesor).
+            ->when(is_numeric(request('user_id')) ? request('user_id') : null, fn ($q, $userId) => $q->where('leads.user_id', $userId))
             ->select(
                 DB::raw("$groupColumn AS date"),
                 DB::raw('SUM('.$tablePrefix.'lead_products.quantity) AS count')
@@ -319,6 +327,8 @@ class Product extends AbstractReporting
         $results = $this->productRepository
             ->resetModel()
             ->leftJoin('leads', 'lead_products.lead_id', '=', 'leads.id')
+            // Asesor: solo sus leads (spec tablero-por-asesor).
+            ->when(is_numeric(request('user_id')) ? request('user_id') : null, fn ($q, $userId) => $q->where('leads.user_id', $userId))
             ->when($pipelineId, function ($q) use ($pipelineId) {
                 $q->where('leads.lead_pipeline_id', $pipelineId);
             })

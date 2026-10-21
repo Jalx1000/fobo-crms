@@ -37,15 +37,9 @@ class AgentPayload
             'ai_enabled'      => $conversation->aiEffective(),
             'handoff'         => $this->handoff($conversation),
             'contact'         => $this->contact($conversation),
-            'message'         => [
-                'id'        => $message->id,
-                'type'      => $message->type,
-                'text'      => $message->body,
-                'timestamp' => optional($message->created_at)->toIso8601String(),
-                'media'     => $this->media($message),
-            ],
-            'history' => $this->history($conversation),
-            'window'  => [
+            'message'         => $this->mensaje($message),
+            'history'         => $this->history($conversation),
+            'window'          => [
                 'open'       => $window->open,
                 'expires_at' => $window->expiresAt?->toIso8601String(),
             ],
@@ -54,6 +48,59 @@ class AgentPayload
                 'url'    => url("api/v1/whatsapp/conversations/{$conversation->id}/messages"),
             ],
         ] + $this->captura($conversation);
+    }
+
+    /**
+     * El mensaje que disparó el evento.
+     *
+     * `interactive` solo aparece cuando el mensaje ES una selección de botón o
+     * lista; en el resto se omite la clave, para no obligar al agente a
+     * distinguir «no hubo selección» de «hubo una vacía».
+     *
+     * @return array<string, mixed>
+     */
+    protected function mensaje(Message $message): array
+    {
+        $datos = [
+            'id'        => $message->id,
+            'type'      => $message->type,
+            'text'      => $message->body,
+            'timestamp' => optional($message->created_at)->toIso8601String(),
+            'media'     => $this->media($message),
+        ];
+
+        if ($seleccion = $this->interactive($message)) {
+            $datos['interactive'] = $seleccion;
+        }
+
+        return $datos;
+    }
+
+    /**
+     * La opción que tocó el cliente, como {button_reply|list_reply}: {id, title}.
+     *
+     * Se lee del payload crudo que guardó la ingesta, no de columnas propias: es
+     * el mismo objeto que mandó Meta, así que el agente recibe exactamente lo
+     * que ocurrió sin que el CRM lo reinterprete.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function interactive(Message $message): ?array
+    {
+        if ($message->type !== 'interactive') {
+            return null;
+        }
+
+        $interactive = ((array) ($message->payload ?? []))['interactive'] ?? [];
+        $clase = $interactive['type'] ?? null;
+
+        // 'button_reply' o 'list_reply': la clave donde Meta anida la respuesta
+        // lleva el mismo nombre que el tipo.
+        if (! $clase || ! isset($interactive[$clase]) || ! is_array($interactive[$clase])) {
+            return null;
+        }
+
+        return [$clase => $interactive[$clase]];
     }
 
     /**

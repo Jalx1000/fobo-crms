@@ -12,8 +12,10 @@ use Webkul\Whatsapp\Gateways\Dto\ContactIdentity;
 use Webkul\Whatsapp\Gateways\Dto\DownloadedMedia;
 use Webkul\Whatsapp\Gateways\Dto\InboundBatch;
 use Webkul\Whatsapp\Gateways\Dto\InboundMessage;
+use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
 use Webkul\Whatsapp\Gateways\Dto\OutboundLocation;
 use Webkul\Whatsapp\Gateways\Dto\OutboundMedia;
+use Webkul\Whatsapp\Gateways\Dto\OutboundTemplate;
 use Webkul\Whatsapp\Gateways\Dto\SendResult;
 use Webkul\Whatsapp\Gateways\Dto\StatusUpdate;
 use Webkul\Whatsapp\Gateways\Dto\WebhookAuth;
@@ -46,8 +48,8 @@ class CloudApiGateway extends BaseGateway
         | principio.
         */
         return new Capabilities(
-            send: ['text', 'reply', 'emoji', 'image', 'video', 'audio', 'document', 'location'],
-            receive: ['text', 'image', 'audio', 'video', 'document', 'sticker', 'location', 'contact'],
+            send: ['text', 'reply', 'emoji', 'image', 'video', 'audio', 'document', 'location', 'interactive', 'template'],
+            receive: ['text', 'image', 'audio', 'video', 'document', 'sticker', 'location', 'contact', 'interactive'],
         );
     }
 
@@ -149,6 +151,76 @@ class CloudApiGateway extends BaseGateway
         return new InboundBatch($messages, $statuses);
     }
 
+    /**
+     * Botones de respuesta rápida o lista, nativos.
+     *
+     * Botones y lista comparten `body`, `header` y `footer`; solo difieren en el
+     * nodo `action`, que es la única parte donde la distinción existe de verdad.
+     */
+    public function sendInteractive(
+        Conversation $conversation,
+        OutboundInteractive $interactive,
+        ?string $replyToProviderId = null,
+    ): SendResult {
+        $node = ['body' => ['text' => $interactive->body]];
+
+        if ($interactive->header) {
+            $node['header'] = ['type' => 'text', 'text' => $interactive->header];
+        }
+
+        if ($interactive->footer) {
+            $node['footer'] = ['text' => $interactive->footer];
+        }
+
+        if ($interactive->kind === OutboundInteractive::BUTTONS) {
+            $node['type'] = 'button';
+            $node['action'] = [
+                'buttons' => array_map(fn (array $option) => [
+                    'type'  => 'reply',
+                    'reply' => ['id' => $option['id'], 'title' => $option['title']],
+                ], $interactive->options),
+            ];
+        } else {
+            $node['type'] = 'list';
+            $node['action'] = [
+                'button'   => $interactive->listButton,
+                'sections' => [[
+                    'rows' => array_map(fn (array $option) => array_filter([
+                        'id'          => $option['id'],
+                        'title'       => $option['title'],
+                        'description' => $option['description'] ?? null,
+                    ]), $interactive->options),
+                ]],
+            ];
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'recipient_type'    => 'individual',
+            'to'                => PhoneNumber::digits($conversation->wa_phone),
+            'type'              => 'interactive',
+            'interactive'       => $node,
+        ];
+
+        if ($replyToProviderId) {
+            $payload['context'] = ['message_id' => $replyToProviderId];
+        }
+
+        $response = Http::withToken($this->required('token'))
+            ->acceptJson()
+            ->post($this->endpoint('messages'), $payload);
+
+        $response->throw();
+
+        $wamid = $response->json('messages.0.id');
+
+        if (! $wamid) {
+            throw new RuntimeException('Cloud API did not return a message id: '.$response->body());
+        }
+
+        return new SendResult($wamid);
+    }
+
     public function sendText(Conversation $conversation, string $body, ?string $replyToProviderId = null): SendResult
     {
         $payload = [
@@ -220,6 +292,30 @@ class CloudApiGateway extends BaseGateway
                 'name'      => $location->name,
                 'address'   => $location->address,
             ], fn ($v) => $v !== null),
+        ]);
+    }
+
+    public function sendTemplate(Conversation $conversation, OutboundTemplate $template): SendResult
+    {
+        $nodo = [
+            'name'     => $template->name,
+            'language' => ['code' => $template->language],
+        ];
+
+        // Meta rechaza `components` con parámetros vacíos; sin parámetros no va.
+        if ($template->params) {
+            $nodo['components'] = [[
+                'type'       => 'body',
+                'parameters' => array_map(
+                    fn (string $valor) => ['type' => 'text', 'text' => $valor],
+                    $template->params,
+                ),
+            ]];
+        }
+
+        return $this->enviar($conversation, [
+            'type'     => 'template',
+            'template' => $nodo,
         ]);
     }
 
@@ -371,8 +467,34 @@ class CloudApiGateway extends BaseGateway
             'text' => $message['text']['body'] ?? null,
             'image', 'video', 'document', 'audio' => $message[$message['type']]['caption'] ?? null,
             'button' => $message['button']['text'] ?? null,
-            default  => null,
+            // Cuando el cliente toca un botón o elige de una lista, Meta manda
+            // type=interactive y el texto queda anidado bajo button_reply o
+            // list_reply. Sin esto el body va null y el agente ignora el
+            // mensaje: es la causa de «el agente no responde a los botones».
+            'interactive' => $this->interactiveBody($message),
+            default       => null,
         };
+    }
+
+    /**
+     * Texto legible de una respuesta interactiva (botón o lista).
+     *
+     * Meta anida así:
+     *   interactive.type = 'button_reply' | 'list_reply'
+     *   interactive.button_reply = ['id' => ..., 'title' => ...]
+     *   interactive.list_reply   = ['id' => ..., 'title' => ..., 'description' => ...]
+     *
+     * Se entrega el TÍTULO, no el id: el agente es un modelo de lenguaje y
+     * razona sobre «De 2 dormitorios», no sobre `btn_2`. El id igual le llega,
+     * aparte, en `message.interactive` — así puede enrutar por código si quiere
+     * sin perder el sentido de lo que eligió la persona.
+     */
+    protected function interactiveBody(array $message): ?string
+    {
+        $interactive = $message['interactive'] ?? [];
+        $reply = $interactive[$interactive['type'] ?? ''] ?? null;
+
+        return is_array($reply) ? ($reply['title'] ?? null) : null;
     }
 
     protected function endpoint(string $path): string

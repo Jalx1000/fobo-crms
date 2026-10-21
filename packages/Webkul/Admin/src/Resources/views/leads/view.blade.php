@@ -3,21 +3,30 @@
         @lang('admin::app.leads.view.title', ['title' => $lead->title])
     </x-slot>
 
+    {{-- Escritorio: panel izquierdo fijo (cabecera + atributos) y actividades
+         a la derecha.
+
+         Teléfono/tablet (< lg): el panel izquierdo pasa a `display: contents`
+         y sus dos bloques se reordenan alrededor de las actividades, para que
+         la conversación quede arriba y no después de ~25 atributos:
+           1. cabecera (nombre, etiquetas, Archivo/Nota)
+           2. etapas + pestañas (WhatsApp primero)
+           3. atributos y contacto --}}
     <!-- Content -->
-    <div class="relative flex gap-4 max-lg:flex-wrap">
+    <div class="relative flex gap-4 max-lg:flex-col">
         <!-- Left Panel -->
         {!! view_render_event('admin.leads.view.left.before', ['lead' => $lead]) !!}
 
         <div
-            class="max-lg:min-w-full max-lg:max-w-full [&>div:last-child]:border-b-0 lg:sticky lg:top-[73px] flex min-w-[394px] max-w-[394px] flex-col self-start rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+            class="lg:sticky lg:top-[73px] flex min-w-[394px] max-w-[394px] flex-col self-start rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 max-lg:contents">
             <!-- Lead Information -->
-            <div class="flex w-full flex-col gap-2 border-b border-gray-200 p-4 dark:border-gray-800">
+            <div class="flex w-full flex-col gap-2 border-b border-gray-200 p-4 dark:border-gray-800 max-lg:order-1 max-lg:rounded-lg max-lg:border max-lg:bg-white dark:max-lg:bg-gray-900">
                 <!-- Breadcrumb's -->
                 <div class="flex items-center justify-between">
                     <x-admin::breadcrumbs name="leads.view" :entity="$lead" />
                 </div>
 
-                <div class="mb-2">
+                <div class="mb-2 flex">
                     @if (($days = $lead->rotten_days) > 0)
                         @php
                             $lead->tags->prepend([
@@ -66,11 +75,13 @@
                 </div>
             </div>
 
-            <!-- Lead Attributes -->
-            @include ('admin::leads.view.attributes')
+            <div class="flex flex-col [&>div:last-child]:border-b-0 max-lg:order-3 max-lg:rounded-lg max-lg:border max-lg:border-gray-200 max-lg:bg-white dark:max-lg:border-gray-800 dark:max-lg:bg-gray-900">
+                <!-- Lead Attributes -->
+                @include ('admin::leads.view.attributes')
 
-            <!-- Contact Person -->
-            @include ('admin::leads.view.person')
+                <!-- Contact Person -->
+                @include ('admin::leads.view.person')
+            </div>
         </div>
 
         {!! view_render_event('admin.leads.view.left.after', ['lead' => $lead]) !!}
@@ -78,15 +89,19 @@
         {!! view_render_event('admin.leads.view.right.before', ['lead' => $lead]) !!}
 
         <!-- Right Panel -->
-        <div class="flex w-full flex-col gap-4 rounded-lg">
+        {{-- `min-w-0`: como hijo de flex su ancho mínimo es el de su contenido,
+             y la barra de etapas lo estiraba más allá de la pantalla. --}}
+        <div class="flex w-full min-w-0 flex-col gap-4 rounded-lg max-lg:order-2">
             <!-- Stages Navigation -->
             @include ('admin::leads.view.stages')
 
             <!-- Activities -->
             {!! view_render_event('admin.leads.view.activities.before', ['lead' => $lead]) !!}
 
-            <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : 'all'" :extra-types="[
-                ['name' => 'whatsapp', 'label' => 'WhatsApp'],
+            <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : 'whatsapp'" :extra-types="[
+                // WhatsApp es la primera pestaña y la que se abre: es donde
+                // ocurre la atención del lead.
+                ['name' => 'whatsapp', 'label' => 'WhatsApp', 'first' => true],
                 ['name' => 'description', 'label' => trans('admin::app.leads.view.tabs.description')],
                 ['name' => 'inmuebles', 'label' => 'Inmuebles'],
                 // Historial IA y Productos: fuera del tablero de pestañas a pedido

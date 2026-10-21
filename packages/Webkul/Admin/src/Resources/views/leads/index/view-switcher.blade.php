@@ -89,6 +89,7 @@
             <a
                 class="flex"
                 href="{{ route('admin.leads.index', array_merge($dateParams, ['pipeline_id' => request('pipeline_id')])) }}"
+                aria-label="Vista kanban"
             >
                 <span class="icon-kanban p-2 text-2xl"></span>
             </a>
@@ -100,6 +101,7 @@
             <a
                 href="{{ route('admin.leads.index', array_merge($dateParams, ['view_type' => 'table', 'pipeline_id' => request('pipeline_id')])) }}"
                 class="flex"
+                aria-label="Vista de tabla"
             >
                 <span class="icon-list p-2 text-2xl"></span>
             </a>

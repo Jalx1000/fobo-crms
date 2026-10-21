@@ -86,9 +86,10 @@ Breadcrumbs::for('contacts', function (BreadcrumbTrail $trail) {
     $trail->push(trans('admin::app.layouts.contacts'), route('admin.contacts.persons.index'));
 });
 
-// Dashboard > Contacts > Persons
+// Dashboard > Persons. Sin el nivel «Contactos»: en español el módulo de
+// personas ya se llama «Contactos» y quedaba «Contactos › Contactos».
 Breadcrumbs::for('contacts.persons', function (BreadcrumbTrail $trail) {
-    $trail->parent('contacts');
+    $trail->parent('dashboard');
     $trail->push(trans('admin::app.layouts.persons'), route('admin.contacts.persons.index'));
 });
 

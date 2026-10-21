@@ -52,14 +52,14 @@ class Lead extends AbstractReporting
     /**
      * Role names excluded from vendor/sales statistics. Must match `roles.name` in the database exactly.
      */
-    protected array $ignoredRoleNames = ['Supervisores', 'Administrador'];
+    protected array $ignoredRoleNames;
 
     /**
      * User names excluded from vendor/sales statistics (e.g. the catch-all
      * "Agente" account used for unassigned leads). Must match `users.name`
      * exactly.
      */
-    protected array $ignoredUserNames = ['Agente'];
+    protected array $ignoredUserNames;
 
     /**
      * Create a helper instance.
@@ -75,25 +75,44 @@ class Lead extends AbstractReporting
     ) {
         $this->allStageIds = $this->stageRepository->pluck('id')->toArray();
 
-        $this->wonStageIds = $this->stageRepository
-            ->resetModel()
-            ->where('code', 'won')
-            ->orWhere('code', 'pedido-entregado')
-            ->orWhereRaw("LOWER(name) LIKE '%won%'")
-            ->orWhereRaw("LOWER(name) LIKE '%ganado%'")
-            ->orWhereRaw("LOWER(name) LIKE '%entregado%'")
-            ->pluck('id')
-            ->toArray();
+        /*
+        | Quién no es vendedor, desde config.
+        |
+        | Estaba fijo en el código con 'Administrador' incluido, y en esta
+        | instancia hay personas reales con ese rol: quien vendía con rol de
+        | administrador no aparecía en ningún ranking.
+        */
+        $this->ignoredRoleNames = config('reporting.ignored_roles', ['Supervisores']);
+        $this->ignoredUserNames = config('reporting.ignored_users', ['Agente']);
 
-        $this->lostStageIds = $this->stageRepository
-            ->resetModel()
-            ->where('code', 'lost')
-            ->orWhere('code', 'pedidos-cancelado')
-            ->orWhereRaw("LOWER(name) LIKE '%lost%'")
-            ->orWhereRaw("LOWER(name) LIKE '%perdido%'")
-            ->orWhereRaw("LOWER(name) LIKE '%cancelado%'")
-            ->pluck('id')
-            ->toArray();
+        /*
+        | Las etapas de cierre y de pérdida salen de config/reporting.php.
+        |
+        | Antes se adivinaban por nombre y en esta instancia no acertaban
+        | ninguna: el pipeline usa «Cierre exitoso» y «Desistimiento», la
+        | heurística buscaba «ganado» y «entregado», y el resultado era un
+        | tablero que reportaba cero ventas con cierres reales en la base. Sin
+        | error, sin aviso: solo ceros.
+        |
+        | La heurística queda como respaldo para una instancia sin configurar.
+        */
+        $this->wonStageIds = $this->etapasPorCodigo(
+            config('reporting.stages.won', []),
+            fn ($q) => $q->where('code', 'won')
+                ->orWhere('code', 'pedido-entregado')
+                ->orWhereRaw("LOWER(name) LIKE '%won%'")
+                ->orWhereRaw("LOWER(name) LIKE '%ganado%'")
+                ->orWhereRaw("LOWER(name) LIKE '%entregado%'")
+        );
+
+        $this->lostStageIds = $this->etapasPorCodigo(
+            config('reporting.stages.lost', []),
+            fn ($q) => $q->where('code', 'lost')
+                ->orWhere('code', 'pedidos-cancelado')
+                ->orWhereRaw("LOWER(name) LIKE '%lost%'")
+                ->orWhereRaw("LOWER(name) LIKE '%perdido%'")
+                ->orWhereRaw("LOWER(name) LIKE '%cancelado%'")
+        );
 
         $this->confirmedStageIds = $this->stageRepository
             ->resetModel()
@@ -160,6 +179,40 @@ class Lead extends AbstractReporting
      * Excludes users whose role is in $ignoredRoleNames (e.g. Supervisores, Administrador)
      * from a query, via subquery to avoid join collisions with already-joined tables.
      */
+    /**
+     * Ids de etapa a partir de una lista de `code`, con heurística de respaldo.
+     *
+     * Se resuelve por `code` y no por nombre porque el nombre se edita desde la
+     * interfaz: renombrar «Cierre exitoso» a «Escriturado» no debería apagar
+     * las métricas de venta de toda la empresa.
+     *
+     * @param  array<int, string>  $codigos
+     * @param  callable  $heuristica  Cómo adivinar si los códigos no aciertan.
+     * @return array<int, int>
+     */
+    protected function etapasPorCodigo(array $codigos, callable $heuristica): array
+    {
+        $codigos = array_filter(array_map('trim', $codigos));
+
+        if ($codigos) {
+            $ids = $this->stageRepository
+                ->resetModel()
+                ->whereIn('code', $codigos)
+                ->pluck('id')
+                ->toArray();
+
+            if ($ids) {
+                return $ids;
+            }
+        }
+
+        if (! config('reporting.stages.fallback_heuristica', true)) {
+            return [];
+        }
+
+        return $heuristica($this->stageRepository->resetModel())->pluck('id')->toArray();
+    }
+
     private function excludeIgnoredRoles($query, string $userIdColumn = 'users.id')
     {
         return $query->whereNotIn($userIdColumn, function ($sub) {

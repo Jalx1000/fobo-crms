@@ -24,6 +24,22 @@ class Kernel extends ConsoleKernel
          * (solo mira las derivaciones vigentes, que son unas pocas).
          */
         $schedule->command('crm:cerrar-handoffs-abandonados')->everyFifteenMinutes()->withoutOverlapping();
+
+        /*
+        | Recontacto antes de que se cierre la ventana de 24 h.
+        |
+        | Cada diez minutos: la franja de disparo dura una hora entera, así que
+        | diez minutos de resolución alcanzan de sobra y el margen de error es
+        | pequeño frente a esa hora. Cada minuto sería sondear sesenta veces
+        | para una decisión que no cambia tan rápido.
+        */
+        $schedule->command('crm:recontactar-antes-de-cerrar')->everyTenMinutes()->withoutOverlapping();
+
+        /*
+        | Leads cuyo cliente no escribe hace LEADS_SIN_INTERES_DIAS días pasan a
+        | «Sin interés». Cada hora alcanza: el umbral se mide en días.
+        */
+        $schedule->command('crm:leads-sin-interes')->hourly()->withoutOverlapping();
     }
 
     /**

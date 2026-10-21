@@ -74,7 +74,7 @@ class InmuebleRequest extends FormRequest
                 'required',
                 Rule::exists('users', 'id')->where(
                     fn ($q) => $q->whereIn('role_id', function ($sub) {
-                        $sub->select('id')->from('roles')->where('name', 'Asesor');
+                        $sub->select('id')->from('roles')->whereIn('name', config('inmobiliaria.inmuebles.roles_asesores', ['Asesor']));
                     })
                 ),
             ],

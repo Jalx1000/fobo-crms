@@ -50,6 +50,15 @@ class Person extends AbstractReporting
             ->resetModel()
             ->whereBetween('persons.created_at', [$startDate, $endDate]);
 
+        // Asesor: solo los contactos que tienen algún lead suyo. Con EXISTS y no
+        // con JOIN, para no contar dos veces a quien tiene varios leads.
+        if (is_numeric($userId = request('user_id'))) {
+            $query->whereExists(fn ($q) => $q->select(DB::raw(1))
+                ->from('leads')
+                ->whereColumn('leads.person_id', 'persons.id')
+                ->where('leads.user_id', $userId));
+        }
+
         if ($pipelineId && ($cityAttributeId = $this->getCityAttributeId())) {
             $query->leftJoin('attribute_values as city_av', function ($join) use ($cityAttributeId) {
                 $join->on('city_av.entity_id', '=', 'persons.id')
@@ -117,10 +126,9 @@ class Person extends AbstractReporting
 
         $items = $this->personRepository
             ->resetModel()
-            ->when(request('user_id'), function ($q) {
-                $q->leftJoin('leads', 'persons.id', '=', 'leads.person_id')
-                    ->where('leads.user_id', request('user_id'));
-            })
+            // Solo la condición: el JOIN a leads ya está más abajo, y repetirlo
+            // da «Not unique table/alias» en cuanto llega un user_id.
+            ->when(request('user_id'), fn ($q) => $q->where('leads.user_id', request('user_id')))
             ->when(request('organization_id'), function ($q) {
                 $q->where('persons.organization_id', request('organization_id'));
             })

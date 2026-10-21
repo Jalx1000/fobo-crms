@@ -41,6 +41,22 @@ return [
             'subdomain' => env('KOMMO_SUBDOMAIN'),
             'token'     => env('KOMMO_TOKEN'),
 
+            /*
+            | MODO MIXTO: Kommo recibe, otro gateway envía.
+            |
+            | El salesbot de Kommo solo sabe relevar texto: ni plantillas, ni
+            | archivos, ni ubicación, ni botones. Delegando el envío en Cloud API
+            | la conversación gana todo eso sin cambiar de dónde entra.
+            |
+            | Con 'kommo' (o vacío) vuelve el envío por salesbot, que es la
+            | marcha atrás sin deploy.
+            |
+            | SUPUESTO BLOQUEANTE: el número de Cloud API debe ser EL MISMO que
+            | está conectado a Kommo. Si no, el cliente escribe a un número y le
+            | contesta otro, y la ventana de 24 h no aplica.
+            */
+            'send_via' => env('KOMMO_SEND_VIA', 'cloud_api'),
+
             // Kommo signs nothing, so this secret in the webhook URL is the
             // only thing standing between the inbox and forged messages.
             // Generate with: php artisan whatsapp:webhook-info
@@ -110,6 +126,99 @@ return [
     | links it.
     */
     'auto_create_person' => env('WHATSAPP_AUTO_CREATE_PERSON', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Recontacto antes de cerrarse la ventana de 24 h
+    |--------------------------------------------------------------------------
+    | Cuando el cliente deja de responder, la ventana de texto libre se va
+    | cerrando. Una hora antes de que expire se le manda un recordatorio en voz
+    | de Sofía, que es la última chance de reenganchar sin plantilla —y sin el
+    | costo de una.
+    |
+    | `horas_antes` es cuánto antes del cierre se dispara. Una hora da margen a
+    | que el cliente lea y conteste todavía dentro de la ventana; quince minutos
+    | no, y tres horas interrumpe a alguien que quizá seguía pensándolo.
+    */
+    'followup' => [
+        'enabled' => env('WHATSAPP_FOLLOWUP_ENABLED', true),
+
+        'horas_antes' => (float) env('WHATSAPP_FOLLOWUP_HORAS_ANTES', 1),
+
+        /*
+        | El texto, con {nombre} opcional.
+        |
+        | Si la conversación no tiene nombre, el saludo se recorta a «Hola 👋»
+        | en vez de dejar «Hola  👋» con un hueco o, peor, «Hola {nombre}».
+        */
+        'mensaje' => env(
+            'WHATSAPP_FOLLOWUP_MENSAJE',
+            'Hola {nombre} 👋 Quedé a la orden para ayudarle con su departamento en Ponce de León. '
+            .'¿Seguimos? Si quiere, coordinamos una visita para que lo conozca en persona.'
+        ),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Quién ve las conversaciones sin contacto ni lead
+    |--------------------------------------------------------------------------
+    | Números que todavía no son de nadie (filtro «Sin asignar»). Los ven solo
+    | estos usuarios, que son quienes las asignan; el resto, incluidos los
+    | supervisores, ve únicamente conversaciones de leads. Hoy: Sofopolis (1) y
+    | Danitza (3). Spec tablero-por-asesor, D11.
+    */
+    'ven_sin_asignar_user_ids' => array_map('intval', array_filter(explode(',', (string) env(
+        'WHATSAPP_VEN_SIN_ASIGNAR',
+        '1,3'
+    )))),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Plantillas aprobadas por Meta
+    |--------------------------------------------------------------------------
+    | Las únicas que se pueden mandar fuera de la ventana de 24 h.
+    |
+    | EL TEXTO SE COPIA ACÁ AUNQUE META YA LO TENGA. Al enviar, Meta solo recibe
+    | el nombre y los parámetros; sin el texto, el inbox mostraría «se mandó
+    | seguimiento_solicitud» y el asesor no sabría qué leyó el cliente. Si se
+    | edita una plantilla en Meta, hay que actualizarla acá también.
+    |
+    | `body` usa los marcadores de Meta ({{1}}, {{2}}...) y se completa con los
+    | parámetros en el mismo orden. Una plantilla que no está acá no se puede
+    | enviar desde el CRM, a propósito: es la lista de lo que Meta ya aprobó.
+    */
+    'templates' => [
+        'seguimiento_solicitud' => [
+            'language' => 'es',
+            'category' => 'UTILITY',
+            'body'     => "Hola {{1}}, le escribimos de Ponce de León para dar seguimiento a la consulta que nos realizó.\n\n¿Desea que continuemos con su solicitud?",
+            'buttons'  => ['Sí, continuar', 'Ya no me interesa'],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Menús tocables desde texto numerado
+    |--------------------------------------------------------------------------
+    | El agente no necesita una tool nueva para mandar botones: numera las
+    | opciones con el marcador y el CRM las convierte.
+    |
+    | EL MARCADOR ES ".-)" Y NO "1." A SECAS, A PROPÓSITO. Medido sobre el
+    | historial de producción de Sensia: de 4 mensajes con lista numerada, 2 eran
+    | menús y 2 eran enumeraciones informativas ("tenés 4 pedidos: 1. Pedido
+    | de..."). Detectar "1." da un 50 % de falsos positivos, y convertir una
+    | enumeración en botones le pide al cliente que elija algo que nadie le
+    | ofreció. ".-)" no aparece ni una vez en 457 mensajes reales.
+    */
+    'interactive' => [
+        'enabled' => env('WHATSAPP_INTERACTIVE_ENABLED', true),
+
+        // Lo que va entre el número y el texto de la opción.
+        'marker' => env('WHATSAPP_INTERACTIVE_MARKER', '.-)'),
+
+        // El label del botón que abre una lista (máx. 20 caracteres).
+        'list_button' => env('WHATSAPP_INTERACTIVE_LIST_BUTTON', 'Ver opciones'),
+    ],
 
     /*
     |--------------------------------------------------------------------------

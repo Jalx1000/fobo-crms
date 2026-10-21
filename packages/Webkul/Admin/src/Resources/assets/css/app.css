@@ -654,3 +654,28 @@
 .tox.tox-silver-sink.tox-tinymce-aux {
     z-index: 99999;
 }
+/*
+| Respetar «reducir movimiento» del sistema operativo.
+|
+| Va al final y con !important a propósito: hay 43 transiciones solo en el
+| inbox de WhatsApp, declaradas con utilidades de Tailwind en el HTML, y
+| perseguirlas una por una con `motion-reduce:` deja siempre alguna afuera.
+| Una regla global no se olvida de ninguna.
+|
+| No se pone 0s sino 0.01ms: con duración cero, los handlers de
+| `transitionend` nunca disparan y algunos componentes se quedan a medio
+| abrir. 0.01ms es instantáneo para la vista y dispara el evento igual.
+|
+| `scroll-behavior: auto` cancela el scroll suave: el salto al último mensaje
+| del hilo es justo el movimiento grande que esta preferencia viene a evitar.
+*/
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

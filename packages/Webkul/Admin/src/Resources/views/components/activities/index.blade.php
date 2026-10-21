@@ -45,7 +45,7 @@
 
                     <div
                         v-for="type in types"
-                        class="cursor-pointer px-3 py-2.5 text-sm font-medium dark:text-white"
+                        class="shrink-0 cursor-pointer whitespace-nowrap px-3 py-2.5 text-sm font-medium dark:text-white max-md:py-3"
                         :class="{'border-brandColor border-b-2 !text-brandColor transition': selectedType == type.name }"
                         @click="selectedType = type.name"
                     >
@@ -633,9 +633,15 @@
                 this.get();
 
                 if (this.extraTypes?.length) {
-                    this.extraTypes.forEach(type => {
-                        this.types.push(type);
-                    });
+                    // `first: true` pone la pestaña antes de las del sistema
+                    // (Todo, Notas...), respetando el orden en que se declararon.
+                    const first = this.extraTypes.filter(type => type.first);
+
+                    this.types.unshift(...first);
+
+                    this.extraTypes
+                        .filter(type => ! type.first)
+                        .forEach(type => this.types.push(type));
                 }
 
                 /* if (! this.types.find(t => t.name === 'calendar')) {
@@ -645,7 +651,12 @@
                     });
                 } */
 
-                this.selectedType = 'all';
+                // Antes se forzaba 'all' y el prop `activeType` no tenía efecto.
+                // Si la pestaña pedida no existe (p. ej. una comentada), cae en
+                // la primera para no dejar el panel en blanco.
+                this.selectedType = this.types.some(type => type.name === this.activeType)
+                    ? this.activeType
+                    : this.types[0]?.name;
 
                 this.$emitter.on('on-activity-added', (activity) => this.activities.unshift(activity));
             },

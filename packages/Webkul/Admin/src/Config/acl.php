@@ -297,6 +297,26 @@ return [
         'route' => 'admin.settings.pipelines.delete',
         'sort'  => 3,
     ], [
+        'key'   => 'settings.lead.metas',
+        'name'  => 'Metas de venta',
+        'route' => 'admin.settings.metas.index',
+        'sort'  => 4,
+    ], [
+        'key'   => 'settings.lead.metas.create',
+        'name'  => 'admin::app.acl.create',
+        'route' => ['admin.settings.metas.create', 'admin.settings.metas.store'],
+        'sort'  => 1,
+    ], [
+        'key'   => 'settings.lead.metas.edit',
+        'name'  => 'admin::app.acl.edit',
+        'route' => ['admin.settings.metas.edit', 'admin.settings.metas.update'],
+        'sort'  => 2,
+    ], [
+        'key'   => 'settings.lead.metas.delete',
+        'name'  => 'admin::app.acl.delete',
+        'route' => ['admin.settings.metas.delete'],
+        'sort'  => 3,
+    ], [
         'key'   => 'settings.lead.sources',
         'name'  => 'admin::app.acl.sources',
         'route' => 'admin.settings.sources.index',

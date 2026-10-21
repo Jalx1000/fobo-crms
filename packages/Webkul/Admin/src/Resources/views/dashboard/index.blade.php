@@ -45,6 +45,23 @@
         {!! view_render_event('admin.dashboard.index.content.left.before') !!}
 
         <div class="flex flex-1 flex-col gap-4 max-xl:flex-auto">
+            {{--
+                Primero lo que requiere acción, después los números del período.
+                Un gerente abre el tablero para saber si hay algo ardiendo; los
+                acumulados del mes puede verlos un minuto después.
+            --}}
+            @include('admin::dashboard.index.operacion-hoy')
+
+            {{--
+                Metas de venta: oculta a pedido, hasta que se carguen las metas
+                reales desde Configuración › Metas de venta.
+
+                Todo lo demás sigue en pie —tabla, modelo, cálculo del avance,
+                pantalla de gestión y el tipo 'metas' del endpoint—, así que
+                reactivarla es descomentar esta línea.
+            --}}
+            {{-- @include('admin::dashboard.index.metas') --}}
+
             {{-- @include('admin::dashboard.index.revenue') --}}
             @include('admin::dashboard.index.over-all')
             @include('admin::dashboard.index.leads-by-users')

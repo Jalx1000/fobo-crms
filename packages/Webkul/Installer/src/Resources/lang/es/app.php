@@ -46,7 +46,7 @@ return [
                 'discount-percent'  => 'Porcentaje de Descuento',
                 'expired-at'        => 'Expira el',
                 'grand-total'       => 'Total General',
-                'person'            => 'Prospecto',
+                'person'            => 'Contacto',
                 'sales-owner'       => 'Propietario de Ventas',
                 'shipping-address'  => 'Dirección de Envío',
                 'sub-total'         => 'Subtotal',

@@ -83,7 +83,23 @@ class IngestInboundPayload implements ShouldQueue
             'reply_to_id'     => $this->resolveReplyTo($inbound->replyToProviderId),
             'status'          => 'delivered',
             'sender'          => 'contact',
-            'payload'         => $inbound->raw,
+            /*
+            | Para los mensajes que Meta marca `unsupported` se guarda el SOBRE
+            | COMPLETO del webhook, no solo el objeto del mensaje.
+            |
+            | Caso real: llegaron códigos OTP con `type: unsupported` y error
+            | 131051, y el objeto del mensaje no trae ningún campo de texto —el
+            | código no estaba—. Guardando el sobre entero, si Meta pone algo
+            | aprovechable en algún nivel de arriba, queda registrado y se puede
+            | leer; y si no pone nada, queda demostrado de una vez en lugar de
+            | sospechado cada vez.
+            |
+            | Solo para este tipo: duplicar el sobre en cada mensaje normal
+            | engordaría la tabla sin aportar nada.
+            */
+            'payload'         => $inbound->type === 'unsupported'
+                ? ['mensaje' => $inbound->raw, 'webhook' => $this->payload]
+                : $inbound->raw,
             // El nombre solo viene en documentos; el resto se nombra al guardar.
             'media_name'      => $inbound->mediaFilename,
         ]);
