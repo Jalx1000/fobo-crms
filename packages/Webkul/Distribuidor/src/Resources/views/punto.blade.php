@@ -130,20 +130,41 @@
                                 mucho más probable que sea el de hoy.
                             --}}
                             <div v-if="!cliente" class="flex flex-col gap-2 sm:flex-row mb-3">
-                                {{-- inputmode="tel": teclado numérico nativo, sin buscar números en el alfabético --}}
+                                {{--
+                                    Teléfono o nombre en el mismo campo: el que está en la
+                                    puerta escribe lo que se acuerda. Con letras busca por
+                                    nombre entre SUS clientes; con números, por teléfono.
+                                    Sin inputmode="tel" porque ese teclado no tiene letras.
+                                --}}
                                 <div class="flex-1">
                                     <label for="punto-telefono" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Teléfono del cliente
+                                        Teléfono o nombre del cliente
                                     </label>
-                                    <input id="punto-telefono" v-model="telefono" type="tel" inputmode="tel"
-                                           placeholder="Ej. 3884123456"
+                                    <input id="punto-telefono" v-model="telefono" type="search" autocomplete="off"
+                                           placeholder="Ej. 3884123456 o María"
                                            @keyup.enter="buscarCliente"
                                            class="min-h-[64px] w-full rounded-xl border-2 border-gray-300 px-4 text-xl focus:border-brandColor focus:outline-none focus:ring-2 focus:ring-brandColor dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
                                 </div>
-                                <button type="button" @click="buscarCliente" :disabled="cargando" aria-label="Buscar el contacto por teléfono"
+                                <button type="button" @click="buscarCliente" :disabled="cargando" aria-label="Buscar el contacto por teléfono o nombre"
                                         class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl bg-brandColor px-8 text-lg font-bold text-white disabled:opacity-50 sm:min-w-[160px]">
                                     @{{ cargando ? '…' : 'Buscar' }}
                                 </button>
+                            </div>
+
+                            {{-- Los clientes que coinciden con el nombre buscado --}}
+                            <div v-if="!cliente && coincidencias !== null" class="mb-3">
+                                <span class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    @{{ coincidencias.length ? 'Coinciden con "' + telefono.trim() + '"' : 'Ningún cliente tuyo se llama así. Para cargar uno nuevo, buscalo por teléfono.' }}
+                                </span>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button v-for="c in coincidencias" :key="c.person_id" type="button"
+                                            @click="elegirCoincidencia(c)"
+                                            class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-brandColor focus:ring-offset-2 motion-reduce:transition-none dark:focus:ring-offset-gray-900 min-h-[64px] rounded-xl border-2 border-gray-200 px-3 py-2 text-left transition-colors duration-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800">
+                                        <span class="block truncate text-base font-semibold text-gray-800 dark:text-gray-200">@{{ c.nombre }}</span>
+                                        <span class="block truncate text-sm text-gray-600 dark:text-gray-400">@{{ c.telefono || 'Sin teléfono' }}</span>
+                                    </button>
+                                </div>
                             </div>
 
                             <div v-if="!cliente && recientes.length" class="">
@@ -1482,6 +1503,8 @@
                         cliente: null,
                         buscado: false,
                         encontrado: false,
+                        // Resultado de buscar por nombre; null = no se buscó por nombre.
+                        coincidencias: null,
                         pedidos: [],
                         recientes: [],
                         // Sin `amount`: el importe lo calcula el servidor (siempre el total).
@@ -2078,10 +2101,31 @@
                     },
 
                     buscarCliente() {
-                        if (! this.telefono.trim()) return;
+                        const texto = this.telefono.trim();
+
+                        if (! texto) return;
 
                         this.cargando = true;
                         this.aviso = null;
+                        this.coincidencias = null;
+
+                        /*
+                         * Con letras es un nombre: se busca en la agenda, que ya está
+                         * acotada a los clientes del distribuidor y a esta ciudad. No
+                         * ofrece crear: un cliente nuevo se identifica por su teléfono.
+                         */
+                        if (/\p{L}/u.test(texto)) {
+                            this.buscado = false;
+
+                            this.$axios.get(this.clientesUrl, {
+                                params: { ciudad: this.sucursal?.ciudad_id, busqueda: texto, pagina: 1 },
+                            })
+                                .then(r => { this.coincidencias = r.data.clientes; })
+                                .catch(e => { this.aviso = this.mensaje(e, 'No se pudo buscar el cliente.'); })
+                                .finally(() => { this.cargando = false; });
+
+                            return;
+                        }
 
                         this.$axios.get(this.buscarContactoUrl, { params: { telefono: this.telefono } })
                             .then(r => {
@@ -2091,6 +2135,18 @@
                             })
                             .catch(() => { this.aviso = 'No se pudo buscar el contacto.'; })
                             .finally(() => { this.cargando = false; });
+                    },
+
+                    /** Una fila de la agenda tiene los mismos datos que la ficha, con otros nombres. */
+                    elegirCoincidencia(c) {
+                        this.elegirReciente({
+                            id: c.person_id,
+                            name: c.nombre,
+                            telefono: c.telefono,
+                            bidones: c.saldo,
+                            ubicacion: c.ubicacion,
+                        });
+                        this.coincidencias = null;
                     },
 
                     crearCliente() {
@@ -2118,6 +2174,7 @@
 
                     limpiarCliente() {
                         this.cliente = null;
+                        this.coincidencias = null;
                         this.buscado = false;
                         this.encontrado = false;
                         this.nombre = '';
