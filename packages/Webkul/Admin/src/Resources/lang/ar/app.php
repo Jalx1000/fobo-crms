@@ -1760,6 +1760,23 @@ return [
             'text-generation-failed' => 'فشل استخراج النص. قد يكون الملف فارغًا أو غير قابل للقراءة.',
         ],
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'المرشحات',
+                'ciudad'       => 'المدينة',
+                'ejecutivo'    => 'المدير التنفيذي للمبيعات',
+                'plataforma'   => 'المنصة',
+                'periodo'      => 'الفترة',
+                'rango'        => 'نطاق التاريخ',
+                'vista'        => 'العرض',
+                'kanban'       => 'كانبان',
+                'lista'        => 'قائمة',
+                'limpiar'      => 'مسح المرشحات',
+                'mover'        => 'نقل',
+                'mover-a'      => 'نقل «:titulo» إلى…',
+                'etapa-actual' => 'المرحلة الحالية',
+                'cancelar'     => 'إلغاء',
+            ],
+
             'title'      => 'العملاء المحتملون',
             'create-btn' => 'إنشاء عميل محتمل',
             'datagrid'   => [

@@ -1760,6 +1760,23 @@ return [
             'text-generation-failed' => 'استخراج متن ناموفق بود. فایل ممکن است خالی یا غیرقابل خواندن باشد.',
         ],
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'فیلترها',
+                'ciudad'       => 'شهر',
+                'ejecutivo'    => 'مدیر فروش',
+                'plataforma'   => 'پلتفرم',
+                'periodo'      => 'دوره',
+                'rango'        => 'بازه تاریخ',
+                'vista'        => 'نما',
+                'kanban'       => 'کانبان',
+                'lista'        => 'فهرست',
+                'limpiar'      => 'پاک کردن فیلترها',
+                'mover'        => 'انتقال',
+                'mover-a'      => 'انتقال «:titulo» به…',
+                'etapa-actual' => 'مرحله فعلی',
+                'cancelar'     => 'لغو',
+            ],
+
             'title'      => 'سرنخ‌ها',
             'create-btn' => 'ایجاد سرنخ',
             'datagrid'   => [

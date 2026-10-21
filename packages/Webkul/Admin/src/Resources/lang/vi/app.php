@@ -1760,6 +1760,23 @@ return [
             'text-generation-failed' => 'Trích xuất văn bản thất bại. Tệp có thể trống hoặc không đọc được.',
         ],
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'Bộ lọc',
+                'ciudad'       => 'Thành phố',
+                'ejecutivo'    => 'Nhân viên kinh doanh',
+                'plataforma'   => 'Nền tảng',
+                'periodo'      => 'Khoảng thời gian',
+                'rango'        => 'Khoảng ngày',
+                'vista'        => 'Chế độ xem',
+                'kanban'       => 'Kanban',
+                'lista'        => 'Danh sách',
+                'limpiar'      => 'Xóa bộ lọc',
+                'mover'        => 'Chuyển',
+                'mover-a'      => 'Chuyển “:titulo” sang…',
+                'etapa-actual' => 'Giai đoạn hiện tại',
+                'cancelar'     => 'Hủy',
+            ],
+
             'title'      => 'Khách Hàng Tiềm Năng',
             'create-btn' => 'Tạo Khách Hàng Tiềm Năng',
             'datagrid'   => [
