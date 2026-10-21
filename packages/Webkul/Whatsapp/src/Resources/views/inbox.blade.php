@@ -21,7 +21,8 @@
     ];
 @endphp
 
-<div class="p-2">
+{{-- Celular: el chat ocupa el ancho, sin el margen ni el recuadro de alrededor. --}}
+<div class="p-2 max-lg:p-0 max-lg:[&>div]:!rounded-none max-lg:[&>div]:!border-x-0">
     <v-whatsapp-inbox
         :context='@json($waContext)'
         :use-mock="{{ config('whatsapp.ui.use_mock') ? 'true' : 'false' }}"

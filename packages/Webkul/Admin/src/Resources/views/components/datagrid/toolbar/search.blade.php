@@ -22,7 +22,9 @@
             :search="search"
             :get-searched-values="getSearchedValues"
         >
-            <template v-if="isLoading">
+            {{-- Solo antes de la primera carga (sin columnas todavía): después,
+                 buscar no puede destruir el campo mientras se escribe. --}}
+            <template v-if="isLoading && ! available.columns.length">
                 <x-admin::shimmer.datagrid.toolbar.search />
             </template>
 

@@ -94,6 +94,12 @@
                 return {
                     isLoading: false,
 
+                    // La barra (buscador, filtros) solo se cambia por el esqueleto
+                    // de carga la primera vez: después, buscar no la destruye -si
+                    // no, cada búsqueda borraba el campo y en el celular cerraba
+                    // el teclado (22/10/2026).
+                    cargoUnaVez: false,
+
                     available: {
                         id: null,
 
@@ -277,6 +283,8 @@
                             this.available.meta = meta;
 
                             this.isLoading = false;
+
+                            this.cargoUnaVez = true;
                         });
                 },
 
