@@ -70,7 +70,9 @@
                     let labels = this.report.statistics?.labels ?? [];
                     const data = this.dataMinutesPerLead;
                     const previousData = this.previousMinutesPerLead;
-                    this.colors = labels.map((l) => this.getColorForLabel(l));
+                    // Un color por asesor, en el orden en que aparecen (21/10/2026): el
+                    // color compartido por etiqueta repetía amarillo y azul entre asesores.
+                    this.colors = labels.map((l, i) => this.colorDeAsesor(i));
                     this.legendLabels = labels;
                     return [
                         {
@@ -118,35 +120,13 @@
             },
 
             methods: {
-                getColorForLabel(label) {
-                    if (this.$admin && typeof this.$admin.getLabelColor === 'function') {
-                        return this.$admin.getLabelColor(label);
-                    }
+                // Hex sí o sí: el período anterior le suma transparencia ('66').
+                colorDeAsesor(index) {
+                    const palette = ['#8979FF', '#FF928A', '#3CC3DF', '#F59E0B', '#10B981', '#EC4899', '#6366F1', '#84CC16', '#EF4444', '#14B8A6'];
 
-                    if (! window.__labelColorMap) {
-                        window.__labelColorMap = {};
-                    }
-
-                    const palette = [
-                        '#BA2831',
-                        '#8979FF',
-                        '#63CFE5',
-                        '#F59E0B',
-                        '#10B981',
-                        '#EF4444',
-                        '#3B82F6',
-                        '#8B5CF6',
-                        '#F472B6',
-                        '#14B8A6',
-                    ];
-
-                    if (! window.__labelColorMap[label]) {
-                        const index = Object.keys(window.__labelColorMap).length % palette.length;
-                        window.__labelColorMap[label] = palette[index];
-                    }
-
-                    return window.__labelColorMap[label];
+                    return palette[index % palette.length];
                 },
+
                 getStats(filters) {
                     this.isLoading = true;
                     const params1 = Object.assign({}, filters, { type: 'tiempo-por-vendedor' });
