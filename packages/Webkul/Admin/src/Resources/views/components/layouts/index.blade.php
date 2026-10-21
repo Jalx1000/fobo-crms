@@ -196,7 +196,9 @@
             <!-- Page Sidebar Blade Component -->
             <x-admin::layouts.sidebar.desktop />
 
-            <div class="flex min-h-[calc(100vh-62px)] max-w-full flex-1 flex-col bg-gray-100 pt-3 transition-all duration-300 dark:bg-gray-950">
+            {{-- min-w-0 + overflow-x-clip: nada puede ser más ancho que la pantalla del
+                 celular; si no, el teléfono aleja el zoom y la barra inferior queda afuera. --}}
+            <div class="flex min-h-[calc(100vh-62px)] min-w-0 max-w-full flex-1 flex-col bg-gray-100 pt-3 transition-all duration-300 dark:bg-gray-950 max-lg:overflow-x-clip">
                 <!-- Page Content Blade Component -->
                 {{-- max-lg:pb-24: lo que tapa la barra inferior del celular. --}}
                 <div class="px-4 pb-6 max-lg:px-3 max-lg:pb-24 ltr:lg:pl-[85px] rtl:lg:pr-[85px]">

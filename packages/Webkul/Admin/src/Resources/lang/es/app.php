@@ -303,6 +303,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'Ver más',
+                'ver-menos' => 'Ver menos',
                 'actions'              => 'Acciones',
                 'no-records-available' => 'No hay Registros Disponibles.',
             ],

@@ -10,6 +10,9 @@
     {{ $slot }}
 </v-datagrid>
 
+{{-- La tarjeta del celular, también para las páginas que arman su propia tabla. --}}
+@include('admin::components.datagrid.mobile-card')
+
 @pushOnce('scripts')
     <script
         type="text/x-template"
