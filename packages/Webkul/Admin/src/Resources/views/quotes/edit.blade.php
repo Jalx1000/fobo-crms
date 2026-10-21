@@ -488,6 +488,36 @@
 
 
                         <!--
+                            Ejes de precio que la variante no define («Factura»
+                            en Hules, «Canal» y «Zona» en Bolsas): sin ellos la
+                            lista tiene varias filas y no hay un precio.
+                        -->
+                        <select
+                            v-for="extra in ejesExtra"
+                            :key="extra.eje"
+                            :aria-label="`${extra.eje} ${product.name || ''}`"
+                            class="h-9 w-full cursor-pointer rounded border px-2 text-xs text-gray-800 transition-colors hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                            :class="criterios[extra.eje] ? 'border-gray-200' : 'border-amber-400'"
+                            @change="criterios[extra.eje] = $event.target.value; resolverPrecio()"
+                        >
+                            <option value="">@{{ extra.eje }}…</option>
+
+                            <option
+                                v-for="opcion in extra.opciones"
+                                :key="opcion"
+                                :value="opcion"
+                                :selected="criterios[extra.eje] === opcion"
+                                v-text="opcion"
+                            ></option>
+                        </select>
+
+                        <p
+                            v-if="textoPrecio"
+                            class="text-xs text-amber-700 dark:text-amber-400"
+                            v-text="textoPrecio"
+                        ></p>
+
+                        <!--
                             Descripcion de la linea: es lo que sale en la columna
                             ITEM del PDF. Se completa sola con el nombre del ERP de
                             la variante y queda editable, porque a veces el cliente
@@ -574,11 +604,21 @@
                             rules="required|decimal:4"
                             :label="trans('admin::app.quotes.create.price')"
                             inputmode="decimal"
+                            @input="product.precioEditado = true"
                             class="!h-9 !py-0 !px-2 text-right !text-xs"
                         />
 
                         <x-admin::form.control-group.error ::name="`${inputName}[price]`" />
                     </x-admin::form.control-group>
+
+                    <!-- El asesor escribió otro precio: el de lista se ofrece, no se impone. -->
+                    <button
+                        v-if="precioSugerido !== null"
+                        type="button"
+                        class="mt-1 block w-full whitespace-normal text-right text-xs leading-tight text-brandColor hover:underline"
+                        @click="usarPrecioSugerido"
+                        v-text="textoPrecioSugerido"
+                    ></button>
                 </x-admin::table.td>
 
                 <!-- Total -->
@@ -940,7 +980,33 @@
                          * undefined ahi aborta el render de TODA la lista.
                          */
                         variantes: this.product.variantes ?? [],
+
+                        // Precio de lista (ver resolverPrecio).
+                        criterios: {},
+
+                        ejesExtra: [],
+
+                        avisoPrecio: '',
+
+                        precioSugerido: null,
+
+                        pedidoPrecio: 0,
+
+                        listo: false,
                     }
+                },
+
+                watch: {
+                    // Stretch Film cobra por tramo de cantidad: el precio la sigue.
+                    'product.quantity'() {
+                        if (! this.listo || ! this.product.product_id) {
+                            return;
+                        }
+
+                        clearTimeout(this.esperaPrecio);
+
+                        this.esperaPrecio = setTimeout(() => this.resolverPrecio(), 400);
+                    },
                 },
 
                 created() {
@@ -955,9 +1021,30 @@
                             this.product[campo] = String(valor);
                         }
                     });
+
+                    // Un ítem ya guardado conserva su precio: el de lista se
+                    // ofrece si cambia la cantidad o la variante, no se impone.
+                    this.product.precioEditado = !! this.product.id;
+
+                    this.$nextTick(() => this.listo = true);
                 },
 
                 computed: {
+                    textoPrecio() {
+                        const pendientes = this.ejesExtra.filter((extra) => ! this.criterios[extra.eje]).map((extra) => extra.eje);
+
+                        if (pendientes.length) {
+                            return @json(trans('admin::app.quotes.create.precio-ambiguo', ['eje' => '__EJE__'])).replace('__EJE__', pendientes.join(', '));
+                        }
+
+                        return this.avisoPrecio;
+                    },
+
+                    textoPrecioSugerido() {
+                        return @json(trans('admin::app.quotes.create.precio-de-lista', ['precio' => '__PRECIO__']))
+                            .replace('__PRECIO__', this.$admin.formatPrice(this.precioSugerido)) + ' · ' + @json(trans('admin::app.quotes.create.usar-precio'));
+                    },
+
                     /**
                      * Total de la línea: monto + impuesto - descuento (lo que va
                      * en `final_total`). Vacío cuenta como 0 mientras se escribe.
@@ -1012,7 +1099,10 @@
                     addProduct(result) {
                         this.product.product_id = result.id;
                         this.product.name = result.name;
-                        this.product.price = result.price ?? 0;
+                        this.product.price = String(parseFloat(result.price) || 0);
+                        this.product.precioEditado = false;
+                        this.criterios = {};
+                        this.ejesExtra = [];
                         this.product.quantity = 1;
                         this.product.discount_amount = 0;
                         this.product.tax_amount = 0;
@@ -1031,8 +1121,11 @@
                         this.product.medida = '';
                         this.product.unidad = '';
 
+                        // Con una sola variante no hay nada que elegir.
                         if (this.variantes.length === 1) {
                             this.elegirVariante(this.variantes[0].id);
+                        } else {
+                            this.resolverPrecio();
                         }
 
                         this.avisarEntrega();
@@ -1045,6 +1138,11 @@
                         const v = this.variantes.find(v => String(v.id) === String(id));
 
                         this.product.variante_id = v ? v.id : null;
+
+                        // Otra variante, otro precio: ahora sí manda la lista.
+                        this.product.precioEditado = false;
+                        this.ejesExtra = [];
+                        this.resolverPrecio();
 
                         if (! v) {
                             return this.avisarEntrega();
@@ -1081,6 +1179,70 @@
                      */
                     removeProduct() {
                         this.$emit('onRemoveProduct', this.product);
+                    },
+
+                    /**
+                     * Pide al CRM el precio de lista de esta fila.
+                     *
+                     * Lo resuelve el servidor con la misma lista que usa el
+                     * agente (ListaPrecios). Si faltan ejes, se agregan sus
+                     * selectores; si la combinación no tiene precio, se avisa y
+                     * el asesor lo escribe. Un precio escrito a mano no se pisa.
+                     */
+                    resolverPrecio() {
+                        if (! this.product.product_id) {
+                            return;
+                        }
+
+                        const pedido = ++this.pedidoPrecio;
+
+                        this.$axios.get("{{ route('admin.products.precio', '__ID__') }}".replace('__ID__', this.product.product_id), {
+                            params: {
+                                variante_id: this.product.variante_id || undefined,
+                                cantidad: parseFloat(this.product.quantity) || 1,
+                                criterios: this.criterios,
+                            },
+                        }).then(({ data }) => {
+                            // Una respuesta vieja (cantidad que ya cambió) no pisa a la nueva.
+                            if (pedido !== this.pedidoPrecio) {
+                                return;
+                            }
+
+                            (data.faltan ?? []).forEach((faltante) => {
+                                if (! this.ejesExtra.some((extra) => extra.eje === faltante.eje)) {
+                                    this.ejesExtra.push(faltante);
+                                }
+                            });
+
+                            this.avisoPrecio = data.estado === 'sin_datos'
+                                ? (data.nota || @json(trans('admin::app.quotes.create.precio-sin-lista')))
+                                : '';
+
+                            this.precioSugerido = null;
+
+                            // «fijo» en 0 es un producto sin precio cargado: no hay nada que poner.
+                            const precio = data.estado === 'resuelto' || (data.estado === 'fijo' && data.precio > 0) ? data.precio : null;
+
+                            if (precio === null) {
+                                return;
+                            }
+
+                            if (this.product.precioEditado) {
+                                if (parseFloat(this.product.price) !== precio) {
+                                    this.precioSugerido = precio;
+                                }
+
+                                return;
+                            }
+
+                            this.product.price = String(precio);
+                        }).catch(() => {});
+                    },
+
+                    usarPrecioSugerido() {
+                        this.product.price = String(this.precioSugerido);
+                        this.product.precioEditado = false;
+                        this.precioSugerido = null;
                     },
                 },
             });

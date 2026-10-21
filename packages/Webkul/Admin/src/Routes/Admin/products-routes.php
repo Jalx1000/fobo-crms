@@ -23,6 +23,8 @@ Route::group(['middleware' => ['user']], function () {
 
         Route::get('search', 'search')->name('admin.products.search');
 
+        Route::get('{id}/precio', 'precio')->name('admin.products.precio');
+
         Route::get('{id}/warehouses', 'warehouses')->name('admin.products.warehouses');
 
         Route::post('{id}/inventories/{warehouseId?}', 'storeInventories')->name('admin.products.inventories.store');

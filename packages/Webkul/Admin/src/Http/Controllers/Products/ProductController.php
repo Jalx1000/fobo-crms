@@ -488,6 +488,73 @@ class ProductController extends Controller
     }
 
     /**
+     * El precio de lista para una fila de la cotización.
+     *
+     * El formulario manda la variante elegida, la cantidad y los ejes que el
+     * asesor completó aparte («Factura» en Hules, «Canal» y «Zona» en Bolsas);
+     * la fila se resuelve con ListaPrecios, igual que para el agente, para que
+     * el asesor y el agente coticen el mismo número.
+     *
+     * Estados: `fijo` (el producto no tiene lista: su precio), `resuelto`,
+     * `ambiguo` (faltan ejes: van con sus opciones), `sin_datos` (la
+     * combinación no está o no tiene precio: se escribe a mano).
+     */
+    public function precio(int $id): JsonResponse
+    {
+        $datos = request()->validate([
+            'variante_id' => 'nullable|integer',
+            'cantidad'    => 'nullable|numeric|min:0',
+            'criterios'   => 'nullable|array',
+        ]);
+
+        $product = $this->productRepository->with(['precios', 'variantes'])->findOrFail($id);
+
+        if ($product->precios->isEmpty()) {
+            return new JsonResponse(['estado' => 'fijo', 'precio' => (float) $product->price]);
+        }
+
+        $variante = $product->variantes->firstWhere('id', $datos['variante_id'] ?? null);
+
+        $criterios = array_filter(
+            array_merge((array) ($variante?->valores ?? []), (array) ($datos['criterios'] ?? [])),
+            fn ($valor) => is_scalar($valor) && trim((string) $valor) !== ''
+        );
+
+        $candidatas = ListaPrecios::filtrar(
+            $product->precios,
+            ListaPrecios::conCantidad($criterios, $datos['cantidad'] ?? null)
+        );
+
+        if ($candidatas->count() === 1) {
+            $fila = $candidatas->first();
+
+            return new JsonResponse($fila->cotiza()
+                ? ['estado' => 'resuelto', 'precio' => (float) $fila->precio, 'unidad' => $fila->unidad, 'nota' => $fila->nota]
+                : ['estado' => 'sin_datos', 'nota' => $fila->nota]);
+        }
+
+        if ($candidatas->isEmpty()) {
+            return new JsonResponse(['estado' => 'sin_datos', 'nota' => null]);
+        }
+
+        // Los ejes en los que las candidatas todavía difieren, con sus opciones.
+        // La cantidad no: se resuelve sola con la que ya tiene la fila. Los de
+        // identidad tampoco, si hay variantes: los elige el selector de variante.
+        $deLaVariante = $product->variantes->isNotEmpty() ? (array) ($product->ejes_identidad ?? []) : [];
+
+        $faltan = collect((array) ($product->ejes_precio ?? []))
+            ->reject(fn ($eje) => ListaPrecios::comparable((string) $eje) === 'cantidad' || in_array($eje, $deLaVariante, true))
+            ->map(fn ($eje) => [
+                'eje'      => $eje,
+                'opciones' => $candidatas->map(fn ($fila) => $fila->valores[$eje] ?? null)->filter()->unique()->values()->all(),
+            ])
+            ->filter(fn ($eje) => count($eje['opciones']) > 1)
+            ->values();
+
+        return new JsonResponse(['estado' => 'ambiguo', 'faltan' => $faltan]);
+    }
+
+    /**
      * Returns product inventories grouped by warehouse.
      */
     public function warehouses(int $id): JsonResponse
