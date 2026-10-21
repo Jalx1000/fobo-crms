@@ -21,7 +21,7 @@
                 </div>
 
                 <div class="flex flex-col" v-if="report.statistics.length">
-                    <div class="flex w-full max-w-full flex-col gap-4 px-8 pt-8">
+                    <div class="flex w-full max-w-full flex-col gap-4 px-8 pt-8 max-lg:mx-auto max-lg:w-[240px] max-lg:px-0 max-lg:pt-2">
                         <x-admin::charts.doughnut
                             ::labels="chartLabels"
                             ::datasets="chartDatasets"

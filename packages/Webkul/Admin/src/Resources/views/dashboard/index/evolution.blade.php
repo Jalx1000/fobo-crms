@@ -19,7 +19,7 @@
         </template>
 
         <template v-else>
-            <div class="grid gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
+            <div class="grid gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 max-lg:grid-cols-[minmax(0,1fr)] dark:border-gray-800 dark:bg-gray-900">
                 <!-- Header: title + context subtitle -->
                 <div class="flex flex-col gap-3">
                     <div class="flex flex-col gap-0.5">
@@ -32,12 +32,12 @@
                     </div>
 
                     <!-- Metric tabs -->
-                    <div class="flex flex-wrap gap-1.5">
+                    <div class="flex flex-wrap gap-1.5 max-lg:-mx-4 max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:px-4 max-lg:py-1">
                         <button
                             v-for="tab in tabs"
                             :key="tab.key"
                             type="button"
-                            class="rounded-md border px-3 py-1 text-xs transition-all duration-300 ease-out focus:outline-none"
+                            class="rounded-md border px-3 py-1 text-xs transition-all duration-300 ease-out focus:outline-none max-lg:shrink-0 max-lg:whitespace-nowrap max-lg:px-3.5 max-lg:py-2 max-lg:text-sm max-lg:!blur-0"
                             :class="activeMetric === tab.key
                                 ? 'border-violet-500 bg-violet-50 text-violet-700 opacity-100 blur-0 scale-105 dark:border-violet-500 dark:bg-violet-950 dark:text-violet-200'
                                 : 'border-gray-200 text-gray-600 opacity-50 blur-[1.5px] hover:opacity-100 hover:blur-0 hover:border-gray-400 dark:border-gray-800 dark:text-gray-300 dark:hover:border-gray-400'"
