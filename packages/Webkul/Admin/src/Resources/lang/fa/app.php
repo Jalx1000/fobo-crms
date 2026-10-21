@@ -435,6 +435,7 @@ return [
             'address-info'      => 'اطلاعات آدرس',
             'address-info-info' => 'اطلاعات مربوط به آدرس مرتبط با نقل‌قول.',
             'quote-items'       => 'موارد نقل‌قول',
+            'montos-en' => 'مبالغ به :symbol',
             'search-products'   => 'جستجوی محصولات',
             'link-to-lead'      => 'پیوند به سرنخ',
             'quote-item-info'   => 'درخواست محصول را برای این نقل‌قول اضافه کنید.',

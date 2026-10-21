@@ -435,6 +435,7 @@ return [
             'address-info'      => 'Thông tin Địa chỉ',
             'address-info-info' => 'Thông tin về địa chỉ liên quan đến báo giá.',
             'quote-items'       => 'Mục Báo giá',
+            'montos-en' => 'Số tiền tính bằng :symbol',
             'search-products'   => 'Tìm kiếm Sản phẩm',
             'link-to-lead'      => 'Liên kết tới lead',
             'quote-item-info'   => 'Thêm Yêu cầu Sản phẩm cho báo giá này.',

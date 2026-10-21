@@ -371,7 +371,12 @@
             id="v-quote-item-list-template"
         >
             <div class="flex flex-col gap-4">
-                <div class="block w-full overflow-x-auto">
+                {{-- Moneda una sola vez: con «(BOB)» en cada encabezado no entraban y se pisaban. --}}
+                <p class="-mb-2 text-right text-xs text-gray-500 dark:text-gray-400">
+                    @lang('admin::app.quotes.create.montos-en', ['symbol' => core()->currencySymbol(config('app.currency'))])
+                </p>
+
+                <div class="block w-full overflow-x-auto max-lg:overflow-visible">
                     {!! view_render_event('admin.contacts.quotes.create.table.after') !!}
 
                     <!--
@@ -380,60 +385,61 @@
                         angostas que los codigos no se leen. La tabla scrollea
                         en horizontal dentro de su contenedor.
                     -->
-                    <x-admin::table class="!min-w-[1100px]">
+                    {{-- Celular: cada producto es una tarjeta (ver v-quote-item); sin encabezados. --}}
+                    <x-admin::table class="!min-w-[1100px] max-lg:!min-w-0 max-lg:block max-lg:border-0 max-lg:[&>thead]:hidden max-lg:[&>tbody]:flex max-lg:[&>tbody]:flex-col max-lg:[&>tbody]:gap-3">
                         <!-- Table Head -->
                         <x-admin::table.thead>
                             <x-admin::table.thead.tr>
                                 {{-- w-[220px]: la columna del producto se aplastaba contra «Medida» (la tabla es table-fixed). --}}
-                                <x-admin::table.th class="!w-[220px] !px-2 !py-2.5">
+                                <x-admin::table.th class="!w-[260px] !px-2 !py-2.5 text-xs uppercase tracking-wide text-gray-600 dark:text-gray-300">
                                     @lang('admin::app.quotes.create.product-name')
                                 </x-admin::table.th>
 
-                                <x-admin::table.th class="!px-2 !py-2.5 text-center">
+                                <x-admin::table.th class="!px-2 !py-2.5 text-center !whitespace-normal text-xs uppercase leading-tight tracking-wide text-gray-600 dark:text-gray-300">
                                     @lang('admin::app.quotes.create.medida')
                                 </x-admin::table.th>
 
-                                <x-admin::table.th class="!px-2 !py-2.5 text-center">
+                                <x-admin::table.th class="!px-2 !py-2.5 text-center !whitespace-normal text-xs uppercase leading-tight tracking-wide text-gray-600 dark:text-gray-300">
                                     @lang('admin::app.quotes.create.cod-tr4')
                                 </x-admin::table.th>
 
-                                <x-admin::table.th class="!px-2 !py-2.5 text-center">
+                                <x-admin::table.th class="!px-2 !py-2.5 text-center !whitespace-normal text-xs uppercase leading-tight tracking-wide text-gray-600 dark:text-gray-300">
                                     @lang('admin::app.quotes.create.cod-barra')
                                 </x-admin::table.th>
 
-                                <x-admin::table.th class="!px-2 !py-2.5 text-center">
+                                <x-admin::table.th class="!w-[72px] !px-2 !py-2.5 text-center !whitespace-normal text-xs uppercase leading-tight tracking-wide text-gray-600 dark:text-gray-300">
                                     @lang('admin::app.quotes.create.unidad')
                                 </x-admin::table.th>
 
-                                <x-admin::table.th class="!px-2 !py-2.5 text-center">
+                                <x-admin::table.th class="!w-[96px] !px-2 !py-2.5 text-center !whitespace-normal text-xs uppercase leading-tight tracking-wide text-gray-600 dark:text-gray-300">
                                     @lang('admin::app.quotes.create.quantity')
                                 </x-admin::table.th>
 
-                                <x-admin::table.th class="!px-2 !py-2.5 text-center">
+                                <x-admin::table.th class="!px-2 !py-2.5 text-center !whitespace-normal text-xs uppercase leading-tight tracking-wide text-gray-600 dark:text-gray-300">
                                     @lang('admin::app.quotes.create.price')
                                 </x-admin::table.th>
 
-                                <x-admin::table.th class="!px-2 !py-2.5 text-center">
+                                <x-admin::table.th class="!px-2 !py-2.5 text-center !whitespace-normal text-xs uppercase leading-tight tracking-wide text-gray-600 dark:text-gray-300">
                                     @lang('admin::app.quotes.create.amount')
                                 </x-admin::table.th>
 
-                                <x-admin::table.th class="!px-2 !py-2.5 text-center">
+                                <x-admin::table.th class="!px-2 !py-2.5 text-center !whitespace-normal text-xs uppercase leading-tight tracking-wide text-gray-600 dark:text-gray-300">
                                     @lang('admin::app.quotes.create.discount')
                                 </x-admin::table.th>
 
-                                <x-admin::table.th class="!px-2 !py-2.5 text-center">
+                                <x-admin::table.th class="!px-2 !py-2.5 text-center !whitespace-normal text-xs uppercase leading-tight tracking-wide text-gray-600 dark:text-gray-300">
                                     @lang('admin::app.quotes.create.tax')
                                 </x-admin::table.th>
 
-                                <x-admin::table.th class="!px-2 !py-2.5 text-center">
+                                <x-admin::table.th class="!px-2 !py-2.5 text-center !whitespace-normal text-xs uppercase leading-tight tracking-wide text-gray-600 dark:text-gray-300">
                                     @lang('admin::app.quotes.create.total')
                                 </x-admin::table.th>
 
-                                <x-admin::table.th class="!px-2 !py-2.5"
+                                <x-admin::table.th
                                     v-if="products.length > 1"
-                                    class="!px-2 ltr:text-right rtl:text-left"
+                                    class="!w-[52px] !px-2 !py-2.5"
                                 >
-                                    @lang('admin::app.quotes.create.action')
+                                    <span class="sr-only">@lang('admin::app.quotes.create.action')</span>
                                 </x-admin::table.th>
                             </x-admin::table.thead.tr>
                         </x-admin::table.thead>
@@ -512,7 +518,7 @@
                         </div>
 
                         <div class="flex w-full justify-between gap-x-5">
-                            @lang('admin::app.quotes.create.total-adjustment', ['symbol' => core()->currencySymbol(config('app.currency'))])
+                            <span class="shrink-0 whitespace-nowrap">@lang('admin::app.quotes.create.total-adjustment', ['symbol' => core()->currencySymbol(config('app.currency'))])</span>
 
                             <x-admin::form.control-group.control
                                 type="inline"
@@ -546,9 +552,14 @@
             type="text/x-template"
             id="v-quote-item-template"
         >
-            <x-admin::table.thead.tr>
+            {{--
+                Celular: la fila es una tarjeta de dos columnas; cada celda
+                muestra su nombre arriba (data-etiqueta), porque los
+                encabezados de la tabla no se ven.
+            --}}
+            <x-admin::table.thead.tr class="align-top max-lg:grid max-lg:grid-cols-2 max-lg:gap-x-3 max-lg:gap-y-3 max-lg:rounded-lg max-lg:border max-lg:border-gray-200 max-lg:p-3 dark:max-lg:border-gray-800">
                 <!-- Quote Product Name -->
-                <x-admin::table.td class="!px-2 !py-2">
+                <x-admin::table.td class="!px-2 !py-2 max-lg:col-span-2 max-lg:block max-lg:!p-0 max-lg:whitespace-normal">
                     <x-admin::form.control-group class="!mb-0">
                         <x-admin::lookup
                             ::src="src"
@@ -575,7 +586,7 @@
                             v-if="product.product_id && variantes.length"
                             :name="`${inputName}[variante_id]`"
                             :aria-label="`@lang('admin::app.quotes.create.variante-placeholder') ${product.name || ''}`"
-                            class="h-8 w-full cursor-pointer rounded border border-gray-200 px-2 text-xs text-gray-800 transition-colors hover:border-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                            class="h-9 w-full cursor-pointer rounded border border-gray-200 px-2 text-xs text-gray-800 transition-colors hover:border-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
                             @change="elegirVariante($event.target.value)"
                         >
                             <option value="">@lang('admin::app.quotes.create.variante-placeholder')</option>
@@ -601,162 +612,139 @@
                             v-model="product.name"
                             placeholder="@lang('admin::app.quotes.create.descripcion-item')"
                             @input="product.descripcionEditada = true"
-                            class="h-8 w-full rounded border border-gray-200 px-2 text-xs text-gray-800 placeholder:text-gray-500 transition-colors hover:border-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:placeholder:text-gray-400"
+                            class="h-9 w-full rounded border border-gray-200 px-2 text-xs text-gray-800 placeholder:text-gray-500 transition-colors hover:border-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:placeholder:text-gray-400"
                         />
                     </div>
                 </x-admin::table.td>
 
                 <!-- Medida · COD TR4 · Codigo de barra · Unidad -->
-                <x-admin::table.td class="!px-2 !py-2">
+                <x-admin::table.td class="!px-2 !py-2 max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.medida') }}">
                     <input
                         :name="`${inputName}[medida]`"
                         :aria-label="`@lang('admin::app.quotes.create.medida') ${product.name || ''}`"
                         v-model="product.medida"
                         placeholder="@lang('admin::app.quotes.create.medida')"
-                        class="h-8 w-full rounded border border-gray-200 px-2 text-xs text-gray-800 placeholder:text-gray-500 transition-colors hover:border-gray-400 focus:border-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:placeholder:text-gray-400"
+                        class="h-9 w-full rounded border border-gray-200 px-2 text-xs text-gray-800 placeholder:text-gray-500 transition-colors hover:border-gray-400 focus:border-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:placeholder:text-gray-400"
                     />
                 </x-admin::table.td>
 
-                <x-admin::table.td class="!px-2 !py-2">
+                <x-admin::table.td class="!px-2 !py-2 max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.cod-tr4') }}">
                     <input
                         :name="`${inputName}[codigo_tr4]`"
                         :aria-label="`@lang('admin::app.quotes.create.cod-tr4') ${product.name || ''}`"
                         v-model="product.codigo_tr4"
                         placeholder="@lang('admin::app.quotes.create.cod-tr4')"
-                        class="h-8 w-full rounded border border-gray-200 px-2 text-xs text-gray-800 placeholder:text-gray-500 transition-colors hover:border-gray-400 focus:border-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:placeholder:text-gray-400"
+                        class="h-9 w-full rounded border border-gray-200 px-2 text-xs text-gray-800 placeholder:text-gray-500 transition-colors hover:border-gray-400 focus:border-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:placeholder:text-gray-400"
                     />
                 </x-admin::table.td>
 
-                <x-admin::table.td class="!px-2 !py-2">
+                <x-admin::table.td class="!px-2 !py-2 max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.cod-barra') }}">
                     <input
                         :name="`${inputName}[codigo_barra]`"
                         :aria-label="`@lang('admin::app.quotes.create.cod-barra') ${product.name || ''}`"
                         inputmode="numeric"
                         v-model="product.codigo_barra"
                         placeholder="@lang('admin::app.quotes.create.cod-barra')"
-                        class="h-8 w-full rounded border border-gray-200 px-2 text-xs text-gray-800 placeholder:text-gray-500 transition-colors hover:border-gray-400 focus:border-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:placeholder:text-gray-400"
+                        class="h-9 w-full rounded border border-gray-200 px-2 text-xs text-gray-800 placeholder:text-gray-500 transition-colors hover:border-gray-400 focus:border-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:placeholder:text-gray-400"
                     />
                 </x-admin::table.td>
 
-                <x-admin::table.td class="!px-2 !py-2">
+                <x-admin::table.td class="!px-2 !py-2 max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.unidad') }}">
                     <input
                         :name="`${inputName}[unidad]`"
                         :aria-label="`@lang('admin::app.quotes.create.unidad') ${product.name || ''}`"
                         v-model="product.unidad"
                         placeholder="@lang('admin::app.quotes.create.unidad')"
-                        class="h-8 w-14 rounded border border-gray-200 px-2 text-center text-xs dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                        class="h-9 w-full rounded border border-gray-200 px-2 text-center text-xs text-gray-800 transition-colors hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
                     />
                 </x-admin::table.td>
 
                 <!-- Quantity -->
-                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                <x-admin::table.td class="!px-2 !py-2 max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.quantity') }}">
                     <x-admin::form.control-group class="!mb-0">
-
                         <x-admin::form.control-group.control
-                            type="inline"
+                            type="text"
                             ::name="`${inputName}[quantity]`"
-                            ::value="product.quantity"
+                            v-model="product.quantity"
                             rules="required|decimal:4"
-                            ::errors="errors"
                             :label="trans('admin::app.quotes.create.quantity')"
-                            :placeholder="trans('admin::app.quotes.create.quantity')"
-                            @on-change="(event) => product.quantity = event.value"
-                            position="center"
+                            inputmode="decimal"
+                            class="!h-9 !py-0 !px-2 text-right !text-xs"
                         />
+
+                        <x-admin::form.control-group.error ::name="`${inputName}[quantity]`" />
                     </x-admin::form.control-group>
                 </x-admin::table.td>
 
                 <!-- Price -->
-                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                <x-admin::table.td class="!px-2 !py-2 max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.price') }}">
                     <x-admin::form.control-group class="!mb-0">
                         <x-admin::form.control-group.control
-                            type="inline"
+                            type="text"
                             ::name="`${inputName}[price]`"
-                            ::value="product.price"
+                            v-model="product.price"
                             rules="required|decimal:4"
-                            ::errors="errors"
                             :label="trans('admin::app.quotes.create.price')"
-                            :placeholder="trans('admin::app.quotes.create.price')"
-                            @on-change="(event) => product.price = event.value"
-                            position="center"
-                            ::value-label="$admin.formatPrice(product.price)"
+                            inputmode="decimal"
+                            class="!h-9 !py-0 !px-2 text-right !text-xs"
                         />
+
+                        <x-admin::form.control-group.error ::name="`${inputName}[price]`" />
                     </x-admin::form.control-group>
                 </x-admin::table.td>
 
                 <!-- Total -->
-                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
-                    <x-admin::form.control-group class="!mb-0">
-                        <x-admin::form.control-group.control
-                            type="inline"
-                            ::name="`${inputName}[total]`"
-                            ::value="product.price * product.quantity"
-                            rules="required|decimal:4"
-                            ::errors="errors"
-                            :label="trans('admin::app.quotes.create.total')"
-                            :placeholder="trans('admin::app.quotes.create.total')"
-                            :allowEdit="false"
-                            position="center"
-                            ::value-label="$admin.formatPrice(product.price * product.quantity)"
-                        />
-                    </x-admin::form.control-group>
+                <x-admin::table.td class="!px-2 !py-2 max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.amount') }}">
+                    <input type="hidden" :name="`${inputName}[total]`" :value="product.price * product.quantity">
+
+                    <p class="flex h-9 items-center justify-end text-xs text-gray-600 dark:text-gray-300" v-text="$admin.formatPrice(product.price * product.quantity)"></p>
                 </x-admin::table.td>
 
                 <!-- Discount Amount -->
-                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                <x-admin::table.td class="!px-2 !py-2 max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.discount') }}">
                     <x-admin::form.control-group class="!mb-0">
                         <x-admin::form.control-group.control
-                            type="inline"
+                            type="text"
                             ::name="`${inputName}[discount_amount]`"
-                            ::value="product.discount_amount"
+                            v-model="product.discount_amount"
                             rules="required|decimal:4"
-                            ::errors="errors"
                             :label="trans('admin::app.quotes.create.discount-amount')"
-                            :placeholder="trans('admin::app.quotes.create.discount-amount')"
-                            @on-change="(event) => product.discount_amount = event.value"
-                            position="center"
-                            ::value-label="$admin.formatPrice(product.discount_amount)"
+                            inputmode="decimal"
+                            class="!h-9 !py-0 !px-2 text-right !text-xs"
                         />
+
+                        <x-admin::form.control-group.error ::name="`${inputName}[discount_amount]`" />
                     </x-admin::form.control-group>
                 </x-admin::table.td>
 
                 <!-- Tax Amount -->
-                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                <x-admin::table.td class="!px-2 !py-2 max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.tax') }}">
                     <x-admin::form.control-group class="!mb-0">
                         <x-admin::form.control-group.control
-                            type="inline"
+                            type="text"
                             ::name="`${inputName}[tax_amount]`"
-                            ::value="product.tax_amount"
+                            v-model="product.tax_amount"
                             rules="required|decimal:4"
-                            ::errors="errors"
                             :label="trans('admin::app.quotes.create.tax-amount')"
-                            :placeholder="trans('admin::app.quotes.create.tax-amount')"
-                            @on-change="(event) => product.tax_amount = event.value"
-                            position="center"
-                            ::value-label="$admin.formatPrice(product.tax_amount)"
+                            inputmode="decimal"
+                            class="!h-9 !py-0 !px-2 text-right !text-xs"
                         />
+
+                        <x-admin::form.control-group.error ::name="`${inputName}[tax_amount]`" />
                     </x-admin::form.control-group>
                 </x-admin::table.td>
 
                 <!-- Total with Discount -->
-                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
-                    <x-admin::form.control-group class="!mb-0">
-                        <x-admin::form.control-group.control
-                            type="inline"
-                            ::name="`${inputName}[final_total]`"
-                            ::errors="errors"
-                            ::value="parseFloat(product.price * product.quantity) + parseFloat(product.tax_amount) - parseFloat(product.discount_amount)"
-                            :allowEdit="false"
-                            position="center"
-                            ::value-label="$admin.formatPrice(parseFloat(product.price * product.quantity) + parseFloat(product.tax_amount) - parseFloat(product.discount_amount))"
-                        />
-                    </x-admin::form.control-group>
+                <x-admin::table.td class="!px-2 !py-2 max-lg:block max-lg:!p-0 max-lg:whitespace-normal max-lg:before:mb-1 max-lg:before:block max-lg:before:text-xs max-lg:before:font-medium max-lg:before:text-gray-500 max-lg:before:content-[attr(data-etiqueta)]" data-etiqueta="{{ trans('admin::app.quotes.create.total') }}">
+                    <input type="hidden" :name="`${inputName}[final_total]`" :value="totalDeLinea">
+
+                    <p class="flex h-9 items-center justify-end text-xs font-semibold" v-text="$admin.formatPrice(totalDeLinea)"></p>
                 </x-admin::table.td>
 
                 <!-- Action -->
-                <x-admin::table.td class="!px-2 !py-2"
+                <x-admin::table.td
                     v-if="$parent.products.length > 1"
-                    class="!px-2 ltr:text-right rtl:text-left"
+                    class="!px-2 !py-2 text-center max-lg:col-span-2 max-lg:-mt-1 max-lg:flex max-lg:justify-end max-lg:border-t max-lg:border-gray-100 max-lg:!px-0 max-lg:!pb-0 max-lg:pt-2 dark:max-lg:border-gray-800"
                 >
                     <x-admin::form.control-group class="!mb-0">
                         {{--
@@ -767,9 +755,13 @@
                         <button
                             type="button"
                             @click="removeProduct"
-                            class="icon-delete cursor-pointer rounded text-2xl text-gray-600 transition-colors hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:text-gray-300"
+                            class="flex cursor-pointer items-center gap-1 rounded text-gray-600 transition-colors hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brandColor dark:text-gray-300 max-lg:text-sm max-lg:text-red-600"
                             :aria-label="`@lang('admin::app.quotes.create.remove-item') ${product.name || ''}`"
-                        ></button>
+                        >
+                            <span class="icon-delete text-2xl"></span>
+
+                            <span class="lg:hidden">@lang('admin::app.quotes.create.remove-item')</span>
+                        </button>
                     </x-admin::form.control-group>
                 </x-admin::table.td>
             </x-admin::table.thead.tr>
@@ -1058,7 +1050,33 @@
                     }
                 },
 
+                created() {
+                    /*
+                     * Los montos llegan de la base como «460.0000»: ahora son
+                     * campos a la vista y se mostraban así. Se dejan en «460».
+                     */
+                    ['quantity', 'price', 'discount_amount', 'tax_amount'].forEach((campo) => {
+                        const valor = parseFloat(this.product[campo]);
+
+                        if (! isNaN(valor)) {
+                            this.product[campo] = String(valor);
+                        }
+                    });
+                },
+
                 computed: {
+                    /**
+                     * Total de la línea: monto + impuesto - descuento (lo que va
+                     * en `final_total`). Vacío cuenta como 0 mientras se escribe.
+                     */
+                    totalDeLinea() {
+                        const numero = (valor) => parseFloat(valor) || 0;
+
+                        return numero(this.product.price) * numero(this.product.quantity)
+                            + numero(this.product.tax_amount)
+                            - numero(this.product.discount_amount);
+                    },
+
                     /**
                      * Get the input name.
                      *

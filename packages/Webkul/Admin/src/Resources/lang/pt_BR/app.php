@@ -435,6 +435,7 @@ return [
             'address-info'      => 'Informações de Endereço',
             'address-info-info' => 'Informações sobre o endereço relacionado à cotação.',
             'quote-items'       => 'Itens da Cotação',
+            'montos-en' => 'Valores em :symbol',
             'search-products'   => 'Pesquisar Produtos',
             'link-to-lead'      => 'Vincular a um negócio',
             'quote-item-info'   => 'Adicionar solicitação de produto para esta cotação.',

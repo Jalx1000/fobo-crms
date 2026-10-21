@@ -502,6 +502,7 @@ return [
             'address-info'      => 'Address Information',
             'address-info-info' => 'Information about the address related to quote.',
             'quote-items'       => 'Quote Items',
+            'montos-en' => 'Amounts in :symbol',
             'search-products'   => 'Search Products',
             'link-to-lead'      => 'Link to lead',
             'quote-item-info'   => 'Add Product Request for this quote.',

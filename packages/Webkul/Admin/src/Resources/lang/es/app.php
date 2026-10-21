@@ -495,6 +495,7 @@ return [
             'address-info-info'    => 'Información sobre la dirección relacionada con la cotización.',
             'sucursal-sin-asignar' => 'Sin asignar',
             'quote-items'          => 'Productos de la Cotización',
+            'montos-en' => 'Montos en :symbol',
             'search-products'      => 'Buscar Productos',
             'variante-placeholder' => 'Elegir variante…',
             'remove-item'          => 'Quitar el producto',

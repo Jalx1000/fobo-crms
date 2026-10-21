@@ -435,6 +435,7 @@ return [
             'address-info'      => 'Adres Bilgileri',
             'address-info-info' => 'Teklif ile ilgili adres bilgileri.',
             'quote-items'       => 'Teklif Kalemleri',
+            'montos-en' => 'Tutarlar :symbol cinsinden',
             'search-products'   => 'Ürünleri Ara',
             'link-to-lead'      => 'Potansiyele Bağla',
             'quote-item-info'   => 'Bu teklif için ürün talebi ekleyin.',

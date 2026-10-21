@@ -435,6 +435,7 @@ return [
             'address-info'      => 'معلومات العنوان',
             'address-info-info' => 'معلومات عن العنوان المتعلق بعرض السعر.',
             'quote-items'       => 'بنود عرض السعر',
+            'montos-en' => 'المبالغ بـ :symbol',
             'search-products'   => 'البحث عن المنتجات',
             'link-to-lead'      => 'ربط بالعميل المحتمل',
             'quote-item-info'   => 'أضف طلب المنتج لهذا العرض.',
