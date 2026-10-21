@@ -27,10 +27,36 @@
 
                 {!! view_render_event('admin.leads.index.kanban.content.before') !!}
 
-                <div class="flex gap-2.5 overflow-x-auto">
+                <!--
+                    Celular: una etapa por pantalla. Las pestañas saltan a la
+                    etapa y se marcan solas al deslizar entre columnas.
+                -->
+                <div
+                    class="-mx-3 flex gap-1 overflow-x-auto border-b border-gray-200 bg-white px-3 dark:border-gray-800 dark:bg-gray-900 lg:hidden"
+                    role="tablist"
+                    aria-label="@lang('admin::app.leads.index.kanban.etapas')"
+                >
+                    <button
+                        type="button"
+                        role="tab"
+                        class="h-11 shrink-0 whitespace-nowrap border-b-[3px] px-3 text-sm transition"
+                        :class="etapaVisible === posicion ? 'border-brandColor font-semibold text-brandColor' : 'border-transparent text-gray-600 dark:text-gray-300'"
+                        :aria-selected="etapaVisible === posicion ? 'true' : 'false'"
+                        v-for="(stage, clave, posicion) in stageLeads"
+                        @click="irAEtapa(posicion)"
+                    >
+                        @{{ stage.name }} · @{{ stage.leads.meta.total }}
+                    </button>
+                </div>
+
+                <div
+                    ref="columnas"
+                    class="flex gap-2.5 overflow-x-auto max-lg:snap-x max-lg:snap-mandatory max-lg:gap-3"
+                    @scroll.passive="alDesplazarColumnas"
+                >
                     <!-- Stage Cards -->
                     <div
-                        class="flex min-w-[275px] max-w-[275px] flex-col gap-1 rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+                        class="flex min-w-[275px] max-w-[275px] flex-col gap-1 rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 max-lg:min-w-full max-lg:max-w-full max-lg:snap-start"
                         v-for="(stage, index) in stageLeads"
                     >
                         {!! view_render_event('admin.leads.index.kanban.content.stage.header.before') !!}
@@ -79,7 +105,7 @@
                             :class="{ 'justify-center': stage.leads.data.length === 0 }"
                             ghost-class="draggable-ghost"
                             handle=".lead-item"
-                            v-bind="{animation: 200}"
+                            v-bind="{animation: 200, delay: 300, delayOnTouchOnly: true}"
                             :list="stage.leads.data"
                             item-key="id"
                             group="leads"
@@ -338,6 +364,9 @@
                         columns: @json($columns),
                     },
 
+                    // Celular: la etapa que se ve (índice de la columna).
+                    etapaVisible: 0,
+
                     /**
                      * Per-pipeline storage key so applied filters never bleed across
                      * pipelines (cities) or the "all prospects" view.
@@ -403,6 +432,43 @@
             },
 
             methods: {
+                /**
+                 * Celular: lleva a la columna de la etapa elegida.
+                 */
+                irAEtapa(posicion) {
+                    const columnas = this.$refs.columnas;
+
+                    const columna = columnas?.children[posicion];
+
+                    if (columna) {
+                        columnas.scrollTo({ left: columna.offsetLeft - columnas.offsetLeft, behavior: 'smooth' });
+                    }
+                },
+
+                /**
+                 * Celular: al deslizar, marca la pestaña de la columna que quedó a la vista.
+                 */
+                alDesplazarColumnas(event) {
+                    const columnas = event.target;
+
+                    if (! columnas.clientWidth) {
+                        return;
+                    }
+
+                    // La columna más cerca del borde izquierdo.
+                    const inicio = columnas.scrollLeft + columnas.offsetLeft;
+
+                    let cercana = 0;
+
+                    [...columnas.children].forEach((columna, posicion) => {
+                        if (Math.abs(columna.offsetLeft - inicio) < Math.abs(columnas.children[cercana].offsetLeft - inicio)) {
+                            cercana = posicion;
+                        }
+                    });
+
+                    this.etapaVisible = cercana;
+                },
+
                 /**
                  * Initialization: This function checks for any previously saved filters in local storage and applies them as needed.
                  *

@@ -1782,6 +1782,7 @@ return [
                 'mass-update'    => 'Cập Nhật Hàng Loạt',
             ],
             'kanban' => [
+                'etapas' => 'Giai đoạn',
                 'rotten-days'            => 'Khách hàng tiềm năng đã hết hạn trong :days ngày',
                 'empty-list'             => 'Danh sách khách hàng tiềm năng của bạn trống',
                 'empty-list-description' => 'Tạo một khách hàng tiềm năng để tổ chức các mục tiêu của bạn.',

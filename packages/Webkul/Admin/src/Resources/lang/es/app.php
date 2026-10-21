@@ -1808,6 +1808,7 @@ return [
                 'mass-update'    => 'Actualizar en Masa',
             ],
             'kanban' => [
+                'etapas' => 'Etapas',
                 'rotten-days'            => 'El pedido está estancado desde hace :days días',
                 'empty-list'             => 'Tu lista de leads está vacía',
                 'empty-list-description' => 'Crea un pedido para organizar tus objetivos.',

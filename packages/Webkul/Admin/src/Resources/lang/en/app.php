@@ -1956,6 +1956,7 @@ return [
             ],
 
             'kanban' => [
+                'etapas' => 'Stages',
                 'rotten-days'            => 'Lead is rotten for :days days',
                 'empty-list'             => 'Your Leads List is Empty',
                 'empty-list-description' => 'Create a lead to organize your goals.',
