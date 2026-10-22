@@ -36,6 +36,10 @@ class WhatsappServiceProvider extends ServiceProvider
          * del modelo y no en cada endpoint del inbox: hay cuatro (texto, archivo,
          * ubicación y plantilla) y alguno quedaría afuera.
          */
+        // Un pedido nuevo de una persona pasa a ser el de sus conversaciones, y el vacío
+        // que había abierto el CRM se borra (VincularPedidoAConversacion).
+        \Illuminate\Support\Facades\Event::listen('lead.create.after', \Webkul\Whatsapp\Listeners\VincularPedidoAConversacion::class);
+
         MessageProxy::modelClass()::created(function ($message) {
             if (
                 $message->direction === 'outbound'

@@ -194,6 +194,14 @@ return [
     'auto_create_person' => env('WHATSAPP_AUTO_CREATE_PERSON', true),
 
     /*
+     * Abrir un pedido vacío (Prospectos) cuando alguien escribe y no tiene uno
+     * abierto, en su ciudad o en «Sin ciudad» (LeadOpener). El agente lo completa.
+     */
+    'auto_create_lead' => env('WHATSAPP_AUTO_CREATE_LEAD', true),
+
+    'unknown_city_pipeline' => env('WHATSAPP_UNKNOWN_CITY_PIPELINE', 'Sin ciudad'),
+
+    /*
     |--------------------------------------------------------------------------
     | Handoff (derivación a un asesor)
     |--------------------------------------------------------------------------

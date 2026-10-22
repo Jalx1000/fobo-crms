@@ -44,13 +44,16 @@ function configurarCierre(bool $activo, int $horas, bool $devolver = true): void
 
 it('cierra la derivación de más de 12 horas y devuelve la conversación al agente', function () {
     configurarCierre(true, 12);
+    config(['whatsapp.ai.enabled' => true]);
     $vieja = derivadaHace(13);
     $nueva = derivadaHace(5, Conversation::HANDOFF_ASSIGNED);
 
     test()->artisan('whatsapp:cerrar-derivaciones')->assertSuccessful();
 
     expect($vieja->fresh()->handoff_state)->toBe(Conversation::HANDOFF_RESOLVED)
-        ->and($vieja->fresh()->ai_enabled)->toBeTrue()
+        // Vuelve a lo general (null): con el agente prendido para todos, contesta.
+        ->and($vieja->fresh()->ai_enabled)->toBeNull()
+        ->and($vieja->fresh()->aiEffective())->toBeTrue()
         ->and($nueva->fresh()->handoff_state)->toBe(Conversation::HANDOFF_ASSIGNED);
 });
 

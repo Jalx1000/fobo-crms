@@ -231,6 +231,7 @@ it('dos asesores tomando a la vez: gana exactamente uno', function () {
 });
 
 it('cerrar la derivación devuelve la conversación al agente', function () {
+    config(['whatsapp.ai.enabled' => true]);
     $conv = convHandoff(['person_id' => personaCon(ciudadId(0))]);
     app(Handoff::class)->request($conv, 'motivo');
 
@@ -238,7 +239,9 @@ it('cerrar la derivación devuelve la conversación al agente', function () {
 
     expect($cerrada->handoff_state)->toBe(Conversation::HANDOFF_RESOLVED)
         ->and($cerrada->handoffOpen())->toBeFalse()
-        ->and($cerrada->ai_enabled)->toBeTrue()
+        // Vuelve a lo general (null): con el agente prendido para todos, contesta.
+        ->and($cerrada->ai_enabled)->toBeNull()
+        ->and($cerrada->aiEffective())->toBeTrue()
         // Se conserva quién la atendió: es el registro de auditoría.
         ->and($cerrada->assigned_user_id)->not->toBeNull();
 });

@@ -207,7 +207,9 @@ class Handoff
 
         $conversation->forceFill([
             'handoff_state' => Conversation::HANDOFF_RESOLVED,
-            'ai_enabled'    => $reactivateAi ? true : $conversation->ai_enabled,
+            // «Devolver al agente» = volver a lo general (WHATSAPP_AI_ENABLED o la lista
+            // de números): con el agente apagado para todos, no lo prende para este.
+            'ai_enabled'    => $reactivateAi ? null : $conversation->ai_enabled,
         ])->save();
 
         $this->audit(

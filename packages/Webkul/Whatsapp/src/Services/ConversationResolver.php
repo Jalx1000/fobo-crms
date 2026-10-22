@@ -11,6 +11,8 @@ use Webkul\Whatsapp\Models\ConversationProxy;
 
 class ConversationResolver
 {
+    public function __construct(protected LeadOpener $leads) {}
+
     /**
      * Resolve the conversation for an inbound message.
      *
@@ -48,9 +50,15 @@ class ConversationResolver
             'provider_conversation_id' => $providerConversationId,
             'wa_name'                  => $contact->name,
             'person_id'                => $person?->id,
-            'lead_id'                  => $person ? optional($person->leads()->latest()->first())->id : null,
+            // El pedido abierto del contacto, o uno nuevo vacío (LeadOpener).
+            'lead_id'                  => $this->leads->forPerson($person),
             'status'                   => $person ? 'open' : 'unassigned',
-            'ai_enabled'               => true, // new conversations start with the agent on
+            /*
+             * Sin decisión propia: hereda WHATSAPP_AI_ENABLED, o la lista de números
+             * con el agente (WHATSAPP_AI_NUMEROS / Configuración). Antes nacía en
+             * true y el agente le contestaba a todos aunque estuviera apagado.
+             */
+            'ai_enabled'               => null,
         ]);
     }
 
@@ -79,8 +87,16 @@ class ConversationResolver
         if (! $conversation->person_id) {
             if ($person = $this->resolveOrCreatePerson($contact)) {
                 $updates['person_id'] = $person->id;
-                $updates['lead_id'] = optional($person->leads()->latest()->first())->id;
+                $updates['lead_id'] = $this->leads->forPerson($person);
                 $updates['status'] = 'open';
+            }
+        } elseif (! $conversation->lead_id && config('whatsapp.auto_create_lead', true)) {
+            /*
+             * Conversación con contacto pero sin pedido (las anteriores a este cambio,
+             * o un pedido que se borró): se le abre o vincula en el próximo mensaje.
+             */
+            if ($leadId = $this->leads->forPerson($conversation->person)) {
+                $updates['lead_id'] = $leadId;
             }
         }
 

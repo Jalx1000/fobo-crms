@@ -196,7 +196,7 @@ No llegan las reacciones del cliente (👍): no son un turno de conversación.
 | Campo | Viene `null` cuando |
 |---|---|
 | `contact.person_id`, `cliente` | La conversación todavía no está ligada a un contacto (primer mensaje de alguien nuevo). |
-| `contact.lead_id`, `lead` | La conversación no tiene un pedido abierto. |
+| `contact.lead_id`, `lead` | Casi nunca: el CRM abre el pedido con el primer mensaje (ver §8). Solo si no se pudo abrir. |
 | `catalogo.zona_del_cliente` | El CRM todavía no sabe la zona. |
 | `recompra` | No hay un recordatorio de recompra en curso. |
 | `catalogo` | El módulo de distribución no está instalado (no pasa en Sensia). Usar `get_promos` de respaldo. |
@@ -206,6 +206,11 @@ El agente tiene que funcionar igual con cualquiera de estos en `null`.
 ---
 
 ## 4. Regla 1 — `responder`: cuándo contestar y cuándo no
+
+**A quién contesta el agente** lo decide el CRM: si `WHATSAPP_AI_ENABLED=true`, a todos;
+si es `false`, solo a los números de `WHATSAPP_AI_NUMEROS` (o de Configuración →
+WhatsApp → Agente de IA). Un asesor puede apagarlo o prenderlo en una conversación. El
+agente no tiene que filtrar números: le basta con mirar `responder`.
 
 **Antes de hacer cualquier cosa con un evento, mirar `responder`.**
 
@@ -359,6 +364,20 @@ la opción y `message.interactive` con su id. No usar `N.-)` para enumerar infor
 ## 8. Crear y actualizar pedidos
 
 Un **pedido** en el CRM es un *lead*. La API es la REST API estándar de Krayin.
+
+### El CRM abre el pedido con el primer mensaje
+
+Cuando alguien escribe y no tiene un pedido abierto, el CRM le abre uno **vacío**, en
+Prospectos, en su ciudad o en «Sin ciudad» si todavía no se sabe. Va a nombre de Huascar
+si es un contacto nuevo, o de su distribuidor si es un cliente conocido. El evento lo trae
+en `lead` con `is_empty: true`: **el agente lo completa con `PUT`, no crea otro.**
+
+Si igual el agente crea uno con `POST`, el CRM borra el vacío y vincula el nuevo a la
+conversación. Cada pedido nuevo de una persona queda vinculado a su conversación, así el
+siguiente evento ya trae el `lead` correcto.
+
+Al fijar la zona (`Ciudad`), el pedido se muda de «Sin ciudad» a esa ciudad y conserva la
+etapa.
 
 ### ¿Crear (POST) o completar (PUT)?
 
