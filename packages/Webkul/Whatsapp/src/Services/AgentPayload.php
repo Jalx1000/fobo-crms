@@ -346,6 +346,12 @@ class AgentPayload
                 \Webkul\Distribuidor\Services\AsignacionDeZona::class,
                 fn ($s) => $s->zonas(),
             ) ?: [],
+            /*
+             * Cada ciudad con los ids de sus etapas, por code. El PUT de un pedido
+             * tiene que mandar `lead_pipeline_stage_id`: sin él, la API de Krayin lo
+             * muda a la ciudad por defecto. Con esto el agente no escribe ids a mano.
+             */
+            'ciudades' => $this->ciudadesConEtapas(),
         ];
     }
 
@@ -414,6 +420,30 @@ class AgentPayload
             'nota'                => 'Productos y precios vigentes por zona. Ofrecé solo estos, con el precio de la zona del cliente. '
                 .'Una zona de zonas_con_cobertura SIEMPRE tiene cobertura.',
         ];
+    }
+
+    /**
+     * Las ciudades (pipelines) con sus etapas: [{pipeline_id, ciudad, etapas: {code: id}}].
+     * Sin «Sin ciudad», que no es una zona.
+     *
+     * @return array<int, array{pipeline_id:int, ciudad:string, etapas:array<string, int>}>
+     */
+    protected function ciudadesConEtapas(): array
+    {
+        $sinCiudad = \Webkul\Whatsapp\Support\ConversationCity::noneEquivalentPipelineIds();
+
+        $etapas = DB::table('lead_pipeline_stages')->orderBy('sort_order')->get(['id', 'code', 'lead_pipeline_id'])
+            ->groupBy('lead_pipeline_id');
+
+        return DB::table('lead_pipelines')->orderBy('name')->get(['id', 'name'])
+            ->reject(fn ($p) => in_array((int) $p->id, $sinCiudad, true))
+            ->map(fn ($p) => [
+                'pipeline_id' => (int) $p->id,
+                'ciudad'      => (string) $p->name,
+                'etapas'      => collect($etapas->get($p->id, []))->mapWithKeys(fn ($e) => [(string) $e->code => (int) $e->id])->all(),
+            ])
+            ->values()
+            ->all();
     }
 
     /** Las líneas de un pedido, en la forma que el agente ya conoce. */

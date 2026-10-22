@@ -110,3 +110,22 @@ it('la API de productos no lista inactivos', function () {
 
     expect($ids)->not->toContain($producto);
 });
+
+it('le manda al agente cada ciudad con los ids de sus etapas, sin «Sin ciudad»', function () {
+    $conv = ConversationProxy::modelClass()::create([
+        'gateway' => 'cloud_api', 'wa_phone' => '+54938'.random_int(10000000, 99999999),
+        'wa_name' => 'Cliente etapas', 'ai_enabled' => true, 'last_message_at' => now(),
+    ]);
+    $mensaje = MessageProxy::modelClass()::create([
+        'conversation_id' => $conv->id, 'direction' => 'inbound', 'sender' => 'contact',
+        'type' => 'text', 'body' => 'Hola', 'status' => 'delivered',
+    ]);
+
+    $ciudades = collect(app(AgentPayload::class)->event($mensaje->fresh('conversation'))['asignacion']['ciudades'])->keyBy('ciudad');
+    $palpala = catalogoPalpala();
+
+    expect($ciudades->has('Sin ciudad'))->toBeFalse()
+        ->and($ciudades['Palpalá']['pipeline_id'])->toBe($palpala)
+        ->and($ciudades['Palpalá']['etapas']['pedidos-confirmado'])
+        ->toBe((int) DB::table('lead_pipeline_stages')->where('lead_pipeline_id', $palpala)->where('code', 'pedidos-confirmado')->value('id'));
+});
