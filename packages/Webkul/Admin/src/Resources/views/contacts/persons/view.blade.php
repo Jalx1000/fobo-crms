@@ -94,8 +94,10 @@
             {!! view_render_event('admin.contact.persons.view.right.before', ['person' => $person]) !!}
 
             <!-- Activities -->
+            {{-- Abre en WhatsApp: es donde se atiende al cliente (en «Todos» si no tiene el módulo). --}}
             <x-admin::activities
                 :endpoint="route('admin.contacts.persons.activities.index', $person->id)"
+                :activeType="bouncer()->hasPermission('whatsapp') ? 'whatsapp' : 'all'"
                 :extra-types="array_merge(
                     /*
                      * La pestaña sólo existe para quien tiene el módulo.

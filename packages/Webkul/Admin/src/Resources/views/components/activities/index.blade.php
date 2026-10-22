@@ -652,7 +652,15 @@
                     });
                 } */
 
-                this.selectedType = 'all';
+                /*
+                 * La pestaña de inicio es la que pide la vista (`active-type`): WhatsApp
+                 * en las fichas de pedido y persona. Antes se forzaba «Todos» acá y la
+                 * vista no podía elegir. Si la pedida no existe (un rol sin el módulo
+                 * de WhatsApp no tiene esa pestaña), se abre «Todos».
+                 */
+                this.selectedType = this.types.some((type) => type.name === this.activeType)
+                    ? this.activeType
+                    : 'all';
 
                 this.$emitter.on('on-activity-added', (activity) => this.activities.unshift(activity));
             },

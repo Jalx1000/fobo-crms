@@ -91,7 +91,8 @@
             <!-- Activities -->
             {!! view_render_event('admin.leads.view.activities.before', ['lead' => $lead]) !!}
 
-            <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : 'all'" :extra-types="array_merge(
+            {{-- Abre en WhatsApp: es donde se atiende al cliente (en «Todos» si no tiene el módulo; en Cotizaciones si se viene de ahí). --}}
+            <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : (bouncer()->hasPermission('whatsapp') ? 'whatsapp' : 'all')" :extra-types="array_merge(
                 /*
                  * La pestaña sólo existe para quien tiene el módulo. Aparecía
                  * para todos, incluido un rol sin permiso de WhatsApp: el menú
