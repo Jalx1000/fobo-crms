@@ -162,6 +162,15 @@ class Lead extends AbstractReporting
             ->pluck('id')
             ->toArray();
 
+        /*
+         * Sensia no tiene etapa "No atendido": el pedido que nadie trabajó todavía
+         * está en "Prospectos". Sin esto la lista quedaba vacía y "Atendidos vs no
+         * atendidos" contaba todo como atendido (la barra roja nunca aparecía).
+         */
+        if (! $this->notAttendedStageIds) {
+            $this->notAttendedStageIds = $this->prospectoStageIds;
+        }
+
         $this->noInterestStageIds = $this->stageRepository
             ->resetModel()
             ->where('code', 'like', '%sin-inter%')
