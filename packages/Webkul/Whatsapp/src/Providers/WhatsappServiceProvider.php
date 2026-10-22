@@ -2,10 +2,12 @@
 
 namespace Webkul\Whatsapp\Providers;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Webkul\Whatsapp\Console\Commands\BackfillMessageBodies;
+use Webkul\Whatsapp\Console\Commands\CerrarDerivaciones;
 use Webkul\Whatsapp\Console\Commands\KommoCheck;
 use Webkul\Whatsapp\Console\Commands\ListTemplates;
 use Webkul\Whatsapp\Console\Commands\NormalizePhones;
@@ -44,6 +46,14 @@ class WhatsappServiceProvider extends ServiceProvider
             }
         });
 
+        // Derivaciones abiertas de más de N horas (Configuración → WhatsApp): cada 10 minutos.
+        $this->app->booted(function () {
+            $this->app->make(Schedule::class)
+                ->command('whatsapp:cerrar-derivaciones')
+                ->everyTenMinutes()
+                ->withoutOverlapping();
+        });
+
         $this->app['router']->aliasMiddleware('whatsapp_access', EnsureWhatsappAccess::class);
         $this->app['router']->aliasMiddleware('whatsapp_scope', EnsureConversationInScope::class);
 
@@ -64,6 +74,7 @@ class WhatsappServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 BackfillMessageBodies::class,
+                CerrarDerivaciones::class,
                 KommoCheck::class,
                 ListTemplates::class,
                 NormalizePhones::class,
@@ -92,6 +103,12 @@ class WhatsappServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(
             dirname(__DIR__).'/Config/acl.php',
             'acl'
+        );
+
+        // Configuración → WhatsApp (cierre automático de derivaciones).
+        $this->mergeConfigFrom(
+            dirname(__DIR__).'/Config/core_config.php',
+            'core_config'
         );
     }
 }
