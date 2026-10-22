@@ -297,6 +297,13 @@ return [
          * contestar mientras está apagado, el CRM lo rechaza con 409.
          */
         'context_when_off' => (bool) env('WHATSAPP_AGENT_CONTEXT_WHEN_OFF', true),
+
+        /*
+         * Números que tienen el agente aunque esté apagado para todos, separados por
+         * coma (con o sin código de país). Se suman a los de Configuración → WhatsApp
+         * → Agente de IA.
+         */
+        'numeros' => env('WHATSAPP_AI_NUMEROS', ''),
     ],
 
     /*

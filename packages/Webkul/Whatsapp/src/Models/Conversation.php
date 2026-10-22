@@ -80,7 +80,8 @@ class Conversation extends Model implements ConversationContract
 
     /**
      * Si el número está en «Números con el agente activado» (Configuración →
-     * WhatsApp → Agente de IA): con el agente apagado para todos, esos números lo
+     * WhatsApp → Agente de IA) o en WHATSAPP_AI_NUMEROS del .env: con el agente
+     * apagado para todos, esos números lo
      * tienen igual. Compara por la cola de dígitos, así «76616013» y
      * «+59176616013» son el mismo.
      */
@@ -90,7 +91,8 @@ class Conversation extends Model implements ConversationContract
         if (! app()->bound('whatsapp.numeros_con_agente')) {
             app()->instance('whatsapp.numeros_con_agente', array_values(array_filter(array_map(
                 'trim',
-                preg_split('/[\s,;]+/', (string) core()->getConfigData('whatsapp.agente.numeros_habilitados'))
+                // Los del portal más los del .env (WHATSAPP_AI_NUMEROS).
+                preg_split('/[\s,;]+/', core()->getConfigData('whatsapp.agente.numeros_habilitados').','.config('whatsapp.ai.numeros'))
             ))));
         }
 

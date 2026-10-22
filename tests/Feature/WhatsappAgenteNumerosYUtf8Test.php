@@ -64,3 +64,12 @@ it('una respuesta del agente con UTF-8 inválido se guarda, sin el carácter rot
         ->and(mb_check_encoding($opciones, 'UTF-8'))->toBeTrue()
         ->and($opciones)->toContain('Sí');
 });
+
+it('también toma los números de WHATSAPP_AI_NUMEROS, separados por coma', function () {
+    config(['whatsapp.ai.enabled' => false, 'whatsapp.ai.numeros' => '76616013,+59175565205']);
+    numerosHabilitar('');
+
+    expect(numerosConversacion('+59175565205')->aiEffective())->toBeTrue()
+        ->and(numerosConversacion('+59176616013')->aiEffective())->toBeTrue()
+        ->and(numerosConversacion('+59175640698')->aiEffective())->toBeFalse();
+});
