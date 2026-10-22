@@ -533,7 +533,9 @@ class Lead extends AbstractReporting
             $byDate[$key][$user] = (int) $row->count;
         }
 
-        $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
+        $usersQuery = \Webkul\Admin\Helpers\FiltroDistribuidor::acotarUsuarios(
+            $this->userRepository->resetModel()->select('id', 'name')
+        );
         $usersQuery = $this->excludeIgnoredRoles($usersQuery, 'id');
 
         if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
@@ -606,7 +608,9 @@ class Lead extends AbstractReporting
         $currentCounts = $buildCounts($this->startDate, $this->endDate);
         $previousCounts = $buildCounts($this->lastStartDate, $this->lastEndDate);
 
-        $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
+        $usersQuery = \Webkul\Admin\Helpers\FiltroDistribuidor::acotarUsuarios(
+            $this->userRepository->resetModel()->select('id', 'name')
+        );
         $usersQuery = $this->excludeIgnoredRoles($usersQuery, 'id');
 
         if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
@@ -683,7 +687,9 @@ class Lead extends AbstractReporting
             $notAttendedById[$row->user_id] = (int) $row->not_attended;
         }
 
-        $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
+        $usersQuery = \Webkul\Admin\Helpers\FiltroDistribuidor::acotarUsuarios(
+            $this->userRepository->resetModel()->select('id', 'name')
+        );
         $usersQuery = $this->excludeIgnoredRoles($usersQuery, 'id');
 
         if ($this->ignoredUserNames) {
@@ -837,7 +843,9 @@ class Lead extends AbstractReporting
         $currentCounts = $buildCounts($this->startDate, $this->endDate);
         $previousCounts = $buildCounts($this->lastStartDate, $this->lastEndDate);
 
-        $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
+        $usersQuery = \Webkul\Admin\Helpers\FiltroDistribuidor::acotarUsuarios(
+            $this->userRepository->resetModel()->select('id', 'name')
+        );
         $usersQuery = $this->excludeIgnoredRoles($usersQuery, 'id');
 
         if (function_exists('bouncer') && ! is_null($userIds = bouncer()->getAuthorizedUserIds())) {
@@ -939,7 +947,9 @@ class Lead extends AbstractReporting
         $currentAverages = $buildAverages($this->startDate, $this->endDate);
         $previousAverages = $buildAverages($this->lastStartDate, $this->lastEndDate);
 
-        $usersQuery = $this->userRepository->resetModel()->select('id', 'name');
+        $usersQuery = \Webkul\Admin\Helpers\FiltroDistribuidor::acotarUsuarios(
+            $this->userRepository->resetModel()->select('id', 'name')
+        );
         $usersQuery = $this->excludeIgnoredRoles($usersQuery, 'id');
 
         if ($this->ignoredUserNames) {

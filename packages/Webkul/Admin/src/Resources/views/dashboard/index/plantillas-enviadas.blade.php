@@ -52,14 +52,21 @@
                         </span>
                     </p>
 
-                    <div class="max-h-80 overflow-auto rounded border border-gray-200 dark:border-gray-800">
+                    {{-- tabindex: la zona tiene scroll propio y tiene que poder desplazarse con el teclado. --}}
+                    <div
+                        class="max-h-80 overflow-auto rounded border border-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:border-gray-800"
+                        tabindex="0"
+                        role="region"
+                        aria-label="Plantillas enviadas por cliente"
+                    >
                         <table class="w-full text-left text-xs">
+                            <caption class="sr-only">Plantillas de WhatsApp enviadas: fecha, cliente, plantilla y estado</caption>
                             <thead class="sticky top-0 bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                                 <tr>
-                                    <th class="px-2 py-1.5 font-semibold">Fecha</th>
-                                    <th class="px-2 py-1.5 font-semibold">Cliente</th>
-                                    <th class="px-2 py-1.5 font-semibold">Plantilla</th>
-                                    <th class="px-2 py-1.5 font-semibold">Estado</th>
+                                    <th scope="col" class="px-2 py-1.5 font-semibold">Fecha</th>
+                                    <th scope="col" class="px-2 py-1.5 font-semibold">Cliente</th>
+                                    <th scope="col" class="px-2 py-1.5 font-semibold">Plantilla</th>
+                                    <th scope="col" class="px-2 py-1.5 font-semibold">Estado</th>
                                 </tr>
                             </thead>
 

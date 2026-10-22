@@ -6,6 +6,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use Webkul\Admin\Exports\Dashboard\DashboardExport;
 use Webkul\Admin\Exports\Dashboard\DashboardLeadsSheet;
 use Webkul\Admin\Helpers\Dashboard;
+use Webkul\Admin\Helpers\FiltroDistribuidor;
 use Webkul\Admin\Helpers\GlobalDateFilter;
 use Webkul\Lead\Repositories\PipelineRepository;
 
@@ -73,6 +74,8 @@ class DashboardController extends Controller
             'startDate' => $dashboardHelper->getStartDate(),
             'endDate'   => $dashboardHelper->getEndDate(),
             'pipelines' => $this->pipelineRepository->all(['id', 'name']),
+            // Filtro «Distribuidor»: solo administradores y encargados (vacío para el resto).
+            'distribuidores' => FiltroDistribuidor::opciones(),
         ]);
     }
 
@@ -96,13 +99,19 @@ class DashboardController extends Controller
 
         $this->applyGlobalFilterDefaults();
 
+        FiltroDistribuidor::activar(FiltroDistribuidor::elegido(request()));
+
         /**
          * Resolve the helper AFTER injecting the global-filter defaults, because
          * the reporting reads start/end in its constructor.
          */
         $dashboardHelper = app(Dashboard::class);
 
-        $stats = $dashboardHelper->{$this->typeFunctions[$type]}();
+        try {
+            $stats = $dashboardHelper->{$this->typeFunctions[$type]}();
+        } finally {
+            FiltroDistribuidor::desactivar();
+        }
 
         return response()->json([
             'statistics' => $stats,
@@ -126,6 +135,8 @@ class DashboardController extends Controller
         }
 
         $this->applyGlobalFilterDefaults();
+
+        FiltroDistribuidor::activar(FiltroDistribuidor::elegido(request()));
 
         /**
          * Translate the dashboard's global filter (pipeline_id + start/end) into
@@ -154,11 +165,15 @@ class DashboardController extends Controller
          * CSV cannot hold multiple sheets, so fall back to the detail rows
          * (the analytically useful part) for that format.
          */
-        if ($format === 'csv') {
-            return Excel::download(new DashboardLeadsSheet, $fileName);
-        }
+        try {
+            if ($format === 'csv') {
+                return Excel::download(new DashboardLeadsSheet, $fileName);
+            }
 
-        return Excel::download(new DashboardExport(app(Dashboard::class)), $fileName);
+            return Excel::download(new DashboardExport(app(Dashboard::class)), $fileName);
+        } finally {
+            FiltroDistribuidor::desactivar();
+        }
     }
 
     /**

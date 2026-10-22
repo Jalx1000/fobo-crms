@@ -16,7 +16,13 @@
 --}}
 @php($extra = $extra ?? null)
 
-<div class="mt-4 max-h-80 overflow-y-auto border-t border-gray-200 dark:border-gray-800">
+{{-- tabindex: la tabla tiene scroll propio y tiene que poder desplazarse con el teclado. --}}
+<div
+    class="mt-4 max-h-80 overflow-y-auto border-t border-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brandColor dark:border-gray-800"
+    tabindex="0"
+    role="region"
+    aria-label="{{ $labelHeader }}: detalle de la torta"
+>
     <table class="w-full text-left">
         <thead class="sticky top-0 bg-white dark:bg-gray-900">
             <tr class="border-b border-gray-200 dark:border-gray-800">

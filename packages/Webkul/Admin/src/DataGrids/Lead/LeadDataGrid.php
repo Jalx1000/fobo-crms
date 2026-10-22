@@ -124,6 +124,11 @@ class LeadDataGrid extends DataGrid
         // Por ciudad si su grupo designa una, por dueño si no.
         VisibilidadLeads::aplicar($queryBuilder);
 
+        // Exportación del tablero con el filtro «Distribuidor»: solo activo ahí.
+        if ($distribuidor = \Webkul\Admin\Helpers\FiltroDistribuidor::activo()) {
+            $queryBuilder->where('leads.user_id', $distribuidor);
+        }
+
         if ($dateFilter = request()->query('date_filter')) {
             if ($dateFilter === 'today') {
                 $queryBuilder->whereBetween('leads.created_at', [now()->today()->startOfDay(), now()->today()->endOfDay()]);

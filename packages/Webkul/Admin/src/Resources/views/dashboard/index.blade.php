@@ -186,6 +186,26 @@
                 </select>
                 </label>
 
+                <!-- Distribuidor: solo administradores y encargados (la lista viene vacía para el resto). -->
+                <label v-if="distribuidores.length" class="contents max-lg:flex max-lg:flex-col max-lg:gap-1.5">
+                    <span class="font-semibold text-gray-700 dark:text-gray-300 lg:hidden">Distribuidor</span>
+
+                <select
+                    aria-label="Distribuidor"
+                    class="flex min-h-[39px] w-[190px] rounded-md border px-3 py-2 text-sm text-gray-600 transition-all hover:border-gray-400 max-lg:h-11 max-lg:w-full max-lg:rounded-lg max-lg:bg-white dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                    v-model="filters.distribuidor_id"
+                >
+                    <option value="">Todos los distribuidores</option>
+                    <option
+                        v-for="distribuidor in distribuidoresDeLaCiudad"
+                        :key="distribuidor.id"
+                        :value="String(distribuidor.id)"
+                    >
+                        @{{ distribuidor.name }} · @{{ distribuidor.ciudades }}
+                    </option>
+                </select>
+                </label>
+
                 <div class="contents max-lg:flex max-lg:flex-col max-lg:gap-1.5">
                     <span class="font-semibold text-gray-700 dark:text-gray-300 lg:hidden">@lang('admin::app.leads.index.filtros-movil.periodo')</span>
 
@@ -287,6 +307,7 @@
                     // Pedidos module). City: 'all'/empty => "Todas".
                     // Date: "from|to|savedAt" - see Webkul\Admin\Helpers\GlobalDateFilter.
                     const savedCity = (document.cookie.match(/(?:^|;\s*)global_pipeline_id=([^;]*)/) || [])[1];
+                    const savedDistribuidor = (document.cookie.match(/(?:^|;\s*)global_distribuidor_id=([^;]*)/) || [])[1];
                     const savedDate = (document.cookie.match(/(?:^|;\s*)global_date_range=([^;]*)/) || [])[1];
 
                     let savedFrom = '';
@@ -325,6 +346,8 @@
                     return {
                         pipelines: @json($pipelines->map(fn ($pipeline) => ['id' => $pipeline->id, 'name' => $pipeline->name])),
 
+                        distribuidores: @json($distribuidores ?? []),
+
                         exportFormat: 'xlsx',
 
                         // Celular: panel lateral de filtros.
@@ -334,6 +357,8 @@
                             channel: '',
 
                             pipeline_id: (! savedCity || savedCity === 'all') ? '' : decodeURIComponent(savedCity),
+
+                            distribuidor_id: savedDistribuidor && savedDistribuidor !== 'all' ? decodeURIComponent(savedDistribuidor) : '',
 
                             start: savedFrom || "{{ $startDate->format('Y-m-d') }}",
 
@@ -345,7 +370,19 @@
                 computed: {
                     // Celular: cuántos filtros además del período (badge de «Filtros»).
                     filtrosActivos() {
-                        return [this.filters.pipeline_id].filter(Boolean).length;
+                        return [this.filters.pipeline_id, this.filters.distribuidor_id].filter(Boolean).length;
+                    },
+
+                    /*
+                     * Con una ciudad elegida, solo los distribuidores de esa ciudad. Las
+                     * ciudades vienen como texto, así que se compara por nombre.
+                     */
+                    distribuidoresDeLaCiudad() {
+                        const ciudad = this.pipelines.find((p) => String(p.id) === String(this.filters.pipeline_id));
+
+                        return ciudad
+                            ? this.distribuidores.filter((d) => d.ciudades.split(', ').includes(ciudad.name))
+                            : this.distribuidores;
                     },
 
                     // Celular: el período elegido, a la vista en la banda («20 oct – 21 oct»).
@@ -372,6 +409,23 @@
                     // so e.g. changing the city doesn't accidentally seed a date range.
                     'filters.pipeline_id'(value) {
                         this.setCityCookie(value);
+                    },
+
+                    /*
+                     * Si la ciudad nueva no tiene al distribuidor elegido, se suelta el
+                     * filtro: si no, el desplegable queda en blanco y el tablero sigue
+                     * filtrado por alguien que ya no se ve en la lista.
+                     */
+                    distribuidoresDeLaCiudad(lista) {
+                        if (this.filters.distribuidor_id && ! lista.some((d) => String(d.id) === String(this.filters.distribuidor_id))) {
+                            this.filters.distribuidor_id = '';
+                        }
+                    },
+
+                    'filters.distribuidor_id'(value) {
+                        const maxAge = 60 * 60 * 24 * 365;
+
+                        document.cookie = `global_distribuidor_id=${encodeURIComponent(value || 'all')}; path=/; max-age=${maxAge}; SameSite=Lax`;
                     },
 
                     'filters.start'() {
@@ -438,6 +492,10 @@
                         const params = new URLSearchParams();
 
                         params.set('format', this.exportFormat);
+
+                        if (this.filters.distribuidor_id) {
+                            params.set('distribuidor_id', this.filters.distribuidor_id);
+                        }
 
                         if (this.filters.pipeline_id) {
                             params.set('pipeline_id', this.filters.pipeline_id);

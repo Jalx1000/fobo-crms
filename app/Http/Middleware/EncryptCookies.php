@@ -15,5 +15,6 @@ class EncryptCookies extends Middleware
         'dark_mode',
         'global_pipeline_id',
         'global_date_range',
+        'global_distribuidor_id',
     ];
 }
