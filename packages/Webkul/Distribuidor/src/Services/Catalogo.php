@@ -130,7 +130,8 @@ class Catalogo
             return [];
         }
 
-        return DB::table('products')
+        // Solo activos: un producto dado de baja no se ofrece en el Punto.
+        return \Webkul\Product\Support\ProductosActivos::aplicar(DB::table('products'), 'products.id')
             ->whereIn('id', $permitidos)
             ->orderBy('name')
             ->get(['id', 'name', 'sku', 'price'])

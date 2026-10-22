@@ -22,7 +22,8 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 });
 
 Route::get('/public/products', function (Request $request) {
-    $query = Product::query()->with('attribute_values');
+    // Solo activos: un producto inactivo solo se ve en el módulo de Productos.
+    $query = \Webkul\Product\Support\ProductosActivos::aplicar(Product::query()->with('attribute_values'), 'products.id');
 
     $search = $request->query('q');
     if ($search) {

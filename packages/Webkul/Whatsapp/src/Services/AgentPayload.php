@@ -54,6 +54,9 @@ class AgentPayload
             'pedidos_pendientes' => $this->pedidosPendientes($conversation),
             // A quién se le asigna un pedido según la ciudad.
             'asignacion' => $this->asignacion(),
+            // Productos y precios vigentes de cada zona: el agente no depende de acordarse
+            // de pedirlos (en la conversación 7710 contestó «no hay productos» sin consultar).
+            'catalogo' => $this->catalogo($conversation),
             // Si venimos de un recordatorio de recompra: qué le preguntamos, qué sabemos
             // ya de él y dónde avisar qué contestó.
             'recompra' => $this->recompra($conversation),
@@ -343,6 +346,73 @@ class AgentPayload
                 \Webkul\Distribuidor\Services\AsignacionDeZona::class,
                 fn ($s) => $s->zonas(),
             ) ?: [],
+        ];
+    }
+
+    /**
+     * Lo que se vende en cada zona con cobertura, con su precio, y la zona del
+     * cliente si se sabe.
+     *
+     * Van TODAS las zonas y no solo la del cliente: muchas veces el cliente dice
+     * su zona en el mismo mensaje y el CRM todavía no la tiene guardada. Solo
+     * productos activos (ProductosActivos, vía Catalogo).
+     *
+     * @return array{zonas_con_cobertura: array<int, string>, zona_del_cliente: ?string, por_zona: array<string, array>, nota: string}|null
+     */
+    public function catalogo(Conversation $conversation): ?array
+    {
+        $catalogo = $this->siExiste(\Webkul\Distribuidor\Services\Catalogo::class, fn ($c) => $c);
+
+        if (! $catalogo) {
+            return null;
+        }
+
+        $porZona = [];
+
+        foreach ($catalogo->sucursales() as $sucursal) {
+            if (! $sucursal['ciudad_id'] || ! ($zona = $this->nombreDeCiudad($sucursal['ciudad_id']))) {
+                continue;
+            }
+
+            $productos = $catalogo->productosDe($sucursal['id']);
+
+            if ($productos) {
+                $porZona[$zona] = $productos;
+            }
+        }
+
+        $ids = collect($porZona)->flatten(1)->pluck('id')->unique()->all();
+
+        $descripciones = DB::table('products')->whereIn('id', $ids)->pluck('description', 'id');
+
+        $promociones = DB::table('attribute_values')
+            ->join('attributes', 'attributes.id', '=', 'attribute_values.attribute_id')
+            ->where('attributes.code', 'precio_promocion')
+            ->where('attribute_values.entity_type', 'products')
+            ->whereIn('attribute_values.entity_id', $ids)
+            ->pluck('attribute_values.text_value', 'attribute_values.entity_id');
+
+        $porZona = array_map(fn ($productos) => array_map(fn ($p) => [
+            'product_id'       => $p['id'],
+            'nombre'           => $p['name'],
+            'precio'           => $p['price'],
+            'precio_promocion' => filled($promociones[$p['id']] ?? null) ? $promociones[$p['id']] : null,
+            'descripcion'      => $descripciones[$p['id']] ?? null,
+        ], $productos), $porZona);
+
+        $ciudadId = \Webkul\Whatsapp\Support\ConversationCity::de((int) $conversation->id);
+
+        // «Sin ciudad» es un pipeline pero no una zona: para el agente, no se sabe.
+        if (in_array($ciudadId, \Webkul\Whatsapp\Support\ConversationCity::noneEquivalentPipelineIds(), true)) {
+            $ciudadId = null;
+        }
+
+        return [
+            'zonas_con_cobertura' => array_keys($porZona),
+            'zona_del_cliente'    => $ciudadId ? $this->nombreDeCiudad($ciudadId) : null,
+            'por_zona'            => $porZona,
+            'nota'                => 'Productos y precios vigentes por zona. Ofrecé solo estos, con el precio de la zona del cliente. '
+                .'Una zona de zonas_con_cobertura SIEMPRE tiene cobertura.',
         ];
     }
 

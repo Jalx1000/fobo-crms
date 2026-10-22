@@ -81,6 +81,16 @@ class AgregarAtributosDeProducto
             return $item;
         }, $items);
 
+        /*
+         * Las listas no traen productos inactivos: solo se ven en el módulo de
+         * Productos. El detalle por id sí, porque un pedido viejo puede tener uno y
+         * quien lo consulta necesita su nombre y su precio.
+         */
+        if ($esLista) {
+            $inactivos = array_flip(\Webkul\Product\Support\ProductosActivos::inactivos());
+            $items = array_values(array_filter($items, fn ($i) => ! isset($inactivos[(int) ($i['id'] ?? 0)])));
+        }
+
         $cuerpo['data'] = $esLista ? $items : $items[0];
 
         $response->setData($cuerpo);

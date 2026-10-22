@@ -179,6 +179,14 @@ class ProductController extends Controller
             });
         }
 
+        /*
+         * Lo usan los formularios de pedido y cotización para elegir productos: un
+         * producto inactivo no se ofrece (solo se ve en el módulo de Productos).
+         */
+        $repository = $repository->scopeQuery(
+            fn ($query) => \Webkul\Product\Support\ProductosActivos::aplicar($query, 'products.id')
+        );
+
         $products = $repository
             ->orderBy('created_at', 'desc')
             ->take((int) $limit)
