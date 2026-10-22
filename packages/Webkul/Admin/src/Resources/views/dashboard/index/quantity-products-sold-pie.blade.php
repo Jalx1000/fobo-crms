@@ -20,20 +20,25 @@
                     </p>
                 </div>
 
-                <div class="flex flex-col" v-if="report.statistics.length">
+                <div class="flex flex-col" v-if="products.length">
                     <div class="flex w-full max-w-full flex-col gap-4 px-8 pt-8 max-lg:mx-auto max-lg:w-[240px] max-lg:px-0 max-lg:pt-2">
                         <x-admin::charts.doughnut
                             ::labels="chartLabels"
                             ::datasets="chartDatasets"
                         />
-
-                        <div class="flex flex-wrap justify-center gap-5">
-                            <div class="flex items-start gap-2 max-w-[260px]" v-for="(stat, index) in report.statistics" :key="stat.id">
-                                <span class="h-3.5 w-3.5 rounded-sm" :style="{ backgroundColor: colors[index] }"></span>
-                                <p class="text-xs dark:text-gray-300 break-words">@{{ stat.name }} - @{{ stat.total_qty_ordered }}</p>
-                            </div>
-                        </div>
                     </div>
+
+                    <!-- Todos los productos de pedidos entregados. Fila «Total»: unidades y pedidos distintos. -->
+                    @include('admin::dashboard.index.pie-table', [
+                        'rows'        => 'products',
+                        'label'       => "row.name ?? 'Producto eliminado'",
+                        'labelHeader' => 'Producto',
+                        'value'       => 'row.total_qty_ordered',
+                        'valueHeader' => 'Unid.',
+                        'total'       => 'report.statistics.total_qty',
+                        'extra'       => ['header' => 'Pedidos', 'value' => 'row.total_leads', 'total' => 'report.statistics.total_leads'],
+                        'colors'      => 'colors',
+                    ])
                 </div>
 
                 <div class="flex flex-col gap-8 p-4" v-else>
@@ -56,25 +61,25 @@
             data() {
                 return {
                     report: [],
-                    colors: [
-                        '#8979FF',
-                        '#FF928A',
-                        '#3CC3DF',
-                    ],
+                    colors: [],
                     isLoading: true,
                 }
             },
 
             computed: {
+                products() {
+                    return this.report.statistics?.products ?? [];
+                },
+
                 chartLabels() {
-                    return this.report.statistics.map(({
+                    return this.products.map(({
                         name
                     }) => name);
                 },
 
                 chartDatasets() {
                     return [{
-                        data: this.report.statistics.map(({
+                        data: this.products.map(({
                             total_qty_ordered
                         }) => total_qty_ordered),
                         backgroundColor: this.colors,
@@ -97,17 +102,20 @@
                         })
                         .then(response => {
                             this.report = response.data;
-                            this.extendColors(this.report.statistics.length);
+                            this.colors = this.buildColors(this.products.length);
                             this.isLoading = false;
                         })
                         .catch(error => {});
                 },
-                extendColors(length) {
-                    while (this.colors.length < length) {
-                        const hue = Math.floor(Math.random() * 360);
-                        const newColor = `hsl(${hue}, 70%, 60%)`;
-                        this.colors.push(newColor);
-                    }
+                /**
+                 * Un color fijo por posición: los 3 de siempre y, desde el 4.º,
+                 * tonos separados por el ángulo áureo. Antes eran aleatorios y
+                 * con muchos productos salían repetidos o casi iguales.
+                 */
+                buildColors(length) {
+                    const base = ['#8979FF', '#FF928A', '#3CC3DF'];
+
+                    return Array.from({ length }, (_, i) => base[i] ?? `hsl(${Math.round((i * 137.508) % 360)}, 65%, 58%)`);
                 },
             }
         });

@@ -133,17 +133,17 @@ class Dashboard
         return $this->productReporting->getTopSellingProductsByRevenue(5);
     }
 
-    public function getTopSellingProductsByQuantity(): Collection
+    public function getTopSellingProductsByQuantity(): array
     {
-        return $this->productReporting->getTopSellingProductsByQuantity(5);
+        return $this->tortaDeProductos($this->productReporting->getTopSellingProductsByQuantity(), false);
     }
 
     /**
      * Returns most sold products (Won/Ganado stage, i.e. delivered) statistics.
      */
-    public function getTopSellingProductsByQuantitySold(): Collection
+    public function getTopSellingProductsByQuantitySold(): array
     {
-        return $this->productReporting->getTopSellingProductsByQuantitySold(5);
+        return $this->tortaDeProductos($this->productReporting->getTopSellingProductsByQuantitySold(), true);
     }
 
     /**
@@ -378,5 +378,20 @@ class Dashboard
     public function getDateRange(): string
     {
         return $this->getStartDate()->format('d M').' - '.$this->getEndDate()->format('d M');
+    }
+
+    /**
+     * Las tortas de productos con su tabla (formato de Kolberg): TODOS los
+     * productos —antes eran los 5 primeros y la torta no sumaba el total— y los
+     * totales de la última fila. Los pedidos se cuentan distintos: un pedido con
+     * dos productos es uno.
+     */
+    protected function tortaDeProductos(Collection $productos, bool $soloEntregados): array
+    {
+        return [
+            'products'    => $productos->values(),
+            'total_qty'   => (int) $productos->sum('total_qty_ordered'),
+            'total_leads' => $this->productReporting->getLeadsWithProductsCount($soloEntregados),
+        ];
     }
 }

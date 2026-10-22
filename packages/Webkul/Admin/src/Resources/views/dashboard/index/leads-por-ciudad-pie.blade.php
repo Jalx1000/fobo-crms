@@ -24,12 +24,19 @@
                         ::datasets="chartDatasets"
                     />
 
-                    <div class="flex flex-wrap justify-center gap-5 pb-4">
-                        <div class="flex items-center gap-2" v-for="(color, index) in colors" :key="index">
-                            <span class="h-3.5 w-3.5 rounded-sm" :style="{ backgroundColor: color }"></span>
-                            <p class="text-xs dark:text-gray-300">@{{ legendLabels[index] }}</p>
-                        </div>
-                    </div>
+                </div>
+
+                <!-- -mx-4 / -mb-2: la tabla ocupa el ancho de la tarjeta, como en las tortas de productos. -->
+                <div class="-mx-4 -mb-2">
+                    @include('admin::dashboard.index.pie-table', [
+                        'rows'        => 'rows',
+                        'label'       => 'row.label',
+                        'labelHeader' => 'Ciudad',
+                        'value'       => 'row.count',
+                        'valueHeader' => 'Pedidos',
+                        'total'       => 'total',
+                        'colors'      => 'colors',
+                    ])
                 </div>
             </div>
         </template>
@@ -44,11 +51,20 @@
                     report: [],
                     colors: [],
                     isLoading: true,
-                    legendLabels: [],
                 }
             },
 
             computed: {
+                rows() {
+                    const data = this.report.statistics?.data ?? [];
+
+                    return this.chartLabels.map((label, i) => ({ label, count: data[i] ?? 0 }));
+                },
+
+                total() {
+                    return this.rows.reduce((sum, row) => sum + row.count, 0);
+                },
+
                 chartLabels() {
                     return this.report.statistics?.labels ?? [];
                 },
@@ -57,7 +73,6 @@
                     const labels = this.report.statistics?.labels ?? [];
                     const data = this.report.statistics?.data ?? [];
                     this.colors = labels.map((l) => this.getColorForLabel(l));
-                    this.legendLabels = labels;
                     return [{
                         data: data,
                         backgroundColor: this.colors,

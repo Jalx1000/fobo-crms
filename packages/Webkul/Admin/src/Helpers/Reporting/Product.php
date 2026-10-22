@@ -113,6 +113,8 @@ class Product extends AbstractReporting
                 'products.price'
             )
             ->addSelect(DB::raw('SUM('.$tablePrefix.'lead_products.quantity) as total_qty_ordered'))
+            // En cuántos pedidos aparece: la columna «Pedidos» de la tabla de la torta.
+            ->addSelect(DB::raw('COUNT(DISTINCT '.$tablePrefix.'lead_products.lead_id) as total_leads'))
             ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
             ->having(DB::raw('SUM('.$tablePrefix.'lead_products.quantity)'), '>', 0)
             ->groupBy('products.id', 'products.name', 'products.price')
@@ -126,7 +128,8 @@ class Product extends AbstractReporting
                 'name'              => $item->name,
                 'price'             => $item->product?->price,
                 'formatted_price'   => core()->formatBasePrice($item->price),
-                'total_qty_ordered' => $item->total_qty_ordered,
+                'total_qty_ordered' => (int) $item->total_qty_ordered,
+                'total_leads'       => (int) $item->total_leads,
             ];
         });
 
@@ -139,6 +142,29 @@ class Product extends AbstractReporting
      *
      * @param  int  $limit
      */
+    /**
+     * Cuántos pedidos distintos tienen productos en el período, con los mismos
+     * filtros que las tortas de productos: la fila «Total» de su tabla. No es la
+     * suma de la columna: un pedido con dos productos cuenta una vez.
+     */
+    public function getLeadsWithProductsCount(bool $soloEntregados = false): int
+    {
+        $pipelineId = is_numeric(request('pipeline_id')) ? request('pipeline_id') : null;
+
+        return (int) DB::table('lead_products')
+            ->join('leads', 'lead_products.lead_id', '=', 'leads.id')
+            ->when(request('user_id'), fn ($q) => $q->where('leads.user_id', request('user_id')))
+            ->when(request('organization_id'), fn ($q) => $q
+                ->join('persons', 'leads.person_id', '=', 'persons.id')
+                ->where('persons.organization_id', request('organization_id')))
+            ->when($pipelineId, fn ($q) => $q->where('leads.lead_pipeline_id', $pipelineId))
+            ->when($soloEntregados, fn ($q) => $q->whereIn('leads.lead_pipeline_stage_id', $this->wonStageIds ?: [0]))
+            ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
+            ->where('lead_products.quantity', '>', 0)
+            ->distinct()
+            ->count('lead_products.lead_id');
+    }
+
     public function getTopSellingProductsByQuantitySold($limit = null): Collection
     {
         $tablePrefix = DB::getTablePrefix();
@@ -165,6 +191,8 @@ class Product extends AbstractReporting
                 'products.price'
             )
             ->addSelect(DB::raw('SUM('.$tablePrefix.'lead_products.quantity) as total_qty_ordered'))
+            // En cuántos pedidos aparece: la columna «Pedidos» de la tabla de la torta.
+            ->addSelect(DB::raw('COUNT(DISTINCT '.$tablePrefix.'lead_products.lead_id) as total_leads'))
             ->whereIn('leads.lead_pipeline_stage_id', $this->wonStageIds)
             // Decisión de negocio: contar los entregados por FECHA DE CREACIÓN del
             // lead (created_at), para que el tablero cuadre con Contactos/Leads y el
@@ -182,7 +210,8 @@ class Product extends AbstractReporting
                 'name'              => $item->name,
                 'price'             => $item->product?->price,
                 'formatted_price'   => core()->formatBasePrice($item->price),
-                'total_qty_ordered' => $item->total_qty_ordered,
+                'total_qty_ordered' => (int) $item->total_qty_ordered,
+                'total_leads'       => (int) $item->total_leads,
             ];
         });
     }
