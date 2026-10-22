@@ -42,6 +42,41 @@
                 <p v-else class="text-sm text-gray-600 dark:text-gray-400">
                     No se envió ninguna plantilla en este período.
                 </p>
+
+                {{-- A quién se envió cada una (las últimas 100 del período). --}}
+                <div v-if="report.envios && report.envios.length" class="grid gap-1.5">
+                    <p class="text-sm font-semibold dark:text-gray-300">
+                        Enviadas a
+                        <span v-if="report.envios.length < report.total" class="font-normal text-gray-500 dark:text-gray-400">
+                            (últimas @{{ report.envios.length }})
+                        </span>
+                    </p>
+
+                    <div class="max-h-80 overflow-auto rounded border border-gray-200 dark:border-gray-800">
+                        <table class="w-full text-left text-xs">
+                            <thead class="sticky top-0 bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                <tr>
+                                    <th class="px-2 py-1.5 font-semibold">Fecha</th>
+                                    <th class="px-2 py-1.5 font-semibold">Cliente</th>
+                                    <th class="px-2 py-1.5 font-semibold">Plantilla</th>
+                                    <th class="px-2 py-1.5 font-semibold">Estado</th>
+                                </tr>
+                            </thead>
+
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-800 dark:text-gray-300">
+                                <tr v-for="(envio, i) in report.envios" :key="i">
+                                    <td class="whitespace-nowrap px-2 py-1.5">@{{ fecha(envio.fecha) }}</td>
+                                    <td class="px-2 py-1.5">
+                                        <span class="block [overflow-wrap:anywhere]">@{{ envio.cliente }}</span>
+                                        <span class="block text-gray-500 dark:text-gray-400">@{{ envio.telefono }}</span>
+                                    </td>
+                                    <td class="px-2 py-1.5 [overflow-wrap:anywhere]">@{{ envio.plantilla }}</td>
+                                    <td class="whitespace-nowrap px-2 py-1.5">@{{ estados[envio.estado] || envio.estado }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </template>
     </script>
@@ -52,8 +87,9 @@
 
             data() {
                 return {
-                    report: { total: 0, por_motivo: [] },
+                    report: { total: 0, por_motivo: [], envios: [] },
                     isLoading: true,
+                    estados: { sent: 'Enviada', delivered: 'Entregada', read: 'Leída' },
                 }
             },
 
@@ -69,6 +105,14 @@
             },
 
             methods: {
+                fecha(valor) {
+                    const d = new Date(String(valor).replace(' ', 'T'));
+
+                    return Number.isNaN(d.getTime())
+                        ? valor
+                        : d.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                },
+
                 get() {
                     this.isLoading = true;
 

@@ -98,8 +98,10 @@
 
             @include('admin::dashboard.index.leads-por-ciudad-pie')
 
-            {{-- Lo que se le paga a Meta por los mensajes automáticos. --}}
-            @include('admin::dashboard.index.plantillas-enviadas')
+            {{-- Lo que se le paga a Meta por los mensajes automáticos. Solo administradores y encargados. --}}
+            @if (\Webkul\Admin\Helpers\Dashboard::vePlantillas())
+                @include('admin::dashboard.index.plantillas-enviadas')
+            @endif
         </div>
 
         {!! view_render_event('admin.dashboard.index.content.right.after') !!}

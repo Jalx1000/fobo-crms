@@ -716,3 +716,39 @@ it('el tablero cuenta las plantillas que salieron, no las que fallaron', functio
         // El texto no entra en el corte de plantillas.
         ->and($porMotivo->has('no-aplica'))->toBeFalse();
 });
+
+it('el tablero dice a quién se envió cada plantilla', function () {
+    $c = clienteParaRecordatorio();
+    $conv = conversacionDe($c['person_id']);
+    $plantilla = 'aviso_'.substr(uniqid(), -8);
+
+    DB::table('whatsapp_messages')->insert([
+        'conversation_id' => $conv, 'direction' => 'outbound', 'sender' => 'sistema', 'type' => 'template',
+        'body' => 'x', 'status' => 'delivered', 'payload' => json_encode(['template' => $plantilla]),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    $envio = collect(test()->actingAs(getDefaultAdmin(), 'user')
+        ->getJson(route('admin.dashboard.stats', ['type' => 'plantillas-enviadas']))
+        ->assertOk()
+        ->json('statistics.envios'))
+        ->firstWhere('plantilla', $plantilla);
+
+    expect($envio)->not->toBeNull()
+        ->and($envio['cliente'])->toBe((string) DB::table('persons')->where('id', $c['person_id'])->value('name'))
+        ->and($envio['estado'])->toBe('delivered');
+});
+
+it('un distribuidor no ve las plantillas enviadas', function () {
+    $rol = \Webkul\User\Models\Role::where('name', 'Distribuidor')->value('id')
+        ?? test()->markTestSkipped('No existe el rol Distribuidor.');
+
+    $distribuidor = \Webkul\User\Models\User::create([
+        'name' => 'Dist plantillas '.uniqid(), 'email' => 'dist-pl-'.uniqid().'@test.local',
+        'password' => bcrypt('x'), 'role_id' => $rol, 'status' => 1, 'view_permission' => 'individual',
+    ]);
+
+    test()->actingAs($distribuidor, 'user')
+        ->getJson(route('admin.dashboard.stats', ['type' => 'plantillas-enviadas']))
+        ->assertForbidden();
+});

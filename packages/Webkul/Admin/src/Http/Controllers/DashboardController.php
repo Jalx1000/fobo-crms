@@ -91,6 +91,9 @@ class DashboardController extends Controller
             ], 422);
         }
 
+        // Plantillas enviadas: solo administradores y encargados (es un gasto y trae teléfonos).
+        abort_if($type === 'plantillas-enviadas' && ! Dashboard::vePlantillas(), 403);
+
         $this->applyGlobalFilterDefaults();
 
         /**

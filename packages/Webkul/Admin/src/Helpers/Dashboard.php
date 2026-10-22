@@ -280,11 +280,12 @@ class Dashboard
         }
 
         $base = fn () => \Illuminate\Support\Facades\DB::table('whatsapp_messages')
-            ->where('direction', 'outbound')
-            ->where('type', 'template')
-            ->whereIn('status', ['sent', 'delivered', 'read']);
+            ->where('whatsapp_messages.direction', 'outbound')
+            ->where('whatsapp_messages.type', 'template')
+            ->whereIn('whatsapp_messages.status', ['sent', 'delivered', 'read']);
 
-        $enRango = fn ($q) => $q->whereBetween('created_at', [
+        // Calificadas: la lista de envíos se une con conversaciones y personas.
+        $enRango = fn ($q) => $q->whereBetween('whatsapp_messages.created_at', [
             $this->getStartDate(),
             $this->getEndDate(),
         ]);
@@ -310,10 +311,50 @@ class Dashboard
             ])
             ->all();
 
+        /*
+         * A quién se le mandó cada una: permite revisar si un recordatorio le
+         * llegó a un cliente o si la bienvenida salió dos veces. Las últimas 100
+         * del período; el total de arriba cuenta todas.
+         */
+        $envios = $enRango($base())
+            ->leftJoin('whatsapp_conversations as c', 'c.id', '=', 'whatsapp_messages.conversation_id')
+            ->leftJoin('persons as p', 'p.id', '=', 'c.person_id')
+            ->orderByDesc('whatsapp_messages.created_at')
+            ->limit(100)
+            ->get([
+                'whatsapp_messages.created_at',
+                'whatsapp_messages.status',
+                \Illuminate\Support\Facades\DB::raw("json_unquote(json_extract(".\Illuminate\Support\Facades\DB::getTablePrefix()."whatsapp_messages.payload, '$.template')) as plantilla"),
+                'c.wa_phone',
+                'c.wa_name',
+                'p.name as cliente',
+            ])
+            ->map(fn ($f) => [
+                'fecha'     => (string) $f->created_at,
+                'plantilla' => (string) ($f->plantilla ?: 'sin nombre'),
+                'cliente'   => (string) ($f->cliente ?: $f->wa_name ?: '—'),
+                'telefono'  => (string) ($f->wa_phone ?: '—'),
+                'estado'    => (string) $f->status,
+            ])
+            ->all();
+
         return [
             'total'      => $total,
             'por_motivo' => $porMotivo,
+            'envios'     => $envios,
         ];
+    }
+
+    /**
+     * Si el usuario en sesión ve las plantillas enviadas: administradores y
+     * encargados. Es un gasto de la empresa y la lista trae teléfonos de
+     * clientes de todas las ciudades, que un distribuidor no tiene por qué ver.
+     */
+    public static function vePlantillas(): bool
+    {
+        $role = auth()->guard('user')->user()?->role;
+
+        return $role !== null && ($role->permission_type === 'all' || $role->name === 'Encargado');
     }
 
     public function getStartDate(): Carbon
