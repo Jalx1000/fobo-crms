@@ -40,6 +40,16 @@ class Message extends Model implements MessageContract
         'payload' => 'array',
     ];
 
+    /**
+     * El payload a JSON sin reventar por un carácter UTF-8 inválido: se reemplaza
+     * (U+FFFD) en vez de tirar JsonEncodingException. Un emoji cortado del agente
+     * hacía fallar con 500 el guardado de su respuesta.
+     */
+    protected function asJson($value)
+    {
+        return json_encode($value, JSON_INVALID_UTF8_SUBSTITUTE);
+    }
+
     public function conversation(): BelongsTo
     {
         return $this->belongsTo(ConversationProxy::modelClass(), 'conversation_id');

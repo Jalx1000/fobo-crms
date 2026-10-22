@@ -40,6 +40,8 @@ class Kernel extends HttpKernel
         ],
 
         'api' => [
+            // Primero: texto UTF-8 inválido (un emoji cortado del agente) daba 500 al guardar.
+            \App\Http\Middleware\LimpiarUtf8::class,
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,

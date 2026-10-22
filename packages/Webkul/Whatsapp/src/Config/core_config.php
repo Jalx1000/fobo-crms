@@ -33,5 +33,19 @@ return [
                 'default' => true,
             ],
         ],
+    ], [
+        'key'    => 'whatsapp.agente',
+        'name'   => 'Agente de IA',
+        'info'   => 'Con el agente apagado para todos, estos números igual lo tienen: sirve para '
+            .'probarlo con clientes o personas puntuales. Un asesor puede apagarlo en una '
+            .'conversación y vale lo que eligió.',
+        'sort'   => 2,
+        'fields' => [
+            [
+                'name'  => 'numeros_habilitados',
+                'title' => 'Números con el agente activado (uno por línea o separados por coma; con o sin código de país)',
+                'type'  => 'textarea',
+            ],
+        ],
     ],
 ];

@@ -74,7 +74,35 @@ class Conversation extends Model implements ConversationContract
      */
     public function aiEffective(): bool
     {
-        return $this->ai_enabled ?? (bool) config('whatsapp.ai.enabled');
+        return $this->ai_enabled
+            ?? ((bool) config('whatsapp.ai.enabled') || self::numeroConAgente($this->wa_phone));
+    }
+
+    /**
+     * Si el número está en «Números con el agente activado» (Configuración →
+     * WhatsApp → Agente de IA): con el agente apagado para todos, esos números lo
+     * tienen igual. Compara por la cola de dígitos, así «76616013» y
+     * «+59176616013» son el mismo.
+     */
+    public static function numeroConAgente(?string $telefono): bool
+    {
+        // Una lectura por pedido (en el contenedor, no en un static que sobreviva al pedido).
+        if (! app()->bound('whatsapp.numeros_con_agente')) {
+            app()->instance('whatsapp.numeros_con_agente', array_values(array_filter(array_map(
+                'trim',
+                preg_split('/[\s,;]+/', (string) core()->getConfigData('whatsapp.agente.numeros_habilitados'))
+            ))));
+        }
+
+        $numeros = app('whatsapp.numeros_con_agente');
+
+        foreach ($numeros as $numero) {
+            if (\Webkul\Core\Services\PhoneNumber::same($telefono, $numero)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
