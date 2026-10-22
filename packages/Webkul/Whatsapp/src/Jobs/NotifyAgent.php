@@ -13,9 +13,12 @@ use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\AgentPayload;
 
 /**
- * Notifies the external AI agent that an inbound message arrived, so it can
- * reply through the documented API. Only fires while the agent is enabled for
- * the conversation — turning the agent off is what stops AI replies.
+ * Notifies the external AI agent of a message in the conversation.
+ *
+ * Con el agente prendido, un mensaje del cliente es su turno (`responder: true`)
+ * y contesta por la API. Con el agente apagado, o un mensaje del asesor, le llega
+ * con `responder: false`: solo para que tenga el contexto. Apagarlo es lo que
+ * frena las respuestas, y el CRM rechaza (409) las que intente mandar igual.
  */
 class NotifyAgent implements ShouldQueue
 {
@@ -43,14 +46,29 @@ class NotifyAgent implements ShouldQueue
             return;
         }
 
-        // Re-check at run time: the human may have taken over since enqueue.
-        if (! $message->conversation->aiEffective()) {
+        /*
+         * Re-check at run time: the human may have taken over since enqueue. Con
+         * el agente apagado se le avisa igual (responder: false) si así está
+         * configurado, para que no pierda el hilo de la conversación.
+         */
+        if (! $message->conversation->aiEffective() && ! config('whatsapp.ai.context_when_off')) {
             return;
         }
 
-        $respuesta = Http::withToken((string) config('whatsapp.ai.token'))
-            ->acceptJson()
-            ->post($url, $payloads->event($message));
+        try {
+            $respuesta = Http::withToken((string) config('whatsapp.ai.token'))
+                ->acceptJson()
+                ->post($url, $payloads->event($message));
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            // Sin conexión: el turno del cliente se reintenta; un aviso de contexto, no.
+            if ($message->direction === 'inbound' && $message->conversation->aiEffective()) {
+                throw $e;
+            }
+
+            Log::warning('WhatsApp: no se pudo avisar al agente (contexto)', ['message_id' => $message->id, 'error' => $e->getMessage()]);
+
+            return;
+        }
 
         /*
          * Un rechazo del agente se registra con su status y su cuerpo ANTES de
@@ -75,6 +93,15 @@ class NotifyAgent implements ShouldQueue
                 'respuesta'       => mb_substr((string) $respuesta->body(), 0, 300),
                 'url'             => $url,
             ]);
+        }
+
+        /*
+         * Un aviso de contexto (agente apagado o mensaje del asesor) que falla no
+         * se reintenta ni revienta: con la cola en `sync` correría dentro del
+         * envío del asesor y le haría fallar su mensaje por un problema del agente.
+         */
+        if ($respuesta->failed() && ! ($message->direction === 'inbound' && $message->conversation->aiEffective())) {
+            return;
         }
 
         $respuesta->throw();

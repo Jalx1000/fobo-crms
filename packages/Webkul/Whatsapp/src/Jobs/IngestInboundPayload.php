@@ -148,6 +148,13 @@ class IngestInboundPayload implements ShouldQueue
             }
 
             NotifyAgent::dispatch($created->id)->onQueue(config('whatsapp.queue'));
+
+            return;
+        }
+
+        // Agente apagado: igual se entera del mensaje, sin contestarlo (responder: false).
+        if (config('whatsapp.ai.context_when_off') && ! in_array($created->type, self::TIPOS_QUE_NO_DESPIERTAN_AL_AGENTE, true)) {
+            NotifyAgent::dispatch($created->id)->onQueue(config('whatsapp.queue'));
         }
     }
 

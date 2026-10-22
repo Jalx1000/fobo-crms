@@ -27,8 +27,17 @@ class AgentPayload
         $conversation = $message->conversation;
         $window = $this->window($conversation);
 
+        /*
+         * `responder` es lo que el agente tiene que mirar antes de contestar: solo
+         * un mensaje DEL CLIENTE con el agente prendido es un turno suyo. El resto
+         * (agente apagado, o lo que escribió el asesor) le llega para que sepa de
+         * qué se habló, no para que responda.
+         */
+        $entrante = $message->direction === 'inbound';
+
         return [
-            'event'           => 'message.received',
+            'event'           => $entrante ? 'message.received' : 'message.sent',
+            'responder'       => $entrante && $conversation->aiEffective(),
             'conversation_id' => $conversation->id,
             'gateway'         => $conversation->gateway,
             'ai_enabled'      => $conversation->aiEffective(),
@@ -463,6 +472,8 @@ class AgentPayload
                 'role'    => $m->direction === 'inbound' ? 'user' : 'assistant',
                 'content' => $this->texto($m),
                 'type'    => $m->type,
+                // Quién lo escribió: contact (cliente), ia (el agente), human (un asesor), sistema.
+                'sender'  => $m->sender,
             ])
             ->values()
             ->all();

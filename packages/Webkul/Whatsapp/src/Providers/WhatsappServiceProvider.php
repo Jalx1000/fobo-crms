@@ -14,6 +14,8 @@ use Webkul\Whatsapp\Console\Commands\ResolveMapLinks;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
 use Webkul\Whatsapp\Http\Middleware\EnsureConversationInScope;
 use Webkul\Whatsapp\Http\Middleware\EnsureWhatsappAccess;
+use Webkul\Whatsapp\Jobs\NotifyAgent;
+use Webkul\Whatsapp\Models\MessageProxy;
 
 class WhatsappServiceProvider extends ServiceProvider
 {
@@ -25,6 +27,22 @@ class WhatsappServiceProvider extends ServiceProvider
         $this->loadViewsFrom(__DIR__.'/../Resources/views', 'whatsapp');
 
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
+
+        /*
+         * Lo que escribe un asesor también le llega al agente (responder: false),
+         * para que cuando lo vuelvan a prender sepa qué se habló. Por el evento
+         * del modelo y no en cada endpoint del inbox: hay cuatro (texto, archivo,
+         * ubicación y plantilla) y alguno quedaría afuera.
+         */
+        MessageProxy::modelClass()::created(function ($message) {
+            if (
+                $message->direction === 'outbound'
+                && $message->sender === 'human'
+                && config('whatsapp.ai.context_when_off')
+            ) {
+                NotifyAgent::dispatch($message->id)->onQueue(config('whatsapp.queue'));
+            }
+        });
 
         $this->app['router']->aliasMiddleware('whatsapp_access', EnsureWhatsappAccess::class);
         $this->app['router']->aliasMiddleware('whatsapp_scope', EnsureConversationInScope::class);

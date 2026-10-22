@@ -289,6 +289,14 @@ return [
         'webhook_url'  => env('WHATSAPP_AGENT_WEBHOOK_URL'),
         'token'        => env('WHATSAPP_AGENT_TOKEN'), // Bearer the CRM sends so the agent knows it's us
         'history_size' => env('WHATSAPP_AGENT_HISTORY_SIZE', 15),
+
+        /*
+         * Con el agente apagado en una conversación igual se le avisa de cada
+         * mensaje —los del cliente y los del asesor— con `responder: false`,
+         * para que tenga el contexto cuando lo vuelvan a prender. Si intenta
+         * contestar mientras está apagado, el CRM lo rechaza con 409.
+         */
+        'context_when_off' => (bool) env('WHATSAPP_AGENT_CONTEXT_WHEN_OFF', true),
     ],
 
     /*

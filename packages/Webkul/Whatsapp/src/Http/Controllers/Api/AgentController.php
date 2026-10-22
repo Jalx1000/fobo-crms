@@ -206,6 +206,17 @@ class AgentController extends Controller
             ], 409);
         }
 
+        /*
+         * Agente apagado en esta conversación: le llegan los mensajes para que
+         * tenga el contexto, pero no puede contestar. 409 por lo mismo que la
+         * derivación: que sepa que el turno no es suyo.
+         */
+        if (! $conversation->aiEffective()) {
+            return response()->json([
+                'message' => 'El agente está apagado en esta conversación: recibe los mensajes como contexto pero no responde.',
+            ], 409);
+        }
+
         $window = MessagingWindow::compute(
             $this->gateways->for($conversation)->messagingWindowHours(),
             $conversation->last_inbound_at,
