@@ -1757,6 +1757,50 @@
             },
 
             methods: {
+                /**
+                 * Guarda un mensaje en el hilo: lo reemplaza si ya está (mismo id) y si no
+                 * lo agrega; después deja el hilo en orden de llegada.
+                 *
+                 * Un solo lugar para todas las altas. Antes cada camino hacía su propio
+                 * push: el poll agregaba al final sin ordenar (un mensaje cruzado con
+                 * otro quedaba fuera de orden hasta recargar), y si el poll traía el
+                 * mensaje real antes de que respondiera el envío, quedaba DUPLICADO.
+                 */
+                guardarMensaje(mensaje, reemplazaA = null) {
+                    if (! mensaje) {
+                        return;
+                    }
+
+                    const provisorio = reemplazaA === null ? -1 : this.messages.findIndex((m) => m.id === reemplazaA);
+
+                    if (provisorio !== -1) {
+                        this.messages.splice(provisorio, 1);
+                    }
+
+                    const i = this.messages.findIndex((m) => m.id === mensaje.id);
+
+                    if (i === -1) {
+                        this.messages.push(mensaje);
+                    } else {
+                        this.messages.splice(i, 1, mensaje);
+                    }
+
+                    this.ordenarMensajes();
+                },
+
+                /**
+                 * Orden de llegada: por hora y, en el mismo segundo, por id (el orden en
+                 * que el CRM los guardó). Lo provisorio, que todavía no tiene hora del
+                 * servidor, queda al final en el orden en que se escribió.
+                 */
+                ordenarMensajes() {
+                    const hora = (m) => (m.timestamp && ! String(m.id).startsWith('tmp-') ? Date.parse(m.timestamp) : Number.POSITIVE_INFINITY);
+                    const numero = (m) => (typeof m.id === 'number' ? m.id : Number.POSITIVE_INFINITY);
+                    const comparar = (a, b) => (a === b ? 0 : (a < b ? -1 : 1));
+
+                    this.messages.sort((a, b) => comparar(hora(a), hora(b)) || comparar(numero(a), numero(b)));
+                },
+
                 canSend(type) {
                     return (this.capabilities?.send ?? []).includes(type);
                 },
@@ -1855,9 +1899,9 @@
                                 this.messages = incoming;
                             } else {
                                 for (const m of incoming) {
-                                    const i = this.messages.findIndex(x => x.id === m.id);
-                                    if (i === -1) { this.messages.push(m); appended = true; }
-                                    else this.messages.splice(i, 1, m);
+                                    if (this.messages.findIndex(x => x.id === m.id) === -1) appended = true;
+
+                                    this.guardarMensaje(m);
                                 }
                             }
 
@@ -1950,9 +1994,8 @@
                             reply_to_id: replyId,
                         })
                         .then(res => {
-                            const real = res.data?.message;
-                            const i = this.messages.findIndex(m => m.id === tempId);
-                            if (real && i !== -1) this.messages.splice(i, 1, real);
+                            // Si el poll ya lo trajo, se saca el provisorio y no queda duplicado.
+                            this.guardarMensaje(res.data?.message, tempId);
                         })
                         .catch(() => {
                             const i = this.messages.findIndex(m => m.id === tempId);
@@ -2169,9 +2212,7 @@
 
                     this.$axios.post(`${this.agentUrlBase}/${this.conversationId}/notes`, { comment: text })
                         .then(res => {
-                            const real = res.data?.note;
-                            const i = this.messages.findIndex(m => m.id === tempId);
-                            if (real && i !== -1) this.messages.splice(i, 1, real);
+                            this.guardarMensaje(res.data?.note, tempId);
                             this.noteDraft = '';
                             this.$nextTick(() => { if (this.$refs.noteInput) this.$refs.noteInput.style.height = 'auto'; });
                         })
@@ -2229,7 +2270,7 @@
 
                     this.$axios.post(this.sendMediaUrl, form)
                         .then(res => {
-                            this.messages.push(res.data.message);
+                            this.guardarMensaje(res.data.message);
                             this.draft = '';
                             this.scrollToBottom();
                         })
@@ -2715,7 +2756,7 @@
                         address: this.locationForm.address || null,
                     })
                         .then(res => {
-                            this.messages.push(res.data.message);
+                            this.guardarMensaje(res.data.message);
                             this.$refs.locationModal.close();
                             this.locationForm = { latitude: '', longitude: '', label: '', address: '', accuracy: null };
                             this.scrollToBottom();
@@ -2797,7 +2838,7 @@
                         header_filename: this.templateNeedsFile ? this.templateHeaderFilename : null,
                     })
                         .then(res => {
-                            this.messages.push(res.data.message);
+                            this.guardarMensaje(res.data.message);
                             this.$refs.templateModal.close();
                             this.pickedTemplate = null;
                             this.templateHeaderLink = '';
