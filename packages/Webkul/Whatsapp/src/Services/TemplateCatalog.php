@@ -14,7 +14,7 @@ use RuntimeException;
  *
  * Only APPROVED templates are exposed. Meta rejects a send against anything
  * else, so offering a PENDING one in the composer would just be a button that
- * always fails.
+ * always fails. Las de `whatsapp.templates.hidden` (hello_world) tampoco.
  */
 class TemplateCatalog
 {
@@ -95,6 +95,7 @@ class TemplateCatalog
 
         return collect($response->json('data', []))
             ->filter(fn ($t) => ($t['status'] ?? null) === 'APPROVED')
+            ->reject(fn ($t) => in_array($t['name'] ?? null, (array) config('whatsapp.templates.hidden', []), true))
             ->map(function (array $t) {
                 $components = collect($t['components'] ?? []);
 

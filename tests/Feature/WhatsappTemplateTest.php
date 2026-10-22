@@ -176,3 +176,24 @@ it('devuelve 501, y no un 200 mentiroso, si el canal no manda plantillas', funct
 
     expect($conversacion->messages()->count())->toBe(0);
 });
+
+it('no ofrece hello_world aunque Meta la tenga aprobada', function () {
+    config([
+        'whatsapp.gateways.cloud_api.waba_id' => 'waba-test',
+        'whatsapp.gateways.cloud_api.token'   => 'token-test',
+    ]);
+
+    \Illuminate\Support\Facades\Http::fake([
+        'graph.facebook.com/*' => \Illuminate\Support\Facades\Http::response(['data' => [
+            ['name' => 'hello_world', 'language' => 'en_US', 'status' => 'APPROVED', 'category' => 'UTILITY',
+                'components' => [['type' => 'BODY', 'text' => 'Welcome and congratulations!']]],
+            ['name' => 'recordatorio_pedido', 'language' => 'es', 'status' => 'APPROVED', 'category' => 'UTILITY',
+                'components' => [['type' => 'BODY', 'text' => 'Hola {{1}}']]],
+        ]]),
+    ]);
+
+    $nombres = collect(app(TemplateCatalog::class)->all(fresh: true))->pluck('name');
+
+    expect($nombres)->toContain('recordatorio_pedido')
+        ->and($nombres)->not->toContain('hello_world');
+});

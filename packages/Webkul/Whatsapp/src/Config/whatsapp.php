@@ -157,6 +157,13 @@ return [
     */
     'templates' => [
         'cache_minutes' => (int) env('WHATSAPP_TEMPLATES_CACHE_MINUTES', 30),
+
+        /*
+         * Plantillas aprobadas que el CRM no ofrece. `hello_world` la crea Meta
+         * en toda cuenta nueva y el WhatsApp Manager no deja borrarla; mandarla
+         * a un cliente es un mensaje de prueba en inglés. Separadas por coma.
+         */
+        'hidden' => array_filter(array_map('trim', explode(',', env('WHATSAPP_TEMPLATES_HIDDEN', 'hello_world')))),
     ],
 
     /*
