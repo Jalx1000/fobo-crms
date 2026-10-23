@@ -301,6 +301,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'Ver mais',
+                'ver-menos' => 'Ver menos',
                 'actions'              => 'Ações',
                 'no-records-available' => 'Nenhum Registro Disponível.',
             ],
@@ -2074,6 +2076,11 @@ return [
         ],
     ],
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'Navegação principal',
+            'more'  => 'Mais',
+        ],
+
         'app-version' => 'Versão: :version',
         'dashboard'   => 'Início',
         'leads'       => 'Oportunidades',

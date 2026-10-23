@@ -335,6 +335,8 @@ return [
             ],
 
             'table' => [
+                'ver-mas'   => 'See more',
+                'ver-menos' => 'See less',
                 'actions'              => 'Actions',
                 'no-records-available' => 'No Records Available.',
             ],
@@ -2306,6 +2308,11 @@ return [
     ],
 
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'Main navigation',
+            'more'  => 'More',
+        ],
+
         'app-version'          => 'Version: :version',
         'dashboard'            => 'Dashboard',
         'leads'                => 'Leads',

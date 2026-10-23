@@ -30,7 +30,7 @@
         <!-- chat column -->
         <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
             <!-- Header -->
-            <div class="flex items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900 max-lg:flex-wrap max-lg:gap-2 max-lg:px-3 max-lg:py-2">
                 <div class="-m-1 flex items-center gap-3 rounded-md p-1"
                      :class="context.personId ? 'cursor-pointer transition hover:bg-gray-200/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-800' : ''"
                      :title="context.personId ? 'Ver detalle del cliente' : null"
@@ -44,7 +44,7 @@
                     </div>
                     <div class="flex flex-col">
                         <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">@{{ context.name }}</div>
-                        <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                             <span v-if="context.phone">@{{ context.phone }}</span>
                             <span v-else class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Sin número</span>
 
@@ -65,8 +65,9 @@
 
                 <!-- AI agent switch. Disabled outright in test mode: the switch
                      would store a preference the backend ignores, so the honest
-                     UI is to block it and say why. -->
-                <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-300"
+                     UI is to block it and say why. Celular: pasa a su propia fila,
+                     a la derecha. -->
+                <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-300 max-lg:ml-auto"
                        :class="agentToggling || agentTestBlocked ? 'opacity-50 pointer-events-none' : ''"
                        :title="agentTestBlocked
                            ? 'El agente está en modo prueba y este número no está en la lista habilitada'
@@ -87,7 +88,7 @@
             <!-- Messages -->
             <div class="relative" :class="fullHeight ? 'flex min-h-0 flex-1 flex-col' : ''">
             <div ref="scroll" @scroll="onScroll" class="wa-scroll flex flex-col gap-1.5 overflow-y-auto bg-[#efeae2] px-4 py-3 dark:bg-[#0b141a]"
-                 :class="fullHeight ? 'flex-1' : 'h-[440px]'">
+                 :class="fullHeight ? 'flex-1' : 'h-[440px] max-lg:h-[60dvh]'">
                 <div v-if="isLoading" class="m-auto flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                     <x-admin::spinner /> <span>Cargando conversación…</span>
                 </div>
@@ -240,7 +241,7 @@
             </div>
 
             <!-- Composer -->
-            <div class="border-t border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900">
+            <div class="border-t border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900 max-lg:pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
                 <!-- reply preview -->
                 <div v-if="replyingTo" class="mb-2 flex items-center justify-between rounded-md border-l-2 border-brandColor bg-black/5 px-2 py-1 text-xs dark:bg-white/10">
                     <div class="min-w-0">
@@ -282,7 +283,7 @@
                             @keydown.enter.exact.prevent="sendNote"
                             @keydown.enter.ctrl.exact.prevent="sendNote"
                             @keydown.enter.meta.exact.prevent="sendNote"
-                            class="max-h-28 flex-1 resize-none rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-gray-800 focus:border-amber-500 focus:outline-none dark:border-amber-700 dark:bg-amber-900/20 dark:text-gray-100"
+                            class="max-h-28 flex-1 resize-none rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-gray-800 max-lg:text-base focus:border-amber-500 focus:outline-none dark:border-amber-700 dark:bg-amber-900/20 dark:text-gray-100"
                         ></textarea>
                         <button type="button" @click="sendNote" :disabled="!noteDraft.trim() || noteSaving"
                                 aria-label="Guardar nota interna"
@@ -555,7 +556,7 @@
                         @keydown.enter.meta.exact.prevent="send"
                         @keydown.down="qrMove($event, 1)"
                         @keydown.up="qrMove($event, -1)"
-                        class="max-h-28 min-w-0 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brandColor focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:disabled:bg-gray-900"
+                        class="max-h-28 min-w-0 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 max-lg:text-base focus:border-brandColor focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:disabled:bg-gray-900"
                     ></textarea>
 
                     <button v-if="! recording" type="button" @click="send" :disabled="!draft.trim() || agentLocked"
@@ -1419,6 +1420,50 @@
 
             methods: {
                 /**
+                 * Guarda un mensaje en el hilo: lo reemplaza si ya está (mismo id) y si no
+                 * lo agrega; después deja el hilo en orden de llegada.
+                 *
+                 * Un solo lugar para todas las altas. Antes cada camino hacía su propio
+                 * push: el poll agregaba al final sin ordenar (un mensaje cruzado con
+                 * otro quedaba fuera de orden hasta recargar), y si el poll traía el
+                 * mensaje real antes de que respondiera el envío, quedaba DUPLICADO.
+                 */
+                guardarMensaje(mensaje, reemplazaA = null) {
+                    if (! mensaje) {
+                        return;
+                    }
+
+                    const provisorio = reemplazaA === null ? -1 : this.messages.findIndex((m) => m.id === reemplazaA);
+
+                    if (provisorio !== -1) {
+                        this.messages.splice(provisorio, 1);
+                    }
+
+                    const i = this.messages.findIndex((m) => m.id === mensaje.id);
+
+                    if (i === -1) {
+                        this.messages.push(mensaje);
+                    } else {
+                        this.messages.splice(i, 1, mensaje);
+                    }
+
+                    this.ordenarMensajes();
+                },
+
+                /**
+                 * Orden de llegada: por hora y, en el mismo segundo, por id (el orden en
+                 * que el CRM los guardó). Lo provisorio, que todavía no tiene hora del
+                 * servidor, queda al final en el orden en que se escribió.
+                 */
+                ordenarMensajes() {
+                    const hora = (m) => (m.timestamp && ! String(m.id).startsWith('tmp-') ? Date.parse(m.timestamp) : Number.POSITIVE_INFINITY);
+                    const numero = (m) => (typeof m.id === 'number' ? m.id : Number.POSITIVE_INFINITY);
+                    const comparar = (a, b) => (a === b ? 0 : (a < b ? -1 : 1));
+
+                    this.messages.sort((a, b) => comparar(hora(a), hora(b)) || comparar(numero(a), numero(b)));
+                },
+
+                /**
                  * Clases literales, no concatenadas: Tailwind purga lo que no puede
                  * "ver" en el template, así que armar el nombre de la clase en runtime
                  * dejaría el color fuera del CSS de producción.
@@ -1619,9 +1664,9 @@
                                 this.messages = incoming;
                             } else {
                                 for (const m of incoming) {
-                                    const i = this.messages.findIndex(x => x.id === m.id);
-                                    if (i === -1) { this.messages.push(m); appended = true; }
-                                    else this.messages.splice(i, 1, m);
+                                    if (this.messages.findIndex(x => x.id === m.id) === -1) appended = true;
+
+                                    this.guardarMensaje(m);
                                 }
                             }
 
@@ -1685,9 +1730,8 @@
                             reply_to_id: replyId,
                         })
                         .then(res => {
-                            const real = res.data?.message;
-                            const i = this.messages.findIndex(m => m.id === tempId);
-                            if (real && i !== -1) this.messages.splice(i, 1, real);
+                            // Si el poll ya lo trajo, se saca el provisorio y no queda duplicado.
+                            this.guardarMensaje(res.data?.message, tempId);
                         })
                         .catch(() => {
                             const i = this.messages.findIndex(m => m.id === tempId);
@@ -1905,9 +1949,7 @@
 
                     this.$axios.post(`${this.agentUrlBase}/${this.conversationId}/notes`, { comment: text })
                         .then(res => {
-                            const real = res.data?.note;
-                            const i = this.messages.findIndex(m => m.id === tempId);
-                            if (real && i !== -1) this.messages.splice(i, 1, real);
+                            this.guardarMensaje(res.data?.note, tempId);
                             this.noteDraft = '';
                             this.$nextTick(() => { if (this.$refs.noteInput) this.$refs.noteInput.style.height = 'auto'; });
                         })
@@ -2007,7 +2049,7 @@
                         })
                         .then(({ data }) => {
                             if (data?.message) {
-                                this.messages.push(data.message);
+                                this.guardarMensaje(data.message);
                                 this.scrollToBottom();
                             }
                             this.closeTemplates();
@@ -2158,7 +2200,7 @@
                     this.$axios.post(this.sendMediaUrl, form)
                         .then(({ data }) => {
                             if (data?.message) {
-                                this.messages.push(data.message);
+                                this.guardarMensaje(data.message);
                                 this.draft = '';
                                 this.scrollToBottom();
                             }

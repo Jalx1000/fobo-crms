@@ -12,7 +12,7 @@
         <div class="flex flex-col gap-4" id="person-create-form">
 
             <!-- Header -->
-            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                 <div class="flex flex-col gap-2">
                     {!! view_render_event('admin.persons.create.breadcrumbs.before') !!}
                     <x-admin::breadcrumbs name="contacts.persons.create" />
@@ -22,7 +22,7 @@
                     </div>
                 </div>
 
-                <div class="flex items-center gap-x-3">
+                <div class="flex items-center gap-x-3 max-lg:flex-wrap max-lg:gap-y-2">
                     {{-- Chip de estado SMD --}}
                     <div id="smd-status-chip" class="hidden items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200">
                         <span id="smd-status-dot" class="h-2 w-2 rounded-full"></span>

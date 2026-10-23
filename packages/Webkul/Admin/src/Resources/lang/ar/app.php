@@ -301,6 +301,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'عرض المزيد',
+                'ver-menos' => 'عرض أقل',
                 'actions'              => 'الإجراءات',
                 'no-records-available' => 'لا توجد سجلات متاحة.',
             ],
@@ -2074,6 +2076,11 @@ return [
         ],
     ],
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'التنقل الرئيسي',
+            'more'  => 'المزيد',
+        ],
+
         'app-version' => 'الإصدار: :version',
         'dashboard'   => 'لوحة القيادة',
         'leads'       => 'العملاء المحتملين',

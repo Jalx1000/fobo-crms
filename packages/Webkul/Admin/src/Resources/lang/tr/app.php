@@ -301,6 +301,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'Daha fazla',
+                'ver-menos' => 'Daha az',
                 'actions'              => 'Eylemler',
                 'no-records-available' => 'Kayıt Bulunmuyor.',
             ],
@@ -2074,6 +2076,11 @@ return [
         ],
     ],
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'Ana gezinme',
+            'more'  => 'Daha fazla',
+        ],
+
         'app-version' => 'Sürüm: :version',
         'dashboard'   => 'Gösterge Paneli',
         'leads'       => 'Leadler',

@@ -301,6 +301,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'بیشتر',
+                'ver-menos' => 'کمتر',
                 'actions'              => 'اقدامات',
                 'no-records-available' => 'رکوردی موجود نیست.',
             ],
@@ -2074,6 +2076,11 @@ return [
         ],
     ],
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'ناوبری اصلی',
+            'more'  => 'بیشتر',
+        ],
+
         'app-version' => 'نسخه: :version',
         'dashboard'   => 'داشبورد',
         'leads'       => 'لیدها',

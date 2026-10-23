@@ -302,6 +302,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'Ver más',
+                'ver-menos' => 'Ver menos',
                 'actions'              => 'Acciones',
                 'no-records-available' => 'No hay Registros Disponibles.',
             ],
@@ -2119,6 +2121,11 @@ return [
         ],
     ],
     'layouts' => [
+        'mobile-nav' => [
+            'title' => 'Navegación principal',
+            'more'  => 'Más',
+        ],
+
         'app-version' => 'Versión: :version',
         'dashboard'   => 'Tablero',
         'leads'       => 'Citas',

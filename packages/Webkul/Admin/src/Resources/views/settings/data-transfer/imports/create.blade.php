@@ -13,7 +13,7 @@
         {!! view_render_event('admin.settings.data_transfer.imports.create.create_form_controls.before') !!}
 
         <!-- Page Header -->
-        <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+        <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
             <div class="flex flex-col gap-2">
                 {!! view_render_event('admin.settings.data_transfers.create.breadcrumbs.before') !!}
 
@@ -27,9 +27,9 @@
                 </div>
             </div>
 
-            <div class="flex items-center gap-x-2.5">
+            <div class="flex items-center gap-x-2.5 max-lg:flex-wrap max-lg:gap-y-2">
                 <!-- Create button for person -->
-                <div class="flex items-center gap-x-2.5">
+                <div class="flex items-center gap-x-2.5 max-lg:flex-wrap max-lg:gap-y-2">
                     {!! view_render_event('admin.settings.data_transfers.create.save_button.before') !!}
 
                     @if (bouncer()->hasPermission('settings.data_transfer.imports.create'))
