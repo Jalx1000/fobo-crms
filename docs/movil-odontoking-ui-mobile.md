@@ -103,8 +103,9 @@ de Imprimir. Son Krayin (Laravel 10, Vue 3 en x-templates de Blade, Tailwind 3 c
 
 - Repo `Jalx1000/fobo-crms`, rama **`feature/dropbox-fixes`** (la que corre en producción).
 - 🔴 **No trabajes en la carpeta que monta el contenedor** de Odontoking
-  (`/etc/easypanel/projects/heaven/odontoking-crm/code`): es la que sirve producción, y hoy
-  tiene otra rama desprotegida (`tessa`). Usá un clon o un `git worktree` aparte.
+  (`/etc/easypanel/projects/heaven/odontoking-crm/code`): es la que sirve producción.
+  Cambiar de rama ahí cambia lo que ven los usuarios. Usá un clon o un `git worktree` aparte.
+- `tessa` es `feature/dropbox-fixes` + 3 commits de Tessa Spa (otro cliente): no es la base.
 - Referencias:
 
   ```bash
@@ -279,8 +280,11 @@ Odontoking desde el principio:
 
 ## A revisar fuera de la mejora
 
-- La carpeta que monta el contenedor de Odontoking
-  (`/etc/easypanel/projects/heaven/odontoking-crm/code`) tiene hoy la rama **`tessa`**, y
-  el deploy de EasyPanel hace `git pull origin master`. Ninguna de las dos es
-  `feature/dropbox-fixes`. Conviene confirmar qué está sirviendo producción antes de
-  desplegar nada.
+- El deploy de EasyPanel de Odontoking hace `git pull origin master`, pero la carpeta del
+  contenedor está en `feature/dropbox-fixes`. Confirmar de qué rama se despliega antes de
+  publicar la mejora.
+- El último cambio de `feature/dropbox-fixes` (`a6d037d`, 15/10, «dockerfile») es un commit
+  grande (347 archivos) que incluye los flujos de WhatsApp de Odontoking (contexto de
+  paciente, vínculo con SMD, recepción, números del personal). La mejora móvil toca
+  `whatsapp/chat.blade.php` e `inbox-component.blade.php`: portar sobre esa versión sin
+  pisar esos flujos.
