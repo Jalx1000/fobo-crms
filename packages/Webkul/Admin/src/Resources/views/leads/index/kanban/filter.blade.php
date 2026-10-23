@@ -25,7 +25,7 @@
             <x-slot:toggle>
                 {!! view_render_event('admin.leads.index.kanban.filter.drawer.toggle_button.before') !!}
 
-                <div class="relative flex cursor-pointer items-center rounded-md bg-sky-100 px-4 py-[9px] font-semibold text-sky-600 dark:bg-brandColor dark:text-white">
+                <div class="relative flex cursor-pointer items-center rounded-md bg-sky-100 px-4 py-[9px] font-semibold text-sky-600 max-lg:hidden dark:bg-brandColor dark:text-white">
                     @lang('admin::app.leads.index.kanban.toolbar.filters.filter')
 
                     <span
@@ -673,6 +673,15 @@
 
             mounted() {
                 this.filters.columns = this.getAppliedColumns();
+
+                // Celular: el botón «Filtrar» está escondido; se abre desde el panel «Filtros».
+                this.abrirDesdeMovil = () => this.$refs.kanbanFilterDrawer.open();
+
+                this.$emitter.on('kanban:filtros-por-columna', this.abrirDesdeMovil);
+            },
+
+            beforeUnmount() {
+                this.$emitter.off('kanban:filtros-por-columna', this.abrirDesdeMovil);
             },
 
             methods: {

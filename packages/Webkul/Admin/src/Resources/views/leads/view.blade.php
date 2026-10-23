@@ -4,12 +4,13 @@
     </x-slot>
 
     <!-- Content -->
-    <div class="relative flex gap-4 max-lg:flex-wrap">
+    {{-- Celular: de borde a borde, sin el gris entre bloques. --}}
+    <div class="relative flex gap-4 max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-0">
         <!-- Left Panel -->
         {!! view_render_event('admin.leads.view.left.before', ['lead' => $lead]) !!}
 
         <div
-            class="max-lg:min-w-full max-lg:max-w-full [&>div:last-child]:border-b-0 lg:sticky lg:top-[73px] flex min-w-[394px] max-w-[394px] flex-col self-start rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+            class="max-lg:min-w-full max-lg:max-w-full max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 [&>div:last-child]:border-b-0 lg:sticky lg:top-[73px] flex min-w-[394px] max-w-[394px] flex-col self-start rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
             <!-- Lead Information -->
             <div class="flex w-full flex-col gap-2 border-b border-gray-200 p-4 dark:border-gray-800">
                 <!-- Breadcrumb's -->
@@ -41,9 +42,14 @@
                 {!! view_render_event('admin.leads.view.title.before', ['lead' => $lead]) !!}
 
                 <!-- Title -->
-                <h1 class="text-lg font-bold dark:text-white">
-                    {{ $lead->title }}
-                </h1>
+                {{-- Celular: el título con «←» va primero, antes de las etiquetas. --}}
+                <div class="flex items-center gap-1 max-lg:-order-1">
+                    <x-admin::layouts.volver listado="admin.leads.index" :parametros="['pipeline_id' => $lead->lead_pipeline_id]" />
+
+                    <h1 class="text-lg font-bold dark:text-white">
+                        {{ $lead->title }}
+                    </h1>
+                </div>
 
                 {!! view_render_event('admin.leads.view.title.after', ['lead' => $lead]) !!}
 
@@ -83,7 +89,7 @@
         {!! view_render_event('admin.leads.view.right.before', ['lead' => $lead]) !!}
 
         <!-- Right Panel -->
-        <div class="flex w-full flex-col gap-4 rounded-lg">
+        <div class="flex w-full flex-col gap-4 rounded-lg max-lg:gap-0 max-lg:[&>*]:!rounded-none">
             <!-- Stages Navigation -->
             @include ('admin::leads.view.stages')
 

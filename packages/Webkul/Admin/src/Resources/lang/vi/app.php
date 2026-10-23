@@ -1760,6 +1760,23 @@ return [
             'text-generation-failed' => 'Trích xuất văn bản thất bại. Tệp có thể trống hoặc không đọc được.',
         ],
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'Bộ lọc',
+                'embudo'       => 'Quy trình',
+                'periodo'      => 'Khoảng thời gian',
+                'desde'        => 'Từ',
+                'hasta'        => 'Đến',
+                'vista'        => 'Chế độ xem',
+                'kanban'       => 'Kanban',
+                'lista'        => 'Danh sách',
+                'por-columna'  => 'Lọc theo cột',
+                'limpiar'      => 'Xóa ngày',
+                'mover'        => 'Di chuyển',
+                'mover-a'      => 'Chuyển “:titulo” đến…',
+                'etapa-actual' => 'Giai đoạn hiện tại',
+                'cancelar'     => 'Hủy',
+            ],
+
             'title'      => 'Khách Hàng Tiềm Năng',
             'create-btn' => 'Tạo Khách Hàng Tiềm Năng',
             'datagrid'   => [
@@ -1782,6 +1799,8 @@ return [
                 'mass-update'    => 'Cập Nhật Hàng Loạt',
             ],
             'kanban' => [
+                'error-conexion'         => 'Không thể lưu thay đổi. Kiểm tra kết nối và thử lại.',
+                'etapas' => 'Giai đoạn',
                 'rotten-days'            => 'Khách hàng tiềm năng đã hết hạn trong :days ngày',
                 'empty-list'             => 'Danh sách khách hàng tiềm năng của bạn trống',
                 'empty-list-description' => 'Tạo một khách hàng tiềm năng để tổ chức các mục tiêu của bạn.',
@@ -2076,6 +2095,8 @@ return [
         ],
     ],
     'layouts' => [
+        'volver' => 'Quay lại danh sách',
+
         'mobile-nav' => [
             'title' => 'Điều hướng chính',
             'more'  => 'Thêm',

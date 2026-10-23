@@ -1760,6 +1760,23 @@ return [
             'text-generation-failed' => 'Metin çıkarma başarısız oldu. Dosya boş veya okunamaz olabilir.',
         ],
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'Filtreler',
+                'embudo'       => 'Satış hattı',
+                'periodo'      => 'Dönem',
+                'desde'        => 'Başlangıç',
+                'hasta'        => 'Bitiş',
+                'vista'        => 'Görünüm',
+                'kanban'       => 'Kanban',
+                'lista'        => 'Liste',
+                'por-columna'  => 'Sütun filtreleri',
+                'limpiar'      => 'Tarihleri temizle',
+                'mover'        => 'Taşı',
+                'mover-a'      => '“:titulo” şuraya taşı…',
+                'etapa-actual' => 'Mevcut aşama',
+                'cancelar'     => 'İptal',
+            ],
+
             'title'      => 'Leads',
             'create-btn' => 'Lead Oluştur',
             'datagrid'   => [
@@ -1782,6 +1799,8 @@ return [
                 'mass-update'    => 'Toplu Güncelle',
             ],
             'kanban' => [
+                'error-conexion'         => 'Değişiklik kaydedilemedi. Bağlantınızı kontrol edip tekrar deneyin.',
+                'etapas' => 'Aşamalar',
                 'rotten-days'            => 'Bu müşteri adayı :days gündür çürük',
                 'empty-list'             => 'Müşteri Adayı Listeniz Boş',
                 'empty-list-description' => 'Hedeflerinizi düzenlemek için bir müşteri adayı oluşturun.',
@@ -2076,6 +2095,8 @@ return [
         ],
     ],
     'layouts' => [
+        'volver' => 'Listeye dön',
+
         'mobile-nav' => [
             'title' => 'Ana gezinme',
             'more'  => 'Daha fazla',
