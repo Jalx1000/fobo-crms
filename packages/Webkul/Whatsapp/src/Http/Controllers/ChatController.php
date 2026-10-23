@@ -191,9 +191,15 @@ class ChatController extends Controller
              * esperando no puede quedar sepultada bajo mensajes más recientes
              * que ya atiende el bot — y el pool primero, porque es el único
              * caso donde nadie la tiene asignada.
+             *
+             * El COALESCE no es decorativo: una conversación nunca derivada tiene
+             * handoff_state NULL, la comparación da NULL, y en un DESC de MySQL
+             * NULL va debajo del 0 de una derivación ya cerrada. Sin él, toda
+             * conversación que alguna vez se derivó quedaba arriba de las que
+             * no, por vieja que fuera.
              */
-            ->orderByRaw("(handoff_state = 'requested' and assigned_user_id is null) desc")
-            ->orderByRaw("(handoff_state in ('requested','assigned')) desc")
+            ->orderByRaw("coalesce(handoff_state = 'requested' and assigned_user_id is null, 0) desc")
+            ->orderByRaw("coalesce(handoff_state in ('requested','assigned'), 0) desc")
             ->orderByRaw('last_message_at is null')
             ->orderByDesc('last_message_at')
             ->paginate(30);
