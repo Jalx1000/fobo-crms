@@ -232,8 +232,9 @@
 
                             <button v-if="page < lastPage" type="button"
                                     class="w-full py-3 text-center text-xs font-medium text-brandColor transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brandColor dark:hover:bg-gray-800"
+                                    :disabled="loadingMore"
                                     @click="loadMore">
-                                Cargar más conversaciones
+                                @{{ loadingMore ? 'Cargando…' : 'Cargar más conversaciones' }}
                             </button>
                         </template>
                     </div>
@@ -342,6 +343,7 @@
                         page: 1,
                         lastPage: 1,
                         listLoading: false,
+                        loadingMore: false,
                         searchTimer: null,
                         pollTimer: null,
                     };
@@ -404,7 +406,25 @@
                                 params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, city: this.cityFilter, page: 1 },
                             })
                             .then(res => {
-                                this.conversations = res.data?.data ?? [];
+                                const frescas = res.data?.data ?? [];
+
+                                /*
+                                 * El polling sólo pide la página 1. Si ya se
+                                 * cargaron más, pisar la lista borraba las
+                                 * antiguas y devolvía al usuario arriba cada
+                                 * 10 s: se refrescan las de la página 1 y se
+                                 * conservan las demás, sin repetir ninguna.
+                                 */
+                                if (background && this.page > 1) {
+                                    const ids = new Set(frescas.map(c => c.id));
+
+                                    this.conversations = [...frescas, ...this.conversations.filter(c => !ids.has(c.id))];
+                                    this.lastPage = Math.max(this.page, res.data?.last_page ?? this.lastPage);
+
+                                    return;
+                                }
+
+                                this.conversations = frescas;
                                 this.page = res.data?.current_page ?? 1;
                                 this.lastPage = res.data?.last_page ?? 1;
                             })
@@ -465,15 +485,28 @@
                     },
 
                     loadMore() {
+                        if (this.loadingMore) return;
+
+                        this.loadingMore = true;
+
                         this.$axios.get(this.conversationsUrl, {
                                 params: { search: this.search || null, filter: this.filter, stage: this.stageFilter, city: this.cityFilter, page: this.page + 1 },
                             })
                             .then(res => {
-                                this.conversations.push(...(res.data?.data ?? []));
+                                /*
+                                 * Si entró un mensaje nuevo desde la última
+                                 * carga, las páginas se corren y la siguiente
+                                 * puede traer conversaciones que ya están en
+                                 * la lista: se descartan para no duplicarlas.
+                                 */
+                                const ids = new Set(this.conversations.map(c => c.id));
+
+                                this.conversations.push(...(res.data?.data ?? []).filter(c => !ids.has(c.id)));
                                 this.page = res.data?.current_page ?? this.page + 1;
                                 this.lastPage = res.data?.last_page ?? this.lastPage;
                             })
-                            .catch(() => {});
+                            .catch(() => {})
+                            .finally(() => { this.loadingMore = false; });
                     },
 
                     debouncedLoad() {
