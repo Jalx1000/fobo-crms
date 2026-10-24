@@ -115,10 +115,12 @@
                     isLoading: true,
 
                     tabs: [
-                        { key: 'ventas',             label: 'Pedidos entregados' },
+                        { key: 'ventas',             label: 'Cierres' },
                         // { key: 'pedidos-creados',    label: 'Prospectos' },
                         { key: 'valor-ventas',       label: 'Valor de ventas' },
-                        { key: 'productos-vendidos', label: 'Productos vendidos' },
+                        // Cuenta `lead_products`, que acá siempre está vacío: los
+                        // inmuebles cerrados ya tienen su tarjeta y su torta.
+                        // { key: 'productos-vendidos', label: 'Productos vendidos' },
                     ],
                 }
             },

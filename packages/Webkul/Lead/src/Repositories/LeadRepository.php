@@ -229,8 +229,15 @@ class LeadRepository extends Repository
 
             $name = strtolower($stage->name ?? '');
             $code = strtolower($stage->code ?? '');
-            $isWon = ($code === 'won') || ($code === 'pedido-entregado') || str_contains($name, 'won') || str_contains($name, 'ganado') || str_contains($name, 'entregado');
-            $isLost = ($code === 'lost') || ($code === 'pedidos-cancelado') || str_contains($name, 'lost') || str_contains($name, 'perdido') || str_contains($name, 'cancelado');
+
+            // Ganado y perdido por `code`, con las mismas listas que el tablero
+            // (config/reporting.php). La heurística por nombre de abajo no
+            // reconocía «Cierre exitoso» ni «Desistimiento», y closed_at
+            // quedaba siempre vacío.
+            $isWon = in_array($code, (array) config('reporting.stages.won', []), true)
+                || ($code === 'won') || str_contains($name, 'ganado') || str_contains($name, 'entregado');
+            $isLost = in_array($code, (array) config('reporting.stages.lost', []), true)
+                || ($code === 'lost') || str_contains($name, 'perdido') || str_contains($name, 'cancelado');
             $isConfirmed = ($code === 'pedidos-confirmado') || str_contains($name, 'confirmado');
 
             $currentLead = $this->find($id);
@@ -245,14 +252,8 @@ class LeadRepository extends Repository
                 $data['confirmed_at'] = Carbon::now();
             }
 
-            /**
-             * first_stage_change_at: primera salida de Prospecto (la etapa inicial).
-             * Pegajoso: se fija una sola vez y nunca se sobrescribe ni se borra, para que
-             * el "Tiempo en responder" sea inmune a reaperturas/movimientos accidentales.
-             */
-            if (($isWon || $isLost || $isConfirmed) && ! $currentLead?->first_stage_change_at) {
-                $data['first_stage_change_at'] = Carbon::now();
-            }
+            // first_stage_change_at lo fija el modelo Lead al guardar (booted),
+            // para cualquier camino que cambie la etapa.
         }
 
         if (empty($data['expected_close_date'])) {

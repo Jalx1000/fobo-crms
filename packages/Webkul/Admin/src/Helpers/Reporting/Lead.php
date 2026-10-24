@@ -128,12 +128,14 @@ class Lead extends AbstractReporting
             ->pluck('id')
             ->toArray();
 
-        $this->notAttendedStageIds = $this->stageRepository
-            ->resetModel()
-            ->where('code', 'like', '%no-atendido%')
-            ->orWhereRaw("LOWER(name) LIKE '%no atendido%'")
-            ->pluck('id')
-            ->toArray();
+        // «No atendido» = Prospectos en esta instancia (config). La heurística
+        // buscaba una etapa llamada «No atendido», que acá no existe: el
+        // conjunto quedaba vacío y la tarjeta mostraba 0 no atendidos.
+        $this->notAttendedStageIds = $this->etapasPorCodigo(
+            config('reporting.stages.no_atendido', []),
+            fn ($q) => $q->where('code', 'like', '%no-atendido%')
+                ->orWhereRaw("LOWER(name) LIKE '%no atendido%'")
+        );
 
         parent::__construct();
     }
@@ -145,7 +147,16 @@ class Lead extends AbstractReporting
      */
     protected function openStageIds(): array
     {
-        return array_values(array_unique(array_merge($this->prospectoStageIds, $this->confirmedStageIds))) ?: [0];
+        /*
+        | En esta instancia un lead cuenta en TODAS sus etapas: el total del
+        | período es no atendidos (Prospectos) + atendidos (el resto), y así
+        | cuadra con el embudo y con «Atendidos vs no atendidos».
+        |
+        | Antes era Prospecto + «Pedido confirmado» (flujo de pedidos de otra
+        | instancia). Sin etapa «confirmado» acá, el total contaba solo
+        | Prospectos: 52 leads de 112.
+        */
+        return $this->allStageIds ?: [0];
     }
 
     /**
@@ -695,11 +706,41 @@ class Lead extends AbstractReporting
             $notAttended[] = $notAttendedById[$u->id] ?? 0;
         }
 
+        /*
+        | Totales del período sobre TODOS los leads, sin excluir roles: son los
+        | que tienen que coincidir con el embudo y con el total del tablero.
+        | Lo que no cae en ningún asesor (leads de administradores,
+        | supervisores o sin asignar) va a una barra «Otros», para que las
+        | barras sumen exactamente el total.
+        */
+        $totales = $this->leadRepository
+            ->resetModel()
+            ->selectRaw('COUNT(DISTINCT CASE WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.$notAttendedIds.') THEN '.$tablePrefix.'leads.id END) AS not_attended')
+            ->selectRaw('COUNT(DISTINCT CASE WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id NOT IN ('.$notAttendedIds.') THEN '.$tablePrefix.'leads.id END) AS attended')
+            ->whereRaw('('.$this->stageEventDateExpr().') BETWEEN ? AND ?', [$this->startDate, $this->endDate])
+            ->when($pipelineId, fn ($q) => $q->where('leads.lead_pipeline_id', $pipelineId))
+            ->first();
+
+        $totalAttended = (int) ($totales->attended ?? 0);
+        $totalNotAttended = (int) ($totales->not_attended ?? 0);
+
+        $otrosAttended = $totalAttended - array_sum($attended);
+        $otrosNotAttended = $totalNotAttended - array_sum($notAttended);
+
+        if ($otrosAttended > 0 || $otrosNotAttended > 0) {
+            $labels[] = 'Otros';
+            $attended[] = max(0, $otrosAttended);
+            $notAttended[] = max(0, $otrosNotAttended);
+        }
+
         return [
-            'labels'       => $labels,
-            'attended'     => $attended,
-            'not_attended' => $notAttended,
-            'users'        => $labels,
+            'labels'             => $labels,
+            'attended'           => $attended,
+            'not_attended'       => $notAttended,
+            'users'              => $labels,
+            'total_attended'     => $totalAttended,
+            'total_not_attended' => $totalNotAttended,
+            'total'              => $totalAttended + $totalNotAttended,
         ];
     }
 
@@ -842,11 +883,10 @@ class Lead extends AbstractReporting
     }
 
     /**
-     * "Tiempo en responder" por asesor: tiempo desde la entrada a Prospecto
-     * (leads.created_at) hasta el PRIMER cambio de etapa (leads.first_stage_change_at),
-     * promediado por usuario. Si el lead sigue en Prospecto sin transición, el reloj
-     * corre hasta NOW(). Inmune a reaperturas/movimientos accidentales por ser la
-     * 1ª transición pegajosa. El front convierte segundos -> horas.
+     * "Tiempo en responder" por asesor: desde que se creó el lead hasta que
+     * llegó a una etapa que detiene el reloj (leads.detenido_at); si todavía
+     * no llegó, hasta ahora. Promediado por usuario. El front convierte
+     * segundos -> horas.
      */
     public function getAverageResponseTimeByUsers(): array
     {
@@ -862,18 +902,22 @@ class Lead extends AbstractReporting
         $now = now()->toDateTimeString();
 
         /**
-         * Regla "por etapa actual": el reloj se mide desde created_at hasta la fecha
-         * de la ETAPA donde el lead está HOY (no la 1ª transición):
-         *   - Prospecto            -> NOW (sigue abierto, el tiempo aumenta)
-         *   - Confirmado           -> confirmed_at
-         *   - Entregado/Cancelado  -> closed_at  (ej. #161: 22-jun -> 29-jun, no 11 min)
-         * Un lead confirmado por error y devuelto a Prospecto vuelve a contar como
-         * abierto (cae en la rama Prospecto -> NOW).
+         * El reloj del asesor corre desde created_at y se DETIENE al entrar a
+         * una etapa de `reporting.stages.detienen_tiempo` (Sin interés,
+         * Anticipo, Cierre exitoso, Desistimiento, Devolución), en
+         * `leads.detenido_at`. En cualquier otra etapa (Prospectos, Agenda
+         * visita, Cliente con propuesta, Reserva) sigue corriendo hasta NOW.
+         *
+         * Antes de la migración que crea `detenido_at` se usa updated_at como
+         * aproximación, para que la tarjeta no falle.
          */
-        $prospectoIds = implode(',', $this->prospectoStageIds ?: [0]);
-        $confirmadoIds = implode(',', $this->confirmedStageIds ?: [0]);
+        $detienenIds = implode(',', $this->etapasPorCodigo((array) config('reporting.stages.detienen_tiempo', []), fn ($q) => $q->whereRaw('1 = 0')) ?: [0]);
 
-        $buildAverages = function ($startDate, $endDate) use ($tablePrefix, $pipelineId, $now, $prospectoIds, $confirmadoIds) {
+        $finDetenido = \Illuminate\Support\Facades\Schema::hasColumn('leads', 'detenido_at')
+            ? 'COALESCE('.$tablePrefix.'leads.detenido_at, '.$tablePrefix.'leads.updated_at)'
+            : $tablePrefix.'leads.updated_at';
+
+        $buildAverages = function ($startDate, $endDate) use ($tablePrefix, $pipelineId, $now, $detienenIds, $finDetenido) {
             $query = $this->leadRepository
                 ->resetModel()
                 ->leftJoin('users', 'leads.user_id', '=', 'users.id')
@@ -884,13 +928,13 @@ class Lead extends AbstractReporting
                 ->selectRaw(
                     'AVG(TIMESTAMPDIFF(SECOND, '.$tablePrefix.'leads.created_at, '
                     .'CASE '
-                    .'WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.$prospectoIds.') THEN ? '
-                    .'WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.$confirmadoIds.') THEN COALESCE('.$tablePrefix.'leads.confirmed_at, ?) '
-                    .'ELSE COALESCE('.$tablePrefix.'leads.closed_at, '.$tablePrefix.'leads.confirmed_at, ?) '
+                    .'WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.$detienenIds.') THEN '.$finDetenido.' '
+                    .'ELSE ? '
                     .'END'
                     .')) as avg_response_seconds',
-                    [$now, $now, $now]
+                    [$now]
                 )
+                ->selectRaw('COUNT(DISTINCT '.$tablePrefix.'leads.id) as leads_count')
                 ->whereBetween('leads.created_at', [$startDate, $endDate])
                 ->when($pipelineId, function ($q) use ($pipelineId) {
                     $q->where('leads.lead_pipeline_id', $pipelineId);
@@ -910,7 +954,10 @@ class Lead extends AbstractReporting
             $avgByUser = [];
 
             foreach ($query->get() as $row) {
-                $avgByUser[$row->user_name ?? '—'] = $row->avg_response_seconds ? (int) $row->avg_response_seconds : 0;
+                $avgByUser[$row->user_name ?? '—'] = [
+                    'avg'   => $row->avg_response_seconds ? (int) $row->avg_response_seconds : 0,
+                    'count' => (int) $row->leads_count,
+                ];
             }
 
             return $avgByUser;
@@ -934,16 +981,29 @@ class Lead extends AbstractReporting
 
         $data = [];
         $previousData = [];
+        $counts = [];
         foreach ($users as $u) {
-            $data[] = $currentAverages[$u] ?? 0;
-            $previousData[] = $previousAverages[$u] ?? 0;
+            $data[] = $currentAverages[$u]['avg'] ?? 0;
+            $previousData[] = $previousAverages[$u]['avg'] ?? 0;
+            $counts[] = $currentAverages[$u]['count'] ?? 0;
+        }
+
+        // Promedio total ponderado por lead: el promedio de los promedios
+        // pesaba igual a un asesor con 5 leads que a uno con 60.
+        $totalLeads = array_sum($counts);
+        $weighted = 0;
+
+        foreach ($data as $i => $avg) {
+            $weighted += $avg * $counts[$i];
         }
 
         return [
-            'labels'        => $users,
-            'data'          => $data,
-            'previous_data' => $previousData,
-            'users'         => $users,
+            'labels'          => $users,
+            'data'            => $data,
+            'previous_data'   => $previousData,
+            'users'           => $users,
+            'counts'          => $counts,
+            'overall_seconds' => $totalLeads ? (int) round($weighted / $totalLeads) : 0,
         ];
     }
 

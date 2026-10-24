@@ -45,6 +45,33 @@ return [
             'reserva,anticipo---garanta'
         ))),
 
+        /*
+        | No atendidos: el lead todavía no lo trabajó nadie. Todo lead que esté
+        | en cualquier OTRA etapa cuenta como atendido, y no atendidos +
+        | atendidos = total de leads del período. Es la regla con la que tienen
+        | que cuadrar todas las tarjetas del tablero (pedido del 21/10/2026).
+        |
+        | Salir de estas etapas por primera vez fija `leads.first_stage_change_at`,
+        | que es lo que mide «Tiempo en responder».
+        */
+        'no_atendido' => array_filter(explode(',', (string) env(
+            'REPORTING_NOT_ATTENDED_STAGE_CODES',
+            'prospectos'
+        ))),
+
+        /*
+        | Etapas donde se DETIENE el reloj de «Tiempo en responder» del asesor
+        | (pedido del 21/10/2026). En cualquier otra etapa (Prospectos, Agenda
+        | visita, Cliente con propuesta, Reserva) el tiempo sigue corriendo.
+        |
+        | Entrar a una de estas etapas fija `leads.detenido_at`; volver a una
+        | etapa que corre lo borra y el reloj sigue.
+        */
+        'detienen_tiempo' => array_filter(explode(',', (string) env(
+            'REPORTING_STOP_CLOCK_STAGE_CODES',
+            'sin-inters,anticipo---garanta,cierre-exitoso,desistimiento,devolucin'
+        ))),
+
         // Si las listas de arriba no encuentran ninguna etapa, se vuelve a
         // adivinar por nombre antes que dejar el tablero en cero.
         'fallback_heuristica' => true,

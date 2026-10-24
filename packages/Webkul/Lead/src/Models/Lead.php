@@ -56,6 +56,7 @@ class Lead extends Model implements LeadContract
         'closed_at'             => 'datetime:D M d, Y H:i A',
         'confirmed_at'          => 'datetime:D M d, Y H:i A',
         'first_stage_change_at' => 'datetime:D M d, Y H:i A',
+        'detenido_at'           => 'datetime:D M d, Y H:i A',
         'expected_close_date'   => 'date:D M d, Y',
         'lead_value_is_manual'  => 'boolean',
     ];
@@ -68,6 +69,63 @@ class Lead extends Model implements LeadContract
     protected $appends = [
         'rotten_days',
     ];
+
+    /**
+     * Primera salida de «no atendido» (`reporting.stages.no_atendido`): de ahí
+     * mide el tablero el «Tiempo en responder».
+     *
+     * Va en el modelo y no en el repositorio porque la etapa cambia por varios
+     * caminos que no pasan por `LeadRepository::update` (edición masiva, la
+     * actividad que mueve el lead, el servicio de «Sin interés»). Se fija una
+     * sola vez: volver a Prospectos no reinicia el reloj.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $lead) {
+            if (! $lead->lead_pipeline_stage_id || ! $lead->isDirty('lead_pipeline_stage_id')) {
+                return;
+            }
+
+            $code = StageProxy::modelClass()::whereKey($lead->lead_pipeline_stage_id)->value('code');
+
+            if ($code === null) {
+                return;
+            }
+
+            if (! $lead->first_stage_change_at && ! in_array($code, (array) config('reporting.stages.no_atendido', []), true)) {
+                $lead->first_stage_change_at = Carbon::now();
+            }
+
+            /*
+            | Reloj del asesor: se detiene al entrar a una etapa de
+            | `reporting.stages.detienen_tiempo` y vuelve a correr si el lead
+            | regresa a una etapa que corre. Pasar entre dos etapas que detienen
+            | (Sin interés → Desistimiento) conserva la primera fecha.
+            */
+            if (! static::tieneDetenidoAt()) {
+                return;
+            }
+
+            if (in_array($code, (array) config('reporting.stages.detienen_tiempo', []), true)) {
+                $lead->detenido_at ??= Carbon::now();
+            } else {
+                $lead->detenido_at = null;
+            }
+        });
+    }
+
+    /**
+     * La columna llega con una migración; hasta que corra, el modelo no la
+     * escribe (el código se sirve en vivo y guardar un lead no puede fallar).
+     */
+    protected static function tieneDetenidoAt(): bool
+    {
+        // Solo se recuerda el «sí»: un worker de cola que arrancó antes de la
+        // migración tiene que enterarse cuando la columna aparezca.
+        static $tiene = false;
+
+        return $tiene = $tiene || \Illuminate\Support\Facades\Schema::hasColumn('leads', 'detenido_at');
+    }
 
     /**
      * Get the user that owns the lead.

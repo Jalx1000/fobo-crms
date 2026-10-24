@@ -16,6 +16,13 @@
             <div class="grid gap-4 rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex flex-col justify-between gap-1">
                     <p class="text-base font-semibold dark:text-gray-300">{{ ($personal ?? false) ? 'Mis atendidos vs no atendidos' : 'Atendidos vs no atendidos por encargado' }}</p>
+
+                    <!-- Total = no atendidos (Prospectos) + atendidos (el resto). Cuadra con el embudo. -->
+                    <p class="text-xs text-gray-600 dark:text-gray-300">
+                        Total: <span class="font-semibold" v-text="report.statistics?.total ?? 0"></span>
+                        · No atendidos (Prospectos): <span class="font-semibold" :style="{ color: notAttendedColor }" v-text="report.statistics?.total_not_attended ?? 0"></span>
+                        · Atendidos: <span class="font-semibold" :style="{ color: attendedColor }" v-text="report.statistics?.total_attended ?? 0"></span>
+                    </p>
                 </div>
 
                 <div class="flex w-full max-w-full flex-col gap-4">
@@ -97,7 +104,6 @@
         }
 
         this.report = data;
-        console.log(data);
         this.isLoading = false;
     })
                         .catch(error => {});

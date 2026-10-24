@@ -105,6 +105,13 @@
                     });
                 },
                 averageMinutesPerLead() {
+                    // Ponderado por lead, calculado en el servidor.
+                    const overall = this.report.statistics?.overall_seconds;
+
+                    if (typeof overall === 'number') {
+                        return Number((overall / 3600).toFixed(1));
+                    }
+
                     const values = this.dataMinutesPerLead;
                     const valid = values.filter((v) => typeof v === 'number' && v > 0);
                     if (!valid.length) return 0;

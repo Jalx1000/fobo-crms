@@ -20,27 +20,32 @@
                     </p>
                 </div>
 
-                <div class="flex flex-col" v-if="report.statistics.length">
+                <div class="flex flex-col" v-if="products.length">
                     <div class="flex w-full max-w-full flex-col gap-4 px-8 pt-8">
                         <x-admin::charts.doughnut
                             ::labels="chartLabels"
                             ::datasets="chartDatasets"
                         />
-
-                        <div class="flex flex-wrap justify-center gap-5">
-                            <div class="flex items-start gap-2 max-w-[260px]" v-for="(stat, index) in report.statistics" :key="stat.id">
-                                <span class="h-3.5 w-3.5 rounded-sm" :style="{ backgroundColor: colors[index] }"></span>
-                                <p class="text-xs dark:text-gray-300 break-words">@{{ stat.name }} — @{{ stat.total_qty_ordered }}</p>
-                            </div>
-                        </div>
                     </div>
+
+                    <!-- Todos los inmuebles. El total es el de la tarjeta «Inmuebles consultados». -->
+                    @include('admin::dashboard.index.pie-table', [
+                        'rows'        => 'products',
+                        'label'       => "row.name ?? 'Inmueble eliminado'",
+                        'labelHeader' => 'Inmueble',
+                        'value'       => 'row.total_qty_ordered',
+                        'valueHeader' => 'Leads',
+                        'total'       => 'report.statistics.total_qty',
+                        'extra'       => ['header' => 'Precio', 'value' => 'row.formatted_price', 'total' => "''"],
+                        'colors'      => 'colors',
+                    ])
                 </div>
 
                 <div class="flex flex-col gap-8 p-4" v-else>
                     <div class="grid justify-center justify-items-center gap-3.5 py-2.5">
                         <img src="{{ vite()->asset('images/empty-placeholders/products.svg') }}" class="dark:mix-blend-exclusion dark:invert">
                         <div class="flex flex-col items-center">
-                            <p class="text-base font-semibold text-gray-400">@lang('admin::app.dashboard.index.top-selling-products.empty-title')</p>
+                            <p class="text-base font-semibold text-gray-400">Sin consultas en el período</p>
                             <p class="text-gray-400">@lang('admin::app.dashboard.index.top-selling-products.empty-info')</p>
                         </div>
                     </div>
@@ -56,28 +61,23 @@
             data() {
                 return {
                     report: [],
-                    colors: [
-                        '#8979FF',
-                        '#FF928A',
-                        '#3CC3DF',
-                    ],
+                    colors: [],
                     isLoading: true,
                 }
             },
 
             computed: {
+                products() {
+                    return this.report.statistics?.products ?? [];
+                },
+
                 chartLabels() {
-                    return this.report.statistics.map(({
-                        name
-                    }) => name);
+                    return this.products.map(({ name }) => name);
                 },
 
                 chartDatasets() {
-                    // this.colors = this.chartLabels.map((l) => this.$admin.getLabelColor(l));
                     return [{
-                        data: this.report.statistics.map(({
-                            total_qty_ordered
-                        }) => total_qty_ordered),
+                        data: this.products.map(({ total_qty_ordered }) => total_qty_ordered),
                         backgroundColor: this.colors,
                     }];
                 }
@@ -98,17 +98,21 @@
                         })
                         .then(response => {
                             this.report = response.data;
-                            this.extendColors(this.report.statistics.length);
+                            this.colors = this.buildColors(this.products.length);
                             this.isLoading = false;
                         })
                         .catch(error => {});
                 },
-                extendColors(length) {
-                    while (this.colors.length < length) {
-                        const hue = Math.floor(Math.random() * 360);
-                        const newColor = `hsl(${hue}, 70%, 60%)`;
-                        this.colors.push(newColor);
-                    }
+
+                /**
+                 * Un color fijo por posición: los 3 de siempre y, desde el 4.º,
+                 * tonos separados por el ángulo áureo. Antes eran aleatorios y
+                 * cambiaban en cada recarga.
+                 */
+                buildColors(length) {
+                    const base = ['#8979FF', '#FF928A', '#3CC3DF'];
+
+                    return Array.from({ length }, (_, i) => base[i] ?? `hsl(${Math.round((i * 137.508) % 360)}, 65%, 58%)`);
                 },
             }
         });

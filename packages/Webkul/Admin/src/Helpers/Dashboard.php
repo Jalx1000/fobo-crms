@@ -48,8 +48,11 @@ class Dashboard
             'total_leads'           => $this->leadReporting->getTotalLeadsProgress(),
             'average_lead_value'    => $this->leadReporting->getAverageLeadValueProgress(),
             'average_leads_per_day' => $this->leadReporting->getAverageLeadsPerDayProgress(),
-            'total_services'        => $this->productReporting->getTotalServicesProgress(),
-            'total_products_sold'   => $this->productReporting->getTotalProductsSoldProgress(),
+            // Inmuebles, no productos: los mismos totales que las tortas de
+            // abajo (fila «Total» de cada tabla). Las claves se conservan para
+            // no tocar la plantilla ni la exportación.
+            'total_services'        => $this->inmueblesProgress(false),
+            'total_products_sold'   => $this->inmueblesProgress(true),
             'total_quotations'      => $this->quoteReporting->getTotalQuotesProgress(),
             'total_persons'         => $this->personReporting->getTotalPersonsProgress(),
             'total_organizations'   => $this->organizationReporting->getTotalOrganizationsProgress(),
@@ -157,18 +160,36 @@ class Dashboard
      * paquete Admin al de Inmobiliaria: Admin es la base, Inmobiliaria es la
      * extensión, y la dependencia al revés rompería una instancia sin ella.
      */
-    public function getInmueblesMasSolicitados(): Collection
+    public function getInmueblesMasSolicitados(): array
     {
-        return $this->inmuebleReporting()->getMasSolicitados(5);
+        return $this->inmuebleReporting()->getTabla();
     }
 
     /**
      * Inmuebles efectivamente cerrados, con las mismas etapas que el resto del
      * tablero.
      */
-    public function getInmueblesCerrados(): Collection
+    public function getInmueblesCerrados(): array
     {
-        return $this->inmuebleReporting()->getCerrados(5);
+        return $this->inmuebleReporting()->getTabla(soloCerrados: true);
+    }
+
+    /**
+     * Consultas a inmuebles del período contra el anterior, con el mismo
+     * formato que el resto de las tarjetas (previous/current/progress).
+     */
+    protected function inmueblesProgress(bool $soloCerrados): array
+    {
+        $reporting = $this->inmuebleReporting();
+
+        $previous = $reporting->totalConsultas($this->leadReporting->getLastStartDate(), $this->leadReporting->getLastEndDate(), $soloCerrados);
+        $current = $reporting->totalConsultas($this->leadReporting->getStartDate(), $this->leadReporting->getEndDate(), $soloCerrados);
+
+        return [
+            'previous' => $previous,
+            'current'  => $current,
+            'progress' => $this->leadReporting->getPercentageChange($previous, $current),
+        ];
     }
 
     /**

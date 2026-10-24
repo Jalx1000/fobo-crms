@@ -16,7 +16,12 @@
             <div class="grid gap-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                 <div class="flex items-center justify-between gap-1">
                     <p class="text-base font-semibold dark:text-gray-300">
-                        {{ ($personal ?? false) ? 'Mis contactos' : 'Total contactos' }}
+                        {{ ($personal ?? false) ? 'Mis leads por etapa' : 'Leads por etapa' }}
+                    </p>
+
+                    <!-- Mismo total que «Atendidos vs no atendidos». -->
+                    <p class="text-sm font-semibold text-gray-600 dark:text-gray-300">
+                        Total: <span v-text="(report.statistics || []).reduce((suma, etapa) => suma + etapa.total, 0)"></span>
                     </p>
                 </div>
 

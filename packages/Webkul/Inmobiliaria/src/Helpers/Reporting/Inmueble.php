@@ -86,6 +86,67 @@ class Inmueble
     }
 
     /**
+     * Torta + tabla de «Inmuebles más consultados» (o cerrados): TODOS los
+     * inmuebles, no un top, para que la fila «Total» de la tabla sea el mismo
+     * número que la tarjeta de arriba.
+     *
+     * @return array{products: Collection, total_qty: int, total_leads: int}
+     */
+    public function getTabla(bool $soloCerrados = false): array
+    {
+        $won = $this->etapasGanadas();
+
+        if ($soloCerrados && ! $won) {
+            return ['products' => collect(), 'total_qty' => 0, 'total_leads' => 0];
+        }
+
+        $filas = $this->base()
+            ->when($soloCerrados, fn ($q) => $q->whereIn('leads.lead_pipeline_stage_id', $won))
+            ->orderByDesc('total_qty_ordered')
+            ->orderBy('inmuebles.codigo')
+            ->get()
+            ->map(fn ($row) => $this->fila($row));
+
+        return [
+            'products'    => $filas,
+            'total_qty'   => (int) $filas->sum('total_qty_ordered'),
+            // Personas distintas: un lead que consultó dos inmuebles suma 2
+            // consultas pero es 1 lead.
+            'total_leads' => $this->totalLeads($soloCerrados),
+        ];
+    }
+
+    /**
+     * Consultas (pares inmueble–lead distintos) de un período: el número de la
+     * tarjeta, que es la suma de la columna de la torta.
+     */
+    public function totalConsultas(Carbon $desde, Carbon $hasta, bool $soloCerrados = false): int
+    {
+        $won = $this->etapasGanadas();
+
+        if ($soloCerrados && ! $won) {
+            return 0;
+        }
+
+        $prefix = DB::getTablePrefix();
+
+        return (int) $this->vinculos($desde, $hasta)
+            ->when($soloCerrados, fn ($q) => $q->whereIn('leads.lead_pipeline_stage_id', $won))
+            ->selectRaw("COUNT(DISTINCT {$prefix}inmueble_lead.inmueble_id, {$prefix}inmueble_lead.lead_id) as total")
+            ->value('total');
+    }
+
+    protected function totalLeads(bool $soloCerrados): int
+    {
+        $won = $this->etapasGanadas();
+
+        return (int) $this->vinculos()
+            ->when($soloCerrados, fn ($q) => $q->whereIn('leads.lead_pipeline_stage_id', $won ?: [0]))
+            ->selectRaw('COUNT(DISTINCT '.DB::getTablePrefix().'inmueble_lead.lead_id) as total')
+            ->value('total');
+    }
+
+    /**
      * Estado de la cartera: cuántos hay de cada estado y cuántos sin fotos.
      *
      * Un inmueble sin fotos es trabajo pendiente invisible: el agente de IA no
@@ -128,21 +189,30 @@ class Inmueble
      * El rango de fechas se aplica sobre el lead y no sobre el inmueble: lo que
      * interesa es cuándo hubo interés, no cuándo se cargó la propiedad.
      */
-    protected function base()
+    protected function base(?Carbon $desde = null, ?Carbon $hasta = null)
+    {
+        return $this->vinculos($desde, $hasta)
+            ->select('inmuebles.id', 'inmuebles.codigo', 'inmuebles.titulo', 'inmuebles.precio', 'inmuebles.moneda')
+            ->selectRaw('COUNT(DISTINCT '.DB::getTablePrefix().'inmueble_lead.lead_id) as total_qty_ordered')
+            ->groupBy('inmuebles.id', 'inmuebles.codigo', 'inmuebles.titulo', 'inmuebles.precio', 'inmuebles.moneda');
+    }
+
+    /**
+     * Vínculos inmueble ↔ lead del período, con los mismos filtros que todas
+     * las tarjetas de inmuebles (fechas por leads.created_at, asesor, ciudad).
+     */
+    protected function vinculos(?Carbon $desde = null, ?Carbon $hasta = null)
     {
         return DB::table('inmueble_lead')
             ->join('inmuebles', 'inmueble_lead.inmueble_id', '=', 'inmuebles.id')
             ->join('leads', 'inmueble_lead.lead_id', '=', 'leads.id')
             ->whereNull('inmuebles.deleted_at')
-            ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
+            ->whereBetween('leads.created_at', [$desde ?? $this->startDate, $hasta ?? $this->endDate])
             ->when(request('user_id'), fn ($q) => $q->where('leads.user_id', request('user_id')))
             ->when(
                 is_numeric(request('pipeline_id')) ? request('pipeline_id') : null,
                 fn ($q, $pipelineId) => $q->where('leads.lead_pipeline_id', $pipelineId)
-            )
-            ->select('inmuebles.id', 'inmuebles.codigo', 'inmuebles.titulo', 'inmuebles.precio', 'inmuebles.moneda')
-            ->selectRaw('COUNT(DISTINCT '.DB::getTablePrefix().'inmueble_lead.lead_id) as total_qty_ordered')
-            ->groupBy('inmuebles.id', 'inmuebles.codigo', 'inmuebles.titulo', 'inmuebles.precio', 'inmuebles.moneda');
+            );
     }
 
     /**
