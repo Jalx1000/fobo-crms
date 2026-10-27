@@ -121,22 +121,24 @@ it('verify-insurance-quick rechaza ids de seguro que no existen, también en lis
 });
 
 /**
- * Front: el autocompletar pone los seguros como chips del multiselect (antes
- * buscaba un <select> que no existe y el seguro nunca se cargaba) y los avisos
- * salen por window.emitter (window.__vueApp no existe).
+ * Front: los avisos salen por window.emitter (window.__vueApp no existe) y
+ * los seguros se agregan como chips del multiselect (antes buscaba un
+ * <select> que no existe y el seguro nunca se cargaba).
  */
-it('el autocompletar de SMD carga los seguros en el multiselect y avisa por window.emitter', function () {
+it('el buscador de SMD avisa por window.emitter y pasa los pacientes a la comparación', function () {
     $checker = file_get_contents(base_path('packages/Webkul/Admin/src/Resources/views/contacts/persons/partials/smd-checker.blade.php'));
     $multiselect = file_get_contents(base_path('packages/Webkul/Admin/src/Resources/views/components/attributes/edit/multiselect.blade.php'));
 
     expect($checker)
-        ->toContain("window.emitter.emit('multiselect:agregar', {")
         ->toContain("window.emitter?.emit('add-flash', { type, message });")
+        ->toContain("window.emitter?.emit('smd:encontrados', { pacientes });")
         ->not->toContain('__vueApp')
-        ->not->toContain('setSelectByText');
+        ->not->toContain('setSelectByText')
+        ->not->toContain('smdAutofill');
 
     expect($multiselect)
         ->toContain("this.\$emitter.on('multiselect:agregar', this.agregarPorNombre);")
+        ->toContain("this.\$emitter.on('multiselect:quitar', this.quitarPorNombre);")
         ->toContain(".normalize('NFD')");
 });
 
@@ -146,4 +148,59 @@ it('el botón Verificar Seguro de crear paciente manda todos los seguros elegido
         ->assertOk()
         ->assertSee("document.querySelectorAll('[name=\"seguro_paciente[]\"]')", false)
         ->assertSee('seguro_paciente: seguros.length === 1 ? seguros[0] : seguros,', false);
+});
+
+/**
+ * Fase B: un teléfono puede ser de varios pacientes (una familia). searchSmd
+ * devuelve todos y el operador elige; los campos de arriba siguen siendo el
+ * primero.
+ */
+it('searchSmd devuelve todos los pacientes que coinciden en patients', function () {
+    Http::fake([
+        '*/patients*' => Http::response([
+            'data' => [
+                ['_id' => 'smd-madre', 'name' => 'Ana', 'lastName' => 'Rojas', 'phone' => '77700000', 'personID' => '1111111'],
+                ['_id' => 'smd-hijo', 'name' => 'Tomás', 'lastName' => 'Rojas', 'phone' => '77700000', 'personID' => '2222222', 'extra' => ['insurance' => ['Alianza']]],
+            ],
+        ], 200),
+    ]);
+
+    actingAs($this->admin, 'user')
+        ->getJson(route('admin.contacts.persons.search_smd', ['q' => '77700000']))
+        ->assertOk()
+        ->assertJson([
+            'found'    => true,
+            'smd_id'   => 'smd-madre',
+            'name'     => 'Ana Rojas',
+            'patients' => [
+                ['smd_id' => 'smd-madre', 'ci' => '1111111', 'insurances' => []],
+                ['smd_id' => 'smd-hijo', 'name' => 'Tomás Rojas', 'ci' => '2222222', 'insurances' => ['Alianza']],
+            ],
+        ]);
+});
+
+/**
+ * Regla del CRM: SMD gana por defecto pero el operador elige. La comparación
+ * reemplaza al botón «Autocompletar», que pisaba todo sin mostrar qué cambiaba.
+ */
+it('crear y editar paciente muestran la comparación con SMD en vez de pisar los datos', function () {
+    $person = \Webkul\Contact\Models\Person::query()->latest('id')->first();
+
+    foreach ([route('admin.contacts.persons.create'), route('admin.contacts.persons.edit', $person->id)] as $url) {
+        actingAs($this->admin, 'user')
+            ->get($url)
+            ->assertOk()
+            ->assertSee('<v-smd-comparar></v-smd-comparar>', false)
+            ->assertSee('id="v-smd-comparar-template"', false)
+            ->assertDontSee('smd-autofill-btn', false);
+    }
+
+    $comparar = file_get_contents(base_path('packages/Webkul/Admin/src/Resources/views/contacts/persons/partials/smd-comparar.blade.php'));
+
+    expect($comparar)
+        // Lo nuevo y lo distinto vienen marcados (SMD gana); lo igual no se toca.
+        ->toContain("this.marcados = Object.fromEntries(filas.map((fila) => [fila.key, fila.estado !== 'igual']));")
+        ->toContain('Usar datos marcados')
+        ->toContain('deshacerCambios')
+        ->toContain("this.\$emitter.on('smd:encontrados', this.recibir);");
 });

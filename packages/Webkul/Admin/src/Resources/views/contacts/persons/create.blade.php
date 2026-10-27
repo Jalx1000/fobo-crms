@@ -89,18 +89,15 @@
                             </div>
                         </div>
                         <div class="flex shrink-0 items-center gap-2">
-                            <button
-                                id="smd-autofill-btn"
-                                type="button"
-                                class="hidden rounded-md bg-white px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-inset transition hover:bg-gray-50 focus:outline-none max-lg:min-h-[44px] max-lg:text-sm"
-                                onclick="smdAutofill()"
-                            >Autocompletar</button>
                             <button type="button" class="text-xs opacity-60 hover:opacity-100 focus:outline-none max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center" onclick="smdDismiss()" aria-label="Cerrar">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
                             </button>
                         </div>
                     </div>
                 </div>
+
+                <!-- Comparación formulario ↔ SMD: el operador elige qué datos usar -->
+                @include('admin::contacts.persons.partials.smd-comparar')
 
                 <!-- Sección 2: Datos del Seguro -->
                 <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">

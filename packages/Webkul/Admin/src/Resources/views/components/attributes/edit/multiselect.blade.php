@@ -157,6 +157,21 @@
                     this.$nextTick(() => listo?.(agregados, noEncontrados));
                 },
 
+                // Para «Deshacer» del autocompletar: quita las opciones con esos nombres.
+                quitarPorNombre({ name, nombres = [], listo }) {
+                    if (name !== this.name) {
+                        return;
+                    }
+
+                    const quitar = this.options
+                        .filter((o) => nombres.includes(o.name))
+                        .map((o) => String(o.id));
+
+                    this.selectedIds = this.selectedIds.filter((id) => ! quitar.includes(id));
+
+                    this.$nextTick(() => listo?.());
+                },
+
                 onClickOutside(e) {
                     if (this.$refs.root && ! this.$refs.root.contains(e.target)) {
                         this.open = false;
@@ -168,12 +183,16 @@
                 window.addEventListener('click', this.onClickOutside);
 
                 this.$emitter.on('multiselect:agregar', this.agregarPorNombre);
+
+                this.$emitter.on('multiselect:quitar', this.quitarPorNombre);
             },
 
             beforeUnmount() {
                 window.removeEventListener('click', this.onClickOutside);
 
                 this.$emitter.off('multiselect:agregar', this.agregarPorNombre);
+
+                this.$emitter.off('multiselect:quitar', this.quitarPorNombre);
             },
         });
     </script>

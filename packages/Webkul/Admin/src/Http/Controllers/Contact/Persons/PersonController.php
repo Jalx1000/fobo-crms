@@ -224,10 +224,22 @@ class PersonController extends Controller
             return response()->json(['found' => false]);
         }
 
-        $p = $results[0];
+        /**
+         * Un teléfono puede ser de varios pacientes (una familia): se devuelven
+         * todos en `patients` para que el operador elija. Los campos de arriba
+         * son el primero, como antes.
+         */
+        $patients = array_map(fn ($p) => $this->smdPatientSummary($p), array_slice($results, 0, 10));
 
-        return response()->json([
-            'found'     => true,
+        return response()->json(['found' => true] + $patients[0] + ['patients' => $patients]);
+    }
+
+    /**
+     * Datos de un paciente de SMD que usa el autocompletar del formulario.
+     */
+    protected function smdPatientSummary(array $p): array
+    {
+        return [
             'smd_id'    => $p['_id'] ?? null,
             'name'      => trim(($p['name'] ?? '').' '.($p['lastName'] ?? '')),
             'phone'     => $p['phone'] ?? null,
@@ -242,7 +254,7 @@ class PersonController extends Controller
                 (array) ($p['extra']['insurance'] ?? []),
                 fn ($nombre) => is_string($nombre) && trim($nombre) !== ''
             )),
-        ]);
+        ];
     }
 
     /**
