@@ -122,3 +122,71 @@ it('el selector de paciente encuentra por CI', function () {
 
     expect(collect($data)->pluck('id')->all())->toBe([$this->javier->id]);
 });
+
+/*
+| El selector de paciente tardaba más de 1 s con "mar" (336 resultados):
+| PersonResource buscaba los atributos y sus valores paciente por paciente
+| (1014 consultas). Ahora la cantidad de consultas no depende de los resultados.
+*/
+function personSearchQueries(string $query, array $params = []): array
+{
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $data = test()->actingAs(test()->admin, 'user')
+        ->getJson(route('admin.contacts.persons.search', ['query' => $query] + $params))
+        ->assertOk()
+        ->json('data');
+
+    $count = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    return [$data, $count];
+}
+
+/**
+ * Etiqueta solo con letras: con 4 dígitos o más, PatientSearch busca también
+ * por teléfono y CI, y el término podría encontrar a un paciente cualquiera.
+ */
+function lettersTag(): string
+{
+    return 'Zq'.substr(str_shuffle(str_repeat('abcdefghijklmnopqrstuvwxyz', 3)), 0, 14);
+}
+
+it('el selector de paciente no hace una consulta por resultado', function () {
+    $tag = lettersTag();
+    auditPerson(['name' => "Uno {$tag} Paciente"]);
+
+    foreach (range(1, 8) as $i) {
+        auditPerson(['name' => "Varios {$tag} Paciente {$i}"]);
+    }
+
+    personSearchQueries("Uno {$tag}"); // calienta lo que se resuelve una vez por proceso
+
+    [$uno, $consultasUno] = personSearchQueries("Uno {$tag}");
+    [$ocho, $consultasOcho] = personSearchQueries("Varios {$tag}");
+
+    expect($uno)->toHaveCount(1)
+        ->and($ocho)->toHaveCount(8)
+        ->and($consultasOcho)->toBe($consultasUno);
+});
+
+it('el selector de paciente sigue devolviendo CI y teléfono con las relaciones precargadas', function () {
+    [$data] = personSearchQueries($this->ci);
+
+    expect($data[0])
+        ->ci_paciente->toBe($this->ci.' LP')
+        ->contact_numbers->{0}->value->toBe('591'.$this->local);
+});
+
+it('el selector de paciente respeta el límite pedido', function () {
+    $tag = lettersTag();
+
+    foreach (range(1, 5) as $i) {
+        auditPerson(['name' => "Tope {$tag} Paciente {$i}"]);
+    }
+
+    [$data] = personSearchQueries("Tope {$tag}", ['limit' => 3]);
+
+    expect($data)->toHaveCount(3);
+});

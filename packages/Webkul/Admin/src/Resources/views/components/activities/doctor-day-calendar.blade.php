@@ -459,7 +459,7 @@
                         <x-admin::form.control-group.label class="required">Paciente</x-admin::form.control-group.label>
                         <x-admin::lookup
                             ::src="personSearchUrl"
-                            ::params="{ limit: 200 }"
+                            ::params="{ limit: 50 }"
                             name="appointment_person"
                             placeholder="Buscar por nombre, CI o teléfono…"
                             :server-filtered="true"
@@ -1040,7 +1040,7 @@
                             <x-admin::form.control-group.label class="required">Paciente</x-admin::form.control-group.label>
                             <x-admin::lookup
                                 ::src="personSearchUrl"
-                                ::params="{ limit: 200 }"
+                                ::params="{ limit: 50 }"
                                 name="appointment_person_edit"
                                 placeholder="Buscar por nombre, CI o teléfono…"
                                 :server-filtered="true"

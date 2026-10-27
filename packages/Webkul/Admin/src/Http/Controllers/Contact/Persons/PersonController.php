@@ -134,12 +134,22 @@ class PersonController extends Controller
     {
         // Selector de paciente (ej. "Añadir cita" del calendario): por nombre,
         // teléfono o CI, igual que los buscadores de los listados.
+        // Con tope (`limit`, hasta 200; 50 si no viene): "mar" traía 336
+        // pacientes. Las relaciones que usa PersonResource van precargadas,
+        // si no eran una consulta por paciente. `organization` (en el $with
+        // del modelo) después de `attribute_values`: con organization_id NULL,
+        // CustomAttribute lo busca entre los valores de atributos y, sin
+        // precargar, consulta.
         if ($query = trim((string) request()->get('query'))) {
             $persons = $this->personRepository->getModel()->newQuery()
+                ->without('organization')
+                ->with('attribute_values')
                 ->whereIn('id', app(\Webkul\Admin\Services\PatientSearch::class)->matchingPersons($query))
                 ->when(bouncer()->getAuthorizedUserIds(), fn ($q, $userIds) => $q->whereIn('user_id', $userIds))
                 ->orderBy('name')
-                ->get();
+                ->limit(min(max((int) request()->get('limit', 50), 1), 200))
+                ->get()
+                ->load('organization');
 
             return PersonResource::collection($persons);
         }
