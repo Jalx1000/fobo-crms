@@ -17,6 +17,7 @@ class Bienvenida
 {
     public function __construct(
         protected EnvioDePlantilla $envio,
+        protected VideoDeBienvenida $video,
     ) {}
 
     /**
@@ -30,16 +31,27 @@ class Bienvenida
             return false;
         }
 
-        return (bool) $this->envio->enviar(
+        $enviar = fn (string $template, string $encabezado) => $this->envio->enviar(
             telefono: $telefono,
             nombre: $nombre,
-            template: (string) $config['template'],
+            template: $template,
             language: (string) $config['language'],
             // El nombre, o "cliente": una variable vacía deja el saludo diciendo
             // "¡Hola !", que se ve peor que un saludo genérico.
             variables: [trim((string) $nombre) ?: 'cliente'],
-            imagen: (string) ($config['logo'] ?? ''),
+            imagen: $encabezado,
             motivo: 'la bienvenida',
         );
+
+        /*
+         * Con video si el número está en la lista. Si la plantilla con video todavía
+         * no está aprobada, sale la de siempre: el cliente se queda sin video, no sin
+         * saludo.
+         */
+        $conVideo = $this->video->aplicaA($telefono)
+            ? $enviar((string) ($config['video_template'] ?? ''), $this->video->url())
+            : null;
+
+        return (bool) ($conVideo ?? $enviar((string) $config['template'], (string) ($config['logo'] ?? '')));
     }
 }
