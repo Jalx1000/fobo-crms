@@ -40,7 +40,7 @@
             {!! view_render_event('admin.components.activities.content.before') !!}
 
             <div class="w-full rounded-md border border-gray-200 bg-white max-lg:rounded-none max-lg:border-x-0 dark:border-gray-800 dark:bg-gray-900">
-                {{-- Celular: pestañas en una línea que se desliza, con altura táctil. --}}
+                {{-- Pestañas en una línea que se desliza (sin partir «Registros de cambios»); en el celular, con altura táctil. --}}
                 <div
                     ref="pestanas"
                     class="flex gap-2 overflow-x-auto border-b border-gray-200 max-lg:gap-0 max-lg:px-1 dark:border-gray-800"
@@ -49,7 +49,7 @@
 
                     <div
                         v-for="type in types"
-                        class="cursor-pointer px-3 py-2.5 text-sm font-medium max-lg:shrink-0 max-lg:whitespace-nowrap max-lg:py-3 dark:text-white"
+                        class="shrink-0 cursor-pointer whitespace-nowrap px-3 py-2.5 text-sm font-medium max-lg:py-3 dark:text-white"
                         :class="{'border-brandColor border-b-2 !text-brandColor transition': selectedType == type.name }"
                         :data-activa="selectedType == type.name ? 'si' : null"
                         @click="selectedType = type.name"
@@ -646,9 +646,10 @@
             mounted() {
                 this.get();
 
+                // `primera: true` pone la pestaña al principio (WhatsApp en cita y paciente).
                 if (this.extraTypes?.length) {
                     this.extraTypes.forEach(type => {
-                        this.types.push(type);
+                        type.primera ? this.types.unshift(type) : this.types.push(type);
                     });
                 }
 
@@ -659,7 +660,10 @@
                     });
                 } */
 
-                this.selectedType = 'all';
+                // Abre en la pestaña pedida (`active-type`); antes se forzaba «Todo».
+                this.selectedType = this.types.find((type) => type.name === this.activeType)
+                    ? this.activeType
+                    : 'all';
 
                 this.$emitter.on('on-activity-added', (activity) => this.activities.unshift(activity));
             },

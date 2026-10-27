@@ -140,8 +140,9 @@
             {!! view_render_event('admin.contact.persons.view.right.before', ['person' => $person]) !!}
 
             <!-- Stages Navigation -->
-            <x-admin::activities :endpoint="route('admin.contacts.persons.activities.index', $person->id)" :extra-types="[
-                ['name' => 'whatsapp', 'label' => 'WhatsApp'],
+            <x-admin::activities :endpoint="route('admin.contacts.persons.activities.index', $person->id)" active-type="whatsapp" :extra-types="[
+                // WhatsApp primero y abierta al entrar: es por donde se atiende al paciente.
+                ['name' => 'whatsapp', 'label' => 'WhatsApp', 'primera' => true],
                 ['name' => 'historial', 'label' => 'Historial IA'],
                 ['name' => 'smd', 'label' => 'Seguro & SMD'],
             ]">

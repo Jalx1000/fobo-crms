@@ -89,15 +89,17 @@
         {!! view_render_event('admin.leads.view.right.before', ['lead' => $lead]) !!}
 
         <!-- Right Panel -->
-        <div class="flex w-full flex-col gap-4 rounded-lg max-lg:gap-0 max-lg:[&>*]:!rounded-none">
+        {{-- min-w-0: sin esto el chat de WhatsApp (pestaña abierta al entrar) estiraba la columna y la página se salía de la pantalla. --}}
+        <div class="flex w-full min-w-0 flex-col gap-4 rounded-lg max-lg:gap-0 max-lg:[&>*]:!rounded-none">
             <!-- Stages Navigation -->
             @include ('admin::leads.view.stages')
 
             <!-- Activities -->
             {!! view_render_event('admin.leads.view.activities.before', ['lead' => $lead]) !!}
 
-            <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : 'all'" :extra-types="[
-                ['name' => 'whatsapp', 'label' => 'WhatsApp'],
+            <x-admin::activities :endpoint="route('admin.leads.activities.index', $lead->id)" :email-detach-endpoint="route('admin.leads.emails.detach', $lead->id)" :activeType="request()->query('from') === 'quotes' ? 'quotes' : 'whatsapp'" :extra-types="[
+                // WhatsApp primero y abierta al entrar: es por donde se atiende al paciente.
+                ['name' => 'whatsapp', 'label' => 'WhatsApp', 'primera' => true],
                 ['name' => 'historial', 'label' => 'Historial IA'],
                 ['name' => 'description', 'label' => trans('admin::app.leads.view.tabs.description')],
                 ['name' => 'products', 'label' => trans('admin::app.leads.view.tabs.products')],
