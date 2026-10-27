@@ -38,6 +38,24 @@ it('el lookup respeta server-filtered y muestra CI y teléfono del resultado', f
         ->toContain('itemDetail(item)');
 });
 
+it('escribir no manda una búsqueda por tecla con el término viejo', function () {
+    // @keyup="search" pasaba el evento como `preload`: cada tecla pedía al
+    // backend la lista completa de pacientes (query vacío, ~7 s con 2500).
+    expect(calendarHtml())
+        ->not->toContain('@keyup="search"')
+        ->toContain('@input="onInput"');
+});
+
+it('mientras busca dice "Buscando…" y no "No se encontraron resultados"', function () {
+    $html = calendarHtml();
+
+    expect($html)
+        ->toContain('v-if="isSearching && filteredResults.length === 0"')
+        ->toContain('<template v-else-if="filteredResults.length === 0">')
+        // Una petición cancelada no apaga el estado de la que la reemplazó.
+        ->toContain('if (this.cancelToken === cancelToken) {');
+});
+
 it('el selector de servicio sigue filtrando por nombre como antes', function () {
     expect(calendarHtml())->not->toMatch('/name="appointment_product"\s+placeholder="[^"]*"\s+server-filtered/');
 });
