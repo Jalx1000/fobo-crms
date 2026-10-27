@@ -183,7 +183,7 @@
                 usar(paciente) {
                     this.$emitter.emit('smd:encontrados', { pacientes: [paciente] });
 
-                    // La comparación se dibuja debajo de «Datos del Paciente».
+                    // La comparación está justo debajo del buscador: se la trae a la vista.
                     setTimeout(() => document.getElementById('smd-comparar-titulo')
                         ?.closest('section')
                         ?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);

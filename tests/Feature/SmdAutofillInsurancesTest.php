@@ -352,11 +352,12 @@ it('crear y editar paciente empiezan con el buscador de SMD', function () {
     actingAs($this->admin, 'user')
         ->get(route('admin.contacts.persons.create'))
         ->assertOk()
-        ->assertSeeInOrder(['<v-smd-buscador', 'mode="create"', 'Datos del Paciente'], false)
+        // Buscador, luego «Datos de ShareMeData» y recién después el formulario.
+        ->assertSeeInOrder(['<v-smd-buscador', 'mode="create"', '<v-smd-comparar></v-smd-comparar>', 'Datos del Paciente'], false)
         ->assertSee('id="v-smd-buscador-template"', false);
 
     actingAs($this->admin, 'user')
         ->get(route('admin.contacts.persons.edit', $person->id))
         ->assertOk()
-        ->assertSeeInOrder(['<v-smd-buscador', 'mode="edit"', ':person-id="'.$person->id.'"', 'Datos del Paciente'], false);
+        ->assertSeeInOrder(['<v-smd-buscador', 'mode="edit"', ':person-id="'.$person->id.'"', '<v-smd-comparar></v-smd-comparar>', 'Datos del Paciente'], false);
 });

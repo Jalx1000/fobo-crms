@@ -58,6 +58,9 @@
                 <!-- Buscador de SMD: antes de cargar, ver si la persona ya existe -->
                 @include('admin::contacts.persons.partials.smd-buscador', ['mode' => 'edit', 'personId' => $person->id])
 
+                <!-- Comparación formulario ↔ SMD: el operador elige qué datos usar, debajo del buscador -->
+                @include('admin::contacts.persons.partials.smd-comparar')
+
                 <!-- Sección 1: Datos del Paciente -->
                 <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
                     <div class="mb-4 flex items-center justify-between">
@@ -106,9 +109,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Comparación formulario ↔ SMD: el operador elige qué datos usar -->
-                @include('admin::contacts.persons.partials.smd-comparar')
 
                 <!-- Sección 2: Datos del Seguro -->
                 <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
