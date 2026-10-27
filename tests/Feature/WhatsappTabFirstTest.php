@@ -48,3 +48,21 @@ it('el panel de actividades respeta la pestaña pedida en vez de forzar «Todo»
         ->toContain('? this.activeType')
         ->not->toContain("this.selectedType = 'all';\n");
 });
+
+/**
+ * Personas mayores con mouse: la fila de pestañas muestra siempre su barra
+ * horizontal y la rueda la desliza de costado.
+ */
+it('la fila de pestañas tiene barra visible y se desliza con la rueda del mouse', function () {
+    $componente = file_get_contents(base_path('packages/Webkul/Admin/src/Resources/views/components/activities/index.blade.php'));
+    $css = file_get_contents(base_path('packages/Webkul/Admin/src/Resources/assets/css/app.css'));
+
+    expect($componente)
+        ->toContain('class="pestanas-scroll flex gap-2 overflow-x-auto')
+        ->toContain('@wheel="ruedaEnPestanas"');
+
+    // Sin anular scrollbar-width/color, Chrome ignora ::-webkit-scrollbar y en Mac la barra se esconde.
+    expect($css)
+        ->toMatch('/\.pestanas-scroll \{\s*scrollbar-width: auto;\s*scrollbar-color: auto;\s*\}/')
+        ->toMatch('/\.pestanas-scroll::-webkit-scrollbar \{\s*height: 12px;/');
+});

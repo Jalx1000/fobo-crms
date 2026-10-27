@@ -43,7 +43,8 @@
                 {{-- Pestañas en una línea que se desliza (sin partir «Registros de cambios»); en el celular, con altura táctil. --}}
                 <div
                     ref="pestanas"
-                    class="flex gap-2 overflow-x-auto border-b border-gray-200 max-lg:gap-0 max-lg:px-1 dark:border-gray-800"
+                    class="pestanas-scroll flex gap-2 overflow-x-auto border-b border-gray-200 max-lg:gap-0 max-lg:px-1 dark:border-gray-800"
+                    @wheel="ruedaEnPestanas"
                 >
                     {!! view_render_event('admin.components.activities.content.types.before') !!}
 
@@ -680,6 +681,27 @@
 
                     if (fila && activa && fila.scrollWidth > fila.clientWidth) {
                         fila.scrollLeft = activa.offsetLeft - fila.offsetLeft - 12;
+                    }
+                },
+
+                /**
+                 * Mouse sin touchpad: la rueda sobre las pestañas las desliza de
+                 * costado. Solo si no entran y mientras quede lugar; en el borde,
+                 * la rueda vuelve a desplazar la página.
+                 */
+                ruedaEnPestanas(evento) {
+                    const fila = this.$refs.pestanas;
+
+                    if (! fila || fila.scrollWidth <= fila.clientWidth || Math.abs(evento.deltaX) > Math.abs(evento.deltaY)) {
+                        return;
+                    }
+
+                    const antes = fila.scrollLeft;
+
+                    fila.scrollLeft += evento.deltaY;
+
+                    if (fila.scrollLeft !== antes) {
+                        evento.preventDefault();
                     }
                 },
 
