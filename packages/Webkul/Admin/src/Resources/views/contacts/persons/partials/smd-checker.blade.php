@@ -139,7 +139,7 @@
 
                 flash('success', pacientes.length > 1
                     ? 'Hay ' + pacientes.length + ' pacientes en SMD con este dato: elegí cuál es.'
-                    : 'Paciente encontrado en SMD. Revisá abajo qué datos usar.');
+                    : 'Paciente encontrado en SMD. Revisá «Datos de ShareMeData».');
             } else {
                 showChip('notfound');
                 showBanner('notfound', null);
@@ -230,13 +230,10 @@
             const phone = '{{ $person->contact_numbers[0]['value'] ?? '' }}';
             if (phone && phone !== '0' && phone.length >= 3) {
                 setTimeout(() => search(phone), 800);
-            } else {
-                showBanner('hint', null);
             }
-        @else
-            // Modo creación: mostrar banner idle para guiar al usuario
-            showBanner('hint', null);
         @endif
+        // Sin teléfono no se muestra la guía «Ingresa el teléfono o CI»: el
+        // buscador de SMD de arriba (smd-buscador) ya cumple ese papel.
     });
 })();
 </script>

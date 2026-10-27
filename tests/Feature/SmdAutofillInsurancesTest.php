@@ -275,3 +275,88 @@ it('crear y editar paciente muestran las coberturas detectadas con el CI', funct
             ->assertSee('id="v-seguros-detectados-template"', false);
     }
 });
+
+/**
+ * Buscador de SMD arriba del formulario: CI, teléfono, nombre o correo, y
+ * avisa si la persona ya tiene ficha en el CRM.
+ */
+it('searchSmd busca por nombre cuando el texto no tiene números', function () {
+    Http::fake([
+        '*/patients*' => function ($request) {
+            $where = urldecode((string) ($request->data()['where'] ?? ''));
+
+            return Http::response(['data' => str_starts_with($where, 'fullName=')
+                ? [['_id' => 'smd-nombre', 'fullName' => 'CATALINA VACA AGUILERA', 'name' => 'Catalina', 'lastName' => 'Vaca Aguilera']]
+                : []], 200);
+        },
+    ]);
+
+    actingAs($this->admin, 'user')
+        ->getJson(route('admin.contacts.persons.search_smd', ['q' => 'Catalina Vaca']))
+        ->assertOk()
+        ->assertJson(['found' => true, 'smd_id' => 'smd-nombre', 'patients' => [['crm' => null]]]);
+
+    Http::assertNotSent(fn ($request) => str_contains(urldecode($request->url()), 'phone='));
+});
+
+it('searchSmd con números busca por teléfono y luego por CI, aunque el CI tenga letras', function () {
+    Http::fake([
+        '*/patients*' => function ($request) {
+            $where = urldecode((string) ($request->data()['where'] ?? ''));
+
+            return Http::response(['data' => str_starts_with($where, 'personID=')
+                ? [['_id' => 'smd-ci', 'name' => 'Luis', 'personID' => '1234567LP']]
+                : []], 200);
+        },
+    ]);
+
+    actingAs($this->admin, 'user')
+        ->getJson(route('admin.contacts.persons.search_smd', ['q' => '1234567LP']))
+        ->assertOk()
+        ->assertJson(['found' => true, 'smd_id' => 'smd-ci']);
+});
+
+it('searchSmd distingue "SMD no respondió" de "no existe"', function () {
+    Http::fake(['*/patients*' => Http::response('caído', 500)]);
+
+    actingAs($this->admin, 'user')
+        ->getJson(route('admin.contacts.persons.search_smd', ['q' => '77712345']))
+        ->assertOk()
+        ->assertJson(['found' => false, 'error' => true]);
+});
+
+it('searchSmd avisa qué pacientes de SMD ya tienen ficha en el CRM', function () {
+    $smdId = 'smd-ficha-'.uniqid();
+    $person = \Webkul\Contact\Models\Person::query()->latest('id')->first();
+    $person->forceFill(['smd_patient_id' => $smdId])->saveQuietly();
+
+    Http::fake([
+        '*/patients*' => Http::response(['data' => [
+            ['_id' => $smdId, 'name' => 'Con', 'lastName' => 'Ficha', 'phone' => '77799999'],
+            ['_id' => 'smd-sin-ficha', 'name' => 'Sin', 'lastName' => 'Ficha', 'phone' => '77799999'],
+        ]], 200),
+    ]);
+
+    actingAs($this->admin, 'user')
+        ->getJson(route('admin.contacts.persons.search_smd', ['q' => '77799999']))
+        ->assertOk()
+        ->assertJson(['patients' => [
+            ['smd_id' => $smdId, 'crm' => ['id' => $person->id, 'url' => route('admin.contacts.persons.view', $person->id)]],
+            ['smd_id' => 'smd-sin-ficha', 'crm' => null],
+        ]]);
+});
+
+it('crear y editar paciente empiezan con el buscador de SMD', function () {
+    $person = \Webkul\Contact\Models\Person::query()->latest('id')->first();
+
+    actingAs($this->admin, 'user')
+        ->get(route('admin.contacts.persons.create'))
+        ->assertOk()
+        ->assertSeeInOrder(['<v-smd-buscador', 'mode="create"', 'Datos del Paciente'], false)
+        ->assertSee('id="v-smd-buscador-template"', false);
+
+    actingAs($this->admin, 'user')
+        ->get(route('admin.contacts.persons.edit', $person->id))
+        ->assertOk()
+        ->assertSeeInOrder(['<v-smd-buscador', 'mode="edit"', ':person-id="'.$person->id.'"', 'Datos del Paciente'], false);
+});

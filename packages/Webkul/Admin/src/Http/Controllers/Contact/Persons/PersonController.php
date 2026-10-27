@@ -207,17 +207,10 @@ class PersonController extends Controller
             return response()->json(['found' => false, 'message' => 'Ingresa al menos 3 caracteres.']);
         }
 
-        // 1. Por teléfono
-        $results = $this->shareMeDataService->searchPatient($term);
+        $results = $this->buscarEnSmd($term);
 
-        // 2. Por CI
-        if (empty($results)) {
-            $results = $this->shareMeDataService->searchPatientByCi($term);
-        }
-
-        // 3. Por email
-        if (empty($results)) {
-            $results = $this->shareMeDataService->searchPatientByEmail($term);
+        if ($results === null) {
+            return response()->json(['found' => false, 'error' => true, 'message' => 'ShareMeData no respondió. Probá de nuevo.']);
         }
 
         if (empty($results)) {
@@ -229,9 +222,60 @@ class PersonController extends Controller
          * todos en `patients` para que el operador elija. Los campos de arriba
          * son el primero, como antes.
          */
-        $patients = array_map(fn ($p) => $this->smdPatientSummary($p), array_slice($results, 0, 10));
+        $patients = $this->conFichaDelCrm(array_map(fn ($p) => $this->smdPatientSummary($p), array_slice($results, 0, 10)));
 
         return response()->json(['found' => true] + $patients[0] + ['patients' => $patients]);
+    }
+
+    /**
+     * Busca en SMD según lo escrito: con @ por correo, sin números por nombre
+     * y, con números, por teléfono y luego por CI (un CI puede llevar letras,
+     * «1234567LP»). Null = SMD no respondió
+     * (distinto de "no existe").
+     */
+    protected function buscarEnSmd(string $term): ?array
+    {
+        if (str_contains($term, '@')) {
+            return $this->shareMeDataService->searchPatientByEmail($term);
+        }
+
+        if (! preg_match('/\d/', $term)) {
+            $results = $this->shareMeDataService->searchPatientByName($term, 10);
+
+            return $this->shareMeDataService->lastLookup === 'error' && ! $results ? null : $results;
+        }
+
+        $digitos = preg_replace('/\D/', '', $term);
+
+        $results = $this->shareMeDataService->searchPatientOrNull($digitos ?: $term);
+
+        if ($results === []) {
+            $results = $this->shareMeDataService->searchPatientByCi($term);
+        }
+
+        return $results;
+    }
+
+    /**
+     * Marca los pacientes de SMD que ya tienen ficha en el CRM, para no
+     * cargarlos dos veces.
+     */
+    protected function conFichaDelCrm(array $patients): array
+    {
+        $fichas = $this->personRepository->getModel()->newQuery()
+            ->whereIn('smd_patient_id', array_filter(array_column($patients, 'smd_id')))
+            ->get(['id', 'name', 'smd_patient_id'])
+            ->keyBy('smd_patient_id');
+
+        return array_map(function ($patient) use ($fichas) {
+            $ficha = $fichas->get($patient['smd_id']);
+
+            return $patient + ['crm' => $ficha ? [
+                'id'   => $ficha->id,
+                'name' => $ficha->name,
+                'url'  => route('admin.contacts.persons.view', $ficha->id),
+            ] : null];
+        }, $patients);
     }
 
     /**

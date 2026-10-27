@@ -338,7 +338,7 @@ class ShareMeDataService
                     // Sin el flag `/i`: con él la API devuelve vacío siempre, sin
                     // error. Igual ignora mayúsculas por su cuenta.
                     'where'      => 'fullName=/'.urlencode($ancla).'/',
-                    'select'     => '_id,fullName,phone,secondEmail,name,lastName,personID,birthday',
+                    'select'     => '_id,fullName,phone,secondEmail,name,lastName,personID,birthday,extra',
                     'pageSize'   => $limit,
                     'pageNumber' => 1,
                 ]);

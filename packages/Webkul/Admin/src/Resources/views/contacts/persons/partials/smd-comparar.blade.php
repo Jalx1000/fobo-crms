@@ -22,7 +22,7 @@
     >
         <section
             v-if="pacientes.length"
-            class="rounded-lg border border-gray-200 bg-white p-4 text-sm max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+            class="scroll-mt-24 rounded-lg border border-gray-200 bg-white p-4 text-sm max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
             aria-labelledby="smd-comparar-titulo"
         >
             <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
