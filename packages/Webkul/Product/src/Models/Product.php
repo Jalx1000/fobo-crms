@@ -85,4 +85,42 @@ class Product extends Model implements ProductContract
     {
         return $this->belongsToMany(ActivityProxy::modelClass(), 'product_activities');
     }
+
+    /**
+     * Promociones del servicio (con vigencia y, opcionalmente, por sucursal).
+     */
+    public function promotions(): HasMany
+    {
+        return $this->hasMany(PromotionProxy::modelClass(), 'product_id');
+    }
+
+    /**
+     * Promoción vigente hoy para este servicio en la sucursal dada (o global).
+     * Prioriza la específica de la sucursal sobre la global.
+     */
+    public function activePromotion(?int $branchId = null): ?Promotion
+    {
+        $today = now()->toDateString();
+
+        return $this->promotions()
+            ->where('is_active', true)
+            ->where(fn ($q) => $q->whereNull('valid_from')->orWhere('valid_from', '<=', $today))
+            ->where(fn ($q) => $q->whereNull('valid_to')->orWhere('valid_to', '>=', $today))
+            ->where(fn ($q) => $q->whereNull('branch_id')->when($branchId, fn ($w) => $w->orWhere('branch_id', $branchId)))
+            ->orderByRaw('branch_id IS NULL') // la de sucursal (branch_id no nulo) primero
+            ->orderByDesc('valid_from')
+            ->first();
+    }
+
+    /**
+     * Precio a cobrar hoy: el de la promo vigente si existe, o el precio base.
+     */
+    public function currentPrice(?int $branchId = null): ?float
+    {
+        $base = $this->price !== null ? (float) $this->price : null;
+
+        $promo = $this->activePromotion($branchId);
+
+        return $promo?->effectivePrice($base) ?? $base;
+    }
 }
