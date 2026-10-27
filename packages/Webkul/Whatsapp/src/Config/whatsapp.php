@@ -182,6 +182,12 @@ return [
     | el servidor, fuera del repo. Ver planning/14-pacientes-terceros.
     */
     'flows' => [
+        // Master switch de los WhatsApp Flows (formularios dentro del chat).
+        // Tessa trabaja TODO por texto (el agente sigue el guion conversacional),
+        // así que por defecto está apagado: `AgentController::sendFlow` lo rechaza
+        // y el agente continúa agendando/cancelando/reprogramando por texto.
+        'enabled' => (bool) env('WHATSAPP_FLOWS_ENABLED', false),
+
         // Segundos máximos que el resultado de un formulario ("✅ Cita
         // confirmada") espera a que el agente conteste el flow_reply, para que
         // llegue DESPUÉS de su "estoy registrando…". 0 = enviar al toque.
@@ -427,6 +433,36 @@ return [
             'Buenos días! Le recordamos su cita el :fecha a horas :hora con el Dr(a). :doctor'
             .' en la clínica Odontoking :direccion.'
             ."\n\nResponda *SÍ* para confirmar o *NO* para cancelar su cita."
+        ),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Seguimiento de "no-show" (falta sin aviso)
+    |--------------------------------------------------------------------------
+    |
+    | Si una paciente falta a su cita, se le manda UNA sola vez el mensaje de
+    | reprogramación, pasada la hora de su cita + `hours_after` (2 h por defecto).
+    | Idempotente: un follow-up por cita (whatsapp_no_show_followups). El comando
+    | whatsapp:no-show-followups corre seguido desde el scheduler.
+    |
+    */
+    'no_show' => [
+        'enabled'      => env('WHATSAPP_NO_SHOW_ENABLED', false),
+
+        // Horas después del FIN de la cita para considerar la falta y avisar.
+        'hours_after'  => (float) env('WHATSAPP_NO_SHOW_HOURS_AFTER', 2),
+
+        // No perseguir citas muy viejas: solo dentro de esta ventana hacia atrás.
+        'lookback_hours' => (int) env('WHATSAPP_NO_SHOW_LOOKBACK_HOURS', 48),
+
+        'gateway'      => env('WHATSAPP_NO_SHOW_GATEWAY', 'cloud_api'),
+        'template_key' => env('WHATSAPP_NO_SHOW_TEMPLATE_KEY', 'no_show_followup'),
+
+        // Preview legible para el inbox; el envío real usa el template aprobado.
+        'template'     => env('WHATSAPP_NO_SHOW_TEMPLATE',
+            '¡Hola :nombre! 💚 Vimos que no pudiste asistir a tu cita de :fecha.'
+            .' No te preocupes, podemos ayudarte a reprogramarla. ¿Qué día y horario te vendrían mejor?'
         ),
     ],
 

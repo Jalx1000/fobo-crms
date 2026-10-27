@@ -147,6 +147,11 @@ class AvailabilityController extends Controller
         try {
             $includeBooked = filter_var($request->query('includeBooked', false), FILTER_VALIDATE_BOOLEAN);
 
+            // Duración del slot: la del servicio elegido (no un fijo de 60 min).
+            // Clamp defensivo 15..480. Default configurable en config/tessa.php.
+            $slotDuration = (int) $request->query('duration_minutes', config('tessa.default_slot_minutes', 60));
+            $slotDuration = max(15, min(480, $slotDuration));
+
             // 3. Date Range
             $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
             $endDate = $startDate->copy()->endOfMonth();
@@ -193,8 +198,6 @@ class AvailabilityController extends Controller
                 $daySlots = [];
 
                 foreach ($dayShifts as $shift) {
-                    $slotDuration = 60; // minutes
-
                     $shiftStart = Carbon::parse($dateStr.' '.$shift->start_time);
                     $shiftEnd = Carbon::parse($dateStr.' '.$shift->end_time);
 

@@ -181,8 +181,12 @@ class DoctorAvailabilityService
      *
      * @return array<int, array{date: string, slots: array}>
      */
-    public function slotsForRange(int $doctorId, Carbon $startDate, int $days, int $durationMinutes = self::SLOT_DURATION_MINUTES): array
+    public function slotsForRange(int $doctorId, Carbon $startDate, int $days, int $durationMinutes = self::SLOT_DURATION_MINUTES, ?bool $consecutive = null): array
     {
+        // Tessa: por defecto se agendan citas "seguidas" (pegadas al fin de la
+        // cita anterior), no en una grilla fija. Configurable en config/tessa.php.
+        $consecutive ??= (bool) config('tessa.scheduling.consecutive', false);
+
         $endDate = $startDate->copy()->addDays($days - 1);
 
         $shifts = DB::table('doctor_shifts')
@@ -216,7 +220,9 @@ class DoctorAvailabilityService
             $dayShifts   = $shifts->get($dateStr, collect());
             $dayBookings = $bookings->get($dateStr, collect());
 
-            $slots = $this->buildSlotsForDay($dateStr, $dayShifts, $dayBookings, $durationMinutes);
+            $slots = $consecutive
+                ? $this->consecutiveSlotsForDay($dateStr, $dayShifts, $dayBookings, $durationMinutes)
+                : $this->buildSlotsForDay($dateStr, $dayShifts, $dayBookings, $durationMinutes);
 
             $result[] = [
                 'date'  => $dateStr,
@@ -288,6 +294,81 @@ class DoctorAvailabilityService
         foreach ($slots as $slot) {
             $key = $slot['start_time'] . '-' . $slot['end_time'];
             $unique[$key] = $slot;
+        }
+
+        return array_values($unique);
+    }
+
+    /**
+     * Slots LIBRES empaquetados "seguidos": el próximo inicio disponible es el
+     * fin de la cita anterior (o del turno), no una grilla fija. Así el día se
+     * llena sin huecos ni solapes, con la duración del servicio elegido.
+     *
+     * Solo devuelve slots disponibles (los ocupados se saltan): es lo que el
+     * flujo de reserva necesita para ofrecer horarios.
+     *
+     * @return array<int, array{start_time: string, end_time: string, status: string}>
+     */
+    protected function consecutiveSlotsForDay(string $dateStr, \Illuminate\Support\Collection $dayShifts, \Illuminate\Support\Collection $dayBookings, int $durationMinutes): array
+    {
+        // Intervalos ocupados del día, ordenados por inicio.
+        $busy = [];
+        foreach ($dayBookings as $booking) {
+            if (! $booking->schedule_from || ! $booking->schedule_to) {
+                continue;
+            }
+            $busy[] = [Carbon::parse($booking->schedule_from), Carbon::parse($booking->schedule_to)];
+        }
+        usort($busy, fn ($a, $b) => $a[0] <=> $b[0]);
+
+        $slots = [];
+
+        foreach ($dayShifts as $shift) {
+            $cursor   = Carbon::parse($dateStr.' '.$shift->start_time);
+            $shiftEnd = Carbon::parse($dateStr.' '.$shift->end_time);
+
+            if (! $cursor->lt($shiftEnd)) {
+                \Illuminate\Support\Facades\Log::warning('[DoctorAvailability] turno inválido ignorado', [
+                    'shift_id'   => $shift->id ?? null,
+                    'date'       => $dateStr,
+                    'start_time' => $shift->start_time,
+                    'end_time'   => $shift->end_time,
+                ]);
+                continue;
+            }
+
+            while ($cursor->copy()->addMinutes($durationMinutes)->lte($shiftEnd)) {
+                $slotEnd = $cursor->copy()->addMinutes($durationMinutes);
+
+                // ¿El slot choca con una cita? Si sí, saltar pegado a su fin.
+                $conflictEnd = null;
+                foreach ($busy as [$bStart, $bEnd]) {
+                    if ($cursor->lt($bEnd) && $slotEnd->gt($bStart)) {
+                        $conflictEnd = $bEnd;
+                        break;
+                    }
+                }
+
+                if ($conflictEnd) {
+                    $cursor = $conflictEnd->copy(); // siguiente cita "seguida"
+                    continue;
+                }
+
+                $slots[] = [
+                    'start_time' => $cursor->format('H:i'),
+                    'end_time'   => $slotEnd->format('H:i'),
+                    'status'     => 'available',
+                ];
+
+                $cursor->addMinutes($durationMinutes);
+            }
+        }
+
+        usort($slots, fn ($a, $b) => strcmp($a['start_time'], $b['start_time']));
+
+        $unique = [];
+        foreach ($slots as $slot) {
+            $unique[$slot['start_time'].'-'.$slot['end_time']] = $slot;
         }
 
         return array_values($unique);

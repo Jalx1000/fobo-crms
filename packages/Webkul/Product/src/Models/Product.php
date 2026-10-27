@@ -3,11 +3,13 @@
 namespace Webkul\Product\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Webkul\Activity\Models\ActivityProxy;
 use Webkul\Activity\Traits\LogsActivity;
 use Webkul\Attribute\Traits\CustomAttribute;
+use Webkul\Doctor\Models\SpecialtyProxy;
 use Webkul\Product\Contracts\Product as ProductContract;
 use Webkul\Tag\Models\TagProxy;
 use Webkul\Warehouse\Models\LocationProxy;
@@ -25,6 +27,7 @@ class Product extends Model implements ProductContract
     protected $fillable = [
         'name',
         'sku',
+        'specialty_id',
         'description',
         'quantity',
         'price',
@@ -57,6 +60,14 @@ class Product extends Model implements ProductContract
     public function inventories(): HasMany
     {
         return $this->hasMany(ProductInventoryProxy::modelClass());
+    }
+
+    /**
+     * The specialty (service category / treatment line) the product belongs to.
+     */
+    public function specialty(): BelongsTo
+    {
+        return $this->belongsTo(SpecialtyProxy::modelClass(), 'specialty_id');
     }
 
     /**

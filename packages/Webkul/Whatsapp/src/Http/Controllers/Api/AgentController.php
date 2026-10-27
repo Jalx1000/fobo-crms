@@ -189,6 +189,14 @@ class AgentController extends Controller
      */
     public function sendFlow(Request $request, string $id): JsonResponse
     {
+        // Tessa trabaja todo por texto: los Flows están apagados. El agente debe
+        // seguir agendando/cancelando/reprogramando con el guion conversacional.
+        if (! config('whatsapp.flows.enabled')) {
+            return response()->json([
+                'message' => 'Los formularios de WhatsApp (Flows) están deshabilitados. Continuá por texto siguiendo el guion de conversación.',
+            ], 422);
+        }
+
         $data = $request->validate([
             'flow' => 'required|string|in:'.implode(',', \Webkul\Whatsapp\Services\Flows\FlowDefinitions::keys()),
             'text' => 'nullable|string|max:1000',

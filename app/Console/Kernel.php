@@ -15,6 +15,12 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('inbound-emails:process')->everyFiveMinutes();
 
+        // Agenda única de Tessa: mantiene una ventana deslizante de turnos a
+        // futuro (horarios de atención, domingos cerrado). Idempotente.
+        $schedule->command('tessa:generate-shifts --days=60')
+            ->dailyAt('00:30')
+            ->withoutOverlapping();
+
         // Red de seguridad del webhook: el webhook de Dropbox es el camino primario
         // (near-real-time); este poll solo levanta lo que un webhook perdido no haya
         // capturado, por eso va espaciado (antes cada 5 min quemaba recursos).

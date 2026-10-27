@@ -15,6 +15,7 @@ use Webkul\Whatsapp\Console\Commands\ReactivateAgent;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
 use Webkul\Whatsapp\Console\Commands\SendAppointmentReminders;
 use Webkul\Whatsapp\Console\Commands\SendDoctorShiftReminders;
+use Webkul\Whatsapp\Console\Commands\SendNoShowFollowups;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
 
 class WhatsappServiceProvider extends ServiceProvider
@@ -63,6 +64,7 @@ class WhatsappServiceProvider extends ServiceProvider
                 ReactivateAgent::class,
                 SendAppointmentReminders::class,
                 SendDoctorShiftReminders::class,
+                SendNoShowFollowups::class,
                 WebhookInfo::class,
             ]);
 
@@ -94,6 +96,17 @@ class WhatsappServiceProvider extends ServiceProvider
                     $schedule->command('whatsapp:doctor-shift-reminders')
                         ->everyFifteenMinutes()
                         ->between('06:00', '20:00')
+                        ->timezone((string) config('whatsapp.reminders.timezone', 'America/La_Paz'))
+                        ->withoutOverlapping();
+                }
+
+                // Seguimiento de no-show: a +2 h del fin de la cita se escribe una
+                // sola vez para reprogramar. Cada 15 min para no demorar el aviso.
+                // Idempotente (uno por cita) y gateado por no_show.enabled.
+                if (config('whatsapp.no_show.enabled', false)) {
+                    $schedule->command('whatsapp:no-show-followups')
+                        ->everyFifteenMinutes()
+                        ->between('08:00', '21:00')
                         ->timezone((string) config('whatsapp.reminders.timezone', 'America/La_Paz'))
                         ->withoutOverlapping();
                 }
