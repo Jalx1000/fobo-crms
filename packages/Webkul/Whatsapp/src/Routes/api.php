@@ -67,4 +67,6 @@ Route::prefix('api/v1/whatsapp')
         Route::post('conversations/{id}/handoff', [AgentController::class, 'handoff']);
         // Formularios de WhatsApp (Flows): hoy "paciente_tercero".
         Route::post('conversations/{id}/flows', [AgentController::class, 'sendFlow']);
+        // Respuesta del paciente al recordatorio: confirma / no asiste.
+        Route::post('conversations/{id}/appointments/respond', [AgentController::class, 'respondAppointment']);
     });

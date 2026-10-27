@@ -105,11 +105,25 @@ class BookFlowAppointment implements ShouldQueue
                 // Paciente sin teléfono propio (tercero): SMD lo registra con el
                 // número de quien agendó, que es a quien se le avisa.
                 'contact_phone' => $this->contactPhone((int) $b['responsible_id'], (int) $b['conversation_id']),
+                'lead_id'       => $this->consultaLead((int) $b['responsible_id'], (int) $b['patient_id']),
             ]);
         } catch (AppointmentException $e) {
             Log::info('[WhatsAppFlow] No se pudo confirmar la cita pedida por formulario', [
                 'doctor_id' => $b['doctor_id'], 'fecha' => $from->toDateTimeString(), 'motivo' => $e->getMessage(),
             ]);
+
+            // Ya tiene cita ese día con ese doctor (p.ej. mandó el formulario dos
+            // veces): decirlo, no "el horario no está disponible".
+            $details = $e->getDetails();
+
+            if (($details['code'] ?? null) === 'patient_already_booked') {
+                $existing = ucfirst(\Carbon\Carbon::parse($details['existing_from'])->locale('es')->isoFormat('dddd D [de] MMMM [a las] HH:mm'));
+
+                $this->reply("{$patient} ya tiene una cita con {$doctor} el {$existing}, así que no registramos otra para el mismo día. "
+                    .'Si necesitás cambiar el horario, usá «Cambiar cita» o escribinos. 🙏');
+
+                return;
+            }
 
             $this->reply("No pudimos confirmar la cita de {$patient} con {$doctor} para el {$when}: ese horario ya no está disponible. "
                 .'Escribinos y te ayudamos a elegir otro. 🙏');
@@ -139,6 +153,29 @@ class BookFlowAppointment implements ShouldQueue
 
         $this->reply("✅ Cita confirmada\nPaciente: {$patient}\nEspecialidad: {$b['specialty']}\nDoctor/a: {$doctor}\nFecha: {$when}"
             .($coverage['patient'] ? "\n{$coverage['patient']}" : ''));
+    }
+
+    /**
+     * Lead "Consulta" abierto que el agente creó para quien escribe: si la cita
+     * es "Para mí", se agenda sobre ese lead en vez de crear otro al lado (el
+     * agente lo pidió: un paciente quedaba con dos leads). Para un tercero no:
+     * ese lead es de quien escribe, no del paciente. Uno derivado a recepción
+     * ya no está en Consultas y no se toca.
+     */
+    protected function consultaLead(int $responsibleId, int $patientId): ?int
+    {
+        if (! $responsibleId || $responsibleId !== $patientId) {
+            return null;
+        }
+
+        $id = DB::table('leads')
+            ->where('person_id', $patientId)
+            ->where('lead_pipeline_stage_id', (int) config('whatsapp.crm.stage_consulta'))
+            ->where(fn ($q) => $q->whereNull('status')->orWhere('status', '!=', 0))
+            ->orderByDesc('id')
+            ->value('id');
+
+        return $id ? (int) $id : null;
     }
 
     /**

@@ -33,6 +33,11 @@ beforeEach(function () {
         'whatsapp.flows.booking.days'                => 14,
         'whatsapp.flows.booking.duration_minutes'    => 60,
         'whatsapp.flows.booking.general_specialties' => ['Zq General Test'],
+        // Base sin pre-llenado ni "Turno sugerido" (no depende del .env): los
+        // tests de R7–R9 y del atajo las encienden explícitamente.
+        'whatsapp.flows.patient.prefill'             => false,
+        'whatsapp.flows.patient.prefill_schedule'    => false,
+        'whatsapp.flows.patient.fast_forward'        => false,
     ]);
 
     // Doctor reservable propio: activo, vinculado a SMD, con su especialidad y turno mañana.
@@ -374,4 +379,278 @@ it('si SMD tarda más que la pantalla, la termina en segundo plano y no la guard
     expect($result)->toBeNull()
         ->and(\Illuminate\Support\Facades\Cache::get("booking:avail:{$this->specialtyId}:{$from}:7"))->toBeNull();
     \Illuminate\Support\Facades\Queue::assertPushed(\Webkul\Admin\Jobs\FetchSpecialtyAvailability::class, 1);
+});
+
+it('si manda el formulario dos veces el mismo día con el mismo doctor, la segunda no crea otra cita y lo dice', function () {
+    $book = function (string $time) {
+        $this->token = FlowToken::issue($this->conv->id);
+        startBooking($this);
+        step($this->publicPem, $this->token, 'SPECIALTY', ['specialty' => (string) $this->specialtyId]);
+        step($this->publicPem, $this->token, 'DOCTOR', ['doctor' => (string) $this->doctorId]);
+        step($this->publicPem, $this->token, 'SLOT_DATE', ['date' => $this->day->toDateString()]);
+        step($this->publicPem, $this->token, 'SLOT_TIME', ['time' => $time]);
+
+        return step($this->publicPem, $this->token, 'SUMMARY', ['confirm' => 'si']);
+    };
+
+    $book('09:00');
+    $citas = DB::table('activity_participants')->where('person_id', $this->mama->id)->count();
+    expect($citas)->toBe(1);
+
+    $book('10:00');
+
+    expect(DB::table('activity_participants')->where('person_id', $this->mama->id)->count())->toBe($citas)
+        ->and(DB::table('whatsapp_messages')->where('conversation_id', $this->conv->id)->orderByDesc('id')->value('body'))
+        ->toContain('ya tiene una cita')
+        ->toContain('a las 09:00')
+        ->not->toContain('ya no está disponible');
+});
+
+/** Formulario "enviado" por el agente con su prefill, con la v6 activa. Devuelve el token. */
+function bookingWithPrefill(object $t, array $prefill): string
+{
+    config([
+        'whatsapp.flows.patient.id'               => '7770001',
+        'whatsapp.flows.patient.v4'               => true,
+        'whatsapp.flows.patient.prefill'          => true,
+        'whatsapp.flows.patient.prefill_schedule' => true,
+    ]);
+
+    $t->token = FlowToken::issue($t->conv->id, 'paciente_tercero');
+    \Webkul\Whatsapp\Models\Message::create([
+        'conversation_id' => $t->conv->id, 'direction' => 'outbound', 'type' => 'flow', 'body' => 'x', 'status' => 'sent', 'sender' => 'ia',
+        'payload'         => ['flow' => ['key' => 'paciente_tercero', 'token' => $t->token, 'id' => '7770001', 'prefill' => $prefill]],
+    ]);
+
+    startBooking($t);
+
+    return $t->token;
+}
+
+it('R7–R9: después del doctor (marcado por el chat) aparece su turno más próximo, y Continuar va directo al resumen', function () {
+    bookingWithPrefill($this, ['doctor' => (string) $this->doctorId]);
+
+    $doctors = step($this->publicPem, $this->token, 'SPECIALTY', ['specialty' => (string) $this->specialtyId]);
+    expect($doctors['screen'])->toBe('DOCTOR')
+        ->and($doctors['data']['init_doctor'])->toBe((string) $this->doctorId);
+
+    $next = step($this->publicPem, $this->token, 'DOCTOR', ['doctor' => (string) $this->doctorId]);
+    expect($next['screen'])->toBe('NEXT_SLOT')
+        ->and($next['data']['init_choice'])->toBe('accept')
+        ->and($next['data']['heading'])->toStartWith('El turno más próximo con')
+        ->and($next['data']['options'][0]['title'])->toEndWith($this->day->format('d/m').' a las 09:00')
+        ->and($next['data']['options'][1])->toMatchArray(['id' => 'other', 'title' => 'Quiero otra fecha y hora']);
+
+    $summary = step($this->publicPem, $this->token, 'NEXT_SLOT', ['slot_choice' => 'accept']);
+    expect($summary['screen'])->toBe('SUMMARY')
+        ->and(FlowSession::get($this->token))->toMatchArray(['date' => $this->day->toDateString(), 'time' => '09:00']);
+});
+
+it('R9: la hora pedida en el chat, si está libre, es la sugerida ("El turno que pediste")', function () {
+    bookingWithPrefill($this, ['doctor' => (string) $this->doctorId, 'date' => $this->day->toDateString(), 'time' => '10:00']);
+    step($this->publicPem, $this->token, 'SPECIALTY', ['specialty' => (string) $this->specialtyId]);
+
+    $next = step($this->publicPem, $this->token, 'DOCTOR', ['doctor' => (string) $this->doctorId]);
+
+    expect($next['data']['heading'])->toStartWith('El turno que pediste con')
+        ->and($next['data']['options'][0]['title'])->toEndWith('a las 10:00');
+});
+
+it('"Quiero otra fecha y hora" sigue con día y hora normales, sin volver a marcar la sugerencia', function () {
+    bookingWithPrefill($this, ['doctor' => (string) $this->doctorId]);
+    step($this->publicPem, $this->token, 'SPECIALTY', ['specialty' => (string) $this->specialtyId]);
+    step($this->publicPem, $this->token, 'DOCTOR', ['doctor' => (string) $this->doctorId]);
+
+    $dates = step($this->publicPem, $this->token, 'NEXT_SLOT', ['slot_choice' => 'other']);
+    expect($dates['screen'])->toBe('SLOT_DATE')->and($dates['data'])->not->toHaveKey('init_date');
+
+    $times = step($this->publicPem, $this->token, 'SLOT_DATE', ['date' => $this->day->toDateString()]);
+    expect($times['screen'])->toBe('SLOT_TIME')->and($times['data'])->not->toHaveKey('init_time');
+});
+
+it('sin la v6 (opción apagada) el doctor lleva directo a elegir el día, como antes', function () {
+    config(['whatsapp.flows.patient.prefill_schedule' => false]);
+    startBooking($this);
+    step($this->publicPem, $this->token, 'SPECIALTY', ['specialty' => (string) $this->specialtyId]);
+
+    expect(step($this->publicPem, $this->token, 'DOCTOR', ['doctor' => (string) $this->doctorId])['screen'])->toBe('SLOT_DATE');
+});
+
+/*
+| Formulario completo desde el chat: abre ya avanzado (pantallas de entrada START_*)
+*/
+
+/** Formulario con prefill, abierto (INIT) con el atajo encendido. Devuelve la primera pantalla. */
+function openPrefilled(object $t, array $prefill, bool $fastForward = true): array
+{
+    config([
+        'whatsapp.flows.patient.id'               => '7770001',
+        'whatsapp.flows.patient.v4'               => true,
+        'whatsapp.flows.patient.prefill'          => true,
+        'whatsapp.flows.patient.prefill_schedule' => true,
+        'whatsapp.flows.patient.fast_forward'     => $fastForward,
+        'whatsapp.flows.patient.ask_ci'           => false,
+    ]);
+
+    $t->token = FlowToken::issue($t->conv->id, 'paciente_tercero');
+    \Webkul\Whatsapp\Models\Message::create([
+        'conversation_id' => $t->conv->id, 'direction' => 'outbound', 'type' => 'flow', 'body' => 'x', 'status' => 'sent', 'sender' => 'ia',
+        'payload'         => ['flow' => ['key' => 'paciente_tercero', 'token' => $t->token, 'id' => '7770001', 'prefill' => $prefill]],
+    ]);
+
+    return flowCall($t->publicPem, ['version' => '3.0', 'action' => 'INIT', 'flow_token' => $t->token])[1];
+}
+
+it('con todo pedido y el turno libre, abre directo en "Revisá tu cita" y confirma desde ahí', function () {
+    $first = openPrefilled($this, [
+        'relation' => 'self', 'doctor' => (string) $this->doctorId, 'date' => $this->day->toDateString(), 'time' => '10:00',
+    ]);
+
+    expect($first['screen'])->toBe('START_SUMMARY')
+        ->and($first['data']['detail'])->toContain('10:00')
+        ->and(FlowSession::get($this->token))->toMatchArray(['doctor_id' => $this->doctorId, 'date' => $this->day->toDateString(), 'time' => '10:00']);
+
+    $antes = DB::table('activities')->count();
+    $done = step($this->publicPem, $this->token, 'START_SUMMARY', ['confirm' => 'si']);
+
+    expect($done['screen'])->toBe('SUCCESS')
+        ->and(DB::table('activities')->count())->toBeGreaterThan($antes);
+});
+
+it('con el turno pedido ocupado, abre en "Turno sugerido" con el más cercano', function () {
+    $first = openPrefilled($this, [
+        'relation' => 'self', 'doctor' => (string) $this->doctorId, 'date' => $this->day->toDateString(), 'time' => '13:00',
+    ]);
+
+    expect($first['screen'])->toBe('START_NEXT_SLOT')
+        ->and($first['data']['options'][0]['title'])->toEndWith('a las 10:00');
+
+    $summary = step($this->publicPem, $this->token, 'START_NEXT_SLOT', ['slot_choice' => 'accept']);
+    expect($summary['screen'])->toBe('SUMMARY');
+});
+
+it('sin doctor pedido, abre en la lista de doctores con paciente y especialidad ya resueltos', function () {
+    $first = openPrefilled($this, ['relation' => 'self', 'specialty' => (string) $this->specialtyId]);
+
+    expect($first['screen'])->toBe('START_DOCTOR')
+        ->and($first['data']['doctors'][0]['id'])->toBe((string) $this->doctorId);
+
+    expect(step($this->publicPem, $this->token, 'START_DOCTOR', ['doctor' => (string) $this->doctorId])['screen'])->toBe('NEXT_SLOT');
+});
+
+it('un aviso desde una pantalla de entrada vuelve a la misma pantalla de entrada (no a su original)', function () {
+    openPrefilled($this, ['relation' => 'self', 'specialty' => (string) $this->specialtyId]);
+
+    $again = step($this->publicPem, $this->token, 'START_DOCTOR', ['doctor' => '999999']);
+
+    expect($again['screen'])->toBe('START_DOCTOR');
+});
+
+it('un tercero nuevo (hay que pedirle nombre y cédula) empieza desde el principio', function () {
+    $first = openPrefilled($this, ['relation' => 'tercero', 'patient_name' => 'Nadie Nuevo Zq', 'doctor' => (string) $this->doctorId]);
+
+    expect($first['screen'])->toBe('PATIENT_SELECT')
+        ->and($first['data']['init_choice'])->toBe('other');
+});
+
+it('con el atajo apagado abre siempre en "¿Para quién es la cita?"', function () {
+    $first = openPrefilled($this, ['relation' => 'self', 'doctor' => (string) $this->doctorId, 'date' => $this->day->toDateString(), 'time' => '10:00'], false);
+
+    expect($first['screen'])->toBe('PATIENT_SELECT')
+        ->and($first['data']['init_choice'])->toBe('self');
+});
+
+it('en el JSON, las pantallas de entrada no tienen transiciones de entrada y salen a lo mismo que su original', function () {
+    $flow = json_decode(file_get_contents(base_path('packages/Webkul/Whatsapp/src/Resources/flows/paciente_tercero.json')), true);
+    $incoming = collect($flow['routing_model'])->flatten()->unique()->all();
+    $screens = collect($flow['screens'])->keyBy('id');
+
+    foreach (['START_SPECIALTY', 'START_DOCTOR', 'START_NEXT_SLOT', 'START_SUMMARY'] as $entry) {
+        $original = substr($entry, 6);
+
+        expect($incoming)->not->toContain($entry)
+            ->and($screens[$entry]['layout'])->toBe($screens[$original]['layout']);
+
+        // Meta exige que toda pantalla esté conectada: START_SUMMARY (el resumen
+        // termina el formulario) declara la salida a elegir el día.
+        $entry === 'START_SUMMARY'
+            ? expect($flow['routing_model'][$entry])->toBe(['SLOT_DATE'])
+            : expect($flow['routing_model'][$entry])->toBe($flow['routing_model'][$original]);
+    }
+});
+
+/*
+| Lead de la cita: si es "Para mí", se usa el lead "Consulta" que el agente abrió
+| para esa conversación, en vez de crear uno nuevo al lado.
+*/
+
+function consultaLead(int $personId, ?int $stageId = null): int
+{
+    return DB::table('leads')->insertGetId([
+        'title'                  => 'Consulta - Test '.uniqid(),
+        'user_id'                => 1,
+        'person_id'              => $personId,
+        'status'                 => 1,
+        'lead_pipeline_id'       => 1,
+        'lead_pipeline_stage_id' => $stageId ?? (int) config('whatsapp.crm.stage_consulta'),
+        'created_at'             => now(),
+        'updated_at'             => now(),
+    ]);
+}
+
+function bookJob(object $t, int $responsibleId, int $patientId): void
+{
+    \Webkul\Whatsapp\Jobs\BookFlowAppointment::dispatchSync([
+        'conversation_id' => $t->conv->id, 'responsible_id' => $responsibleId, 'patient_id' => $patientId,
+        'doctor_id'       => $t->doctorId, 'specialty_id' => $t->specialtyId, 'specialty' => 'Zq',
+        'date'            => $t->day->toDateString(), 'time' => '10:00', 'duration' => 60,
+    ]);
+}
+
+function leadOfBooking(object $t, int $patientId): ?int
+{
+    return DB::table('activities')
+        ->join('activity_participants', 'activity_participants.activity_id', '=', 'activities.id')
+        ->join('lead_activities', 'lead_activities.activity_id', '=', 'activities.id')
+        ->where('activity_participants.person_id', $patientId)
+        ->where('activities.schedule_from', $t->day->toDateString().' 10:00:00')
+        ->value('lead_activities.lead_id');
+}
+
+it('"Para mí": la cita usa el lead "Consulta" abierto del paciente y no crea otro', function () {
+    $consulta = consultaLead($this->mama->id);
+    $leadsBefore = DB::table('leads')->where('person_id', $this->mama->id)->count();
+
+    bookJob($this, $this->mama->id, $this->mama->id);
+
+    expect(leadOfBooking($this, $this->mama->id))->toBe($consulta)
+        ->and(DB::table('leads')->where('person_id', $this->mama->id)->count())->toBe($leadsBefore)
+        // Pasa a ser la cita: sale de Consultas igual que cualquier cita nueva.
+        ->and((int) DB::table('leads')->where('id', $consulta)->value('lead_pipeline_stage_id'))
+        ->not->toBe((int) config('whatsapp.crm.stage_consulta'));
+});
+
+it('para un tercero no toca el lead "Consulta" de quien escribe: la cita lleva su propio lead', function () {
+    $consulta = consultaLead($this->mama->id);
+    $hijo = auditPerson(['name' => 'Hijo Agenda '.uniqid(), 'smd_patient_id' => bin2hex(random_bytes(12))]);
+
+    bookJob($this, $this->mama->id, $hijo->id);
+
+    $lead = leadOfBooking($this, $hijo->id);
+    expect($lead)->not->toBeNull()->not->toBe($consulta)
+        ->and((int) DB::table('leads')->where('id', $lead)->value('person_id'))->toBe($hijo->id)
+        ->and((int) DB::table('leads')->where('id', $consulta)->value('lead_pipeline_stage_id'))
+        ->toBe((int) config('whatsapp.crm.stage_consulta'));
+});
+
+it('no reutiliza un lead que no está en Consultas (p.ej. derivado a recepción) ni uno cerrado', function () {
+    $recepcion = consultaLead($this->mama->id, (int) config('whatsapp.crm.stage_recepcion'));
+    $cerrado = consultaLead($this->mama->id);
+    DB::table('leads')->where('id', $cerrado)->update(['status' => 0]);
+
+    bookJob($this, $this->mama->id, $this->mama->id);
+
+    expect(leadOfBooking($this, $this->mama->id))->not->toBeNull()->not->toBeIn([$recepcion, $cerrado])
+        ->and((int) DB::table('leads')->where('id', $recepcion)->value('lead_pipeline_stage_id'))
+        ->toBe((int) config('whatsapp.crm.stage_recepcion'));
 });

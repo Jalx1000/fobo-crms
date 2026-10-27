@@ -162,6 +162,11 @@ class AppointmentService
             throw new AppointmentException("Paciente con ID {$personData['id']} no encontrado.");
         }
 
+        // ── 2.b Mismo paciente, mismo doctor, mismo día ───────────────────────
+        // Va antes de SMD: un formulario enviado dos veces no debe crear un
+        // segundo evento allá para después rechazarlo acá.
+        $this->assertPatientNotBookedThatDay($person, $allDoctorIds, $scheduleFrom, $cancelledStageIds);
+
         $product = $productId ? DB::table('products')->where('id', $productId)->first() : null;
 
         $nameParts = explode(' ', trim($person->name ?? 'Paciente'));
@@ -695,6 +700,74 @@ class AppointmentService
      * Cédula del paciente (atributo `ci_paciente`), o null si no la tiene.
      * Es lo que SMD espera en `personID`.
      */
+    /**
+     * Un paciente no puede tener dos citas activas con el mismo doctor el mismo
+     * día (antes solo se rechazaba si el doctor estaba ocupado a esa hora, y el
+     * formulario de WhatsApp enviado dos veces creaba dos citas). "Activa" usa el
+     * mismo criterio que el conflicto local: una cita cuyo lead está cancelado o
+     * perdido no cuenta. Para cambiar el horario está la reprogramación, que
+     * mueve la cita existente y no pasa por acá.
+     *
+     * @throws AppointmentException
+     */
+    private function assertPatientNotBookedThatDay(object $person, array $doctorIds, Carbon $day, array $cancelledStageIds): void
+    {
+        $existing = DB::table('activities')
+            ->join('doctor_activities', 'activities.id', '=', 'doctor_activities.activity_id')
+            ->join('activity_participants', 'activities.id', '=', 'activity_participants.activity_id')
+            ->join('doctors', 'doctors.id', '=', 'doctor_activities.doctor_id')
+            ->where('activities.type', 'meeting')
+            ->where('activity_participants.person_id', $person->id)
+            ->whereIn('doctor_activities.doctor_id', $doctorIds)
+            ->whereBetween('activities.schedule_from', [
+                $day->copy()->startOfDay()->format('Y-m-d H:i:s'),
+                $day->copy()->endOfDay()->format('Y-m-d H:i:s'),
+            ])
+            ->where(function ($query) use ($cancelledStageIds) {
+                $query->whereNotExists(function ($sub) {
+                    $sub->select('lead_activities.activity_id')
+                        ->from('lead_activities')
+                        ->whereColumn('lead_activities.activity_id', 'activities.id');
+                })->orWhereExists(function ($sub) use ($cancelledStageIds) {
+                    $sub->select('lead_activities.activity_id')
+                        ->from('lead_activities')
+                        ->join('leads', 'leads.id', '=', 'lead_activities.lead_id')
+                        ->whereColumn('lead_activities.activity_id', 'activities.id')
+                        ->where(function ($q) {
+                            $q->whereNull('leads.status')->orWhere('leads.status', '!=', 0);
+                        })
+                        ->where(function ($q) use ($cancelledStageIds) {
+                            $q->whereNull('leads.lead_pipeline_stage_id')
+                                ->orWhereNotIn('leads.lead_pipeline_stage_id', $cancelledStageIds);
+                        });
+                });
+            })
+            ->orderBy('activities.schedule_from')
+            ->first(['activities.id', 'activities.schedule_from', 'doctors.name as doctor_name']);
+
+        if (! $existing) {
+            return;
+        }
+
+        $when = Carbon::parse($existing->schedule_from);
+
+        throw new AppointmentException(
+            sprintf(
+                '%s ya tiene una cita con %s el %s a las %s. Para cambiar el horario, reprogramá esa cita.',
+                trim((string) $person->name),
+                trim((string) $existing->doctor_name),
+                $when->format('d/m'),
+                $when->format('H:i')
+            ),
+            [
+                'code'                 => 'patient_already_booked',
+                'existing_activity_id' => (int) $existing->id,
+                'existing_from'        => $when->format('Y-m-d H:i:s'),
+                'doctor_name'          => trim((string) $existing->doctor_name),
+            ]
+        );
+    }
+
     private function patientCi($person): ?string
     {
         $attribute = app(\Webkul\Attribute\Repositories\AttributeRepository::class)

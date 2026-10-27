@@ -158,6 +158,10 @@ Mensajes `422` típicos (mostrar/reaccionar):
 - `El doctor ya tiene una cita programada en este horario...` → ofrecer otro slot
 - `El horario seleccionado está fuera de la jornada laboral...` → elegir dentro de la jornada
 - `El doctor no tiene disponibilidad en SHAREMEDATA...` → refrescar disponibilidad y reintentar
+- `<Paciente> ya tiene una cita con <Doctor> el dd/mm a las HH:MM...` con
+  `details.code = "patient_already_booked"` (y `existing_activity_id`, `existing_from`) →
+  **no reintentar con otro horario**: el paciente ya tiene cita ese día con ese doctor.
+  Avisarle y, si quiere otro horario, reprogramar esa cita en vez de crear otra.
 
 > El POST **revalida** todo: aunque el slot venía de `available-slots`, si entre la
 > consulta y el agendamiento alguien tomó el horario, devuelve `422`. El agente debe
@@ -227,7 +231,9 @@ else:
 2. Pasar **`duration_minutes`** = duración real del servicio.
 3. Ofrecer únicamente los `slots` devueltos; `slots: []` ⇒ proponer otra fecha.
 4. **Agendar** con `POST /api/v1/activities`, doctor y paciente en `participants`.
-5. Manejar `422` al agendar: re-consultar disponibilidad y reintentar.
+5. Manejar `422` al agendar: re-consultar disponibilidad y reintentar, salvo
+   `details.code = "patient_already_booked"` (ya tiene cita ese día con ese doctor:
+   avisar, no reintentar).
 6. Loguear `degraded=true` / `reason` para visibilidad operativa.
 
 ---
@@ -266,6 +272,57 @@ Authorization: Bearer <token>
 
 `text` es opcional. Respuestas: `200` (encolado), `422` si la conversación está fuera de
 la ventana de 24 h o el canal no soporta formularios.
+
+#### Pre-llenado (`prefill`, solo `paciente_tercero`)
+
+Lo que el paciente **ya dijo en el chat** se puede mandar para que el formulario
+llegue con esos valores elegidos (el paciente puede cambiarlos):
+
+```json
+{ "flow": "paciente_tercero",
+  "prefill": { "relation": "tercero", "patient_name": "María Pérez",
+               "relationship": "hijo", "specialty": "Ortodoncia" } }
+```
+
+| Clave | Valores | Efecto |
+|---|---|---|
+| `relation` | `self` (también `para_mi`, `yo`) · `tercero` (también `other`, `otro`) | `self` → "Para mí". `tercero` → el familiar a cargo con ese nombre si ya existe; si no, "Otra persona" |
+| `patient_name` | texto libre | Con `tercero`: elige al familiar a cargo con ese nombre o llena "Nombre completo" |
+| `relationship` | `hijo`, `padre_madre`, `pareja`, `hermano`, `familiar`, `otro` | Parentesco del tercero nuevo |
+| `specialty` | id de especialidad del CRM, su nombre (sin importar tildes ni mayúsculas) o `general` / `No sé` | Especialidad elegida al llegar a esa pantalla |
+| `doctor` | **id del doctor en el CRM** (recomendado) o su nombre (`"Dr. Eloy"`) | Doctor elegido, si tiene horarios en esa especialidad. Sin `specialty`, se elige la especialidad de ese doctor. Por nombre debe coincidir con **un solo** doctor |
+| `date` | `YYYY-MM-DD` | El día, si tiene horarios; si no, el siguiente día con horarios; si está más allá de la lista de días, "Otra fecha" con ese día ya puesto |
+| `time` | `HH:MM` (24 h; acepta `H:MM`) | La hora, si está libre; si no, la hora libre más cercana |
+
+**Turno sugerido (R9):** después de elegir el doctor, el formulario muestra una pantalla
+"Turno sugerido" con **el turno libre más próximo** de ese doctor ya marcado (o el pedido con
+`date`/`time`, si está libre: "El turno que pediste con…"). Si le sirve, **Continuar** va
+directo al resumen; si no, "Quiero otra fecha y hora" sigue con la elección normal de día y
+hora (sin volver a marcar la sugerencia). Pasa con o sin `prefill`. Todo es una
+**sugerencia** sobre la agenda real: nunca se ofrece un horario que no esté libre.
+
+**Formulario ya avanzado:** con paciente conocido (`self`, o un familiar a cargo por
+`patient_name`) el formulario **no empieza en "¿Para quién?"**: abre en el primer paso que
+falta decidir:
+
+| Lo que se mandó | Abre en |
+|---|---|
+| paciente + especialidad (o doctor) + doctor + `date` + `time`, y el turno está libre | **"Revisá tu cita"** — solo falta confirmar |
+| ídem, pero el turno pedido no está libre, o sin `time` | **"Turno sugerido"** (el más cercano) |
+| paciente + especialidad, sin doctor | la lista de **doctores** |
+| paciente, sin especialidad ni doctor | **especialidad** |
+| tercero nuevo (sin ficha), o paciente sin cédula cargada | el principio (hay que pedirle los datos) |
+
+Mandar `doctor` como **id** y `date`/`time` exactos es lo que permite abrir directo en
+"Revisá tu cita".
+
+- Un valor que falta, sobra o no coincide con una opción **se ignora** y el formulario abre
+  igual. Nunca da `422`.
+- La respuesta trae `prefill` con lo que se tomó, ya normalizado (`{}` si nada).
+- En `cancelar_cita` y `reprogramar_cita` el `prefill` se ignora.
+- Los servicios (`limpieza`, `brackets`…) no son especialidades: mapearlos a una del
+  catálogo antes de mandarlos, o no mandar `specialty`.
+- Mandar solo datos **ciertos** del chat, nunca inventados.
 
 ### 7.3 Qué hace el formulario
 
@@ -310,6 +367,15 @@ Llega un `message.received` con `message.type = "flow_reply"` y los datos en `me
 `patient_status` dice cómo se identificó al paciente: `created` (nuevo), `found` (ya existía)
 o `self` (quien escribe). `relation` (y `relacion` en `pacientes_a_cargo`) dice **qué es el
 paciente para quien escribe**: `hijo`, `padre_madre`, `pareja`, `hermano`, `familiar` u `otro`.
+
+**Lead de la cita.** Si la cita es **para quien escribe** (`patient_status = "self"`) y tiene
+un lead abierto en **Consultas** (el "Consulta - …" que crea el agente), la cita se agenda
+**sobre ese lead**: no se crea otro, y el lead pasa a "Cita confirmada". Para un tercero, la
+cita lleva su propio lead, a nombre del paciente, y el lead "Consulta" de quien escribe no se
+toca. Un lead derivado a recepción, o uno cerrado, nunca se reutiliza.
+Consecuencia para el agente: después de una cita "para mí", ese paciente **ya no tiene lead
+en Consultas**. Si en una conversación posterior hace falta un lead-conversación (por
+ejemplo, para derivar a recepción), hay que crear uno nuevo y no mover el lead de la cita.
 
 ### 7.5 Reglas
 
@@ -377,3 +443,61 @@ Un `message.received` con `message.type = "flow_reply"` y los datos en `message.
 - Las citas que se pueden tocar son las **futuras** y vigentes (no canceladas, atendidas ni
   perdidas) del contacto y de sus pacientes a cargo. La de otra persona no aparece ni se acepta.
 - Si el usuario dice que no le aparece una cita que sí tiene, derivar a recepción.
+
+## 9. Respuesta al recordatorio: confirma / no asiste
+
+El día antes de la cita el CRM le manda al paciente (o a **quien agendó**) el recordatorio por
+plantilla, que termina en *"Responda SÍ para confirmar o NO para cancelar su cita"*. La respuesta
+llega al agente como un `message.received` común. Para saber **a qué cita** contesta, el
+`patient_context` trae `recordatorios`:
+
+```json
+"recordatorios": [
+  {"activity_id": 77587, "lead_id": 9120, "paciente": "…", "fecha": "29/10/2026", "hora": "09:00",
+   "doctor": "CAROLINA ROJAS", "enviado_at": "2026-10-28T08:00:03-04:00", "respuesta": null}
+]
+```
+
+Son los recordatorios enviados a **esta conversación** de citas que todavía no pasaron, el más
+reciente primero. `respuesta` es `null` (sin contestar), `"confirma"` o `"no_asiste"`. En el
+`history` el recordatorio aparece como `{"role": "assistant", "type": "template", "content": "…"}`.
+
+### 9.1 Registrar la respuesta
+
+```
+POST /api/v1/whatsapp/conversations/{conversation_id}/appointments/respond
+Authorization: Bearer <token>
+{"respuesta": "confirma"}                       // o "no_asiste"
+{"respuesta": "confirma", "activity_id": 77587} // cita puntual
+{"respuesta": "confirma", "lead_id": 9120}      // también sirve el lead de patient_context.citas
+```
+
+- **Sin `activity_id` ni `lead_id`**: vale solo si hay **un** recordatorio sin contestar. Con varios
+  (p. ej. "confirmo ambas citas") responde `422` con la lista en `recordatorios`: llamar **una vez por
+  cita** con su `activity_id`.
+- La cita tiene que ser futura y del contacto, de sus pacientes a cargo, o una que se le recordó a
+  esta conversación. Si no, `422`.
+
+| `respuesta` | Qué hace el CRM |
+|---|---|
+| `confirma`  | La cita pasa a **Cita confirmada** y se envía a SMD con estado `CONFIRMED` (lo que ve recepción). Nota en el lead de la cita. |
+| `no_asiste` | **No** cancela ni mueve la cita. La anota (nota en el lead) para que recepción llame. |
+
+Respuesta `200`:
+
+```json
+{"respuesta": "confirma",
+ "cita": {"activity_id": 77587, "lead_id": 9120, "paciente": "…", "fecha": "29/10/2026", "hora": "09:00", "doctor": "CAROLINA ROJAS"},
+ "smd": {"synced": true, "reason": null}}
+```
+
+`smd.synced = false` no es un error para el paciente: la confirmación quedó en el CRM.
+
+### 9.2 Reglas
+
+- "Sí", "Confirmo", "Ahí estaré" o 👍 después de un recordatorio sin contestar → `confirma` y
+  responder en una línea con fecha, hora y doctor. **No** mandar formulario ni hacer preguntas.
+- "No", "No puedo ir" → `no_asiste` y ofrecer en el mismo mensaje **cambiarla**
+  (`reprogramar_cita`) o **cancelarla** (`cancelar_cita`). Si eligió una, el formulario hace el
+  cambio; el `no_asiste` ya quedó anotado.
+- Si `recordatorios` está vacío, un "Sí" suelto no es una confirmación: leer el `history`.

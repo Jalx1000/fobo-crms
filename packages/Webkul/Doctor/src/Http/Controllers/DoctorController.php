@@ -126,14 +126,15 @@ class DoctorController extends Controller
             'email'              => ['nullable', 'email', 'max:150'],
             'phone'              => ['nullable', 'string', 'max:30'],
             'title'              => ['nullable', 'string', 'max:100'],
-            'unique_id'          => ['nullable', 'string', 'max:100'],
             'is_active'          => ['nullable'],
             'specialties'        => ['nullable'],
             'specialty_names'    => ['nullable', 'array'],
             'specialty_names.*'  => ['string', 'max:100'],
         ]);
 
-        $this->doctorRepository->update($validated, $id);
+        // El ID de ShareMeData es de solo lectura en la pantalla (lo escribe la
+        // vinculación con SMD): no se toma del pedido aunque venga.
+        $this->doctorRepository->update(\Illuminate\Support\Arr::except($validated, ['unique_id']), $id);
 
         $this->attributeValueRepository->save(array_merge(request()->all(), [
             'entity_id'   => $id,

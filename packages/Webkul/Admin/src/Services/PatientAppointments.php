@@ -152,6 +152,104 @@ class PatientAppointments
     }
 
     /**
+     * Recordatorios mandados a esta conversación de citas que todavía no
+     * pasaron, el más reciente primero. Es lo que le dice al agente que un "Sí"
+     * suelto contesta a un recordatorio, y de qué cita.
+     *
+     * @return array<int, array{activity_id:int, lead_id:?int, paciente:string, fecha:string, hora:string, doctor:string, enviado_at:?string, respuesta:?string}>
+     */
+    public function remindersOf(int $conversationId): array
+    {
+        return DB::table('whatsapp_appointment_reminders as r')
+            ->join('activities', 'activities.id', '=', 'r.activity_id')
+            ->leftJoin('activity_participants', 'activity_participants.activity_id', '=', 'activities.id')
+            ->leftJoin('persons', 'persons.id', '=', 'activity_participants.person_id')
+            ->leftJoin('doctor_activities', 'doctor_activities.activity_id', '=', 'activities.id')
+            ->leftJoin('doctors', 'doctors.id', '=', 'doctor_activities.doctor_id')
+            ->leftJoin('lead_activities', 'lead_activities.activity_id', '=', 'activities.id')
+            ->where('r.conversation_id', $conversationId)
+            ->where('activities.schedule_from', '>', now(config('app.timezone'))->format('Y-m-d H:i:s'))
+            ->orderByDesc('r.sent_at')
+            ->get([
+                'activities.id as activity_id', 'activities.schedule_from', 'lead_activities.lead_id',
+                'persons.name as paciente', 'doctors.name as doctor', 'r.sent_at', 'r.response',
+            ])
+            ->unique('activity_id')
+            ->map(fn ($r) => [
+                'activity_id' => (int) $r->activity_id,
+                'lead_id'     => $r->lead_id ? (int) $r->lead_id : null,
+                'paciente'    => trim((string) $r->paciente),
+                'fecha'       => Carbon::parse($r->schedule_from)->format('d/m/Y'),
+                'hora'        => Carbon::parse($r->schedule_from)->format('H:i'),
+                'doctor'      => trim((string) $r->doctor),
+                'enviado_at'  => $r->sent_at ? Carbon::parse($r->sent_at)->toIso8601String() : null,
+                'respuesta'   => $r->response,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Respuesta del paciente al recordatorio, registrada por el agente.
+     *
+     * "confirma": el lead pasa a "Cita confirmada" y SMD recibe CONFIRMED, igual
+     * que si recepción la marcara desde el calendario. "no_asiste": no se toca
+     * la cita (cancelarla o moverla va por los formularios); queda anotado para
+     * que recepción llame. En los dos casos se deja una nota en el lead de la
+     * cita, que es donde recepción la ve.
+     *
+     * @return array{synced: bool, reason: ?string}
+     */
+    public function respond(int $activityId, string $response, ?int $userId = null): array
+    {
+        $at = now();
+        $leadIds = DB::table('lead_activities')->where('activity_id', $activityId)->pluck('lead_id');
+
+        $additional = json_decode((string) DB::table('activities')->where('id', $activityId)->value('additional'), true) ?: [];
+        DB::table('activities')->where('id', $activityId)->update([
+            'additional' => json_encode(array_merge($additional, [
+                'patient_response' => ['respuesta' => $response, 'at' => $at->toIso8601String(), 'canal' => 'whatsapp'],
+            ])),
+        ]);
+
+        DB::table('whatsapp_appointment_reminders')->where('activity_id', $activityId)
+            ->update(['response' => $response, 'responded_at' => $at, 'updated_at' => $at]);
+
+        $result = ['synced' => false, 'reason' => 'sin cambios en SMD'];
+
+        if ($response === 'confirma') {
+            if ($leadIds->isNotEmpty()) {
+                DB::table('leads')->whereIn('id', $leadIds)->update([
+                    'lead_pipeline_stage_id' => (int) config('smd.stage_map.confirmed'),
+                    'updated_at'             => $at,
+                ]);
+            }
+
+            $result = $this->push->push($activityId);
+        }
+
+        $note = $response === 'confirma'
+            ? 'El paciente CONFIRMÓ su asistencia por WhatsApp (respuesta al recordatorio).'
+            : 'El paciente avisó por WhatsApp que NO va a asistir. La cita sigue en pie: llamar para reprogramar o cancelar.';
+
+        foreach ($leadIds as $leadId) {
+            $noteId = DB::table('activities')->insertGetId([
+                'type'       => 'note',
+                'comment'    => $note,
+                'is_done'    => 1,
+                'user_id'    => $userId ?: 1,
+                'created_at' => $at,
+                'updated_at' => $at,
+            ]);
+            DB::table('lead_activities')->insert(['lead_id' => $leadId, 'activity_id' => $noteId]);
+        }
+
+        Log::info('[Citas] Respuesta del paciente al recordatorio', ['activity_id' => $activityId, 'respuesta' => $response, 'smd' => $result]);
+
+        return $result;
+    }
+
+    /**
      * Reprograma: mueve el horario (mismo doctor y paciente) y lo empuja a SMD.
      *
      * @return array{synced: bool, reason: ?string}

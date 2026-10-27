@@ -5,33 +5,35 @@
     El tag <v-smd-sync-control></v-smd-sync-control> se coloca donde va el control.
 --}}
 <script type="text/x-template" id="v-smd-sync-control-template">
-    <div class="flex items-center gap-x-2">
+    <!-- Sin bordes grises; en el celular textos cortos para que no se partan. -->
+    <div class="ssc-wrap">
         <!-- Toggle Pausar / Reanudar sincronización automática -->
         <button
             type="button"
-            class="flex items-center gap-x-1.5 rounded-md border px-2.5 py-1.5 font-semibold transition-all"
-            :class="paused
-                ? 'border-gray-300 text-gray-500 hover:border-gray-400 dark:border-gray-700 dark:text-gray-400'
-                : 'border-green-300 text-green-700 hover:border-green-400 dark:border-green-800 dark:text-green-400'"
+            class="ssc-btn"
+            :class="paused ? 'ssc-btn--paused' : 'ssc-btn--on'"
             :disabled="pauseLoading"
             :title="paused
                 ? '@lang('admin::app.activities.index.smd-sync.resume-hint')'
                 : '@lang('admin::app.activities.index.smd-sync.pause-hint')'"
             @click="togglePause"
         >
-            <span
-                class="inline-block h-2 w-2 rounded-full"
-                :class="paused ? 'bg-gray-400' : 'animate-pulse bg-green-500'"
-            ></span>
+            <span class="ssc-dot" :class="paused ? 'ssc-dot--paused' : 'animate-pulse ssc-dot--on'"></span>
 
-            <span v-if="! paused">@lang('admin::app.activities.index.smd-sync.pause')</span>
-            <span v-else>@lang('admin::app.activities.index.smd-sync.resume')</span>
+            <template v-if="! paused">
+                <span class="ssc-long">@lang('admin::app.activities.index.smd-sync.pause')</span>
+                <span class="ssc-short">Pausar</span>
+            </template>
+            <template v-else>
+                <span class="ssc-long">@lang('admin::app.activities.index.smd-sync.resume')</span>
+                <span class="ssc-short">Reanudar</span>
+            </template>
         </button>
 
         <!-- Sincronizar ahora (manual, siempre disponible) -->
         <button
             type="button"
-            class="secondary-button flex items-center gap-x-1.5"
+            class="ssc-btn ssc-btn--sync"
             :disabled="isSyncing"
             @click="syncNow"
         >
@@ -40,11 +42,60 @@
                 class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
             ></span>
 
-            <span v-if="! isSyncing">@lang('admin::app.activities.index.smd-sync.sync-now')</span>
+            <template v-if="! isSyncing">
+                <span class="ssc-long">@lang('admin::app.activities.index.smd-sync.sync-now')</span>
+                <span class="ssc-short">Sincronizar</span>
+            </template>
             <span v-else>@lang('admin::app.activities.index.smd-sync.syncing')</span>
         </button>
     </div>
 </script>
+
+<style>
+    .ssc-wrap { display: flex; align-items: center; gap: 8px; }
+    .ssc-btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        height: 36px; padding: 0 12px; border: 0; border-radius: 8px;
+        font-size: 14px; font-weight: 600; white-space: nowrap; transition: background-color .15s;
+    }
+    .ssc-btn:disabled { opacity: .6; }
+    .ssc-btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+    .ssc-btn--on { background: #f0fdf4; color: #15803d; }
+    .ssc-btn--on:hover { background: #dcfce7; }
+    .ssc-btn--paused { background: #f3f4f6; color: #4b5563; }
+    .ssc-btn--paused:hover { background: #e5e7eb; }
+    .ssc-btn--sync { background: #e6f4f5; color: #0e7490; }
+    .ssc-btn--sync:hover { background: #cfeaec; }
+    .ssc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 9999px; }
+    .ssc-dot--on { background: #22c55e; }
+    .ssc-dot--paused { background: #9ca3af; }
+    .ssc-short { display: none; }
+
+    .dark .ssc-btn--on { background: rgba(34, 197, 94, .12); color: #4ade80; }
+    .dark .ssc-btn--paused { background: #1f2937; color: #9ca3af; }
+    .dark .ssc-btn--sync { background: rgba(14, 116, 144, .2); color: #67e8f9; }
+
+    @media (max-width: 1023px) {
+        .ssc-wrap { width: 100%; }
+        .ssc-wrap .ssc-btn { flex: 1 1 0; min-width: 0; }
+        .ssc-long { display: none; }
+        .ssc-short { display: inline; }
+    }
+    /* Escritorio: como los botones del admin (borde fino); el relleno es del celular. */
+    @media (min-width: 1024px) {
+        .ssc-btn { height: 36px; border: 1px solid; border-radius: 6px; background: #fff; }
+        .ssc-btn--on { border-color: #86efac; color: #15803d; background: #fff; }
+        .ssc-btn--on:hover { border-color: #4ade80; background: #fff; }
+        .ssc-btn--paused { border-color: #d1d5db; color: #6b7280; background: #fff; }
+        .ssc-btn--paused:hover { border-color: #9ca3af; background: #fff; }
+        .ssc-btn--sync { border-color: #0e7490; color: #0e7490; background: #fff; }
+        .ssc-btn--sync:hover { background: #ecfeff; }
+        .dark .ssc-btn { background: #111827; }
+        .dark .ssc-btn--on { border-color: #166534; color: #4ade80; }
+        .dark .ssc-btn--paused { border-color: #374151; color: #9ca3af; }
+        .dark .ssc-btn--sync { border-color: #155e75; color: #67e8f9; }
+    }
+</style>
 
 <script type="module">
     app.component('v-smd-sync-control', {

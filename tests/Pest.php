@@ -16,6 +16,9 @@ uses(\Tests\TestCase::class, \Illuminate\Foundation\Testing\DatabaseTransactions
 // Pruebas live contra SMD/Dropbox de producción: solo vía `php artisan smd:test-live`.
 uses(\Tests\TestCase::class, \Illuminate\Foundation\Testing\DatabaseTransactions::class)->in('Live');
 
+// Sin DatabaseTransactions a propósito: lo que crea tiene que quedar en la BD.
+uses(\Tests\TestCase::class)->in('LiveBooking');
+
 /*
 |--------------------------------------------------------------------------
 | Expectations

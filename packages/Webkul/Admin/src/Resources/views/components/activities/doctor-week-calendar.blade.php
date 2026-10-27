@@ -101,9 +101,9 @@
             </div>
 
             <div v-for="col in columns" :key="'col-'+col.id" class="dwc-doctor-col">
-                <div class="dwc-doctor-header">
-                    <span>@{{ col.name }}</span>
-                    <span class="text-xs dark:text-gray-300">@{{ totalCount(col.id) }}</span>
+                <div class="dwc-doctor-header" :title="col.name">
+                    <span class="dwc-doctor-header-name">@{{ col.name }}</span>
+                    <span class="dwc-doctor-header-count text-xs dark:text-gray-300">@{{ totalCount(col.id) }}</span>
                 </div>
 
                 <div class="dwc-days-stack" :style="{ height: totalHeight + 'px' }" @click="onColumnClick($event, col.id)">
@@ -979,4 +979,8 @@
     .dark .tp-list li.is-selected {
         background-color: #2563eb;
     }
+    /* Encabezado en una línea: un nombre largo desalineaba la columna (ver doctor-day-calendar). */
+    .dwc-doctor-header { gap: 6px; white-space: nowrap; }
+    .dwc-doctor-header-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .dwc-doctor-header-count { flex-shrink: 0; }
 </style>

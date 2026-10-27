@@ -5,7 +5,9 @@ namespace Webkul\Whatsapp\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Webkul\Admin\Services\PatientAppointments;
 use Webkul\Whatsapp\Gateways\Contracts\SupportsFlows;
 use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
 use Webkul\Whatsapp\Gateways\GatewayManager;
@@ -179,6 +181,79 @@ class AgentController extends Controller
     }
 
     /**
+     * HERRAMIENTA DEL AGENTE: registra la respuesta del paciente al recordatorio.
+     *
+     * POST /api/v1/whatsapp/conversations/{id}/appointments/respond
+     * {respuesta: "confirma"|"no_asiste", activity_id?, lead_id?}
+     *
+     * Sin activity_id ni lead_id vale solo si hay UN recordatorio sin contestar
+     * (patient_context.recordatorios); con varios ("confirmo ambas") el agente
+     * llama una vez por cita. La cita tiene que ser del contacto, de sus
+     * pacientes a cargo o una que se le recordó a esta conversación.
+     */
+    public function respondAppointment(Request $request, string $id, PatientAppointments $appointments): JsonResponse
+    {
+        $data = $request->validate([
+            'respuesta'   => 'required|string|in:confirma,no_asiste',
+            'activity_id' => 'nullable|integer',
+            'lead_id'     => 'nullable|integer',
+        ]);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        $reminders = $appointments->remindersOf((int) $conversation->id);
+
+        $activityId = (int) ($data['activity_id'] ?? 0);
+
+        if (! $activityId && ! empty($data['lead_id'])) {
+            $activityId = (int) DB::table('lead_activities')
+                ->join('activities', 'activities.id', '=', 'lead_activities.activity_id')
+                ->where('lead_activities.lead_id', $data['lead_id'])
+                ->where('activities.type', 'meeting')
+                ->orderByDesc('activities.schedule_from')
+                ->value('activities.id');
+        }
+
+        if (! $activityId && empty($data['lead_id'])) {
+            $pending = array_values(array_filter($reminders, fn ($r) => $r['respuesta'] === null));
+
+            if (count($pending) !== 1) {
+                return response()->json([
+                    'message'       => $pending
+                        ? 'Hay varios recordatorios sin contestar: indicá activity_id (una llamada por cita).'
+                        : 'No hay recordatorios sin contestar: indicá activity_id o lead_id de la cita.',
+                    'recordatorios' => $pending,
+                ], 422);
+            }
+
+            $activityId = $pending[0]['activity_id'];
+        }
+
+        $reminded = collect($reminders)->firstWhere('activity_id', $activityId);
+        $own = $conversation->person_id ? $appointments->findFor((int) $conversation->person_id, $activityId) : null;
+
+        if (! $activityId || (! $reminded && ! $own)) {
+            return response()->json([
+                'message' => 'La cita no existe, ya pasó o no es de este contacto.',
+            ], 422);
+        }
+
+        $smd = $appointments->respond($activityId, $data['respuesta'], auth()->id());
+
+        return response()->json([
+            'respuesta' => $data['respuesta'],
+            'cita'      => $reminded ?? [
+                'activity_id' => $own['activity_id'],
+                'lead_id'     => $own['lead_id'],
+                'paciente'    => $own['patient_name'],
+                'fecha'       => \Carbon\Carbon::parse($own['schedule_from'])->format('d/m/Y'),
+                'hora'        => \Carbon\Carbon::parse($own['schedule_from'])->format('H:i'),
+                'doctor'      => $own['doctor_name'],
+            ],
+            'smd'       => $smd,
+        ]);
+    }
+
+    /**
      * HERRAMIENTA DEL AGENTE: envía un formulario de WhatsApp (Flow).
      *
      * POST /api/v1/whatsapp/conversations/{id}/flows {flow, text?}
@@ -214,6 +289,13 @@ class AgentController extends Controller
         $config = \Webkul\Whatsapp\Services\Flows\FlowDefinitions::config($data['flow']);
         $token = FlowToken::issue((int) $conversation->id, $data['flow']);
 
+        // Pre-llenado (solo agendar): lo que el paciente ya dijo en el chat. No se
+        // valida como obligatorio a propósito: un valor raro se descarta, nunca
+        // impide mandar el formulario.
+        $prefill = $data['flow'] === 'paciente_tercero'
+            ? \Webkul\Whatsapp\Services\Flows\FlowPrefill::sanitize($request->input('prefill'))
+            : [];
+
         $message = MessageProxy::modelClass()::create([
             'conversation_id' => $conversation->id,
             'direction'       => 'outbound',
@@ -228,7 +310,7 @@ class AgentController extends Controller
                 'id'    => $config['id'] ?? null,
                 'cta'   => $config['cta'] ?? 'Completar datos',
                 'mode'  => $config['mode'] ?? 'published',
-            ]],
+            ] + ($prefill ? ['prefill' => $prefill] : [])],
         ]);
 
         $conversation->forceFill(['last_message_at' => now()])->save();
@@ -238,6 +320,8 @@ class AgentController extends Controller
         return response()->json([
             'message'    => ['id' => $message->id, 'status' => $message->status, 'type' => 'flow'],
             'flow_token' => $token,
+            // Lo que se tomó del prefill, ya normalizado (vacío si no aplica).
+            'prefill'    => (object) $prefill,
         ]);
     }
 }

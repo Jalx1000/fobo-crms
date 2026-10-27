@@ -5,6 +5,7 @@ namespace Webkul\Whatsapp\Gateways\CloudApi;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Webkul\Whatsapp\Gateways\BaseGateway;
 use Webkul\Whatsapp\Gateways\Contracts\SupportsFlows;
@@ -104,6 +105,10 @@ class CloudApiGateway extends BaseGateway implements SupportsFlows
             foreach ($entry['changes'] ?? [] as $change) {
                 $value = $change['value'] ?? [];
 
+                if (! $this->isOurNumber($value)) {
+                    continue;
+                }
+
                 $profileName = $value['contacts'][0]['profile']['name'] ?? null;
 
                 foreach ($value['messages'] ?? [] as $message) {
@@ -137,6 +142,30 @@ class CloudApiGateway extends BaseGateway implements SupportsFlows
         }
 
         return new InboundBatch($messages, $statuses);
+    }
+
+    /**
+     * The Meta app can have several WABAs subscribed and they all post to the
+     * same URL: only the configured number belongs to this installation, or a
+     * message to another number lands in this database and is answered from
+     * ours. Without metadata or without a configured number nothing is filtered.
+     */
+    protected function isOurNumber(array $value): bool
+    {
+        $incoming = (string) ($value['metadata']['phone_number_id'] ?? '');
+        $ours = (string) ($this->config['phone_number_id'] ?? '');
+
+        if ($incoming === '' || $ours === '' || $incoming === $ours) {
+            return true;
+        }
+
+        Log::info('WhatsApp webhook de otro número descartado', [
+            'phone_number_id' => $incoming,
+            'display_phone'   => $value['metadata']['display_phone_number'] ?? null,
+            'messages'        => count($value['messages'] ?? []),
+        ]);
+
+        return false;
     }
 
     public function sendText(Conversation $conversation, string $body, ?string $replyToProviderId = null): SendResult

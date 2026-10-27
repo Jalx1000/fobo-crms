@@ -53,47 +53,46 @@
 
 <script type="text/x-template" id="v-doctor-day-calendar-template">
     <div class="dwc-container">
-        <div class="dwc-controls">
-            <div class="flex items-center gap-2">
-                <button class="px-2 py-1 rounded border dark:border-gray-800" aria-label="Período anterior" @click="prevPeriod">←</button>
-                <button class="px-2 py-1 rounded border dark:border-gray-800" @click="goToday">Hoy</button>
-                <button
-                    type="button"
-                    class="px-3 py-1 rounded border dark:border-gray-800 text-sm font-semibold dark:text-white"
-                    @click="toggleDatePicker"
-                >
-                    @{{ dayLabel }}
-                </button>
-                <button class="px-2 py-1 rounded border dark:border-gray-800" aria-label="Período siguiente" @click="nextPeriod">→</button>
+        <!-- Barra de controles: sin bordes grises y ordenada para el celular
+             (fecha → vista → buscador → doctores). Estilos en el <style> del
+             componente: no dependen de clases compiladas de Tailwind. -->
+        <div class="dwc-controls ddc-toolbar">
+            <div class="ddc-tb-date">
+                <button type="button" class="ddc-tb-icon" aria-label="Período anterior" @click="prevPeriod">←</button>
+                <button type="button" class="ddc-tb-date-label" @click="toggleDatePicker">@{{ dayLabel }}</button>
+                <button type="button" class="ddc-tb-icon" aria-label="Período siguiente" @click="nextPeriod">→</button>
+                <button type="button" class="ddc-tb-chip" @click="goToday">Hoy</button>
             </div>
 
-            <div class="dwc-filters">
-                <span class="text-xs dark:text-gray-300">Filtrar doctores:</span>
-                <button type="button" class="px-2 py-1 rounded border text-xs dark:border-gray-800" @click="selectAllDoctors">Todos</button>
-                <button type="button" class="px-2 py-1 rounded border text-xs dark:border-gray-800" @click="clearDoctors">Ninguno</button>
-                <v-doctor-multiselect style="max-width:350px;min-width:350px;max-height:100%" :items="doctors" v-model="selectedDoctorIds"></v-doctor-multiselect>
+            <div class="ddc-seg" role="group" aria-label="Vista del calendario">
+                <button type="button"
+                        v-for="v in [{ key: 'day', label: 'Día' }, { key: 'week', label: 'Semana' }, { key: 'month', label: 'Mes' }, { key: 'list', label: 'Lista' }]"
+                        :key="'view-'+v.key"
+                        class="ddc-seg-btn"
+                        :class="{ 'is-active': viewType === v.key }"
+                        :aria-pressed="viewType === v.key"
+                        @click="setView(v.key)">@{{ v.label }}</button>
+            </div>
 
-                <!-- Buscador de paciente: nombre, teléfono o CI (PatientSearch en el backend) -->
-                <!-- Estilos en línea: clases de Tailwind nuevas no están en el CSS compilado de producción. -->
-                <div class="flex items-center" style="position:relative">
-                    <span class="icon-search text-xl text-gray-400" style="position:absolute;left:8px;pointer-events:none"></span>
-                    <input
-                        type="search"
-                        class="rounded border border-gray-200 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
-                        style="width:17rem;padding-left:2.1rem;padding-right:.5rem"
-                        placeholder="Buscar paciente: nombre, teléfono o CI"
-                        aria-label="Buscar paciente por nombre, teléfono o CI"
-                        v-model="patientSearch"
-                        @input="onPatientSearch"
-                    >
+            <!-- Buscador de paciente: nombre, teléfono o CI (PatientSearch en el backend) -->
+            <div class="ddc-tb-search">
+                <span class="icon-search ddc-tb-search-icon"></span>
+                <input
+                    type="search"
+                    placeholder="Buscar paciente: nombre, teléfono o CI"
+                    aria-label="Buscar paciente por nombre, teléfono o CI"
+                    v-model="patientSearch"
+                    @input="onPatientSearch"
+                >
+            </div>
+
+            <div class="ddc-tb-doctors">
+                <div class="ddc-tb-doctors-head">
+                    <span>Doctores</span>
+                    <button type="button" class="ddc-tb-link" @click="selectAllDoctors">Todos</button>
+                    <button type="button" class="ddc-tb-link" @click="clearDoctors">Ninguno</button>
                 </div>
-                
-                <div class="flex items-center rounded border dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900">
-                    <button type="button" class="px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800" :class="viewType==='day'?'bg-gray-100 dark:bg-gray-800 font-semibold text-blue-600':''" @click="setView('day')">Día</button>
-                    <button type="button" class="px-3 py-2 text-sm border-l dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800" :class="viewType==='week'?'bg-gray-100 dark:bg-gray-800 font-semibold text-blue-600':''" @click="setView('week')">Semana</button>
-                    <button type="button" class="px-3 py-2 text-sm border-l dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800" :class="viewType==='month'?'bg-gray-100 dark:bg-gray-800 font-semibold text-blue-600':''" @click="setView('month')">Mes</button>
-                    <button type="button" class="px-3 py-2 text-sm border-l dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800" :class="viewType==='list'?'bg-gray-100 dark:bg-gray-800 font-semibold text-blue-600':''" @click="setView('list')">Lista</button>
-                </div>
+                <v-doctor-multiselect class="ddc-tb-multi" :items="doctors" v-model="selectedDoctorIds"></v-doctor-multiselect>
             </div>
         </div>
 
@@ -390,9 +389,9 @@
             </div>
 
             <div v-for="col in columns" :key="'col-'+col.id" class="dwc-doctor-col">
-                    <div class="dwc-doctor-header">
-                        <span>@{{ col && col.name ? col.name : '' }}</span>
-                        <span class="text-xs dark:text-gray-300">@{{ totalCount(col.id) }}</span>
+                    <div class="dwc-doctor-header" :title="col && col.name ? col.name : ''">
+                        <span class="dwc-doctor-header-name">@{{ col && col.name ? col.name : '' }}</span>
+                        <span class="dwc-doctor-header-count text-xs dark:text-gray-300">@{{ totalCount(col.id) }}</span>
                     </div>
 
                     <div class="dwc-days-stack" :style="{ height: totalHeight + 'px' }">
@@ -947,44 +946,30 @@
                         </div>
                     </div>
 
-                    <!-- Estado de la cita: selección única (pastel) -->
+                    <!-- Estado de la cita: misma barra que las etapas de leads (.stage):
+                         segmentos sin bordes unidos por flechas, el elegido en color sólido.
+                         En el celular se desliza de costado en vez de apretarse. Colores
+                         inline: las clases calculadas en runtime no están en el CSS de prod. -->
                     <div>
                         <p class="mb-1.5 text-xs font-medium uppercase text-gray-400">Estado de la cita</p>
-                        <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                            <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('confirmed')"
-                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50"
-                                    :class="apptState() === 'confirmed'
-                                        ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400 dark:bg-blue-900/50 dark:text-blue-200'
-                                        : 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300'">
-                                <span class="icon-checkbox-select text-base"></span> Confirmada
-                            </button>
-                            <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('completed')"
-                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 disabled:opacity-50"
-                                    :class="apptState() === 'completed'
-                                        ? 'bg-green-100 text-green-800 ring-2 ring-green-400 dark:bg-green-900/50 dark:text-green-200'
-                                        : 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300'">
-                                <span class="icon-checkbox-select text-base"></span> Completada
-                            </button>
-                            <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('surgery')"
-                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 disabled:opacity-50"
-                                    :class="apptState() === 'surgery'
-                                        ? 'bg-amber-100 text-amber-800 ring-2 ring-amber-400 dark:bg-amber-900/50 dark:text-amber-200'
-                                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300'">
-                                <span class="icon-checkbox-select text-base"></span> Cirugía
-                            </button>
-                            <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('no_show')"
-                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 disabled:opacity-50"
-                                    :class="apptState() === 'no_show'
-                                        ? 'bg-orange-100 text-orange-800 ring-2 ring-orange-400 dark:bg-orange-900/50 dark:text-orange-200'
-                                        : 'bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-300'">
-                                <span class="icon-warning text-base"></span> Cita Perdida
-                            </button>
-                            <button type="button" :disabled="statusUpdating" @click="setAppointmentStatus('cancelled')"
-                                    class="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-50"
-                                    :class="apptState() === 'cancelled'
-                                        ? 'bg-red-100 text-red-800 ring-2 ring-red-400 dark:bg-red-900/50 dark:text-red-200'
-                                        : 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300'">
-                                <span class="icon-cross-large text-base"></span> Cancelada
+                        <div ref="apptStatusBar" role="group" aria-label="Estado de la cita" class="ddc-status-bar flex w-full max-w-full overflow-x-auto rounded-lg bg-gray-100 dark:bg-gray-950"
+                             :class="{ 'opacity-50 pointer-events-none': statusUpdating }">
+                            <button type="button"
+                                    v-for="st in [
+                                        { key: 'confirmed', label: 'Confirmada',   color: '#2563eb' },
+                                        { key: 'completed', label: 'Completada',   color: '#15803d' },
+                                        { key: 'surgery',   label: 'Cirugía',      color: '#b45309' },
+                                        { key: 'no_show',   label: 'Cita Perdida', color: '#c2410c' },
+                                        { key: 'cancelled', label: 'Cancelada',    color: '#dc2626' },
+                                    ]"
+                                    :key="'st-'+st.key"
+                                    :disabled="statusUpdating"
+                                    @click="setAppointmentStatus(st.key)"
+                                    class="stage relative flex h-9 cursor-pointer items-center justify-center whitespace-nowrap bg-white font-medium text-gray-700 focus-visible:outline-none dark:bg-gray-900 dark:text-gray-300"
+                                    :class="{ 'is-active': apptState() === st.key }"
+                                    :style="apptState() === st.key ? { '--st-color': st.color, backgroundColor: st.color, color: '#fff' } : {}"
+                                    :aria-pressed="apptState() === st.key">
+                                <span class="z-20">@{{ st.label }}</span>
                             </button>
                         </div>
                     </div>
@@ -2946,6 +2931,7 @@
                 this.populateAppointmentForm(ev);
                 this.editMode = true;
                 this.$refs.viewModal.open();
+                this.revealApptState();
             },
             openViewModal(ev) {
                 this.viewAppointment.data = ev;
@@ -2955,6 +2941,22 @@
                 this.loadApptHistory(ev.person_id);
                 this.loadApptInsurance(ev.person_id);
                 this.$refs.viewModal.open();
+                this.revealApptState();
+            },
+
+            // En el celular la barra de estado se desliza: si el estado elegido
+            // quedó fuera de vista (ej. "Cancelada"), se desplaza la barra hasta
+            // él. Solo scrollLeft: scrollIntoView movería también el modal.
+            revealApptState() {
+                setTimeout(() => {
+                    const bar = this.$refs.apptStatusBar;
+                    const active = bar && bar.querySelector('.is-active');
+                    if (!active) return;
+                    const left = active.offsetLeft - bar.offsetLeft;
+                    if (left < bar.scrollLeft || left + active.offsetWidth > bar.scrollLeft + bar.clientWidth) {
+                        bar.scrollLeft = left - (bar.clientWidth - active.offsetWidth) / 2;
+                    }
+                }, 150);
             },
 
             loadApptHistory(personId) {
@@ -4851,5 +4853,123 @@
         width: 32px;
         height: 32px;
         font-size: 16px;
+    }
+    /* Barra de estado de la cita (modal de detalle): flecha del segmento elegido
+       en su color, y el último segmento sin flecha que sobresalga. */
+    .ddc-status-bar .stage { flex: 1 0 auto; padding-left: 1.2rem; padding-right: .4rem; font-size: .8125rem; }
+    .ddc-status-bar .stage:first-child { padding-left: .7rem; border-top-left-radius: .5rem; border-bottom-left-radius: .5rem; }
+    .ddc-status-bar .stage:last-child { border-top-right-radius: .5rem; border-bottom-right-radius: .5rem; }
+    .ddc-status-bar .stage:last-child::after { display: none; }
+    .ddc-status-bar .stage.is-active::after { background-color: var(--st-color); }
+    /* ── Barra de controles del calendario ─────────────────────────────── */
+    /* Escritorio: fecha (y buscador) a la izquierda; doctores y vista siempre
+       juntos a la derecha. Entre 1024 y 1439px no entra todo en una fila: el
+       buscador baja a la segunda fila, a la izquierda. */
+    .ddc-toolbar {
+        display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(16rem, 26rem) auto;
+        grid-template-areas: "date . doctors seg" "search search . .";
+        border: 0; gap: 10px 12px; padding: 10px; align-items: center;
+    }
+    .ddc-tb-date { grid-area: date; }
+    .ddc-seg { grid-area: seg; }
+    .ddc-tb-search { grid-area: search; justify-self: start; width: 100%; }
+    .ddc-tb-search input { min-width: 0; }
+    .ddc-tb-doctors { grid-area: doctors; min-width: 0; }
+    .ddc-tb-date { display: flex; align-items: center; gap: 6px; }
+    .ddc-tb-icon, .ddc-tb-chip, .ddc-tb-date-label {
+        display: inline-flex; align-items: center; justify-content: center;
+        height: 36px; border: 0; border-radius: 8px; background: #f3f4f6;
+        color: #374151; font-size: 14px; font-weight: 500; white-space: nowrap;
+    }
+    .ddc-tb-icon { width: 36px; }
+    .ddc-tb-chip { padding: 0 14px; }
+    .ddc-tb-date-label { padding: 0 12px; font-weight: 600; color: #111827; }
+    .ddc-tb-icon:hover, .ddc-tb-chip:hover, .ddc-tb-date-label:hover { background: #e5e7eb; }
+
+    .ddc-seg { display: flex; padding: 3px; gap: 2px; border-radius: 10px; background: #f3f4f6; }
+    .ddc-seg-btn {
+        flex: 1 1 0; height: 30px; padding: 0 14px; border: 0; border-radius: 8px;
+        background: transparent; color: #4b5563; font-size: 14px; font-weight: 500; white-space: nowrap;
+    }
+    .ddc-seg-btn.is-active { background: #fff; color: #2563eb; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+
+    .ddc-tb-search { position: relative; display: flex; align-items: center; max-width: 22rem; }
+    .ddc-tb-search-icon { position: absolute; left: 10px; font-size: 20px; color: #9ca3af; pointer-events: none; }
+    .ddc-tb-search input {
+        width: 100%; height: 36px; padding: 0 10px 0 2.2rem; border: 0; border-radius: 8px;
+        background: #f3f4f6; color: #1f2937; font-size: 14px;
+    }
+    .ddc-tb-search input:focus { outline: 2px solid #93c5fd; outline-offset: 0; background: #fff; }
+    .ddc-tb-search input::placeholder { color: #6b7280; }
+    /* Foco con teclado visible (la regla de .ddc-container no alcanza a la barra). */
+    .ddc-toolbar button:focus-visible, .ddc-status-bar .stage:focus-visible {
+        outline: 2px solid #2563eb; outline-offset: 2px;
+    }
+
+    .ddc-tb-doctors { display: flex; align-items: center; gap: 12px; }
+    .ddc-tb-doctors-head { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #6b7280; white-space: nowrap; }
+    .ddc-tb-link { border: 0; background: none; padding: 0; color: #2563eb; font-size: 12px; font-weight: 500; }
+    .ddc-tb-multi { flex: 1 1 auto; min-width: 0; max-height: 100%; }
+
+    .dark .ddc-tb-icon, .dark .ddc-tb-chip, .dark .ddc-tb-date-label,
+    .dark .ddc-seg, .dark .ddc-tb-search input { background: #1f2937; color: #e5e7eb; }
+    .dark .ddc-tb-icon:hover, .dark .ddc-tb-chip:hover, .dark .ddc-tb-date-label:hover { background: #374151; }
+    .dark .ddc-seg-btn { color: #9ca3af; }
+    .dark .ddc-seg-btn.is-active { background: #111827; color: #60a5fa; }
+    .dark .ddc-tb-link { color: #60a5fa; }
+
+    /* Celular y tablet: una fila por control, todo a lo ancho. */
+    @media (max-width: 1023px) {
+        .ddc-toolbar { display: flex; flex-direction: column; align-items: stretch; border-radius: 0; padding: 10px 12px; }
+        /* Pegado a la barra y de borde a borde: sin franja gris ni marco. */
+        .dwc-container { gap: 0; }
+        .dwc-container .dwc-grid { border-left: 0; border-right: 0; border-radius: 0; }
+        .ddc-tb-date .ddc-tb-date-label { flex: 1; }
+        .ddc-tb-search { max-width: none; }
+        .ddc-tb-search input { font-size: 16px; } /* 16px: iOS no hace zoom al enfocar */
+        .ddc-tb-doctors { flex-direction: column; align-items: stretch; gap: 6px; }
+        .ddc-tb-doctors-head span { margin-right: auto; }
+        .ddc-tb-multi { min-width: 0; max-width: none; width: 100%; }
+    }
+    /* Encabezado de doctor SIEMPRE en una línea: la columna de horas no tiene
+       encabezado y asume esa altura. Un nombre largo en dos líneas ("DIANA
+       VALERIA HURTADO OYOLA") bajaba toda su columna y las citas quedaban
+       desfasadas de la hora. El nombre completo va en el title. */
+    .dwc-doctor-header { gap: 6px; white-space: nowrap; }
+    .dwc-doctor-header-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .dwc-doctor-header-count { flex-shrink: 0; }
+    /* Pantallas anchas: todo en una fila (doctores al lado de la vista). */
+    @media (min-width: 1440px) {
+        .ddc-toolbar {
+            grid-template-columns: auto minmax(12rem, 1fr) minmax(0, 30rem) auto;
+            grid-template-areas: "date search doctors seg";
+        }
+    }
+
+    /* Escritorio: estilo del admin (botones blancos con borde fino, vista como
+       grupo de botones). El estilo de relleno gris es solo para el celular. */
+    @media (min-width: 1024px) {
+        .ddc-tb-icon, .ddc-tb-chip, .ddc-tb-date-label {
+            height: 34px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff;
+            color: #374151; font-weight: 500;
+        }
+        .ddc-tb-date-label { font-weight: 600; color: #111827; }
+        .ddc-tb-icon:hover, .ddc-tb-chip:hover, .ddc-tb-date-label:hover { background: #f9fafb; }
+
+        .ddc-seg { padding: 0; gap: 0; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; overflow: hidden; }
+        .ddc-seg-btn { height: 32px; border-radius: 0; color: #374151; }
+        .ddc-seg-btn + .ddc-seg-btn { border-left: 1px solid #e5e7eb; }
+        .ddc-seg-btn:hover { background: #f9fafb; }
+        .ddc-seg-btn.is-active { background: #f3f4f6; color: #2563eb; box-shadow: none; }
+
+        .ddc-tb-search input { height: 34px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; }
+        .ddc-tb-search input:focus { outline: 2px solid #93c5fd; outline-offset: -1px; border-color: #60a5fa; }
+
+        .dark .ddc-tb-icon, .dark .ddc-tb-chip, .dark .ddc-tb-date-label,
+        .dark .ddc-seg, .dark .ddc-tb-search input { background: #111827; border-color: #1f2937; color: #e5e7eb; }
+        .dark .ddc-tb-icon:hover, .dark .ddc-tb-chip:hover, .dark .ddc-tb-date-label:hover,
+        .dark .ddc-seg-btn:hover { background: #1f2937; }
+        .dark .ddc-seg-btn + .ddc-seg-btn { border-left-color: #1f2937; }
+        .dark .ddc-seg-btn.is-active { background: #1f2937; color: #60a5fa; }
     }
 </style>

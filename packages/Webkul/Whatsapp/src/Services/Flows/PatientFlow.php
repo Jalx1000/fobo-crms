@@ -81,8 +81,19 @@ class PatientFlow
 
         $responsible = $conversation->person_id ? (int) $conversation->person_id : null;
 
+        if ($action === 'INIT' && ($fast = $this->fastForward($responsible, (string) ($request['flow_token'] ?? '')))) {
+            $fast = $this->asEntry($this->withContext((string) $request['flow_token'], $fast));
+
+            Log::info('[WhatsAppFlow] paso', [
+                'conversation' => $conversationId, 'from' => 'INIT', 'to' => $fast['screen'] ?? null, 'v4' => true, 'prefill' => true,
+                'error'        => isset($fast['data']['error_message']),
+            ]);
+
+            return $fast;
+        }
+
         if ($action === 'INIT' || $action === 'BACK') {
-            return $this->select($responsible);
+            return $this->select($responsible, null, (string) ($request['flow_token'] ?? ''));
         }
 
         $data = (array) ($request['data'] ?? []);
@@ -95,12 +106,26 @@ class PatientFlow
             'CONFIRM'        => $this->afterConfirm($responsible, $data, (string) $request['flow_token']),
             'SPECIALTY'      => $this->afterSpecialty((string) $request['flow_token'], $data),
             'DOCTOR'         => $this->afterDoctor((string) $request['flow_token'], $data),
-            'SLOT_DATE'      => $this->afterDate((string) $request['flow_token'], $data),
-            'OTHER_DATE'     => $this->afterOtherDate((string) $request['flow_token'], $data),
-            'SLOT_TIME'      => $this->afterTime((string) $request['flow_token'], $data),
-            'SUMMARY'        => $this->afterSummary((string) $request['flow_token'], $responsible, $data),
-            default          => $this->select($responsible),
+            'NEXT_SLOT'      => $this->afterNextSlot((string) $request['flow_token'], $data),
+            // Pantallas de entrada (copias sin transiciones de entrada, ver fastForward).
+            'START_SPECIALTY' => $this->afterSpecialty((string) $request['flow_token'], $data),
+            'START_DOCTOR'    => $this->afterDoctor((string) $request['flow_token'], $data),
+            'START_NEXT_SLOT' => $this->afterNextSlot((string) $request['flow_token'], $data),
+            'START_SUMMARY'   => $this->afterSummary((string) $request['flow_token'], $responsible, $data),
+            'SLOT_DATE'       => $this->afterDate((string) $request['flow_token'], $data),
+            'OTHER_DATE'      => $this->afterOtherDate((string) $request['flow_token'], $data),
+            'SLOT_TIME'       => $this->afterTime((string) $request['flow_token'], $data),
+            'SUMMARY'         => $this->afterSummary((string) $request['flow_token'], $responsible, $data),
+            default           => $this->select($responsible, null, $token),
         });
+
+        // Desde una pantalla de entrada, volver a mostrar "la misma" (con un
+        // aviso) es volver a la de entrada: su original no es un destino posible.
+        $from = (string) ($request['screen'] ?? '');
+
+        if (str_starts_with($from, 'START_') && ($response['screen'] ?? null) === substr($from, 6)) {
+            $response['screen'] = $from;
+        }
 
         // Qué pantalla se respondió a cada paso: sin esto, un rechazo de Meta
         // ("invalid-screen-transition") no se puede reconstruir.
@@ -178,7 +203,7 @@ class PatientFlow
         $result = $this->afterConfirm($responsible, $data, $token);
 
         if (($result['screen'] ?? null) === 'CONFIRM') {
-            return $this->select($responsible, $result['data']['error_message'] ?? 'No pudimos confirmar los datos. Escribinos por el chat.');
+            return $this->select($responsible, $result['data']['error_message'] ?? 'No pudimos confirmar los datos. Escribinos por el chat.', $token);
         }
 
         return $result;
@@ -192,7 +217,7 @@ class PatientFlow
     {
         $screen = $response['screen'] ?? null;
 
-        if (! $this->isV4($token) || ! in_array($screen, ['SPECIALTY', 'DOCTOR', 'SLOT_DATE', 'OTHER_DATE', 'SLOT_TIME'], true)) {
+        if (! $this->isV4($token) || ! in_array($screen, ['SPECIALTY', 'DOCTOR', 'NEXT_SLOT', 'SLOT_DATE', 'OTHER_DATE', 'SLOT_TIME'], true)) {
             return $response;
         }
 
@@ -216,7 +241,7 @@ class PatientFlow
         return $response;
     }
 
-    protected function select(?int $responsible, ?string $error = null): array
+    protected function select(?int $responsible, ?string $error = null, string $token = ''): array
     {
         $options = [];
 
@@ -230,7 +255,13 @@ class PatientFlow
 
         $options[] = ['id' => 'other', 'title' => 'Otra persona'];
 
-        return $this->screen('PATIENT_SELECT', ['options' => $options], $error);
+        $data = ['options' => $options];
+
+        if ($this->prefillOn($token)) {
+            $data += $this->initValues(['init_choice' => FlowPrefill::choice(FlowPrefill::forToken($token), $options)]);
+        }
+
+        return $this->screen('PATIENT_SELECT', $data, $error);
     }
 
     protected function afterSelect(?int $responsible, array $data, string $token = ''): array
@@ -238,7 +269,7 @@ class PatientFlow
         $choice = (string) ($data['choice'] ?? '');
 
         if ($choice === 'other') {
-            return $this->screen('PATIENT_DATA', ['relations' => self::RELATIONS]);
+            return $this->patientDataScreen($token);
         }
 
         if ($choice === 'self' && $responsible) {
@@ -272,7 +303,97 @@ class PatientFlow
             }
         }
 
-        return $this->select($responsible, 'Elegí una opción para continuar.');
+        return $this->select($responsible, 'Elegí una opción para continuar.', $token);
+    }
+
+    /** "Otra persona": nombre, cédula y parentesco (con valores iniciales si los hay). */
+    protected function patientDataScreen(string $token, ?string $error = null): array
+    {
+        $data = ['relations' => self::RELATIONS];
+
+        if ($this->prefillOn($token)) {
+            $prefill = FlowPrefill::forToken($token);
+            $data += $this->initValues([
+                'init_full_name' => ($prefill['relation'] ?? null) === 'tercero' ? (string) ($prefill['patient_name'] ?? '') : '',
+                'init_relation'  => (string) ($prefill['relationship'] ?? ''),
+            ]);
+        }
+
+        return $this->screen('PATIENT_DATA', $data, $error);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pre-llenado (lo que el paciente ya dijo en el chat, ver FlowPrefill)
+    |--------------------------------------------------------------------------
+    | Solo con el JSON que declara los valores iniciales (init_*): el formulario
+    | publicado antes no los conoce y Meta rechazaría datos que no declara. Se
+    | enciende con `flows.patient.prefill` al publicar esa versión.
+    */
+    /**
+     * Solo los valores iniciales que hay: un init-value vacío ("") hace que el
+     * formulario muestre "Select an option" en rojo antes de tocar nada
+     * (verificado en la vista previa de Meta, 2026-10-26).
+     */
+    protected function initValues(array $values): array
+    {
+        return array_filter($values, fn ($v) => $v !== '');
+    }
+
+    /**
+     * Sin especialidad pedida pero con doctor: la especialidad de ese doctor
+     * que esté entre las opciones ("general" si es una de las generales).
+     *
+     * @param  array<int, array{id: string, title: string}>  $options
+     */
+    protected function specialtyOfPrefilledDoctor(array $prefill, array $options): string
+    {
+        if (empty($prefill['doctor'])) {
+            return '';
+        }
+
+        $doctors = DB::table('doctors')->where('is_active', 1)->pluck('name', 'id')->all();
+        $doctorId = FlowPrefill::doctorId($prefill, $doctors);
+
+        if (! $doctorId) {
+            return '';
+        }
+
+        $ids = DB::table('doctor_specialty')->where('doctor_id', $doctorId)->pluck('specialty_id')->map(fn ($id) => (int) $id)->all();
+        $offered = array_column($options, 'id');
+
+        if (array_intersect($ids, $this->booking->generalSpecialtyIds()) && in_array('general', $offered, true)) {
+            return 'general';
+        }
+
+        foreach ($ids as $id) {
+            if (in_array((string) $id, $offered, true)) {
+                return (string) $id;
+            }
+        }
+
+        return '';
+    }
+
+    protected function prefillOn(string $token): bool
+    {
+        return $token !== '' && config('whatsapp.flows.patient.prefill') && $this->isV4($token);
+    }
+
+    /**
+     * Doctor, día y hora (R7–R9): sus init_* los declara una versión posterior
+     * del JSON. Con el formulario v5 publicado mandarlos haría que Meta rechace
+     * la pantalla, así que van aparte, con `flows.patient.prefill_schedule`.
+     */
+    protected function prefillScheduleOn(string $token): bool
+    {
+        return $this->prefillOn($token) && config('whatsapp.flows.patient.prefill_schedule');
+    }
+
+    /** Valores iniciales de día/hora, salvo que el paciente rechazó el turno sugerido. */
+    protected function scheduleInitOn(string $token): bool
+    {
+        return $this->prefillScheduleOn($token) && empty(FlowSession::get($token)['declined_suggestion']);
     }
 
     protected function afterData(array $data, string $token = '', ?int $responsible = null): array
@@ -285,12 +406,12 @@ class PatientFlow
         $found = $this->resolver->lookup($ci, $name);
 
         if ($found['status'] === 'invalid') {
-            return $this->screen('PATIENT_DATA', ['relations' => self::RELATIONS], 'Revisá el nombre completo y la cédula.');
+            return $this->patientDataScreen($token, 'Revisá el nombre completo y la cédula.');
         }
 
         // No se dice a nombre de quién está la cédula: sería revelar datos de otra persona.
         if ($found['status'] === 'mismatch') {
-            return $this->screen('PATIENT_DATA', ['relations' => self::RELATIONS], 'Esa cédula figura con otro nombre. Revisala o escribinos por el chat.');
+            return $this->patientDataScreen($token, 'Esa cédula figura con otro nombre. Revisala o escribinos por el chat.');
         }
 
         $known = in_array($found['status'], ['crm', 'smd'], true);
@@ -358,7 +479,7 @@ class PatientFlow
         $fullName = trim((string) ($data['full_name'] ?? ''));
 
         if (! $patientId) {
-            return $this->select($responsible, 'Elegí una opción para continuar.');
+            return $this->select($responsible, 'Elegí una opción para continuar.', $token);
         }
 
         $result = $this->resolver->claimCi($patientId, $responsible, (string) ($data['ci'] ?? ''), $fullName, false);
@@ -671,10 +792,10 @@ class PatientFlow
             return $this->plainSummary($token, 'No encontramos horarios disponibles', 'Tocá Confirmar y una persona de recepción te ayuda a agendar por el chat.');
         }
 
-        return $this->specialtyScreen($specialties);
+        return $this->specialtyScreen($specialties, null, $token);
     }
 
-    protected function specialtyScreen(array $specialties, ?string $error = null): array
+    protected function specialtyScreen(array $specialties, ?string $error = null, string $token = ''): array
     {
         // Las especialidades generales ("General", "Odontología General"…) van
         // como UNA opción, que además sirve a quien no sabe qué necesita.
@@ -691,7 +812,15 @@ class PatientFlow
             }
         }
 
-        return $this->screen('SPECIALTY', ['specialties' => $options], $error);
+        $data = ['specialties' => $options];
+
+        if ($this->prefillOn($token)) {
+            $prefill = FlowPrefill::forToken($token);
+            $init = FlowPrefill::specialty($prefill, $options) ?: $this->specialtyOfPrefilledDoctor($prefill, $options);
+            $data += $this->initValues(['init_specialty' => $init]);
+        }
+
+        return $this->screen('SPECIALTY', $data, $error);
     }
 
     protected function afterSpecialty(string $token, array $data): array
@@ -707,7 +836,7 @@ class PatientFlow
             : array_values(array_filter([(int) $choice], fn ($id) => collect($specialties)->contains('id', $id)));
 
         if (! $ids || ! $this->hasPatient($token)) {
-            return $this->specialtyScreen($specialties, 'Elegí una especialidad.');
+            return $this->specialtyScreen($specialties, 'Elegí una especialidad.', $token);
         }
 
         // Recién acá se consulta SMD: 1 consulta por especialidad elegida (2 si
@@ -743,17 +872,17 @@ class PatientFlow
         }
 
         if ($waiting) {
-            return $this->specialtyScreen($specialties, 'Estamos buscando los horarios. Volvé a tocar el botón de abajo en unos segundos.');
+            return $this->specialtyScreen($specialties, 'Estamos buscando los horarios. Volvé a tocar el botón de abajo en unos segundos.', $token);
         }
 
         if ($failed === count($ids)) {
-            return $this->specialtyScreen($specialties, 'No pudimos traer los horarios ahora. Probá en unos minutos o escribinos por el chat.');
+            return $this->specialtyScreen($specialties, 'No pudimos traer los horarios ahora. Probá en unos minutos o escribinos por el chat.', $token);
         }
 
         // Solo se ofrecen doctores con horarios: uno sin horarios confunde, el
         // aviso en letra chica no se lee.
         if (! $doctors) {
-            return $this->specialtyScreen($specialties, 'No hay horarios libres en los próximos '.$this->booking->days().' días para esa especialidad. Probá con otra o escribinos por el chat.');
+            return $this->specialtyScreen($specialties, 'No hay horarios libres en los próximos '.$this->booking->days().' días para esa especialidad. Probá con otra o escribinos por el chat.', $token);
         }
 
         $label = $choice === 'general' || count($ids) > 1 ? 'General' : $this->name('specialties', $ids[0]);
@@ -777,7 +906,7 @@ class PatientFlow
         // El horario más próximo primero.
         usort($rows, fn ($a, $b) => strcmp($a['first'], $b['first']));
 
-        return $this->screen('DOCTOR', [
+        $doctorOptions = [
             'doctors' => array_map(fn ($d) => [
                 'id'          => (string) $d['id'],
                 'title'       => mb_substr(trim($d['name']), 0, 30),
@@ -785,7 +914,14 @@ class PatientFlow
                 // elegida y después se volvía a preguntar día y hora.
                 'description' => 'Tiene horarios desde el '.$this->dayLabel(explode(' ', $d['first'])[0]),
             ], $rows),
-        ]);
+        ];
+
+        if ($this->prefillScheduleOn($token)) {
+            $doctorId = FlowPrefill::doctorId(FlowPrefill::forToken($token), array_column($rows, 'name', 'id'));
+            $doctorOptions += $this->initValues(['init_doctor' => $doctorId ? (string) $doctorId : '']);
+        }
+
+        return $this->screen('DOCTOR', $doctorOptions);
     }
 
     protected function afterDoctor(string $token, array $data): array
@@ -806,17 +942,180 @@ class PatientFlow
         FlowSession::merge($token, [
             'specialty_id' => (int) $offered[$doctorId],
             'doctor_id'    => $doctorId, 'doctor_slots' => $slots, 'date' => null, 'time' => null,
+            'suggested'    => null, 'declined_suggestion' => false,
         ]);
 
-        return $this->dateScreen($slots);
+        return $this->nextSlotScreen($token, $doctorId, $slots) ?? $this->dateScreen($slots, null, $token);
     }
 
-    protected function dateScreen(array $slots, ?string $error = null): array
+    /*
+    |--------------------------------------------------------------------------
+    | Turno sugerido (después de elegir el doctor)
+    |--------------------------------------------------------------------------
+    | El turno libre más próximo del doctor (o el pedido en el chat, si está
+    | libre) como primera opción ya marcada: "Continuar" va directo al resumen.
+    | "Quiero otra fecha y hora" sigue con la elección normal de día y hora.
+    | Solo con el JSON que tiene la pantalla NEXT_SLOT (v6).
+    */
+    protected function nextSlotScreen(string $token, int $doctorId, array $slots): ?array
+    {
+        if (! $this->prefillScheduleOn($token) || ! $slots) {
+            return null;
+        }
+
+        $prefill = FlowPrefill::forToken($token);
+        $date = FlowPrefill::date($prefill, array_keys($slots), $this->maxDate());
+
+        // Pedido más allá de la lista de días: va a "Otra fecha" con ese día puesto.
+        if ($date === 'other') {
+            return null;
+        }
+
+        $date = $date !== '' ? $date : (string) array_key_first($slots);
+        $times = array_values($slots[$date] ?? []);
+        $time = FlowPrefill::time($prefill, $times) ?: ($times[0] ?? null);
+
+        if (! $time) {
+            return null;
+        }
+
+        FlowSession::merge($token, ['suggested' => ['date' => $date, 'time' => $time]]);
+
+        $asked = ($prefill['date'] ?? null) === $date && ($prefill['time'] ?? null) === $time;
+        $doctor = $this->name('doctors', $doctorId);
+
+        return $this->screen('NEXT_SLOT', [
+            'heading' => ($asked ? 'El turno que pediste con ' : 'El turno más próximo con ').$doctor,
+            'options' => [
+                ['id' => 'accept', 'title' => mb_substr($this->dayLabel($date).' a las '.$time, 0, 30), 'description' => 'Si te sirve, tocá Continuar'],
+                ['id' => 'other', 'title' => 'Quiero otra fecha y hora'],
+            ],
+            'init_choice' => 'accept',
+        ]);
+    }
+
+    /**
+     * Formulario pre-llenado con paciente conocido: hace por el paciente los
+     * pasos ya respondidos en el chat (los mismos métodos, con sus validaciones:
+     * cédula, seguro, agenda real) y abre en el primero que necesita una
+     * decisión. Con todo resuelto y el turno pedido libre, abre en el resumen.
+     * Un tercero nuevo (hay que pedirle nombre y cédula) empieza como siempre.
+     */
+    protected function fastForward(?int $responsible, string $token): ?array
+    {
+        // Meta solo deja abrir en pantallas SIN transiciones de entrada: las
+        // START_* del JSON (v7). Con un JSON anterior, abrir en SUMMARY da
+        // "Unexpected screen", por eso va con su propia opción.
+        if (! $responsible || ! $this->prefillScheduleOn($token) || ! config('whatsapp.flows.patient.fast_forward')) {
+            return null;
+        }
+
+        $prefill = FlowPrefill::forToken($token);
+        $choice = (string) ($this->select($responsible, null, $token)['data']['init_choice'] ?? '');
+
+        if ($choice === '' || $choice === 'other') {
+            return null;
+        }
+
+        // 1. Paciente ("Para mí" o el familiar a cargo). Si falta la cédula se
+        // empieza como siempre: PATIENT_CI no puede ser la primera pantalla.
+        $specialtyScreen = $this->afterSelect($responsible, ['choice' => $choice], $token);
+
+        if (($specialtyScreen['screen'] ?? null) !== 'SPECIALTY') {
+            return null;
+        }
+
+        // 2. Especialidad (la pedida o la del doctor pedido).
+        $specialty = (string) ($specialtyScreen['data']['init_specialty'] ?? '');
+
+        if ($specialty === '') {
+            return $specialtyScreen;
+        }
+
+        $doctorScreen = $this->afterSpecialty($token, ['specialty' => $specialty]);
+
+        if (($doctorScreen['screen'] ?? null) !== 'DOCTOR') {
+            return $doctorScreen; // la especialidad, con el aviso (sin horarios, SMD lento…)
+        }
+
+        // 3. Doctor.
+        $doctor = (string) ($doctorScreen['data']['init_doctor'] ?? '');
+
+        if ($doctor === '') {
+            return $doctorScreen;
+        }
+
+        $nextScreen = $this->afterDoctor($token, ['doctor' => $doctor]);
+
+        // Sin turno sugerido (p.ej. día pedido fuera de la semana: "Otra fecha"),
+        // se abre en el doctor ya marcado: SLOT_DATE no puede ser la primera.
+        if (($nextScreen['screen'] ?? null) !== 'NEXT_SLOT') {
+            return $doctorScreen;
+        }
+
+        // 4. El turno pedido está libre: directo a "Revisá tu cita". Si no
+        // (o no vino hora), "Turno sugerido" con el más cercano.
+        $suggested = (array) (FlowSession::get($token)['suggested'] ?? []);
+
+        if (isset($prefill['date'], $prefill['time'])
+            && ($suggested['date'] ?? null) === $prefill['date'] && ($suggested['time'] ?? null) === $prefill['time']) {
+            FlowSession::merge($token, ['date' => $prefill['date'], 'time' => $prefill['time']]);
+
+            // Meta corta a ~10 s y ya se consultó la agenda: el seguro se espera
+            // poco ("verificando" si no llegó; se confirma igual al agendar).
+            return $this->summaryScreen($token, null, microtime(true) + 1.5);
+        }
+
+        return $nextScreen;
+    }
+
+    /** La pantalla de entrada (START_*) de una respuesta del atajo. */
+    protected function asEntry(array $response): array
+    {
+        if (in_array($response['screen'] ?? null, ['SPECIALTY', 'DOCTOR', 'NEXT_SLOT', 'SUMMARY'], true)) {
+            $response['screen'] = 'START_'.$response['screen'];
+        }
+
+        return $response;
+    }
+
+    protected function afterNextSlot(string $token, array $data): array
+    {
+        $session = FlowSession::get($token);
+        $slots = $this->sessionSlots($session);
+        $suggested = (array) ($session['suggested'] ?? []);
+        $date = (string) ($suggested['date'] ?? '');
+        $time = (string) ($suggested['time'] ?? '');
+
+        // Aceptado y todavía libre en lo consultado: directo al resumen.
+        if (($data['slot_choice'] ?? null) === 'accept' && in_array($time, $slots[$date] ?? [], true)) {
+            FlowSession::merge($token, ['date' => $date, 'time' => $time]);
+
+            return $this->summaryScreen($token);
+        }
+
+        // "Otra fecha y hora": elección normal, sin volver a marcar la sugerencia.
+        FlowSession::merge($token, ['declined_suggestion' => true, 'date' => null, 'time' => null]);
+
+        return $this->dateScreen($slots, null, $token);
+    }
+
+    protected function dateScreen(array $slots, ?string $error = null, string $token = ''): array
     {
         $dates = array_map(fn ($date) => ['id' => $date, 'title' => $this->dayLabel($date)], array_keys($slots));
         $dates[] = ['id' => 'other', 'title' => 'Otra fecha'];
+        $data = ['dates' => $dates];
 
-        return $this->screen('SLOT_DATE', ['dates' => $dates], $error);
+        if ($this->scheduleInitOn($token)) {
+            $data += $this->initValues(['init_date' => FlowPrefill::date(FlowPrefill::forToken($token), array_keys($slots), $this->maxDate())]);
+        }
+
+        return $this->screen('SLOT_DATE', $data, $error);
+    }
+
+    protected function maxDate(): string
+    {
+        return now(config('app.timezone'))->addDays($this->booking->maxDays() - 1)->toDateString();
     }
 
     protected function afterDate(string $token, array $data): array
@@ -826,30 +1125,37 @@ class PatientFlow
         $date = (string) ($data['date'] ?? '');
 
         if ($date === 'other') {
-            return $this->otherDateScreen($session);
+            return $this->otherDateScreen($session, null, $token);
         }
 
         if (! isset($slots[$date])) {
-            return $this->dateScreen($slots, 'Elegí un día de la lista.');
+            return $this->dateScreen($slots, 'Elegí un día de la lista.', $token);
         }
 
         FlowSession::merge($token, ['date' => $date, 'time' => null]);
 
-        return $this->timeScreen($date, $slots[$date]);
+        return $this->timeScreen($date, $slots[$date], null, $token);
     }
 
     /**
      * "Otra fecha": el paciente elige el día y se consulta SMD solo por ese día.
      */
-    protected function otherDateScreen(array $session, ?string $error = null): array
+    protected function otherDateScreen(array $session, ?string $error = null, string $token = ''): array
     {
         $tz = config('app.timezone');
-
-        return $this->screen('OTHER_DATE', [
+        $data = [
             'heading'  => '¿Qué día te queda bien con '.$this->name('doctors', $session['doctor_id'] ?? 0).'?',
             'min_date' => now($tz)->toDateString(),
-            'max_date' => now($tz)->addDays($this->booking->maxDays() - 1)->toDateString(),
-        ], $error);
+            'max_date' => $this->maxDate(),
+        ];
+
+        // El día pedido en el chat, si se puede pedir (entre hoy y el máximo).
+        if ($this->scheduleInitOn($token)) {
+            $wanted = (string) (FlowPrefill::forToken($token)['date'] ?? '');
+            $data += $this->initValues(['init_other_date' => $wanted >= $data['min_date'] && $wanted <= $data['max_date'] ? $wanted : '']);
+        }
+
+        return $this->screen('OTHER_DATE', $data, $error);
     }
 
     protected function afterOtherDate(string $token, array $data): array
@@ -869,7 +1175,7 @@ class PatientFlow
 
         if (! $doctorId || ! $specialtyId || ! $date
             || Carbon::parse($date, $tz)->lt($today) || Carbon::parse($date, $tz)->gt($today->copy()->addDays($this->booking->maxDays() - 1))) {
-            return $this->otherDateScreen($session, 'Elegí un día entre hoy y los próximos '.$this->booking->maxDays().' días.');
+            return $this->otherDateScreen($session, 'Elegí un día entre hoy y los próximos '.$this->booking->maxDays().' días.', $token);
         }
 
         // Ya consultado (está en los horarios de la semana): no se pide de nuevo.
@@ -879,18 +1185,18 @@ class PatientFlow
             $avail = $this->booking->availability($specialtyId, $date, 1, $this->deadline());
 
             if ($avail === null) {
-                return $this->otherDateScreen($session, 'Estamos buscando los horarios de ese día. Volvé a tocar el botón de abajo en unos segundos.');
+                return $this->otherDateScreen($session, 'Estamos buscando los horarios de ese día. Volvé a tocar el botón de abajo en unos segundos.', $token);
             }
 
             if ($avail['failed']) {
-                return $this->otherDateScreen($session, 'No pudimos traer los horarios ahora. Probá en unos minutos o escribinos por el chat.');
+                return $this->otherDateScreen($session, 'No pudimos traer los horarios ahora. Probá en unos minutos o escribinos por el chat.', $token);
             }
 
             $times = $avail['slots'][$doctorId][$date] ?? [];
         }
 
         if (! $times) {
-            return $this->otherDateScreen($session, 'No hay horarios libres el '.$this->dayLabel($date).' con '.$this->name('doctors', $doctorId).'. Elegí otro día.');
+            return $this->otherDateScreen($session, 'No hay horarios libres el '.$this->dayLabel($date).' con '.$this->name('doctors', $doctorId).'. Elegí otro día.', $token);
         }
 
         $slots = $session['doctor_slots'] ?? [];
@@ -899,7 +1205,7 @@ class PatientFlow
 
         FlowSession::merge($token, ['doctor_slots' => $slots, 'date' => $date, 'time' => null]);
 
-        return $this->timeScreen($date, $times);
+        return $this->timeScreen($date, $times, null, $token);
     }
 
     /** Hasta cuándo una pantalla espera la respuesta de SMD (Meta corta a ~10 s). */
@@ -908,12 +1214,18 @@ class PatientFlow
         return microtime(true) + max(0, (float) config('whatsapp.flows.booking.wait_seconds', 7));
     }
 
-    protected function timeScreen(string $date, array $times, ?string $error = null): array
+    protected function timeScreen(string $date, array $times, ?string $error = null, string $token = ''): array
     {
-        return $this->screen('SLOT_TIME', [
+        $data = [
             'heading' => 'Horarios del '.$this->dayLabel($date),
             'times'   => array_map(fn ($t) => ['id' => $t, 'title' => $t], $times),
-        ], $error);
+        ];
+
+        if ($this->scheduleInitOn($token)) {
+            $data += $this->initValues(['init_time' => FlowPrefill::time(FlowPrefill::forToken($token), array_values($times))]);
+        }
+
+        return $this->screen('SLOT_TIME', $data, $error);
     }
 
     protected function afterTime(string $token, array $data): array
@@ -924,7 +1236,7 @@ class PatientFlow
         $time = (string) ($data['time'] ?? '');
 
         if (! in_array($time, $slots[$date] ?? [], true)) {
-            return $this->timeScreen($date, $slots[$date] ?? [], 'Elegí un horario de la lista.');
+            return $this->timeScreen($date, $slots[$date] ?? [], 'Elegí un horario de la lista.', $token);
         }
 
         FlowSession::merge($token, ['time' => $time]);

@@ -719,9 +719,14 @@ class IncomingAppointmentService
         $externalId = $data['_id'] ?? null;
         $name = trim($data['name'] ?? '');
 
-        // 1. Buscar por unique_id (SMD _id)
+        // 1. Buscar por unique_id (SMD _id). Puede haber más de un doctor con el
+        // mismo id (ficha vieja dada de baja + ficha nueva): gana el activo.
         $doctor = $externalId
-            ? $this->doctorRepository->findOneByField('unique_id', $externalId)
+            ? $this->doctorRepository->getModel()->newQuery()
+                ->where('unique_id', $externalId)
+                ->orderByDesc('is_active')
+                ->orderBy('id')
+                ->first()
             : null;
 
         // 2. Buscar por nombre completo exacto

@@ -120,7 +120,24 @@ class PatientContext
             'seguro_registrado'      => $source ? $this->leadAttribute($source, 'seguro') : null,
             'citas'                  => $citas->all(),
             'cita_activa'            => $activa?->id,
+            'recordatorios'          => $this->recordatorios($conversation),
         ];
+    }
+
+    /**
+     * Recordatorios mandados a este chat de citas que todavía no pasaron, con
+     * lo que contestó el paciente (null = sin respuesta). Un "Sí" suelto que
+     * llega después de uno sin respuesta es la confirmación de esa cita.
+     */
+    protected function recordatorios(Conversation $conversation): array
+    {
+        try {
+            return app(\Webkul\Admin\Services\PatientAppointments::class)->remindersOf((int) $conversation->id);
+        } catch (Throwable $e) {
+            Log::warning('WhatsApp: could not load reminders for the agent', ['conversation_id' => $conversation->id, 'error' => $e->getMessage()]);
+
+            return [];
+        }
     }
 
     /**
@@ -247,6 +264,7 @@ class PatientContext
             'pacientes_a_cargo'      => [],
             'citas'                  => [],
             'cita_activa'            => null,
+            'recordatorios'          => [],
         ];
     }
 

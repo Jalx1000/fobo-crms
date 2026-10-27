@@ -203,8 +203,18 @@ return [
             // Versión 4 (paso a paso: sin "Confirmar" al inicio, "Paso X de 5" y
             // lo elegido en cada pantalla). Encender solo con la v4 publicada.
             'v4'     => (bool) env('WHATSAPP_FLOW_V4', false),
-            'id'     => env('WHATSAPP_FLOW_PATIENT_ID'),
-            'cta'    => env('WHATSAPP_FLOW_PATIENT_CTA', 'Agendar cita'),
+            // Pre-llenado con lo que el paciente dijo en el chat (prefill del
+            // agente). Encender solo con el JSON que declara init_* publicado.
+            'prefill' => (bool) env('WHATSAPP_FLOW_PREFILL', false),
+            // Pre-llenado de doctor, día y hora (R7–R9): encender solo con el
+            // JSON que declara init_doctor/init_date/init_other_date/init_time.
+            'prefill_schedule' => (bool) env('WHATSAPP_FLOW_PREFILL_SCHEDULE', false),
+            // Abrir el formulario ya avanzado (resumen / turno sugerido) cuando el
+            // prefill lo resuelve todo. Encender solo con el JSON que tiene las
+            // pantallas de entrada START_* publicadas.
+            'fast_forward'     => (bool) env('WHATSAPP_FLOW_FAST_FORWARD', false),
+            'id'               => env('WHATSAPP_FLOW_PATIENT_ID'),
+            'cta'              => env('WHATSAPP_FLOW_PATIENT_CTA', 'Agendar cita'),
             // draft = probar el borrador antes de publicarlo; published = producción.
             'mode' => env('WHATSAPP_FLOW_PATIENT_MODE', 'published'),
         ],
