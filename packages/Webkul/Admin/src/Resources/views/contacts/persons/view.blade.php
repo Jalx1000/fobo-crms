@@ -4,11 +4,12 @@
     </x-slot>
 
     <!-- Content -->
-    <div class="flex gap-4 max-lg:flex-wrap">
+    {{-- Celular: de borde a borde, sin el gris entre bloques (como la ficha de la cita). --}}
+    <div class="flex gap-4 max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-0">
         <!-- Left Panel -->
         {!! view_render_event('admin.contact.persons.view.left.before', ['person' => $person]) !!}
 
-        <div class="max-lg:min-w-full max-lg:max-w-full [&>div:last-child]:border-b-0 lg:sticky lg:top-[73px] flex min-w-[394px] max-w-[394px] flex-col self-start rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <div class="max-lg:min-w-full max-lg:max-w-full max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 [&>div:last-child]:border-b-0 lg:sticky lg:top-[73px] flex min-w-[394px] max-w-[394px] flex-col self-start rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
             <!-- Person Information -->
             <div class="flex w-full flex-col gap-2 border-b border-gray-200 p-4 dark:border-gray-800">
                 <!-- Breadcrumbs -->
@@ -32,14 +33,19 @@
 
                 
                 <!-- Title -->
-                <div class="mb-4 flex flex-col gap-0.5">
+                {{-- Celular: el nombre con «←» va primero, antes de las etiquetas. --}}
+                <div class="mb-4 flex flex-col gap-0.5 max-lg:-order-1 max-lg:mb-0">
                     {!! view_render_event('admin.contact.persons.view.title.before', ['person' => $person]) !!}
 
-                    <h3 class="text-lg font-bold dark:text-white">
-                        {{ $person->name }}
-                    </h3>
+                    <div class="flex items-center gap-1">
+                        <x-admin::layouts.volver listado="admin.contacts.persons.index" />
 
-                    <p class="dark:text-white">
+                        <h3 class="text-lg font-bold [overflow-wrap:anywhere] dark:text-white">
+                            {{ $person->name }}
+                        </h3>
+                    </div>
+
+                    <p class="dark:text-white max-lg:pl-9">
                         {{ $person->job_title }}
                     </p>
 
@@ -86,7 +92,7 @@
                 </div>
 
                 {{-- ShareMeData sync status & button --}}
-                <div class="flex items-center gap-2 mt-1">
+                <div class="flex items-center gap-2 mt-1 max-lg:flex-wrap max-lg:gap-y-1">
                     <span class="text-xs font-medium text-gray-500">ShareMeData:</span>
 
                     @if($person->smd_patient_id)
@@ -96,7 +102,7 @@
                             </svg>
                             Sincronizado
                         </span>
-                        <span class="text-xs text-gray-400 font-mono">{{ $person->smd_patient_id }}</span>
+                        <span class="text-xs text-gray-400 font-mono max-lg:[overflow-wrap:anywhere]">{{ $person->smd_patient_id }}</span>
                     @else
                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                             <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -130,7 +136,7 @@
         {!! view_render_event('admin.contact.persons.view.left.after', ['person' => $person]) !!}
 
         <!-- Right Panel -->
-        <div class="flex w-full flex-col gap-4 rounded-lg">
+        <div class="flex w-full min-w-0 flex-col gap-4 rounded-lg max-lg:gap-0 max-lg:[&>*]:!rounded-none">
             {!! view_render_event('admin.contact.persons.view.right.before', ['person' => $person]) !!}
 
             <!-- Stages Navigation -->

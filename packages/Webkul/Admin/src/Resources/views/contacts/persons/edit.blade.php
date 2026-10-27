@@ -12,8 +12,9 @@
         method="PUT"
         enctype="multipart/form-data"
     >
-        <div class="flex flex-col gap-4">
-            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+        {{-- Celular: de borde a borde, sin el gris entre bloques (como la cita). --}}
+        <div class="flex flex-col gap-4 max-lg:gap-0">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                 <div class="flex flex-col gap-2">
                     {!! view_render_event('admin.persons.edit.breadcrumbs.before') !!}
 
@@ -24,8 +25,12 @@
 
                     {!! view_render_event('admin.persons.edit.breadcrumbs.after') !!}
 
-                    <div class="text-xl font-bold dark:text-white">
-                        @lang('admin::app.contacts.persons.edit.title')
+                    <div class="flex items-center gap-1">
+                        <x-admin::layouts.volver listado="admin.contacts.persons.index" />
+
+                        <div class="text-xl font-bold dark:text-white">
+                            @lang('admin::app.contacts.persons.edit.title')
+                        </div>
                     </div>
                 </div>
 
@@ -46,11 +51,12 @@
                 </div>
             </div>
 
-            <div class="flex flex-col gap-4">
+            {{-- El aviso de SMD también de borde a borde; sus clases las reescribe smd-checker, por eso desde acá. --}}
+            <div class="flex flex-col gap-4 max-lg:gap-0 max-lg:[&>#smd-result-banner]:-mx-3 max-lg:[&>#smd-result-banner]:rounded-none max-lg:[&>#smd-result-banner]:border-x-0 max-lg:[&>#smd-result-banner]:px-3">
                 {!! view_render_event('admin.contacts.persons.edit.form_controls.before') !!}
 
                 <!-- Sección 1: Datos del Paciente -->
-                <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
                     <div class="mb-4 flex items-center justify-between">
                         <h4 class="text-base font-bold dark:text-white">Datos del Paciente</h4>
                         {{-- Chip de estado SMD --}}
@@ -100,7 +106,7 @@
                 </div>
 
                 <!-- Sección 2: Datos del Seguro -->
-                <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
                     <div class="flex items-center justify-between mb-4">
                         <h4 class="text-base font-bold dark:text-white">Datos del Seguro</h4>
                         
@@ -131,7 +137,7 @@
                 </div>
 
                 <!-- Sección 3: Equipo de Atención -->
-                <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
                     <h4 class="mb-4 text-base font-bold dark:text-white">Equipo de Atención</h4>
                     
                     <x-admin::attributes

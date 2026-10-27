@@ -543,6 +543,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'Registered',
+                ],
+
                 'title'                    => 'Persons',
                 'create-btn'               => 'Create Person',
                 'create-success'           => 'Person created successfully.',

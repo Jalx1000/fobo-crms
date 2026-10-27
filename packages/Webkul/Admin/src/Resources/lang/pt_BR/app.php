@@ -491,6 +491,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'Cadastrados',
+                ],
+
                 'title'                  => 'Pessoas',
                 'create-btn'             => 'Adicionar Pessoa',
                 'create-success'         => 'Pessoa adicionada com sucesso.',

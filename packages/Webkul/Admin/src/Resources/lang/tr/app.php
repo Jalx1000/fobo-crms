@@ -491,6 +491,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'Kayıtlı',
+                ],
+
                 'title'                  => 'Kişiler',
                 'create-btn'             => 'Kişi Oluştur',
                 'create-success'         => 'Kişi başarıyla oluşturuldu.',

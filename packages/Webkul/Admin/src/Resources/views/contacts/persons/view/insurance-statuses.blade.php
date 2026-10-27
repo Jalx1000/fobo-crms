@@ -28,7 +28,8 @@
     }, $insurances);
 @endphp
 
-<v-person-insurance-statuses :initial='@json($initialSeguros)' />
+{{-- Con etiqueta de cierre: en el HTML de la página un <v-... /> no se cierra solo y se tragaba «Acerca del paciente» y la organización. --}}
+<v-person-insurance-statuses :initial='@json($initialSeguros)'></v-person-insurance-statuses>
 
 @pushOnce('scripts')
     <script type="text/x-template" id="v-person-insurance-statuses-template">

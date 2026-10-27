@@ -491,6 +491,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'المسجلون',
+                ],
+
                 'title'                  => 'الأشخاص',
                 'create-btn'             => 'إنشاء شخص',
                 'create-success'         => 'تم إنشاء الشخص بنجاح.',

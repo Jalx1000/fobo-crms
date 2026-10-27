@@ -491,6 +491,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'Đã đăng ký',
+                ],
+
                 'title'                  => 'Người',
                 'create-btn'             => 'Tạo Người',
                 'create-success'         => 'Người đã được tạo thành công.',

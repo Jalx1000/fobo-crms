@@ -492,6 +492,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'Registrados',
+                ],
+
                 'title'                  => 'Pacientes',
                 'create-btn'             => 'Crear Paciente',
                 'create-success'         => 'Paciente creada con éxito.',

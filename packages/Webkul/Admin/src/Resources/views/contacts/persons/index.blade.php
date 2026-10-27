@@ -3,8 +3,9 @@
         @lang('admin::app.contacts.persons.index.title')
     </x-slot>
 
-    <div class="flex flex-col gap-4">
-        <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+    <div class="flex flex-col gap-4 max-lg:gap-0">
+        {{-- Celular: de borde a borde, sin el gris de alrededor (como Citas). --}}
+        <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
             <div class="flex flex-col gap-2">
                 <x-admin::breadcrumbs name="contacts.persons" />
 
@@ -37,16 +38,21 @@
 
         {!! view_render_event('admin.persons.index.datagrid.before') !!}
 
-        <v-persons>
-            <!-- Datagrid shimmer -->
-            <x-admin::shimmer.datagrid :is-multi-row="true"/>
-        </v-persons>
+        {{-- Celular: buscador y «Filtros» en una banda blanca compacta, de borde a borde. --}}
+        <div class="max-lg:-mx-3 max-lg:[&_.datagrid-toolbar]:gap-2 max-lg:[&_.datagrid-toolbar]:border-t-0 max-lg:[&_.datagrid-toolbar]:px-3 max-lg:[&_.datagrid-toolbar]:py-2 max-lg:[&_.toolbarLeft]:w-full max-lg:[&_.toolbarLeft]:gap-x-2 max-lg:[&_.rounded-t-lg]:rounded-none max-lg:[&_.rounded-t-lg]:border-x-0 max-lg:[&_.table-responsive]:rounded-none max-lg:[&_.table-responsive]:border-x-0 max-lg:[&_.datagrid-filtro-toggle]:hidden">
+            <v-persons>
+                <!-- Datagrid shimmer -->
+                <x-admin::shimmer.datagrid :is-multi-row="true"/>
+            </v-persons>
+        </div>
 
         {!! view_render_event('admin.persons.index.datagrid.after') !!}
     </div>
 
     {{-- Helper compartido para sincronizar el rango de fechas con Tablero y Leads --}}
     @include('admin::components.global-date-range')
+
+    @include('admin::contacts.persons.filtros-movil')
 
     @pushOnce('scripts')
         <script
@@ -55,7 +61,8 @@
         >
           <div>
             <!-- Filtro por rango de fechas de registro (persistente por cookie) -->
-            <div class="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 dark:border-gray-800 dark:bg-gray-900">
+            {{-- Celular: estos controles están en el panel «Filtros» (persons.filtros-movil). --}}
+            <div class="mb-4 flex flex-wrap max-lg:hidden items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 dark:border-gray-800 dark:bg-gray-900">
                 <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Registrados:</span>
 
                 <button
@@ -129,6 +136,11 @@
                 :isMultiRow="true"
                 ref="datagrid"
             >
+                <x-slot:toolbar-left-after>
+                    <!-- Celular: el rango de fechas, en el panel lateral -->
+                    <v-persons-filtros-movil></v-persons-filtros-movil>
+                </x-slot>
+
                 <template #header="{
                     isLoading,
                     available,
@@ -382,6 +394,14 @@
                     };
                 },
 
+                mounted() {
+                    this.$emitter.on('persons:rango-movil', this.aplicarRangoMovil);
+                },
+
+                beforeUnmount() {
+                    this.$emitter.off('persons:rango-movil', this.aplicarRangoMovil);
+                },
+
                 created() {
                     // Reflejar el rango restaurado en la URL ANTES de que el datagrid
                     // haga su primer fetch (su mounted lee window.location).
@@ -434,6 +454,20 @@
                         this.setCookie();
                         this.syncUrl();
                         this.$refs.datagrid.get();
+
+                        this.$emitter.emit('persons:rango-aplicado', this.rango());
+                    },
+
+                    rango() {
+                        return { from: this.dateStart, to: this.dateEnd, quick: this.activeQuick };
+                    },
+
+                    // Lo que elige el panel «Filtros» del celular (persons.filtros-movil).
+                    aplicarRangoMovil({ from, to, quick }) {
+                        this.dateStart = from;
+                        this.dateEnd = to;
+                        this.activeQuick = quick;
+                        this.apply();
                     },
 
                     setQuickRange(days) {

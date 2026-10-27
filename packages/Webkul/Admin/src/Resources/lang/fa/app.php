@@ -491,6 +491,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'ثبت‌شده‌ها',
+                ],
+
                 'title'                  => 'اشخاص',
                 'create-btn'             => 'ایجاد شخص',
                 'create-success'         => 'شخص با موفقیت ایجاد شد.',
