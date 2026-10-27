@@ -97,11 +97,12 @@
                                 {!! view_render_event('admin.components.activities.content.activity.item.details.before') !!}
 
                                 <!-- Activity Details -->
+                                {{-- min-w-0 y corte en cualquier punto: un valor largo sin espacios estiraba la ficha en el celular. --}}
                                 <div
-                                    class="flex w-full justify-between gap-4 rounded-md p-4"
+                                    class="flex w-full min-w-0 justify-between gap-4 rounded-md p-4"
                                     :class="{'bg-gray-100 dark:bg-gray-950': index % 2 != 0 }"
                                 >
-                                    <div class="flex flex-col gap-2">
+                                    <div class="flex min-w-0 flex-col gap-2 [overflow-wrap:anywhere]">
                                         {!! view_render_event('admin.components.activities.content.activity.item.title.before') !!}
 
                                         <!-- Activity Title -->
@@ -113,14 +114,15 @@
                                                 @{{ activity.title }}
 
                                                 <template v-if="activity.type == 'system' && activity.additional">
-                                                    <p class="flex items-center gap-1">
+                                                    {{-- flex-wrap: un valor largo baja de renglón en vez de aplastar al otro. --}}
+                                                    <p class="flex flex-wrap items-center gap-1">
                                                         <span>:</span>
 
-                                                        <span class="break-words">
+                                                        <span class="[overflow-wrap:anywhere]">
                                                             @{{ (activity.additional.old.label ? String(activity.additional.old.label).replaceAll('<br>', ' ') : "@lang('admin::app.components.activities.index.empty')") }}
                                                         </span>
 
-                                                        <span class="break-words">
+                                                        <span class="[overflow-wrap:anywhere]">
                                                             @{{ (activity.additional.new.label ? String(activity.additional.new.label).replaceAll('<br>', ' ') : "@lang('admin::app.components.activities.index.empty')") }}
                                                         </span>
                                                     </p>

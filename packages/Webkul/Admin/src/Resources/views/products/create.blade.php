@@ -11,8 +11,8 @@
         :action="route('admin.products.store')"
         method="POST"
     >
-        <div class="flex flex-col gap-4">
-            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+        <div class="flex flex-col gap-4 max-lg:gap-0">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                 <div class="flex flex-col gap-2">
                     {!! view_render_event('admin.products.create.breadcrumbs.before') !!}
 
@@ -21,8 +21,12 @@
 
                     {!! view_render_event('admin.products.create.breadcrumbs.after') !!}
                     
-                    <div class="text-xl font-bold dark:text-white">
-                        @lang('admin::app.products.create.title')
+                    <div class="flex items-center gap-1">
+                        <x-admin::layouts.volver listado="admin.products.index" />
+
+                        <div class="text-xl font-bold dark:text-white">
+                            @lang('admin::app.products.create.title')
+                        </div>
                     </div>
                 </div>
 
@@ -45,9 +49,10 @@
                 </div>
             </div>
 
-            <div class="flex gap-2.5 max-xl:flex-wrap">
+            {{-- Celular: secciones de borde a borde. min-w-0 en las columnas: sin eso una tabla ancha estira la página entera; así la tabla se desliza dentro de su sección. --}}
+            <div class="flex gap-2.5 max-xl:flex-wrap max-lg:-mx-3 max-lg:gap-2">
                 <!-- Left sub-component -->
-                <div class="flex flex-1 flex-col gap-2 max-xl:flex-auto">
+                <div class="flex min-w-0 flex-1 flex-col gap-2 max-xl:flex-auto max-xl:basis-full max-lg:[&>*]:rounded-none max-lg:[&>*]:border-x-0 max-lg:[&>*]:shadow-none">
                     <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                         <p class="mb-4 text-base font-semibold text-gray-800 dark:text-white">
                             @lang('admin::app.products.create.general')
@@ -67,7 +72,7 @@
                 </div>
 
                 <!-- Right sub-component -->
-                <div class="flex w-[360px] max-w-full flex-col gap-2 max-sm:w-full">
+                <div class="flex w-[360px] min-w-0 max-w-full flex-col gap-2 max-sm:w-full max-lg:[&>*]:rounded-none max-lg:[&>*]:border-x-0">
                     {!! view_render_event('admin.products.create.accordion.before') !!}
 
                     <x-admin::accordion>
