@@ -109,12 +109,13 @@ it('POST verify-insurance-quick valida campos requeridos', function () {
 it('POST verify-insurance-quick devuelve el badge de severidad (contrato del formulario)', function () {
     // El formulario de crear paciente usa `badge` como fuente única de severidad
     // para pintar la alerta (success/warning/danger). Este test blinda ese contrato.
-    \Illuminate\Support\Facades\Http::fake([
-        'n8n.sofopolis.com/*' => \Illuminate\Support\Facades\Http::response([
+    // Nacional Vida lee su padrón de Google Sheets (ya no n8n).
+    $this->mock(\Webkul\Admin\Services\Insurance\GoogleSheetsInsuranceSource::class)
+        ->shouldReceive('lookup')
+        ->andReturn([
             'success' => true,
             'data'    => [['ESTADO' => 'VIGENTE', 'NOMBRE COMPLETO' => 'PACIENTE QUICK']],
-        ], 200),
-    ]);
+        ]);
 
     $nacionalVida = AttributeOption::where('attribute_id', $this->seguroAttr->id)
         ->where('name', 'Nacional Vida')->first()

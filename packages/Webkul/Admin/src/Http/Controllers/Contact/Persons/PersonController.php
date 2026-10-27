@@ -237,6 +237,11 @@ class PersonController extends Controller
                 ? \Carbon\Carbon::parse($p['birthday'])->format('Y-m-d')
                 : null,
             'insurance' => $p['extra']['insurance'][0] ?? null,
+            // Todas: un paciente puede tener varias y el campo Seguro es multiselect.
+            'insurances' => array_values(array_filter(
+                (array) ($p['extra']['insurance'] ?? []),
+                fn ($nombre) => is_string($nombre) && trim($nombre) !== ''
+            )),
         ]);
     }
 

@@ -92,10 +92,10 @@
                             <button
                                 id="smd-autofill-btn"
                                 type="button"
-                                class="hidden rounded-md bg-white px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-inset transition hover:bg-gray-50 focus:outline-none"
+                                class="hidden rounded-md bg-white px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-inset transition hover:bg-gray-50 focus:outline-none max-lg:min-h-[44px] max-lg:text-sm"
                                 onclick="smdAutofill()"
                             >Autocompletar</button>
-                            <button type="button" class="text-xs opacity-60 hover:opacity-100 focus:outline-none" onclick="smdDismiss()" aria-label="Cerrar">
+                            <button type="button" class="text-xs opacity-60 hover:opacity-100 focus:outline-none max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center" onclick="smdDismiss()" aria-label="Cerrar">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
                             </button>
                         </div>
@@ -221,7 +221,7 @@
                         type="button"
                         @click="verify"
                         :disabled="loading"
-                        class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition-colors duration-150 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:opacity-50 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+                        class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border max-lg:min-h-[44px] max-lg:text-sm border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition-colors duration-150 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:opacity-50 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
                     >
                         <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/>
@@ -236,13 +236,14 @@
 
                         /**
                          * seguro_paciente es multiselect: el componente de chips renderiza
-                         * inputs ocultos `seguro_paciente[]`, no un select simple.
-                         * La verificación externa corre contra un solo seguro → el primero.
+                         * inputs ocultos `seguro_paciente[]`. Se verifican TODOS los
+                         * elegidos; el backend devuelve uno por aseguradora (`results`).
                          */
-                        const seguro = document.querySelector('[name="seguro_paciente[]"]')?.value
-                            ?? document.querySelector('[name="seguro_paciente"]')?.value;
+                        const seguros = [...document.querySelectorAll('[name="seguro_paciente[]"]')]
+                            .map((input) => input.value)
+                            .filter(Boolean);
 
-                        if (! ci || ! seguro) {
+                        if (! ci || ! seguros.length) {
                             this.$emitter.emit('add-flash', {
                                 type:    'warning',
                                 message: 'Completa el Carnet de Identidad y el Seguro antes de verificar.',
@@ -256,7 +257,7 @@
                         try {
                             const { data } = await this.$axios.post(this.verifyUrl, {
                                 ci_paciente:     ci,
-                                seguro_paciente: seguro,
+                                seguro_paciente: seguros.length === 1 ? seguros[0] : seguros,
                             });
 
                             this.$emitter.emit('insurance-result', data);

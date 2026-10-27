@@ -119,17 +119,32 @@ class InsuranceController extends Controller
      */
     public function verifyQuick(Request $request): JsonResponse
     {
+        /**
+         * `seguro_paciente` es multiselect: llega un id o la lista de ids elegidos.
+         * Con uno solo se responde como siempre; con varios, un resultado por
+         * aseguradora (`results`) y el veredicto general, igual que en la ficha.
+         */
         $data = $request->validate([
-            'ci_paciente'     => 'required|string|min:3',
-            'seguro_paciente' => 'required|exists:attribute_options,id',
+            'ci_paciente'       => 'required|string|min:3',
+            'seguro_paciente'   => 'required',
+            'seguro_paciente.*' => 'exists:attribute_options,id',
         ]);
 
-        $option = DB::table('attribute_options')->where('id', $data['seguro_paciente'])->first();
-        $seguroName = $option->name ?? '';
+        if (! is_array($data['seguro_paciente'])) {
+            $request->validate(['seguro_paciente' => 'exists:attribute_options,id']);
+        }
 
-        $result = $this->insuranceService->verifyWithParams($data['ci_paciente'], $seguroName);
+        $options = DB::table('attribute_options')
+            ->whereIn('id', (array) $data['seguro_paciente'])
+            ->get(['id', 'name']);
 
-        return response()->json($result);
+        $results = $options->map(fn ($option) => $this->insuranceService->verifyWithParams($data['ci_paciente'], $option->name ?? '')
+            + ['seguro_id' => $option->id, 'seguro_name' => $option->name]
+        )->values()->all();
+
+        return response()->json(count($results) === 1
+            ? $results[0]
+            : $this->insuranceService->summarizeResults($results));
     }
 
     /**

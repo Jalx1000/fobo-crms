@@ -108,6 +108,55 @@
                 remove(opt) {
                     this.selectedIds = this.selectedIds.filter((id) => id !== String(opt.id));
                 },
+                /**
+                 * Agrega opciones por nombre desde fuera de Vue (autocompletar de SMD):
+                 * window.emitter.emit('multiselect:agregar', { name, nombres, listo }).
+                 * Sin tildes ni mayúsculas («Membresía Odontoking» = «Membresia
+                 * Odontoking»); si no hay igual exacto, una que contenga a la otra.
+                 * `listo(agregados, noEncontrados)` corre con el DOM ya actualizado.
+                 */
+                agregarPorNombre({ name, nombres = [], listo }) {
+                    if (name !== this.name) {
+                        return;
+                    }
+
+                    const normalizar = (texto) => (texto || '')
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .toLowerCase()
+                        .replace(/\s+/g, ' ')
+                        .trim();
+
+                    const agregados = [];
+                    const noEncontrados = [];
+
+                    nombres.forEach((nombre) => {
+                        const buscado = normalizar(nombre);
+
+                        const opcion = this.options.find((o) => normalizar(o.name) === buscado)
+                            ?? this.options.find((o) => {
+                                const actual = normalizar(o.name);
+
+                                return buscado.length >= 4 && actual.length >= 4
+                                    && (actual.includes(buscado) || buscado.includes(actual));
+                            });
+
+                        if (! opcion) {
+                            noEncontrados.push(nombre);
+
+                            return;
+                        }
+
+                        if (! this.selectedIds.includes(String(opcion.id))) {
+                            this.selectedIds.push(String(opcion.id));
+                        }
+
+                        agregados.push(opcion.name);
+                    });
+
+                    this.$nextTick(() => listo?.(agregados, noEncontrados));
+                },
+
                 onClickOutside(e) {
                     if (this.$refs.root && ! this.$refs.root.contains(e.target)) {
                         this.open = false;
@@ -117,10 +166,14 @@
 
             mounted() {
                 window.addEventListener('click', this.onClickOutside);
+
+                this.$emitter.on('multiselect:agregar', this.agregarPorNombre);
             },
 
             beforeUnmount() {
                 window.removeEventListener('click', this.onClickOutside);
+
+                this.$emitter.off('multiselect:agregar', this.agregarPorNombre);
             },
         });
     </script>

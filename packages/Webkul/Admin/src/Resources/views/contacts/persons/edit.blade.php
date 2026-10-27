@@ -97,8 +97,8 @@
                             </div>
                         </div>
                         <div class="flex shrink-0 items-center gap-2">
-                            <button id="smd-autofill-btn" type="button" class="hidden rounded-md bg-white px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-inset transition hover:bg-gray-50 focus:outline-none" onclick="smdAutofill()">Actualizar campos</button>
-                            <button type="button" class="text-xs opacity-60 hover:opacity-100 focus:outline-none" onclick="smdDismiss()" aria-label="Cerrar">
+                            <button id="smd-autofill-btn" type="button" class="hidden rounded-md bg-white px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-inset transition hover:bg-gray-50 focus:outline-none max-lg:min-h-[44px] max-lg:text-sm" onclick="smdAutofill()">Actualizar campos</button>
+                            <button type="button" class="text-xs opacity-60 hover:opacity-100 focus:outline-none max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center" onclick="smdDismiss()" aria-label="Cerrar">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
                             </button>
                         </div>

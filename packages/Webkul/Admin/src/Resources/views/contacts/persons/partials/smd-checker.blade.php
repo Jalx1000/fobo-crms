@@ -13,7 +13,7 @@
     type="button"
     id="smd-verify-btn"
     onclick="smdVerifyManual()"
-    class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors duration-150 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+    class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border max-lg:min-h-[44px] max-lg:text-sm border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors duration-150 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
 >
     <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
         <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/>
@@ -97,7 +97,7 @@
             if (patient.phone)     parts.push('Tel: ' + patient.phone);
             if (patient.ci)        parts.push('CI: ' + patient.ci);
             if (patient.birthday)  parts.push('Nac: ' + patient.birthday);
-            if (patient.insurance) parts.push(patient.insurance);
+            seguros(patient).forEach((seguro) => parts.push(seguro));
             bannerDetail.textContent = parts.join('  ·  ');
 
             autofillBtn.classList.remove('hidden');
@@ -142,24 +142,13 @@
                 showChip('found');
                 showBanner('found', data);
 
-                // Toast de éxito via emitter Vue si está disponible
-                if (window.__vueApp?._context?.app?.$emitter) {
-                    window.__vueApp._context.app.$emitter.emit('add-flash', {
-                        type:    'success',
-                        message: 'Paciente encontrado en SMD. Revisá los datos y hacé click en "' + (MODE === 'edit' ? 'Actualizar campos' : 'Autocompletar') + '".',
-                    });
-                }
+                flash('success', 'Paciente encontrado en SMD. Revisá los datos y hacé click en "' + (MODE === 'edit' ? 'Actualizar campos' : 'Autocompletar') + '".');
             } else {
                 smdData = null;
                 showChip('notfound');
                 showBanner('notfound', null);
 
-                if (window.__vueApp?._context?.app?.$emitter) {
-                    window.__vueApp._context.app.$emitter.emit('add-flash', {
-                        type:    'warning',
-                        message: 'Paciente no encontrado en SMD. Se creará al guardar.',
-                    });
-                }
+                flash('warning', 'Paciente no encontrado en SMD. Se creará al guardar.');
             }
         } catch (e) {
             resolveEls();
@@ -225,30 +214,35 @@
                 filled.push('Edad');
             }
         }
-        // Seguro: se mapea el nombre de aseguradora de SMD a la opción del select.
-        if (smdData.insurance && setSelectByText('[name="seguro_paciente"]', smdData.insurance)) {
-            filled.push('Seguro');
-        }
-
         autofillBtn.textContent = '✓ ' + (MODE === 'edit' ? 'Actualizado' : 'Aplicado');
         autofillBtn.disabled    = true;
 
-        if (filled.length && window.__vueApp?._context?.app?.$emitter) {
-            window.__vueApp._context.app.$emitter.emit('add-flash', {
-                type:    'success',
-                message: 'Campos actualizados: ' + filled.join(', ') + '.',
-            });
-        }
+        /**
+         * Seguro: el campo es el multiselect de chips (v-multiselect-chips), no un
+         * <select>; se le agregan TODAS las aseguradoras de SMD por nombre. Recién
+         * con los chips puestos se avisa y se verifica, para que «Estado de
+         * seguro» se rellene solo con la cobertura de todas.
+         */
+        agregarSeguros(seguros(smdData), (agregados, noEncontrados) => {
+            if (agregados.length) {
+                filled.push(agregados.length > 1 ? 'Seguros' : 'Seguro');
+            }
 
-        // Estado de seguro: dispara la verificación automáticamente si hay CI y Seguro,
-        // para que el estado se rellene solo (lo expone el componente de verificación).
-        const ciVal     = document.querySelector('[name="ci_paciente"]')?.value?.trim();
-        // Multiselect: el componente de chips expone `seguro_paciente[]`.
-        const seguroVal = document.querySelector('[name="seguro_paciente[]"]')?.value
-            ?? document.querySelector('[name="seguro_paciente"]')?.value;
-        if (ciVal && seguroVal && typeof window.__odkVerifyInsurance === 'function') {
-            window.__odkVerifyInsurance();
-        }
+            if (filled.length) {
+                flash('success', 'Campos actualizados: ' + filled.join(', ') + '.');
+            }
+
+            if (noEncontrados.length) {
+                flash('warning', 'SMD indica ' + noEncontrados.join(', ') + ', que no está entre las opciones de Seguro: elegilo a mano.');
+            }
+
+            const ciVal = document.querySelector('[name="ci_paciente"]')?.value?.trim();
+            const conSeguro = document.querySelector('[name="seguro_paciente[]"]');
+
+            if (ciVal && conSeguro && typeof window.__odkVerifyInsurance === 'function') {
+                window.__odkVerifyInsurance();
+            }
+        });
 
         setTimeout(() => {
             autofillBtn.textContent = MODE === 'edit' ? 'Actualizar campos' : 'Autocompletar';
@@ -277,18 +271,39 @@
         el.dispatchEvent(new Event('blur',   { bubbles: true }));
     }
 
-    // Setea un <select> buscando la opción por texto (case-insensitive).
-    function setSelectByText(selector, text) {
-        const el = document.querySelector(selector);
-        if (! el || el.tagName !== 'SELECT') return false;
-        const norm   = (t) => (t || '').trim().toLowerCase();
-        const option = [...el.options].find((o) => norm(o.textContent) === norm(text));
-        if (! option) return false;
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
-        setter.call(el, option.value);
-        el.dispatchEvent(new Event('input',  { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
+    // Aseguradoras de SMD: la lista completa (`insurances`) o, de una respuesta vieja, la única.
+    function seguros(patient) {
+        if (Array.isArray(patient?.insurances) && patient.insurances.length) return patient.insurances;
+
+        return patient?.insurance ? [patient.insurance] : [];
+    }
+
+    // Las agrega como chips en el multiselect `seguro_paciente` (ver multiselect.blade.php).
+    function agregarSeguros(nombres, listo) {
+        if (! nombres.length || ! window.emitter) {
+            listo([], []);
+
+            return;
+        }
+
+        // Si el formulario no tiene el campo, nadie responde: igual se avisa lo demás.
+        let respondio = false;
+
+        window.emitter.emit('multiselect:agregar', {
+            name: 'seguro_paciente',
+            nombres,
+            listo: (agregados, noEncontrados) => {
+                respondio = true;
+                listo(agregados, noEncontrados);
+            },
+        });
+
+        setTimeout(() => respondio || listo([], nombres), 500);
+    }
+
+    // Aviso flotante del admin (window.emitter lo expone plugins/emitter.js).
+    function flash(type, message) {
+        window.emitter?.emit('add-flash', { type, message });
     }
 
     // Calcula la edad (años cumplidos) a partir de una fecha de nacimiento (YYYY-MM-DD).

@@ -216,6 +216,15 @@ class InsuranceService
     }
 
     /**
+     * Veredicto general de varios resultados por aseguradora (formulario de
+     * crear paciente, donde todavía no hay ficha que persistir).
+     */
+    public function summarizeResults(array $results): array
+    {
+        return $this->summarize($results);
+    }
+
+    /**
      * Clave de caché de UNA aseguradora de un paciente.
      *
      * Es por-seguro (no por el CSV completo) para que agregar un seguro nuevo no
