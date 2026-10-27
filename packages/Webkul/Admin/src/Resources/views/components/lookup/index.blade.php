@@ -89,6 +89,14 @@
                         @click="selectItem(item)"
                     >
                         @{{ item.name }}
+
+                        <!-- Para distinguir homónimos cuando el backend busca también por CI/teléfono -->
+                        <span
+                            v-if="serverFiltered && itemDetail(item)"
+                            class="block text-xs text-gray-500 dark:text-gray-400"
+                        >
+                            @{{ itemDetail(item) }}
+                        </span>
                     </li>
 
                     <template v-if="filteredResults.length === 0">
@@ -156,6 +164,16 @@
                     default: false,
                 },
 
+                /**
+                 * El backend ya filtra (ej. pacientes por nombre, CI o teléfono):
+                 * no volver a filtrar por nombre en el navegador, que descartaría
+                 * los que coincidieron por CI o teléfono.
+                 */
+                serverFiltered: {
+                    type: Boolean,
+                    default: false,
+                },
+
                 preload: {
                     type: Boolean,
                     default: false,
@@ -209,6 +227,10 @@
                  * @return {Array}
                  */
                 filteredResults() {
+                    if (this.serverFiltered) {
+                        return this.searchedResults;
+                    }
+
                     return this.searchedResults.filter(item =>
                         item.name.toLowerCase().includes(this.searchTerm.toLowerCase())
                     );
@@ -216,6 +238,21 @@
             },
 
             methods: {
+                /**
+                 * CI y primer teléfono del resultado, si los trae (PersonResource).
+                 *
+                 * @param {Object} item
+                 *
+                 * @return {String}
+                 */
+                itemDetail(item) {
+                    const phone = Array.isArray(item.contact_numbers) ? item.contact_numbers[0]?.value : null;
+
+                    return [item.ci_paciente ? 'CI ' + item.ci_paciente : null, phone]
+                        .filter(Boolean)
+                        .join(' · ');
+                },
+
                 /**
                  * Toggle the popup.
                  *
