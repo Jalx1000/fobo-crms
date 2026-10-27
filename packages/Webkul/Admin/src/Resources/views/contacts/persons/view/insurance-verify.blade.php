@@ -251,6 +251,10 @@
             },
 
             mounted() {
+                // El bloque «Cobertura» de la ficha usa este mismo flujo (modales incluidos).
+                this.$emitter.on('cobertura:verificar', () => this.initVerification());
+                this.$emitter.on('cobertura:editar', () => this.openCapture());
+
                 // Escuchar cambios en atributos globales para validación en tiempo real
                 this.$emitter.on('attribute-updated', (data) => {
                     if (data.name === 'seguro_paciente') {
@@ -435,7 +439,8 @@
                             });
 
                             this.$refs.insuranceModal.close();
-                            this.showResults(res.data);
+                            // El CI pudo cambiar en la captura: «Cobertura» lo muestra.
+                            this.showResults({ ...res.data, ci: this.formData.ci_paciente });
                             this.$emitter.emit('refresh-activities');
                         })
                         .catch(err => {

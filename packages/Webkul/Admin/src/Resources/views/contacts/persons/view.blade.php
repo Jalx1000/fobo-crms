@@ -118,7 +118,7 @@
                         person-id="{{ $person->id }}"
                         :initial-smd-id="{{ json_encode($person->smd_patient_id) }}"
                         sync-url="{{ route('admin.contacts.persons.sync_smd', $person->id) }}"
-                    />
+                    ></v-smd-sync>
                 </div>
 
             </div>
@@ -177,7 +177,8 @@
         </div>
     </div>
     @push('scripts')
-    <script>
+    {{-- type="module": como los demás componentes, corre cuando `app` ya existe (con <script> clásico fallaba «app.component is not a function» y el botón no aparecía). --}}
+    <script type="module">
     app.component('v-smd-sync', {
         props: ['personId', 'initialSmdId', 'syncUrl'],
         data() {
