@@ -204,3 +204,74 @@ it('crear y editar paciente muestran la comparación con SMD en vez de pisar los
         ->toContain('deshacerCambios')
         ->toContain("this.\$emitter.on('smd:encontrados', this.recibir);");
 });
+
+/**
+ * Fase C: con la cédula se consulta contra TODAS las aseguradoras (solo
+ * lectura) y el formulario ofrece «Agregar» las que tienen al paciente.
+ */
+function fingirAseguradoras(array $estados): void
+{
+    $drivers = [
+        'alianza'   => \Webkul\Admin\Services\Insurance\Drivers\AlianzaDriver::class,
+        'nacional'  => \Webkul\Admin\Services\Insurance\Drivers\NacionalVidaDriver::class,
+        'membresia' => \Webkul\Admin\Services\Insurance\Drivers\OdontokingMembershipDriver::class,
+    ];
+
+    foreach ($drivers as $clave => $clase) {
+        $status = $estados[$clave] ?? 'NO_REGISTRADO';
+
+        test()->mock($clase)->shouldReceive('verify')->andReturn([
+            'status'  => $status,
+            'badge'   => $status === 'VIGENTE' ? 'success' : 'warning',
+            'message' => "Resultado {$clave}",
+            'success' => $status !== 'INDETERMINADO',
+            'data'    => ['NOMBRE' => 'NO DEBE SALIR'],
+        ]);
+    }
+}
+
+it('verify-insurance-ci consulta todas las aseguradoras y dice qué opciones son el mismo seguro', function () {
+    $alianza = opcionSeguro($this->seguroAttr, 'Alianza');
+    $nacional = opcionSeguro($this->seguroAttr, 'Nacional Vida');
+    $membresia = opcionSeguro($this->seguroAttr, 'Membresia Odontoking');
+    $conTilde = opcionSeguro($this->seguroAttr, 'Membresía Odontoking');
+
+    fingirAseguradoras(['nacional' => 'VIGENTE', 'membresia' => 'INDETERMINADO']);
+
+    $respuesta = actingAs($this->admin, 'user')
+        ->postJson(route('admin.contacts.persons.verify_insurance_ci'), [
+            // Cédula única: no reusar respuestas en caché de otras corridas.
+            'ci_paciente' => (string) random_int(10000000, 99999999),
+        ])
+        ->assertOk()
+        ->assertJson(['status' => 'VIGENTE'])
+        ->json();
+
+    $porSeguro = collect($respuesta['results'])->keyBy('status');
+
+    expect($respuesta['results'])->toHaveCount(3)
+        ->and($porSeguro['VIGENTE']['seguro_id'])->toBe($nacional->id)
+        ->and($porSeguro['NO_REGISTRADO']['seguro_id'])->toBe($alianza->id)
+        ->and($porSeguro['INDETERMINADO']['opciones'])->toContain($membresia->id, $conTilde->id)
+        ->and($porSeguro['VIGENTE']['opciones'])->not->toContain($membresia->id)
+        // Los datos crudos de la aseguradora no viajan al formulario.
+        ->and(json_encode($respuesta))->not->toContain('NO DEBE SALIR');
+});
+
+it('verify-insurance-ci pide una cédula válida', function () {
+    actingAs($this->admin, 'user')
+        ->postJson(route('admin.contacts.persons.verify_insurance_ci'), ['ci_paciente' => '12'])
+        ->assertStatus(422);
+});
+
+it('crear y editar paciente muestran las coberturas detectadas con el CI', function () {
+    $person = \Webkul\Contact\Models\Person::query()->latest('id')->first();
+
+    foreach ([route('admin.contacts.persons.create'), route('admin.contacts.persons.edit', $person->id)] as $url) {
+        actingAs($this->admin, 'user')
+            ->get($url)
+            ->assertOk()
+            ->assertSee('<v-seguros-detectados verify-url="'.route('admin.contacts.persons.verify_insurance_ci').'"></v-seguros-detectados>', false)
+            ->assertSee('id="v-seguros-detectados-template"', false);
+    }
+});

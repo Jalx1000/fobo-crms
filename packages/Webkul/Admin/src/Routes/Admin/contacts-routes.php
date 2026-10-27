@@ -34,6 +34,8 @@ Route::prefix('contacts')->group(function () {
 
         Route::post('verify-insurance-quick', [InsuranceController::class, 'verifyQuick'])->name('admin.contacts.persons.verify_insurance_quick');
 
+        Route::middleware('throttle:20,1')->post('verify-insurance-ci', [InsuranceController::class, 'verifyCi'])->name('admin.contacts.persons.verify_insurance_ci');
+
         Route::get('insurance-options', [InsuranceController::class, 'insuranceOptions'])->name('admin.contacts.persons.insurance_options');
 
         Route::post('{id}/sync-smd', 'syncSmd')->name('admin.contacts.persons.sync_smd');

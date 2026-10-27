@@ -136,6 +136,8 @@
                         :custom-attributes="$insuranceAttributes"
                         :entity="$person"
                     />
+
+                    @include('admin::contacts.persons.partials.seguros-detectados')
                 </div>
 
                 <!-- Sección 3: Equipo de Atención -->

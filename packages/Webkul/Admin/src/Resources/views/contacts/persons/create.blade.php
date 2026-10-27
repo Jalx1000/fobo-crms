@@ -123,6 +123,8 @@
 
                     <x-admin::attributes :custom-attributes="$insuranceAttributes" />
 
+                    @include('admin::contacts.persons.partials.seguros-detectados')
+
                     {{-- Panel persistente con el resultado de la verificación de seguro --}}
                     <v-insurance-result class="mt-4"></v-insurance-result>
                 </div>

@@ -148,6 +148,36 @@ class InsuranceController extends Controller
     }
 
     /**
+     * Consulta la cédula contra TODAS las aseguradoras con integración, sin
+     * escribir en ninguna ficha (crear y editar paciente): así recepción ve en
+     * qué seguro figura el paciente aunque no lo haya elegido. Cada resultado
+     * lleva `opciones`, las opciones equivalentes del multiselect, para saber
+     * si ese seguro ya está cargado.
+     */
+    public function verifyCi(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ci_paciente' => 'required|string|min:5|max:20',
+        ]);
+
+        $summary = $this->insuranceService->verifyCi(trim($data['ci_paciente']));
+
+        $results = array_map(fn ($result) => [
+            'seguro_id'   => $result['seguro_id'],
+            'seguro_name' => $result['seguro_name'],
+            'status'      => $result['status'],
+            'badge'       => $result['badge'] ?? null,
+            'message'     => $result['message'] ?? null,
+            'opciones'    => $this->insuranceService->equivalentOptionIds($result['seguro_id']),
+        ], $summary['results'] ?? []);
+
+        return response()->json([
+            'status'  => $summary['status'],
+            'results' => $results,
+        ]);
+    }
+
+    /**
      * Devuelve las opciones del atributo seguro_paciente.
      */
     public function insuranceOptions(): JsonResponse

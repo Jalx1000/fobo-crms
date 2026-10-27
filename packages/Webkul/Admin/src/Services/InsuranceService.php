@@ -467,6 +467,29 @@ class InsuranceService
         return array_values($insurers);
     }
 
+    /**
+     * Opciones de `seguro_paciente` que son la misma aseguradora (mismo driver)
+     * que `$optionId`, incluida ella: «Membresia Odontoking» y «Membresía
+     * Odontoking» cuentan como el mismo seguro ya cargado.
+     *
+     * @return array<int, int>
+     */
+    public function equivalentOptionIds(int $optionId): array
+    {
+        $options = $this->attributeRepository->findOneByField('code', 'seguro_paciente')?->options ?? collect();
+        $driver = $this->driverClassFor((string) $options->firstWhere('id', $optionId)?->name);
+
+        if (! $driver) {
+            return [$optionId];
+        }
+
+        return $options
+            ->filter(fn ($option) => $this->driverClassFor((string) $option->name) === $driver)
+            ->map(fn ($option) => (int) $option->id)
+            ->values()
+            ->all();
+    }
+
     protected function ciCacheKey(int $optionId, string $ci): string
     {
         return 'insurance_ci:'.$optionId.':'.md5(strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', $ci)));
