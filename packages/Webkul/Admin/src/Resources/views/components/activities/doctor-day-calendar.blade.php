@@ -2199,24 +2199,18 @@
                 this.newPatient.error = '';
                 try {
                     const payload = { entity_type: 'persons', name: this.newPatient.name.trim() };
-                    if (this.newPatient.phone)           payload.contact_numbers     = [{ label: 'work', value: this.newPatient.phone }];
-                    if (this.newPatient.email)           payload.emails              = [{ label: 'work', value: this.newPatient.email }];
-                    if (this.newPatient.fechaNacimiento) payload.fecha_nacimiento    = this.newPatient.fechaNacimiento;
-                    if (this.newPatient.ci)              payload.ci_paciente         = this.newPatient.ci;
-                    // seguro_paciente es multiselect: siempre se manda como lista.
-                    if (this.newPatient.seguro_id)       payload.seguro_paciente     = [this.newPatient.seguro_id];
-                    if (this.newPatient.insuranceResult?.status) {
-                        payload.estado_seguro_paciente = this.newPatient.insuranceResult.status;
-                    }
+                    if (this.newPatient.phone) payload.contact_numbers = [{ label: 'work', value: this.newPatient.phone }];
+
                     const { data } = await this.$axios.post(this.personStoreUrl, payload);
                     const person = data.data;
                     this.appointmentForm.person = { id: person.id, name: person.name };
-                    if (person.ci_paciente) this.insurance.ci = person.ci_paciente;
-                    if (person.id) {
-                        const syncUrl = this.syncSmdBaseUrl.replace('__ID__', person.id);
-                        this.$axios.post(syncUrl).catch(() => {});
-                    }
+
                     this.closeNewPatientModal();
+
+                    // Volver al modal de cita con el paciente recién creado seleccionado.
+                    this.$nextTick(() => {
+                        if (this.$refs.appointmentModal) this.$refs.appointmentModal.open();
+                    });
                 } catch (e) {
                     this.newPatient.error = e?.response?.data?.message || 'Error al crear el paciente.';
                 } finally {
@@ -2322,18 +2316,15 @@
             onSelectPatient(result) {
                 if (!result?.id && result?.name) {
                     this.newPatient = {
-                        name: result.name, phone: '', email: '',
-                        fechaNacimiento: '', ci: '', seguro_id: null,
-                        insuranceResult: null, insuranceVerifying: false,
-                        smdQuery: result.name, smdResult: null, smdSearching: false,
+                        name: result.name, phone: '',
                         saving: false, error: '',
                     };
-                    this.$nextTick(() => { 
-                        if (this.$refs.newPatientModal) {
-                            // this.closeUnavailableModal();
-                            this.$refs.unavailableModal.close()
-                            this.$refs.newPatientModal.open();
-                        } 
+                    // Intercambiar: cerrar el modal de origen (cita o "no
+                    // disponible") y abrir el de nuevo paciente encima.
+                    this.$nextTick(() => {
+                        if (this.$refs.appointmentModal) this.$refs.appointmentModal.close();
+                        if (this.$refs.unavailableModal) this.$refs.unavailableModal.close();
+                        if (this.$refs.newPatientModal)  this.$refs.newPatientModal.open();
                     });
                     return;
                 }
@@ -2348,14 +2339,6 @@
                     name: result?.name || '',
                     phone: phone,
                 };
-
-                this.insurance.ci = result?.ci_paciente || '';
-                this.insurance.seguro_id = null;
-                this.insurance.result = null;
-
-                if (result?.ci_paciente && this.insurance.seguro_id) {
-                    this.verifyInsurance();
-                }
             },
             onSelectService(result) {
                 this.appointmentForm.product_id = result?.id || null;

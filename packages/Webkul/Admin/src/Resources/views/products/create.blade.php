@@ -125,15 +125,16 @@
                         <div class="flex gap-4">
                             <x-admin::form.control-group class="flex-1">
                                 <x-admin::form.control-group.label>
-                                    {{ __('Sesiones sugeridas (mín)') }}
+                                    {{ __('Sesiones sugeridas (mín)') }} <span class="text-gray-400">({{ __('opcional') }})</span>
                                 </x-admin::form.control-group.label>
 
                                 <x-admin::form.control-group.control
                                     type="number"
                                     name="recommended_sessions_min"
                                     :value="old('recommended_sessions_min', '')"
-                                    min="1"
+                                    min="0"
                                     max="100"
+                                    placeholder="{{ __('Opcional') }}"
                                 />
 
                                 <x-admin::form.control-group.error field-name="recommended_sessions_min" />
@@ -141,15 +142,16 @@
 
                             <x-admin::form.control-group class="flex-1">
                                 <x-admin::form.control-group.label>
-                                    {{ __('Sesiones sugeridas (máx)') }}
+                                    {{ __('Sesiones sugeridas (máx)') }} <span class="text-gray-400">({{ __('opcional') }})</span>
                                 </x-admin::form.control-group.label>
 
                                 <x-admin::form.control-group.control
                                     type="number"
                                     name="recommended_sessions_max"
                                     :value="old('recommended_sessions_max', '')"
-                                    min="1"
+                                    min="0"
                                     max="100"
+                                    placeholder="{{ __('Opcional') }}"
                                 />
 
                                 <x-admin::form.control-group.error field-name="recommended_sessions_max" />

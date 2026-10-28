@@ -60,8 +60,8 @@ class ProductController extends Controller
             'specialty_id'             => ['nullable', 'integer', 'exists:specialties,id'],
             'frequency_text'           => ['nullable', 'string', 'max:1000'],
             'min_interval_days'        => ['nullable', 'integer', 'min:1', 'max:3650'],
-            'recommended_sessions_min' => ['nullable', 'integer', 'min:1', 'max:100'],
-            'recommended_sessions_max' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'recommended_sessions_min' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'recommended_sessions_max' => ['nullable', 'integer', 'min:0', 'max:100'],
         ];
     }
 
