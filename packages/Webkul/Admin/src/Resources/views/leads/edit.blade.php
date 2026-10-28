@@ -104,10 +104,18 @@
                         <div class="w-1/2 max-md:w-full">
                             {!! view_render_event('admin.leads.edit.lead_details.attributes.before', ['lead' => $lead]) !!}
 
+                            @php
+                                // Tessa: ocultar los atributos de seguro del formulario de cita.
+                                $leadExcluded = ['lead_value', 'lead_type_id', 'lead_source_id', 'expected_close_date', 'user_id', 'lead_pipeline_id', 'lead_pipeline_stage_id'];
+                                if (! config('tessa.features.insurance_smd')) {
+                                    $leadExcluded = array_merge($leadExcluded, ['seguro_paciente', 'estado_seguro_paciente']);
+                                }
+                            @endphp
+
                             <!-- Lead Details Title and Description -->
                             <x-admin::attributes
                                 :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
-                                    ['code', 'NOTIN', ['lead_value', 'lead_type_id', 'lead_source_id', 'expected_close_date', 'user_id', 'lead_pipeline_id', 'lead_pipeline_stage_id']],
+                                    ['code', 'NOTIN', $leadExcluded],
                                     'entity_type' => 'leads',
                                     'quick_add'   => 1
                                 ])"
