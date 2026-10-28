@@ -11,5 +11,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         \Webkul\Contact\Models\Organization::class,
         \Webkul\Contact\Models\PersonInsuranceStatus::class,
         \Webkul\Contact\Models\Branch::class,
+        \Webkul\Contact\Models\PatientEvaluation::class,
+        \Webkul\Contact\Models\PatientConsent::class,
     ];
 }

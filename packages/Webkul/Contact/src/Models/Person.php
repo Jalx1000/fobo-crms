@@ -96,6 +96,22 @@ class Person extends Model implements PersonContract
     }
 
     /**
+     * Fichas de evaluación previa de la paciente.
+     */
+    public function evaluations(): HasMany
+    {
+        return $this->hasMany(PatientEvaluationProxy::modelClass(), 'person_id');
+    }
+
+    /**
+     * Consentimientos informados de la paciente.
+     */
+    public function consents(): HasMany
+    {
+        return $this->hasMany(PatientConsentProxy::modelClass(), 'person_id');
+    }
+
+    /**
      * Get the leads for the person.
      */
     public function leads(): HasMany
