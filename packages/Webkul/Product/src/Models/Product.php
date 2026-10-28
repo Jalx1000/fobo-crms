@@ -87,6 +87,14 @@ class Product extends Model implements ProductContract
     }
 
     /**
+     * Zonas / variantes del servicio (cada una con su duración y precio).
+     */
+    public function zones(): HasMany
+    {
+        return $this->hasMany(ServiceZoneProxy::modelClass(), 'product_id');
+    }
+
+    /**
      * Promociones del servicio (con vigencia y, opcionalmente, por sucursal).
      */
     public function promotions(): HasMany

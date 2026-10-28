@@ -21,17 +21,17 @@ class TessaSpecialtiesSeeder extends Seeder
             'depilacion-laser' => [
                 'name'        => 'Depilación láser',
                 'description' => 'Reducción progresiva del vello mediante láser, en todo el cuerpo y rostro.',
-                'skus'        => ['DEPILA-AXILAS', 'DEPILA-BIKINI', 'DEPILA-BOZO', 'DEPILA-ROSTRO', 'DEPILA-MEDIAS-PIERNAS', 'DEPILA-PIERNAS', 'DEPILA-BRAZOS', 'DEPILA-ESPALDA', 'DEPILA-AXILAS-BIKINI'],
+                'skus'        => ['DEPILACION-LASER'],
             ],
             'faciales-rejuvenecimiento' => [
                 'name'        => 'Faciales de rejuvenecimiento',
                 'description' => 'Tratamientos faciales que estimulan colágeno y elastina (HIFU, Dermapen).',
-                'skus'        => ['HIFU-ROSTRO', 'HIFU-ROSTRO-CUELLO', 'DERMAPEN-FACIAL'],
+                'skus'        => ['HIFU', 'DERMAPEN'],
             ],
             'reduccion-grasa-localizada' => [
                 'name'        => 'Reducción de grasa localizada',
                 'description' => 'Tratamientos corporales para grasa localizada y modelado (criolipólisis, ultracavitación, vacuum RF, maderoterapia, masoterapia).',
-                'skus'        => ['CRIO-ZONA', 'CRIO-PAQUETE-15', 'ULTRACAV', 'VACUUM-RF', 'MADERO', 'MASO'],
+                'skus'        => ['CRIOLIPOLISIS', 'ULTRACAVITACION', 'VACUUM-RF', 'MADEROTERAPIA', 'MASOTERAPIA'],
             ],
         ];
 

@@ -489,16 +489,20 @@ class ChatController extends Controller
         $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
 
         $products = ProductProxy::modelClass()::query()
-            ->with('specialty')
+            ->with([
+                'specialty',
+                'zones' => fn ($q) => $q->where('is_active', true)->orderBy('name'),
+            ])
             ->when(trim((string) $request->input('search')), function ($q, $search) {
                 $q->where(fn ($w) => $w->where('name', 'like', "%{$search}%")->orWhere('sku', 'like', "%{$search}%"));
             })
             ->orderBy('name')
-            ->limit(20)
+            ->limit(50)
             ->get();
 
-        // current_price = precio vigente (promo de sucursal > global > base).
-        // Se mantiene `price` (base) para no romper consumidores existentes.
+        // Cada servicio trae sus zonas (variante elegible): la duración y el
+        // precio vigente viven en la zona. current_price = promo vigente
+        // (zona > servicio; sucursal > global) o el precio base.
         $data = $products->map(fn ($p) => [
             'id'               => $p->id,
             'name'             => $p->name,
@@ -507,6 +511,13 @@ class ChatController extends Controller
             'current_price'    => $p->currentPrice($branchId),
             'duration_minutes' => $p->duration_minutes,
             'specialty'        => $p->specialty?->name,
+            'zones'            => $p->zones->map(fn ($z) => [
+                'id'               => $z->id,
+                'name'             => $z->name,
+                'duration_minutes' => $z->duration_minutes,
+                'price'            => $z->price,
+                'current_price'    => $z->currentPrice($branchId),
+            ])->values(),
         ]);
 
         return response()->json(['products' => $data]);

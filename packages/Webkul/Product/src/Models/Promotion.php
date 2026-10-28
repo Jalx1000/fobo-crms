@@ -17,6 +17,7 @@ class Promotion extends Model implements PromotionContract
 
     protected $fillable = [
         'product_id',
+        'service_zone_id',
         'branch_id',
         'name',
         'price',
@@ -42,6 +43,11 @@ class Promotion extends Model implements PromotionContract
     public function branch(): BelongsTo
     {
         return $this->belongsTo(\Webkul\Contact\Models\BranchProxy::modelClass(), 'branch_id');
+    }
+
+    public function serviceZone(): BelongsTo
+    {
+        return $this->belongsTo(ServiceZoneProxy::modelClass(), 'service_zone_id');
     }
 
     /**
