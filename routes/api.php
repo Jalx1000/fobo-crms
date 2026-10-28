@@ -72,6 +72,12 @@ Route::get('/public/products', function (Request $request) {
         }
 
         // Estructura Tessa (servicio → zonas con precio vigente) para el agente.
+        // name/sku/id desde las columnas (los servicios Tessa no usan los
+        // atributos EAV name/sku, por eso attributesToArray() los deja nulos).
+        $data['id']                = $product->id;
+        $data['sku']               = $product->sku;
+        $data['name']              = $product->name;
+        $data['description']       = $product->description;
         $data['specialty']         = $product->specialty?->name;
         $data['categories']        = $product->categories->pluck('name')->values();
         $data['frequency_text']    = $product->frequency_text;
