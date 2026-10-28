@@ -2330,7 +2330,8 @@
                     };
                     this.$nextTick(() => { 
                         if (this.$refs.newPatientModal) {
-                            this.closeUnavailableModal();
+                            // this.closeUnavailableModal();
+                            this.$refs.unavailableModal.close()
                             this.$refs.newPatientModal.open();
                         } 
                     });
