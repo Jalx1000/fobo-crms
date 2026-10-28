@@ -2153,6 +2153,9 @@
             closeNewPatientModal() {
                 if (this.$refs.newPatientModal) this.$refs.newPatientModal.close();
             },
+            closeUnavailableModal() {
+                if (this.$refs.unavailableModal) this.$refs.unavailableModal.close();
+            },
             async searchSmd() {
                 if (!this.newPatient.smdQuery.trim()) return;
                 this.newPatient.smdSearching = true;
@@ -2325,7 +2328,12 @@
                         smdQuery: result.name, smdResult: null, smdSearching: false,
                         saving: false, error: '',
                     };
-                    this.$nextTick(() => { if (this.$refs.newPatientModal) this.$refs.newPatientModal.open(); });
+                    this.$nextTick(() => { 
+                        if (this.$refs.newPatientModal) {
+                            this.closeUnavailableModal();
+                            this.$refs.newPatientModal.open();
+                        } 
+                    });
                     return;
                 }
 
