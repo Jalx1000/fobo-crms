@@ -491,6 +491,7 @@ class ChatController extends Controller
         $products = ProductProxy::modelClass()::query()
             ->with([
                 'specialty',
+                'categories',
                 'zones' => fn ($q) => $q->where('is_active', true)->orderBy('name'),
             ])
             ->when(trim((string) $request->input('search')), function ($q, $search) {
@@ -511,6 +512,7 @@ class ChatController extends Controller
             'current_price'     => $p->currentPrice($branchId),
             'duration_minutes'  => $p->duration_minutes,
             'specialty'         => $p->specialty?->name,
+            'categories'        => $p->categories->pluck('name')->values(),
             // Datos para el agente: de qué trata y cada cuánto se repite.
             'description'       => $p->description,
             'frequency_text'    => $p->frequency_text,

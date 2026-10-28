@@ -102,6 +102,15 @@ class Product extends Model implements ProductContract
     }
 
     /**
+     * Categorías transversales del servicio (Facial / Corporal / Depilación).
+     * Un servicio puede pertenecer a más de una, aparte de su línea (especialidad).
+     */
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(ServiceCategoryProxy::modelClass(), 'product_service_category', 'product_id', 'service_category_id');
+    }
+
+    /**
      * Promociones del servicio (con vigencia y, opcionalmente, por sucursal).
      */
     public function promotions(): HasMany
