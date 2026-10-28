@@ -5,6 +5,7 @@ namespace Webkul\Whatsapp\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\MessageProxy;
@@ -101,6 +102,12 @@ class SendNoShowFollowups extends Command
                     'updated_at'      => now(),
                 ],
             );
+
+            // Marcar la cita como no-show (aditivo: solo si existe la columna).
+            if (Schema::hasColumn('activities', 'status')) {
+                DB::table('activities')->where('id', $appt->id)
+                    ->update(['status' => \Webkul\Activity\Enums\AppointmentStatus::NO_SHOW]);
+            }
 
             $this->line("  ✓ {$appt->person_name} ({$phone})");
             $sent++;

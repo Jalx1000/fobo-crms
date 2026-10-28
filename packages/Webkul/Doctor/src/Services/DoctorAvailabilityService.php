@@ -181,7 +181,7 @@ class DoctorAvailabilityService
      *
      * @return array<int, array{date: string, slots: array}>
      */
-    public function slotsForRange(int $doctorId, Carbon $startDate, int $days, int $durationMinutes = self::SLOT_DURATION_MINUTES, ?bool $consecutive = null): array
+    public function slotsForRange(int $doctorId, Carbon $startDate, int $days, int $durationMinutes = self::SLOT_DURATION_MINUTES, ?bool $consecutive = null, ?string $tz = null): array
     {
         // Tessa: por defecto se agendan citas "seguidas" (pegadas al fin de la
         // cita anterior), no en una grilla fija. Configurable en config/tessa.php.
@@ -195,7 +195,7 @@ class DoctorAvailabilityService
             ->get()
             ->groupBy('date');
 
-        $tz = config('app.timezone', 'UTC');
+        $tz ??= config('app.timezone', 'UTC');
 
         $bookingsQuery = DB::table('activities')
             ->join('doctor_activities', 'activities.id', '=', 'doctor_activities.activity_id')

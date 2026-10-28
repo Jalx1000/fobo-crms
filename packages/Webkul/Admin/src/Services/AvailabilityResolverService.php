@@ -31,20 +31,23 @@ class AvailabilityResolverService
      */
     public function resolve(int $doctorId, Carbon $startDate, int $days, array $opts = []): array
     {
-        $doctor = $this->doctorRepository->with('specialties')->find($doctorId);
+        $doctor = $this->doctorRepository->with(['specialties', 'branch'])->find($doctorId);
         $duration = (int) ($opts['duration_minutes'] ?? 0);
+
+        // Zona horaria de la sucursal del doctor (Asunción ≠ Santa Cruz). Fallback
+        // al default de la app, con lo que para datos sin sucursal nada cambia.
+        $tz = $this->resolveTimezone($doctor);
 
         // Caso 4: integración SMD desactivada globalmente.
         if (! config('smd.validate_availability', true)) {
-            return $this->localResult($doctorId, $startDate, $days, $duration, 'smd_disabled');
+            return $this->localResult($doctorId, $startDate, $days, $duration, 'smd_disabled', $tz);
         }
 
         // Caso 3: doctor sin vínculo con SMD → no se puede consultar el catálogo.
         if (! $doctor || empty($doctor->unique_id)) {
-            return $this->localResult($doctorId, $startDate, $days, $duration, 'doctor_unlinked');
+            return $this->localResult($doctorId, $startDate, $days, $duration, 'doctor_unlinked', $tz);
         }
 
-        $tz = config('app.timezone', 'America/La_Paz');
         $from = $startDate->copy()->startOfDay();
         $to = $startDate->copy()->addDays($days - 1)->endOfDay();
 
@@ -79,10 +82,18 @@ class AvailabilityResolverService
 
         // Caso 2: SMD falló y no obtuvimos NADA → fallback local.
         if ($networkFailure && empty($smdByDay)) {
-            return $this->localResult($doctorId, $startDate, $days, $duration, 'smd_unavailable');
+            return $this->localResult($doctorId, $startDate, $days, $duration, 'smd_unavailable', $tz);
         }
 
-        return $this->scheduleFromSmd($doctorId, $startDate, $days, $smdByDay, $duration);
+        return $this->scheduleFromSmd($doctorId, $startDate, $days, $smdByDay, $duration, $tz);
+    }
+
+    /**
+     * Zona horaria efectiva para un doctor: la de su sucursal, o el default.
+     */
+    protected function resolveTimezone($doctor): string
+    {
+        return $doctor?->branch?->timezone ?: config('app.timezone', 'America/La_Paz');
     }
 
     /**
@@ -120,9 +131,9 @@ class AvailabilityResolverService
      *
      * @param  array<string, array<int, array{0:Carbon,1:Carbon}>>  $smdByDay
      */
-    public function scheduleFromSmd(int $doctorId, Carbon $startDate, int $days, array $smdByDay, int $duration = 0): array
+    public function scheduleFromSmd(int $doctorId, Carbon $startDate, int $days, array $smdByDay, int $duration = 0, ?string $tz = null): array
     {
-        $tz = config('app.timezone', 'America/La_Paz');
+        $tz ??= config('app.timezone', 'America/La_Paz');
         $from = $startDate->copy()->startOfDay();
         $to = $startDate->copy()->addDays($days - 1)->endOfDay();
 
@@ -339,11 +350,11 @@ class AvailabilityResolverService
     /**
      * Resultado degradado a partir de la disponibilidad local.
      */
-    protected function localResult(int $doctorId, Carbon $startDate, int $days, int $duration, string $reason): array
+    protected function localResult(int $doctorId, Carbon $startDate, int $days, int $duration, string $reason, ?string $tz = null): array
     {
         $localDuration = $duration > 0 ? $duration : DoctorAvailabilityService::SLOT_DURATION_MINUTES;
 
-        $local = $this->localAvailability->slotsForRange($doctorId, $startDate->copy(), $days, $localDuration);
+        $local = $this->localAvailability->slotsForRange($doctorId, $startDate->copy(), $days, $localDuration, null, $tz);
 
         $schedule = array_map(function ($day) {
             return [
