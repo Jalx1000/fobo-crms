@@ -3,14 +3,14 @@
 return [
     [
         'key'        => 'doctors',
-        'name'       => 'Doctor',
+        'name'       => 'Interno',
         'route'      => 'admin.doctor.index',
         'sort'       => 5,
         'icon-class' => 'icon-user',
     ],
     [
         'key'        => 'doctors.doctors',
-        'name'       => 'Doctores',
+        'name'       => 'Agendas',
         'route'      => 'admin.doctor.index',
         'sort'       => 1,
         'icon-class' => '',
@@ -24,7 +24,7 @@ return [
     ],
     [
         'key'        => 'doctors.schedules',
-        'name'       => 'Horarios',
+        'name'       => 'Horarios de atención',
         'route'      => 'admin.schedules.index',
         'sort'       => 3,
         'icon-class' => '',
