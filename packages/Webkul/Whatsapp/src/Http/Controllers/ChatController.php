@@ -504,13 +504,21 @@ class ChatController extends Controller
         // precio vigente viven en la zona. current_price = promo vigente
         // (zona > servicio; sucursal > global) o el precio base.
         $data = $products->map(fn ($p) => [
-            'id'               => $p->id,
-            'name'             => $p->name,
-            'sku'              => $p->sku,
-            'price'            => $p->price,
-            'current_price'    => $p->currentPrice($branchId),
-            'duration_minutes' => $p->duration_minutes,
-            'specialty'        => $p->specialty?->name,
+            'id'                => $p->id,
+            'name'              => $p->name,
+            'sku'               => $p->sku,
+            'price'             => $p->price,
+            'current_price'     => $p->currentPrice($branchId),
+            'duration_minutes'  => $p->duration_minutes,
+            'specialty'         => $p->specialty?->name,
+            // Datos para el agente: de qué trata y cada cuánto se repite.
+            'description'       => $p->description,
+            'frequency_text'    => $p->frequency_text,
+            'min_interval_days' => $p->min_interval_days,
+            'recommended_sessions' => array_filter([
+                'min' => $p->recommended_sessions_min,
+                'max' => $p->recommended_sessions_max,
+            ], fn ($v) => $v !== null) ?: null,
             'zones'            => $p->zones->map(fn ($z) => [
                 'id'               => $z->id,
                 'name'             => $z->name,

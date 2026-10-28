@@ -29,13 +29,20 @@ class Product extends Model implements ProductContract
         'sku',
         'specialty_id',
         'description',
+        'frequency_text',
+        'min_interval_days',
+        'recommended_sessions_min',
+        'recommended_sessions_max',
         'quantity',
         'price',
         'duration_minutes',
     ];
 
     protected $casts = [
-        'duration_minutes' => 'integer',
+        'duration_minutes'         => 'integer',
+        'min_interval_days'        => 'integer',
+        'recommended_sessions_min' => 'integer',
+        'recommended_sessions_max' => 'integer',
     ];
 
     /**
