@@ -26,10 +26,11 @@ class Kernel extends ConsoleKernel
         // capturado, por eso va espaciado (antes cada 5 min quemaba recursos).
         // Respeta el flag de pausa (toggle desde la UI). withoutOverlapping: una
         // corrida lenta no debe solaparse con la siguiente.
+        // Tessa no usa ShareMeData: el sync solo corre si la feature está activa.
         $schedule->command('smd:sync-dropbox --days=2')
             ->everyThirtyMinutes()
             ->withoutOverlapping(10)
-            ->when(fn () => ! SmdSyncState::isPaused());
+            ->when(fn () => config('tessa.features.insurance_smd', false) && ! SmdSyncState::isPaused());
     }
 
     /**

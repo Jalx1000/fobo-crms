@@ -45,11 +45,13 @@
                 <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                     <div class="mb-4 flex items-center justify-between">
                         <h4 class="text-base font-bold dark:text-white">Datos del Paciente</h4>
-                        {{-- Botón SMD del partial --}}
-                        @include('admin::contacts.persons.partials.smd-checker', [
-                            'searchUrl' => route('admin.contacts.persons.search_smd'),
-                            'mode'      => 'create',
-                        ])
+                        {{-- Botón SMD del partial (Tessa: oculto, no usa SMD) --}}
+                        @if (config('tessa.features.insurance_smd'))
+                            @include('admin::contacts.persons.partials.smd-checker', [
+                                'searchUrl' => route('admin.contacts.persons.search_smd'),
+                                'mode'      => 'create',
+                            ])
+                        @endif
                     </div>
 
                     @php

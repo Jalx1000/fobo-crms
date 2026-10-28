@@ -26,6 +26,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Features que no aplican a Tessa (se ocultan de la UI)
+    |--------------------------------------------------------------------------
+    | Tessa no maneja seguros ni ShareMeData (SMD). Con este flag en false se
+    | ocultan de la UI los bloques de seguro y SMD (ficha de paciente, alta,
+    | leads, actividades). Reversible: no borra código ni datos.
+    */
+    'features' => [
+        'insurance_smd' => (bool) env('TESSA_INSURANCE_SMD', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Horarios de atención
     |--------------------------------------------------------------------------
     | Indexado por día de la semana de Carbon (0=domingo ... 6=sábado).

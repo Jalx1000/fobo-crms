@@ -74,18 +74,21 @@
                         entity-control-name="person_id"
                     />
 
-                    <!-- Insurance Verification -->
-                    @php
-                        $seguroAttr = app(\Webkul\Attribute\Repositories\AttributeRepository::class)->findOneByField('code', 'seguro_paciente');
-                        $seguroId = $person->getCustomAttributeValue($seguroAttr);
-                        $seguroLabel = app(\Webkul\Attribute\Repositories\AttributeValueRepository::class)->getAttributeLabel($seguroId, $seguroAttr);
-                    @endphp
-                    @include ('admin::contacts.persons.view.insurance-verify', ['currentInsurance' => $seguroLabel])
+                    <!-- Insurance Verification (Tessa: oculto, no usa seguros) -->
+                    @if (config('tessa.features.insurance_smd'))
+                        @php
+                            $seguroAttr = app(\Webkul\Attribute\Repositories\AttributeRepository::class)->findOneByField('code', 'seguro_paciente');
+                            $seguroId = $person->getCustomAttributeValue($seguroAttr);
+                            $seguroLabel = app(\Webkul\Attribute\Repositories\AttributeValueRepository::class)->getAttributeLabel($seguroId, $seguroAttr);
+                        @endphp
+                        @include ('admin::contacts.persons.view.insurance-verify', ['currentInsurance' => $seguroLabel])
+                    @endif
 
                     {!! view_render_event('admin.contact.persons.view.actions.after', ['person' => $person]) !!}
                 </div>
 
-                {{-- ShareMeData sync status & button --}}
+                {{-- ShareMeData sync status & button (Tessa: oculto, no usa SMD) --}}
+                @if (config('tessa.features.insurance_smd'))
                 <div class="flex items-center gap-2 mt-1">
                     <span class="text-xs font-medium text-gray-500">ShareMeData:</span>
 
@@ -114,11 +117,14 @@
                         sync-url="{{ route('admin.contacts.persons.sync_smd', $person->id) }}"
                     />
                 </div>
+                @endif
 
             </div>
 
-            <!-- Estado de cobertura por aseguradora -->
-            @include ('admin::contacts.persons.view.insurance-statuses')
+            <!-- Estado de cobertura por aseguradora (Tessa: oculto) -->
+            @if (config('tessa.features.insurance_smd'))
+                @include ('admin::contacts.persons.view.insurance-statuses')
+            @endif
 
             <!-- Person Attributes -->
             @include ('admin::contacts.persons.view.attributes')
@@ -134,11 +140,17 @@
             {!! view_render_event('admin.contact.persons.view.right.before', ['person' => $person]) !!}
 
             <!-- Stages Navigation -->
-            <x-admin::activities :endpoint="route('admin.contacts.persons.activities.index', $person->id)" :extra-types="[
-                ['name' => 'whatsapp', 'label' => 'WhatsApp'],
-                ['name' => 'historial', 'label' => 'Historial IA'],
-                ['name' => 'smd', 'label' => 'Seguro & SMD'],
-            ]">
+            @php
+                $extraTypes = [
+                    ['name' => 'whatsapp', 'label' => 'WhatsApp'],
+                    ['name' => 'historial', 'label' => 'Historial IA'],
+                ];
+                // Tessa: la pestaña "Seguro & SMD" solo si la feature está activa.
+                if (config('tessa.features.insurance_smd')) {
+                    $extraTypes[] = ['name' => 'smd', 'label' => 'Seguro & SMD'];
+                }
+            @endphp
+            <x-admin::activities :endpoint="route('admin.contacts.persons.activities.index', $person->id)" :extra-types="$extraTypes">
                 {{-- WhatsApp Inbox --}}
                 <x-slot:whatsapp>
                     @include('whatsapp::inbox')
@@ -153,6 +165,7 @@
                 </x-slot>
 
                 {{-- Seguro & SMD --}}
+                @if (config('tessa.features.insurance_smd'))
                 <x-slot:smd>
                     @include('admin::contacts.persons.view.smd-insurance', [
                         'person'             => $person,
@@ -165,6 +178,7 @@
                         'clearCacheUrl'      => route('admin.contacts.persons.clear_insurance_cache', $person->id),
                     ])
                 </x-slot>
+                @endif
             </x-admin::activities>
 
             {!! view_render_event('admin.contact.persons.view.right.after', ['person' => $person]) !!}

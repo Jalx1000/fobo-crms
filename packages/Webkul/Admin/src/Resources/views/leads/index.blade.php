@@ -72,7 +72,7 @@
     {{-- Helper compartido para sincronizar el rango de fechas con Tablero y Pacientes --}}
     @include('admin::components.global-date-range')
 
-    @if (bouncer()->hasPermission('activities'))
+    @if (bouncer()->hasPermission('activities') && config('tessa.features.insurance_smd'))
         @pushOnce('scripts')
             @include('admin::components.smd-sync-control')
         @endPushOnce
