@@ -96,9 +96,14 @@
                     ['name' => 'system', 'label' => trans('admin::app.products.view.change-logs')],
                 ]"
                 :extra-types="[
+                    ['name' => 'zones', 'label' => __('Zonas')],
                     ['name' => 'inventory', 'label' => trans('admin::app.products.view.inventories')],
                 ]"
             >
+                <x-slot:zones>
+                    @include('admin::products.view.zones')
+                </x-slot>
+
                 <x-slot:inventory>
                     @include('admin::products.view.inventory')
                 </x-slot>

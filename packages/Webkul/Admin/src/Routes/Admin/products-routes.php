@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Webkul\Admin\Http\Controllers\Products\ActivityController;
 use Webkul\Admin\Http\Controllers\Products\ProductController;
+use Webkul\Admin\Http\Controllers\Products\ServiceZoneController;
 use Webkul\Admin\Http\Controllers\Products\TagController;
 
 Route::group(['middleware' => ['user']], function () {
@@ -37,6 +38,12 @@ Route::group(['middleware' => ['user']], function () {
             Route::post('', 'attach')->name('admin.products.tags.attach');
 
             Route::delete('', 'detach')->name('admin.products.tags.detach');
+        });
+
+        Route::controller(ServiceZoneController::class)->prefix('{id}/zones')->group(function () {
+            Route::get('', 'index')->name('admin.products.zones.index');
+
+            Route::post('', 'sync')->name('admin.products.zones.sync');
         });
     });
 });
