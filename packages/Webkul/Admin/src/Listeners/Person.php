@@ -44,6 +44,11 @@ class Person
      */
     public function syncToSmd($person): void
     {
+        // Tessa no usa ShareMeData: la sincronización queda desactivada por flag.
+        if (! config('tessa.features.insurance_smd', false)) {
+            return;
+        }
+
         try {
             $person = $person->fresh(); // garantiza atributos post-save cargados
 
@@ -100,6 +105,11 @@ class Person
      */
     public function updateInSmd($person): void
     {
+        // Tessa no usa ShareMeData: la sincronización queda desactivada por flag.
+        if (! config('tessa.features.insurance_smd', false)) {
+            return;
+        }
+
         try {
             $person = $person->fresh(); // garantiza atributos post-save cargados
             $phone = $this->extractPhone($person);
