@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Webkul\Whatsapp\Http\Controllers\Api\AgentController;
+use Webkul\Whatsapp\Http\Controllers\Api\EvalController;
 use Webkul\Whatsapp\Http\Controllers\FlowEndpointController;
 use Webkul\Whatsapp\Http\Controllers\MediaController;
 use Webkul\Whatsapp\Http\Controllers\WebhookController;
@@ -69,4 +70,6 @@ Route::prefix('api/v1/whatsapp')
         Route::post('conversations/{id}/flows', [AgentController::class, 'sendFlow']);
         // Respuesta del paciente al recordatorio: confirma / no asiste.
         Route::post('conversations/{id}/appointments/respond', [AgentController::class, 'respondAppointment']);
+        // Evals (solo fuera de producción): re-siembra contactos y recordatorios.
+        Route::post('eval/seed', [EvalController::class, 'seed']);
     });

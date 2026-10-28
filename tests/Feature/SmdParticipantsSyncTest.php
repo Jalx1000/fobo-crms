@@ -188,7 +188,7 @@ it('un payload sin medico identificable conserva el doctor actual', function () 
 
     $activity = Activity::find($row->activity_id)->fresh();
 
-    expect($activity->title)->toBe('Editado sin medico');
+    expect($activity->comment)->toBe('Editado sin medico');
 
     // El doctor original sigue ahí, y solo él: la cita no se colgó del owner.
     // (No se afirma sobre el estado global de `doctors` porque el doctor basura

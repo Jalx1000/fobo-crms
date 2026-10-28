@@ -31,6 +31,7 @@ class IncomingAppointmentService
         protected ActivityRepository $activityRepository,
         protected TagRepository $tagRepository,
         protected SmdStatusMapper $statusMapper,
+        protected ReceptionistAssigner $receptionistAssigner,
     ) {}
 
     /**
@@ -240,7 +241,11 @@ class IncomingAppointmentService
                     : $activity->participants->pluck('person_id')->filter()->values()->all();
 
                 $this->activityRepository->update([
-                    'title'         => $normalized['summary'] ?: $activity->title,
+                    // El summary de SMD es texto libre ("ssss"): va al comentario.
+                    // El título solo cambia si cambió el paciente.
+                    'title'         => $person && ! in_array($person->id, $activity->participants->pluck('person_id')->all())
+                        ? $this->activityTitle($person->name)
+                        : $activity->title,
                     'comment'       => $normalized['summary'] ?? $activity->comment,
                     // Ya vienen en hora local desde normalizeDropbox().
                     'schedule_from' => $normalized['schedule_from'],
@@ -262,7 +267,7 @@ class IncomingAppointmentService
 
                 $activity = $this->activityRepository->create([
                     'type'          => 'meeting',
-                    'title'         => $normalized['summary'] ?: ($lead->title ?? 'Cita SMD'),
+                    'title'         => $this->activityTitle($person->name ?? $lead?->person?->name),
                     'comment'       => $normalized['summary'] ?? '',
                     'schedule_from' => $normalized['schedule_from'],
                     'schedule_to'   => $normalized['schedule_to'],
@@ -433,7 +438,7 @@ class IncomingAppointmentService
 
             $activity = $this->activityRepository->create([
                 'type'          => 'meeting',
-                'title'         => $data['summary'] ?: ($person->name.' - '.($data['specialty'] ?? 'General')),
+                'title'         => $this->activityTitle($person->name),
                 'comment'       => $data['summary'] ?? '',
                 // Camino compartido: desde Dropbox las horas ya llegan locales
                 // (normalizeDropbox) y esto es un no-op; desde el webhook de SMD
@@ -1058,7 +1063,43 @@ class IncomingAppointmentService
             'person'      => ['id' => $person->id],
         ];
 
+        $sourceId = $this->leadSourceId();
+
+        $leadData['lead_source_id'] = $sourceId;
+        $leadData['lead_type_id'] = config('smd.lead_type_id');
+
+        // Sin recepcionistas activas queda null y LeadRepository aplica su
+        // fallback de siempre.
+        if ($userId = $this->receptionistAssigner->next($sourceId)) {
+            $leadData['user_id'] = $userId;
+        }
+
         return $this->leadRepository->create($leadData);
+    }
+
+    /**
+     * Mismo formato que las citas creadas desde el CRM ("CONSULTA: Juan Pérez -
+     * Consulta"), para que en el calendario no se distinga de dónde vinieron.
+     */
+    private function activityTitle(?string $patientName): string
+    {
+        return 'CONSULTA: '.($patientName ?: 'Paciente').' - Consulta';
+    }
+
+    /**
+     * Origen de los leads de la sync. Se crea la primera vez que hace falta,
+     * igual que las especialidades (fetchOrCreateByName).
+     */
+    private function leadSourceId(): int
+    {
+        $name = config('smd.lead_source');
+
+        return DB::table('lead_sources')->where('name', $name)->value('id')
+            ?? DB::table('lead_sources')->insertGetId([
+                'name'       => $name,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
     }
 
     /**

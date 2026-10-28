@@ -20,6 +20,15 @@ return [
     ],
     'fallback_doctor_id' => env('SMD_FALLBACK_DOCTOR_ID', null),
 
+    // Las citas que entran por la sync no tienen usuario en sesión: se reparten
+    // entre los usuarios activos de este rol (ReceptionistAssigner) y se marcan
+    // con este origen y tipo de lead.
+    'assignment'   => [
+        'role' => env('SMD_ASSIGN_ROLE', 'Recepcionista'),
+    ],
+    'lead_source'  => env('SMD_LEAD_SOURCE', 'ShareMeData'),
+    'lead_type_id' => (int) env('SMD_LEAD_TYPE_ID', 1),
+
     // Camino inverso del stage_map: qué string de `status` mandarle a SMD cuando
     // el CRM edita una cita (PATCH /events/{id}). Es lo que interpreta la sync al
     // volver (SmdStatusMapper). Consulta = vacío. Configurable por env por si SMD

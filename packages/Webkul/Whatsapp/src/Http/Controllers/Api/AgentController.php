@@ -271,8 +271,7 @@ class AgentController extends Controller
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
 
-        $key = config('whatsapp.outbound_gateway');
-        $gateway = $key ? $this->gateways->driver((string) $key) : $this->gateways->for($conversation);
+        $gateway = $this->gateways->outbound($conversation);
 
         if (! $gateway instanceof SupportsFlows) {
             return response()->json(['message' => 'Este canal no soporta formularios de WhatsApp (Flows).'], 422);

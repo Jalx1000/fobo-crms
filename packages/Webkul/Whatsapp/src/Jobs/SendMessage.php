@@ -36,12 +36,8 @@ class SendMessage implements ShouldQueue
 
         try {
             // Explicit override first, then the installation's outbound driver,
-            // and only then the conversation's own gateway.
-            $key = $this->gatewayOverride ?: config('whatsapp.outbound_gateway');
-
-            $gateway = $key
-                ? $gateways->driver((string) $key)
-                : $gateways->for($message->conversation);
+            // and only then the conversation's own gateway (evals: sandbox).
+            $gateway = $gateways->outbound($message->conversation, $this->gatewayOverride);
 
             if ($message->type === 'template') {
                 $result = $gateway->sendTemplate(

@@ -709,6 +709,11 @@ class InsuranceService
             ];
         }
 
+        // Evals del agente: CI de prueba con resultado fijo, sin consultar a nadie.
+        if ($fixture = \Webkul\Whatsapp\Services\EvalSandbox::insuranceStatusFixture($ci, $seguroName)) {
+            return $fixture;
+        }
+
         $driver = $this->resolveDriver($seguroName);
 
         if (! $driver) {

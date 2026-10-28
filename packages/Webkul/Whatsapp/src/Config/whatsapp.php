@@ -83,6 +83,13 @@ return [
             ],
         ]),
 
+        // Pruebas automáticas del agente (evals): guarda los mensajes como
+        // enviados sin mandarlos a nadie. Solo lo usan las conversaciones de
+        // `whatsapp:eval-seed`, y solo mientras whatsapp.eval lo permite.
+        'sandbox' => [
+            'driver' => \Webkul\Whatsapp\Gateways\Sandbox\SandboxGateway::class,
+        ],
+
         'kommo' => [
             'driver'    => \Webkul\Whatsapp\Gateways\Kommo\KommoGateway::class,
             'subdomain' => env('KOMMO_SUBDOMAIN'),
@@ -463,5 +470,44 @@ return [
         'template'     => env('WHATSAPP_DOCTOR_SHIFT_TEXT',
             'Confirmado: la Dr/a. :nombre ingresa a Clínica Odontoking desde las :hora. ¡Gracias!'
         ),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Evals del agente (entorno de pruebas)
+    |--------------------------------------------------------------------------
+    |
+    | `php artisan whatsapp:eval-seed` deja contactos, conversaciones y citas
+    | con recordatorio pendiente para que el equipo del agente corra sus evals
+    | contra el CRM. Los contactos `sandbox` no reciben nada: sus mensajes y
+    | formularios se guardan como enviados sin pasar por Meta. Los CI de
+    | `insurance` devuelven un resultado fijo en /api/v1/insurance/verify.
+    |
+    | Nunca en producción: además de `enabled`, la base de datos no puede ser
+    | `production_database`.
+    |
+    */
+    'eval' => [
+        'enabled'             => env('WHATSAPP_EVAL_ENABLED', false),
+        'production_database' => env('WHATSAPP_EVAL_PRODUCTION_DB', 'odontoking'),
+
+        // Doctor de las citas sembradas (id del CRM). 22 = Susana Urresti.
+        'doctor_id'           => (int) env('WHATSAPP_EVAL_DOCTOR_ID', 22),
+
+        'contacts' => [
+            ['phone' => '59100000001', 'name' => 'Eval Paciente Confirma', 'sandbox' => true],
+            ['phone' => '59100000002', 'name' => 'Eval Paciente No Asiste', 'sandbox' => true],
+            // Número real de pruebas: este sí recibe los mensajes.
+            ['phone' => env('WHATSAPP_EVAL_REAL_PHONE', '59176616013'), 'name' => null, 'sandbox' => false],
+        ],
+
+        // CI de prueba => aseguradora con la que da vigente (null: ninguna).
+        // `match` se busca en el seguro que manda el agente, sin tildes ni mayúsculas.
+        'insurance' => [
+            '0000001' => ['seguro' => 'Nacional Vida', 'match' => 'nacional'],
+            '0000002' => ['seguro' => 'Alianza', 'match' => 'alianza'],
+            '0000003' => ['seguro' => 'Membresía Odontoking', 'match' => 'membres'],
+            '0000004' => null,
+        ],
     ],
 ];

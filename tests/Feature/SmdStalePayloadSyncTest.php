@@ -63,7 +63,7 @@ it('la modificación de hoy gana sobre el archivo de creación de ayer (regresi�
 
     // Día 13: solo existe el archivo de creación.
     $service->run(1, null, \Carbon\Carbon::parse('2026-07-13'));
-    expect(activityFor($id)->title)->toBe('Creado 21 de Jul');
+    expect(activityFor($id)->comment)->toBe('Creado 21 de Jul');
 
     // Día 14: aparece la modificación. El cron recorre hoy + ayer.
     $summary = $service->run(2, null, \Carbon\Carbon::parse('2026-07-14'));
@@ -72,7 +72,7 @@ it('la modificación de hoy gana sobre el archivo de creación de ayer (regresi�
     // Se procesa antes que el nuevo (orden cronológico) y como es idéntico a lo ya
     // aplicado cuenta como sin_cambios; el descarte por updated_at queda de red de
     // seguridad para cuando el orden no ayuda (ver test de orden inverso).
-    expect(activityFor($id)->title)->toBe('Modificado 17 de Jul')
+    expect(activityFor($id)->comment)->toBe('Modificado 17 de Jul')
         ->and(activityFor($id)->schedule_from)->toContain('2026-07-17')
         ->and($summary['actualizados'])->toBe(1)
         ->and($summary['sin_cambios'])->toBe(1);
@@ -102,7 +102,7 @@ it('el archivo viejo no revierte la cita aunque el cron corra muchas veces', fun
         $service->run(2, null, \Carbon\Carbon::parse('2026-07-14'));
     }
 
-    expect(activityFor($id)->title)->toBe('Modificado 17 de Jul');
+    expect(activityFor($id)->comment)->toBe('Modificado 17 de Jul');
 });
 
 it('gana la versión más nueva aunque Dropbox devuelva los archivos en orden inverso', function () {
@@ -131,7 +131,7 @@ it('gana la versión más nueva aunque Dropbox devuelva los archivos en orden in
 
     $summary = app(SmdAppointmentSyncService::class)->run(1, null, \Carbon\Carbon::parse('2026-07-14'));
 
-    expect(activityFor($id)->title)->toBe('Version nueva')
+    expect(activityFor($id)->comment)->toBe('Version nueva')
         ->and($summary['obsoletos'])->toBe(1);
 });
 
@@ -149,7 +149,7 @@ it('procesa los archivos legacy que no traen updated_at ni eventStatus', functio
 
     expect($summary['creados'])->toBe(1)
         ->and($summary['errores'])->toBe(0)
-        ->and(activityFor($id)->title)->toBe('Cita legacy');
+        ->and(activityFor($id)->comment)->toBe('Cita legacy');
 
     // Sin updated_at no hay referencia que guardar, pero la cita se sincroniza igual.
     $row = DB::table('smd_synced_events')->where('external_id', $id)->first();
@@ -200,7 +200,7 @@ it('aplica la edición cuando SMD reescribe el MISMO archivo dentro del mismo mi
     $service = app(SmdAppointmentSyncService::class);
     $service->run(1, null, \Carbon\Carbon::parse('2026-07-27'));
 
-    expect(activityFor($id)->title)->toBe('exodoncia pza 4.6');
+    expect(activityFor($id)->comment)->toBe('exodoncia pza 4.6');
 
     // SMD reescribe la MISMA ruta: cambia el contenido y con él el content_hash.
     $editado = smdEvent($id, [
@@ -220,7 +220,7 @@ it('aplica la edición cuando SMD reescribe el MISMO archivo dentro del mismo mi
 
     expect($summary['actualizados'])->toBe(1)
         ->and($summary['sin_cambios'])->toBe(0)
-        ->and(activityFor($id)->title)->toBe('exodoncia pza 4.6 (cirugia)');
+        ->and(activityFor($id)->comment)->toBe('exodoncia pza 4.6 (cirugia)');
 
     $row = DB::table('smd_synced_events')->where('external_id', $id)->first();
     expect($row->status)->toBe('SURGERY');
@@ -253,7 +253,7 @@ it('una fila sin content_hash (anterior al fix) se rebaja una vez y queda al dí
     $summary = app(SmdAppointmentSyncService::class)->run(1, null, \Carbon\Carbon::parse('2026-07-27'));
 
     expect($summary['creados'])->toBe(1)
-        ->and(activityFor($id)->title)->toBe('Recuperada')
+        ->and(activityFor($id)->comment)->toBe('Recuperada')
         ->and(DB::table('smd_processed_files')->where('path', $file['path_lower'])->value('content_hash'))
         ->toBe('hash-v1');
 });
@@ -269,7 +269,7 @@ it('una cancelación que además edita el título aplica ambas cosas', function 
     app(SmdAppointmentSyncService::class)->run(1, null, \Carbon\Carbon::parse('2026-07-14'));
 
     $row = DB::table('smd_synced_events')->where('external_id', $id)->first();
-    expect(activityFor($id)->title)->toBe('test');
+    expect(activityFor($id)->comment)->toBe('test');
 
     // 2. En SMD se cancela la cita y se le edita el título en el mismo movimiento.
     //    SMD manda un solo archivo con status=CANCELED y el summary nuevo.
@@ -297,7 +297,7 @@ it('una cancelación que además edita el título aplica ambas cosas', function 
         ->and((int) $lead->status)->toBe(0);
 
     // ...y la edición del título NO se pierde.
-    expect(activityFor($id)->title)->toBe('test editado');
+    expect(activityFor($id)->comment)->toBe('test editado');
 
     // El payload guardado refleja la última versión, no la anterior.
     $row = DB::table('smd_synced_events')->where('external_id', $id)->first();

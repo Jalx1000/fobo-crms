@@ -501,3 +501,47 @@ Respuesta `200`:
   (`reprogramar_cita`) o **cancelarla** (`cancelar_cita`). Si eligió una, el formulario hace el
   cambio; el `no_asiste` ya quedó anotado.
 - Si `recordatorios` está vacío, un "Sí" suelto no es una confirmación: leer el `history`.
+
+## 10. Evals del agente (entorno de pruebas)
+
+Para correr evals contra el CRM sin mandar WhatsApp a pacientes ni consultar aseguradoras.
+Solo funciona con `WHATSAPP_EVAL_ENABLED=true` y con el CRM apuntando a una base que **no** sea la de producción
+(`WHATSAPP_EVAL_PRODUCTION_DB`, por defecto `odontoking`). En producción todo esto se apaga solo.
+
+### 10.1 Contactos y recordatorios: `php artisan whatsapp:eval-seed`
+
+Crea (o reutiliza) los contactos de `whatsapp.eval.contacts` y les deja **una cita de mañana con el recordatorio
+enviado y `respuesta: null`**. Imprime la tabla `wa_id → conversation_id → person_id → activity_id → lead_id`.
+
+| wa_id | canal | uso sugerido |
+|---|---|---|
+| `59100000001` | sandbox | "Sí" → `confirma` |
+| `59100000002` | sandbox | "No puedo" → `no_asiste` |
+| `59176616013` | real (número de pruebas) | prueba de punta a punta; los mensajes llegan de verdad |
+
+- **Sandbox**: lo que el agente manda a esas conversaciones (texto, formularios, plantillas) queda como enviado
+  (`wa_message_id` `sandbox-…`) y no sale a Meta. No tienen ventana de 24h.
+- **Re-sembrar**: correr el comando de nuevo borra lo sembrado antes (citas, leads, notas, recordatorios e historial
+  de las conversaciones sandbox) y deja recordatorios pendientes nuevos. Los ids de contacto y conversación no cambian;
+  los de cita (`activity_id`, `lead_id`) sí, así que conviene leerlos de `patient_context.recordatorios`.
+- `--clean`: solo borra lo sembrado.
+- **Por API, antes de cada corrida**: `POST /api/v1/whatsapp/eval/seed` (Bearer) hace lo mismo y devuelve
+  `{"contactos": [{wa_id, conversation_id, person_id, canal, recordatorios: [...]}]}` con los `activity_id` nuevos.
+  `{"clean": true}` solo borra. Fuera del entorno de evals responde 403.
+- Las citas sembradas son solo del CRM (no se crean en SMD): confirmar devuelve `smd.synced: false`.
+- Si el número real tiene otros recordatorios sin contestar, el comando lo avisa: un "Sí" sin `activity_id` va a dar 422.
+
+### 10.2 CI de prueba para `verify_insurance`
+
+Funcionan en los dos endpoints: `POST /api/insurance/verify` (`status: VIGENTE` o `NO_REGISTRADO`) y
+`GET /api/v1/insurance/verify` (`has_insurance`).
+
+| CI | Vigente con |
+|---|---|
+| `0000001` | Nacional Vida |
+| `0000002` | Alianza |
+| `0000003` | Membresía Odontoking |
+| `0000004` | ninguna (no vigente) |
+
+Con cualquier otra aseguradora el CI da `{"has_insurance": false, "patient_found": false}`. La respuesta vigente
+tiene la misma forma que la real, con `policy_number: "EVAL-<CI>"` y `raw: {"eval": true}`. No se consulta a nadie.

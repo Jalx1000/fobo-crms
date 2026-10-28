@@ -6,6 +6,7 @@ use Illuminate\Contracts\Container\Container;
 use InvalidArgumentException;
 use Webkul\Whatsapp\Gateways\Contracts\Gateway;
 use Webkul\Whatsapp\Models\Conversation;
+use Webkul\Whatsapp\Services\EvalSandbox;
 
 /**
  * Resolves the messaging driver. One gateway is active per installation
@@ -53,10 +54,17 @@ class GatewayManager
      * Odontoking takes messages in through Kommo but sends through the Cloud API
      * on the same number. Falls back to the conversation's own gateway (or the
      * active one) when no outbound driver is configured.
+     *
+     * $override fuerza un driver (los recordatorios salen por la Cloud API).
+     * Una conversación de evals (sandbox) gana siempre: nunca sale a Meta.
      */
-    public function outbound(?Conversation $conversation = null): Gateway
+    public function outbound(?Conversation $conversation = null, ?string $override = null): Gateway
     {
-        $key = config('whatsapp.outbound_gateway');
+        if (EvalSandbox::isSandboxed($conversation)) {
+            return $this->driver('sandbox');
+        }
+
+        $key = $override ?: config('whatsapp.outbound_gateway');
 
         if ($key) {
             return $this->driver((string) $key);

@@ -6,6 +6,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Webkul\Whatsapp\Console\Commands\EvalSeed;
 use Webkul\Whatsapp\Console\Commands\FlowsKeys;
 use Webkul\Whatsapp\Console\Commands\FlowsPublish;
 use Webkul\Whatsapp\Console\Commands\KommoCheck;
@@ -51,6 +52,10 @@ class WhatsappServiceProvider extends ServiceProvider
         Route::middleware(['web', 'admin_locale', 'user'])
             ->prefix(config('app.admin_path'))
             ->group(__DIR__.'/../Routes/admin.php');
+
+        // Fuera del bloque de consola: POST /api/v1/whatsapp/eval/seed lo corre
+        // con Artisan::call desde una petición web.
+        $this->commands([EvalSeed::class]);
 
         if ($this->app->runningInConsole()) {
             $this->commands([

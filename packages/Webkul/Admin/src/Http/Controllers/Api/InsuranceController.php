@@ -239,6 +239,12 @@ class InsuranceController extends Controller
 
         $ci = trim($data['ci_paciente']);
         $seguroName = trim($data['seguro_paciente']);
+
+        // Evals del agente: CI de prueba con resultado fijo, sin consultar a nadie.
+        if ($fixture = \Webkul\Whatsapp\Services\EvalSandbox::insuranceFixture($ci, $seguroName)) {
+            return response()->json($fixture);
+        }
+
         $webhookUrl = env('SEGUROS_WEBHOOK_URL', 'https://n8n.sofopolis.com/webhook/seguros-verify');
 
         try {
