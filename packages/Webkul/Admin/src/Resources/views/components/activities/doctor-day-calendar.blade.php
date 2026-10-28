@@ -1363,7 +1363,7 @@
                 <div class="flex flex-col gap-4">
 
                     {{-- Buscar en SMD --}}
-                    <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 flex flex-col gap-2">
+                    <!-- <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 flex flex-col gap-2">
                         <div class="text-xs font-medium text-gray-500 dark:text-gray-400">Buscar paciente en SMD</div>
                         <div class="flex gap-2">
                             <input
@@ -1391,7 +1391,7 @@
                         >
                             @{{ newPatient.smdResult.message }}
                         </div>
-                    </div>
+                    </div> -->
 
                     {{-- Nombre --}}
                     <div class="flex flex-col gap-1">
@@ -1415,7 +1415,7 @@
                                 placeholder="Ej: 0991234567"
                             />
                         </div>
-                        <div class="flex flex-col gap-1">
+                        <!-- <div class="flex flex-col gap-1">
                             <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Email</label>
                             <input
                                 type="email"
@@ -1423,11 +1423,11 @@
                                 v-model="newPatient.email"
                                 placeholder="correo@ejemplo.com"
                             />
-                        </div>
+                        </div> -->
                     </div>
 
                     {{-- Fecha nacimiento + CI --}}
-                    <div class="grid grid-cols-2 gap-3">
+                    <!-- <div class="grid grid-cols-2 gap-3">
                         <div class="flex flex-col gap-1">
                             <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Fecha de nacimiento</label>
                             <input
@@ -1445,10 +1445,10 @@
                                 placeholder="Cédula de identidad"
                             />
                         </div>
-                    </div>
+                    </div> -->
 
                     {{-- Seguro médico --}}
-                    <div class="flex flex-col gap-1">
+                    <!-- <div class="flex flex-col gap-1">
                         <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Seguro médico</label>
                         <select
                             class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
@@ -1457,10 +1457,10 @@
                             <option :value="null">Sin seguro / No seleccionado</option>
                             <option v-for="opt in insuranceOptions" :key="'np-ins-'+opt.id" :value="opt.id">@{{ opt.name }}</option>
                         </select>
-                    </div>
+                    </div> -->
 
                     {{-- Verificar cobertura --}}
-                    <div class="flex items-center gap-3">
+                    <!-- <div class="flex items-center gap-3">
                         <div class="relative group">
                             <button
                                 type="button"
@@ -1485,7 +1485,7 @@
                         >
                             @{{ newPatient.insuranceResult.status }} - @{{ newPatient.insuranceResult.message }}
                         </span>
-                    </div>
+                    </div> -->
 
                     {{-- Error --}}
                     <div v-if="newPatient.error" class="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded px-3 py-2">
