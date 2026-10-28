@@ -177,9 +177,8 @@ GET /whatsapp/products?search=&branch_id=        (auth admin — estructura RICA
 Devuelve por servicio: `name, specialty, categories[], description, frequency_text,
 min_interval_days, zones[]{name, duration_minutes, price, current_price}`.
 
-> ⚠️ **Pendiente CRM (sección 9):** el endpoint público `GET /public/products` hoy
-> **no** expone zonas/precio/frecuencia. Hay que enriquecerlo (o darle al agente un
-> token para `/whatsapp/products`). **Coordinar con el equipo del CRM.**
+> ✅ **Para el agente usá el público `GET /api/public/products`** (sin auth), que ya
+> devuelve la misma estructura (servicio → zonas con `current_price`). Ver sección 9.1.
 
 ### 7.3 Crear la cita
 ```
@@ -233,7 +232,7 @@ POST /api/v1/whatsapp/webhook/{secret}                 (inbound entrante)
 
 | Pendiente | Impacto en el agente | Estado |
 |---|---|---|
-| Enriquecer `GET /public/products` con zonas/precio/frecuencia **o** dar token para `/whatsapp/products` | El agente necesita el catálogo con zonas y `current_price` | **A definir con CRM** |
+| Catálogo del agente con zonas/precio/frecuencia | El agente ofrece zonas y `current_price` | ✅ **Resuelto** — `GET /api/public/products` enriquecido (ver 9.1) |
 | **Precio congelado por paciente** (#4) | El agente informaría el precio ya respetado del tratamiento | Bloqueado (reglas de Tessa) |
 | **Paquetes** criolipólisis (#5) | Vender/consumir paquete (15 zonas, pago completo) | Bloqueado (reglas de Tessa) |
 | **Wiring de estados** confirmed/cancelled/rescheduled (#7) | Cancelar/reprogramar por texto desde el agente | Pendiente CRM |
@@ -241,20 +240,29 @@ POST /api/v1/whatsapp/webhook/{secret}                 (inbound entrante)
 El agente puede arrancar con **agendar + informar** (lo que ya está listo) y sumar
 cancelar/reprogramar/paquetes cuando el CRM cierre #7 y Tessa defina las reglas.
 
-### 9.1 Decisión pendiente — fuente de catálogo para el agente
+### 9.1 Fuente de catálogo para el agente — RESUELTO (Opción A)
 
-El agente Odontoking consume el catálogo por `GET /public/products` (sin auth), pero
-ese endpoint **todavía no expone la estructura nueva de Tessa** (zonas, `current_price`,
-`frequency_text`, `categories`). Hay que resolver **una** de estas dos opciones antes de
-que el agente pueda ofrecer zonas y precios:
+`GET /api/public/products` (sin auth) ya expone la estructura completa de Tessa.
+Por servicio devuelve: `id, sku, name, description, specialty, categories[],
+frequency_text, min_interval_days, duration_minutes` y `zones[]` con
+`{ id, name, duration_minutes, price, current_price }`. Acepta `?q=` (búsqueda),
+`?limit=` y `?branch_id=` (aplica la promo de esa sucursal al `current_price`).
 
-- **Opción A — enriquecer `/public/products`**: agregarle zonas + precio vigente +
-  frecuencia + categorías (misma forma que `/whatsapp/products`). El agente sigue sin auth.
-- **Opción B — dar un token al agente** para que use `/whatsapp/products` (que ya trae
-  todo), protegido por Sanctum.
+`current_price` ya trae la **promo vigente** aplicada (ej.: Axilas base Bs 70 →
+vigente Bs 50 en octubre). Verificado en producción.
 
-> **Estado: a decidir con el equipo del CRM.** No implementado a propósito. Mientras
-> tanto, `/whatsapp/products` es la referencia de la estructura completa (sección 7.2).
+Ejemplo:
+```
+GET https://tessa.sofopolis.com/api/public/products?q=HIFU
+→ { "data": [ { "sku":"HIFU", "specialty":"Faciales de rejuvenecimiento",
+     "min_interval_days":90, "zones":[
+       {"name":"Rostro","duration_minutes":60,"price":"900.0000","current_price":900},
+       {"name":"Rostro y cuello","duration_minutes":90,"price":"1300.0000","current_price":1300}
+     ] } ] }
+```
+
+> `/whatsapp/products` (auth admin) sigue existiendo con la misma estructura; para el
+> agente usá el público `/api/public/products`.
 
 ---
 
