@@ -19,4 +19,18 @@ return [
         'label_column' => 'name',
     ],
 
+    'doctors' => [
+        'name'         => 'Doctores',
+        'repository'   => \Webkul\Doctor\Repositories\DoctorRepository::class,
+        'value_column' => 'id',
+        'label_column' => 'name',
+    ],
+
+    'products' => [
+        'name'         => 'Servicios',
+        'repository'   => \Webkul\Product\Repositories\ProductRepository::class,
+        'value_column' => 'id',
+        'label_column' => 'name',
+    ],
+
 ];
