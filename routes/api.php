@@ -23,7 +23,14 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 });
 
 Route::get('/public/products', function (Request $request) {
-    $query = Product::query()->with('attribute_values');
+    $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
+
+    $query = Product::query()->with([
+        'attribute_values',
+        'specialty',
+        'categories',
+        'zones' => fn ($q) => $q->where('is_active', true)->orderBy('name'),
+    ]);
 
     $search = $request->query('q');
     if ($search) {
@@ -52,7 +59,7 @@ Route::get('/public/products', function (Request $request) {
 
     $valueRepo = app(AttributeValueRepository::class);
 
-    $products = $query->orderBy('created_at', 'desc')->get()->map(function ($product) use ($valueRepo) {
+    $products = $query->orderBy('created_at', 'desc')->get()->map(function ($product) use ($valueRepo, $branchId) {
         $data = $product->attributesToArray();
 
         $data['duration_minutes'] = $product->duration_minutes;
@@ -63,6 +70,19 @@ Route::get('/public/products', function (Request $request) {
                 ? $raw
                 : $valueRepo->getAttributeLabel($raw, $attribute);
         }
+
+        // Estructura Tessa (servicio → zonas con precio vigente) para el agente.
+        $data['specialty']         = $product->specialty?->name;
+        $data['categories']        = $product->categories->pluck('name')->values();
+        $data['frequency_text']    = $product->frequency_text;
+        $data['min_interval_days'] = $product->min_interval_days;
+        $data['zones']             = $product->zones->map(fn ($zone) => [
+            'id'               => $zone->id,
+            'name'             => $zone->name,
+            'duration_minutes' => $zone->duration_minutes,
+            'price'            => $zone->price,
+            'current_price'    => $zone->currentPrice($branchId),
+        ])->values();
 
         return $data;
     });
