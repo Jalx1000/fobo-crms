@@ -199,7 +199,7 @@
                                 <div class="w-full">
                                     <x-admin::form.control-group>
                                         <x-admin::form.control-group.label class="required">
-                                            Doctor
+                                            Sucursal
                                         </x-admin::form.control-group.label>
 
                                         <x-admin::form.control-group.control
@@ -209,7 +209,7 @@
                                             label="Doctor"
                                             :value="old('doctor_id')"
                                         >
-                                            <option value="">Selecciona un doctor</option>
+                                            <option value="">Selecciona un sucursal</option>
                                             @foreach ($doctors as $doctor)
                                                 <option value="{{ $doctor->id }}" {{ old('doctor_id') == $doctor->id ? 'selected' : '' }}>{{ $doctor->name }}</option>
                                             @endforeach
