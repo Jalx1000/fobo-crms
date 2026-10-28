@@ -43,7 +43,26 @@ class ProductController extends Controller
      */
     public function create(): View
     {
-        return view('admin::products.create');
+        $specialties = \Webkul\Doctor\Models\SpecialtyProxy::modelClass()::orderBy('name')->get();
+
+        return view('admin::products.create', compact('specialties'));
+    }
+
+    /**
+     * Reglas de validación de los campos de servicio de Tessa.
+     *
+     * @return array<string, array<int, string>>
+     */
+    protected function serviceRules(): array
+    {
+        return [
+            'duration_minutes'         => ['nullable', 'integer', 'min:1', 'max:480'],
+            'specialty_id'             => ['nullable', 'integer', 'exists:specialties,id'],
+            'frequency_text'           => ['nullable', 'string', 'max:1000'],
+            'min_interval_days'        => ['nullable', 'integer', 'min:1', 'max:3650'],
+            'recommended_sessions_min' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'recommended_sessions_max' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ];
     }
 
     /**
@@ -53,9 +72,7 @@ class ProductController extends Controller
      */
     public function store(AttributeForm $request)
     {
-        $request->validate([
-            'duration_minutes' => ['nullable', 'integer', 'min:1', 'max:480'],
-        ]);
+        $request->validate($this->serviceRules());
 
         $data = $request->all();
 
@@ -105,7 +122,9 @@ class ProductController extends Controller
                 ];
             });
 
-        return view('admin::products.edit', compact('product', 'inventories'));
+        $specialties = \Webkul\Doctor\Models\SpecialtyProxy::modelClass()::orderBy('name')->get();
+
+        return view('admin::products.edit', compact('product', 'inventories', 'specialties'));
     }
 
     /**
@@ -113,9 +132,7 @@ class ProductController extends Controller
      */
     public function update(AttributeForm $request, int $id)
     {
-        $request->validate([
-            'duration_minutes' => ['nullable', 'integer', 'min:1', 'max:480'],
-        ]);
+        $request->validate($this->serviceRules());
 
         Event::dispatch('product.update.before', $id);
 
