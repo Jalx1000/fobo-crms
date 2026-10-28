@@ -52,6 +52,9 @@ class Activity extends Model implements ActivityContract
         'schedule_to',
         'is_done',
         'user_id',
+        'branch_id',
+        'status',
+        'rescheduled_to_activity_id',
     ];
 
     /**

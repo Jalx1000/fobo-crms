@@ -476,7 +476,7 @@ class AppointmentService
 
                 $currentUserId = auth()->guard('user')->id() ?? auth()->id() ?? 1;
 
-                $activity = $this->activityRepository->create([
+                $activityData = [
                     'type'          => 'meeting',
                     'title'         => $title,
                     'comment'       => $data['reason'] ?? '',
@@ -484,7 +484,18 @@ class AppointmentService
                     'schedule_to'   => $scheduleTo->format('Y-m-d H:i:s'),
                     'user_id'       => $currentUserId,
                     'participants'  => ['doctors' => $allDoctorIds, 'persons' => [$person->id]],
-                ]);
+                ];
+
+                // Estado inicial y sucursal de la cita (aditivo: solo si existen
+                // las columnas). La sucursal se hereda de la agenda/recurso.
+                if (\Illuminate\Support\Facades\Schema::hasColumn('activities', 'status')) {
+                    $activityData['status'] = \Webkul\Activity\Enums\AppointmentStatus::SCHEDULED;
+                }
+                if (\Illuminate\Support\Facades\Schema::hasColumn('activities', 'branch_id')) {
+                    $activityData['branch_id'] = $doctor->branch_id ?? null;
+                }
+
+                $activity = $this->activityRepository->create($activityData);
 
                 $activity->leads()->sync([$lead->id]);
 

@@ -485,15 +485,31 @@ class ChatController extends Controller
      */
     public function products(Request $request): JsonResponse
     {
+        // branch_id opcional: aplica la promo de esa sucursal al precio vigente.
+        $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
+
         $products = ProductProxy::modelClass()::query()
+            ->with('specialty')
             ->when(trim((string) $request->input('search')), function ($q, $search) {
                 $q->where(fn ($w) => $w->where('name', 'like', "%{$search}%")->orWhere('sku', 'like', "%{$search}%"));
             })
             ->orderBy('name')
             ->limit(20)
-            ->get(['id', 'name', 'sku', 'price']);
+            ->get();
 
-        return response()->json(['products' => $products]);
+        // current_price = precio vigente (promo de sucursal > global > base).
+        // Se mantiene `price` (base) para no romper consumidores existentes.
+        $data = $products->map(fn ($p) => [
+            'id'               => $p->id,
+            'name'             => $p->name,
+            'sku'              => $p->sku,
+            'price'            => $p->price,
+            'current_price'    => $p->currentPrice($branchId),
+            'duration_minutes' => $p->duration_minutes,
+            'specialty'        => $p->specialty?->name,
+        ]);
+
+        return response()->json(['products' => $data]);
     }
 
     /**
