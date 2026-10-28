@@ -29,7 +29,7 @@
                     <x-admin::table.tbody>
                         <x-admin::table.tbody.tr
                             v-for="(zone, index) in zones"
-                            :key="index"
+                            ::key="index"
                         >
                             <x-admin::table.td class="!px-2">
                                 <input
