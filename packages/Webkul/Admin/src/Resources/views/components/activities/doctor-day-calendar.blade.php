@@ -1362,37 +1362,6 @@
             <x-slot:content>
                 <div class="flex flex-col gap-4">
 
-                    {{-- Buscar en SMD --}}
-                    <!-- <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 flex flex-col gap-2">
-                        <div class="text-xs font-medium text-gray-500 dark:text-gray-400">Buscar paciente en SMD</div>
-                        <div class="flex gap-2">
-                            <input
-                                type="text"
-                                class="flex-1 rounded border px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                                v-model="newPatient.smdQuery"
-                                placeholder="Nombre o CI..."
-                                @keyup.enter="searchSmd"
-                            />
-                            <button
-                                type="button"
-                                class="px-3 py-1.5 rounded border dark:border-gray-700 text-sm hover:bg-white dark:hover:bg-gray-700 flex items-center gap-1 whitespace-nowrap"
-                                @click="searchSmd"
-                                :disabled="newPatient.smdSearching"
-                            >
-                                <x-admin::spinner v-if="newPatient.smdSearching" class="w-3 h-3" />
-                                <span v-else>🔍</span>
-                                Buscar
-                            </button>
-                        </div>
-                        <div
-                            v-if="newPatient.smdResult"
-                            class="text-xs px-2 py-1 rounded"
-                            :class="newPatient.smdResult.found ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'"
-                        >
-                            @{{ newPatient.smdResult.message }}
-                        </div>
-                    </div> -->
-
                     {{-- Nombre --}}
                     <div class="flex flex-col gap-1">
                         <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Nombre <span class="text-red-500">*</span></label>
@@ -1404,8 +1373,7 @@
                         />
                     </div>
 
-                    {{-- Teléfono + Email --}}
-                    <div class="grid grid-cols-2 gap-3">
+                    {{-- Teléfono --}}
                         <div class="flex flex-col gap-1">
                             <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Teléfono</label>
                             <input
@@ -1415,77 +1383,6 @@
                                 placeholder="Ej: 0991234567"
                             />
                         </div>
-                        <!-- <div class="flex flex-col gap-1">
-                            <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Email</label>
-                            <input
-                                type="email"
-                                class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
-                                v-model="newPatient.email"
-                                placeholder="correo@ejemplo.com"
-                            />
-                        </div> -->
-                    </div>
-
-                    {{-- Fecha nacimiento + CI --}}
-                    <!-- <div class="grid grid-cols-2 gap-3">
-                        <div class="flex flex-col gap-1">
-                            <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Fecha de nacimiento</label>
-                            <input
-                                type="date"
-                                class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
-                                v-model="newPatient.fechaNacimiento"
-                            />
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <label class="text-xs font-medium text-gray-600 dark:text-gray-300">CI / Cédula</label>
-                            <input
-                                type="text"
-                                class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
-                                v-model="newPatient.ci"
-                                placeholder="Cédula de identidad"
-                            />
-                        </div>
-                    </div> -->
-
-                    {{-- Seguro médico --}}
-                    <!-- <div class="flex flex-col gap-1">
-                        <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Seguro médico</label>
-                        <select
-                            class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
-                            v-model="newPatient.seguro_id"
-                        >
-                            <option :value="null">Sin seguro / No seleccionado</option>
-                            <option v-for="opt in insuranceOptions" :key="'np-ins-'+opt.id" :value="opt.id">@{{ opt.name }}</option>
-                        </select>
-                    </div> -->
-
-                    {{-- Verificar cobertura --}}
-                    <!-- <div class="flex items-center gap-3">
-                        <div class="relative group">
-                            <button
-                                type="button"
-                                class="text-sm px-3 py-2 rounded border dark:border-gray-700 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-800"
-                                @click="verifyInsuranceNewPatient"
-                                :disabled="newPatient.insuranceVerifying || !newPatientCanVerifyInsurance"
-                            >
-                                <x-admin::spinner v-if="newPatient.insuranceVerifying" class="w-3.5 h-3.5" />
-                                <span>Verificar cobertura</span>
-                            </button>
-                            <div
-                                v-if="newPatientVerifyTooltip && !newPatientCanVerifyInsurance"
-                                class="absolute bottom-full left-0 mb-1 px-2 py-1 rounded bg-gray-800 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
-                            >
-                                @{{ newPatientVerifyTooltip }}
-                            </div>
-                        </div>
-                        <span
-                            v-if="newPatient.insuranceResult"
-                            class="text-xs px-3 py-1.5 rounded-full font-medium"
-                            :class="insuranceBadgeClass(newPatient.insuranceResult.badge)"
-                        >
-                            @{{ newPatient.insuranceResult.status }} - @{{ newPatient.insuranceResult.message }}
-                        </span>
-                    </div> -->
 
                     {{-- Error --}}
                     <div v-if="newPatient.error" class="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded px-3 py-2">
