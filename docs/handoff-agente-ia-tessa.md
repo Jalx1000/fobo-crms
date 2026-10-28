@@ -241,6 +241,21 @@ POST /api/v1/whatsapp/webhook/{secret}                 (inbound entrante)
 El agente puede arrancar con **agendar + informar** (lo que ya está listo) y sumar
 cancelar/reprogramar/paquetes cuando el CRM cierre #7 y Tessa defina las reglas.
 
+### 9.1 Decisión pendiente — fuente de catálogo para el agente
+
+El agente Odontoking consume el catálogo por `GET /public/products` (sin auth), pero
+ese endpoint **todavía no expone la estructura nueva de Tessa** (zonas, `current_price`,
+`frequency_text`, `categories`). Hay que resolver **una** de estas dos opciones antes de
+que el agente pueda ofrecer zonas y precios:
+
+- **Opción A — enriquecer `/public/products`**: agregarle zonas + precio vigente +
+  frecuencia + categorías (misma forma que `/whatsapp/products`). El agente sigue sin auth.
+- **Opción B — dar un token al agente** para que use `/whatsapp/products` (que ya trae
+  todo), protegido por Sanctum.
+
+> **Estado: a decidir con el equipo del CRM.** No implementado a propósito. Mientras
+> tanto, `/whatsapp/products` es la referencia de la estructura completa (sección 7.2).
+
 ---
 
 ## 10. Variables de entorno (de Odontoking → Tessa)
