@@ -74,7 +74,7 @@
 
                         <x-admin::form.control-group>
                             <x-admin::form.control-group.label>
-                                {{ __('Especialidad (línea)') }}
+                                {{ __('Linea') }}
                             </x-admin::form.control-group.label>
 
                             <x-admin::form.control-group.control

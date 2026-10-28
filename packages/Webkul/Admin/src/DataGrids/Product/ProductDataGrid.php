@@ -13,7 +13,7 @@ class ProductDataGrid extends DataGrid
      */
     public function prepareQueryBuilder(): Builder
     {
-        // La especialidad (línea) es la columna real products.specialty_id. Antes
+        // La Linea es la columna real products.specialty_id. Antes
         // se resolvía contra attribute_values/attribute_options del atributo EAV
         // "type_service_2", que para un lookup guarda el id de la especialidad y
         // terminaba matcheando una opción ajena (p. ej. "Membresía Odontoking").
