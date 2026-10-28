@@ -107,7 +107,7 @@ class DoctorController extends Controller
         $specialties = $this->specialtyRepository->all();
 
         return view('doctor::create', compact('doctor', 'specialties'));
-    }
+    }   
 
     /**
      * Update the specified resource in storage.

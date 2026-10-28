@@ -1,6 +1,6 @@
 <x-admin::layouts>
     <x-slot:title>
-        {{ isset($doctor) ? 'Editar Doctor' : 'Registrar Doctor' }}
+        {{ isset($doctor) ? 'Editar Sucursal' : 'Registrar Sucursal' }}
     </x-slot>
 
     <x-admin::form
@@ -12,7 +12,7 @@
             <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                 <div class="flex flex-col gap-2">
                     <div class="text-xl font-bold dark:text-white">
-                        {{ isset($doctor) ? 'Editar Doctor' : 'Registrar Doctor' }}
+                        {{ isset($doctor) ? 'Editar Sucursal' : 'Registrar Sucursal' }}
                     </div>
                 </div>
 
@@ -35,7 +35,7 @@
                             id="email"
                             name="email"
                             :label="trans('Correo electrónico')"
-                            :placeholder="trans('Ej.: doctor@odontoking.com')"
+                            :placeholder="trans('Ej.: sucursal@tessa.com')"
                              :value="old('email', isset($doctor) ? $doctor->email : '')"
                             v-debounce="500"
                         />
@@ -63,7 +63,7 @@
                         <x-admin::form.control-group.error control-name="phone" />
                     </x-admin::form.control-group>
 
-                    <x-admin::form.control-group>
+                    <!-- <x-admin::form.control-group>
                         <x-admin::form.control-group.label>
                             ID de ShareMeData (Hexadecimal)
                         </x-admin::form.control-group.label>
@@ -81,7 +81,7 @@
                         />
 
                         <x-admin::form.control-group.error control-name="unique_id" />
-                    </x-admin::form.control-group>
+                    </x-admin::form.control-group> -->
 
                     <x-admin::form.control-group>
                         <x-admin::form.control-group.label class="required">
@@ -104,7 +104,7 @@
 
                     <x-admin::form.control-group>
                         <x-admin::form.control-group.label>
-                            Especialidades (Mantén presionado Ctrl/Cmd para seleccionar varias)
+                            Línea (Mantén presionado Ctrl/Cmd para seleccionar varias)
                         </x-admin::form.control-group.label>
 
                         @php

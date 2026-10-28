@@ -10,7 +10,7 @@ return [
     ],
     [
         'key'        => 'doctors.doctors',
-        'name'       => 'Agendas',
+        'name'       => 'Sucursales',
         'route'      => 'admin.doctor.index',
         'sort'       => 1,
         'icon-class' => '',
