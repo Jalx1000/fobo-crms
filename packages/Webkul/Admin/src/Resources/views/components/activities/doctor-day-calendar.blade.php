@@ -474,7 +474,7 @@
                         <p class="mb-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Datos de la cita</p>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="flex flex-col gap-1">
-                                <x-admin::form.control-group.label>Doctor(es)</x-admin::form.control-group.label>
+                                <x-admin::form.control-group.label>Sucursales</x-admin::form.control-group.label>
                                 <v-doctor-multiselect :items="doctors" v-model="appointmentForm.doctor_ids"></v-doctor-multiselect>
                             </div>
 
@@ -848,7 +848,7 @@
                     <div class="flex flex-col divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
                         <div class="flex items-center gap-3 px-3 py-2.5">
                             <span class="icon-user w-5 shrink-0 text-lg text-brandColor"></span>
-                            <span class="w-24 shrink-0 text-xs font-medium uppercase text-gray-400">Doctor(es)</span>
+                            <span class="w-24 shrink-0 text-xs font-medium uppercase text-gray-400">Sucursales</span>
                             <span class="text-sm font-medium text-gray-800 dark:text-gray-100">@{{ appointmentDoctorNames(viewAppointment.data) }}</span>
                         </div>
                         <div class="flex items-center gap-3 px-3 py-2.5">
@@ -1062,20 +1062,21 @@
                             />
                         </div>
                         <div class="flex flex-col gap-1">
-                            <x-admin::form.control-group.label>Doctor(es)</x-admin::form.control-group.label>
+                            <x-admin::form.control-group.label>Sucursales</x-admin::form.control-group.label>
                             <v-doctor-multiselect :items="doctors" v-model="appointmentForm.doctor_ids"></v-doctor-multiselect>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Servicio</x-admin::form.control-group.label>
-                                <x-admin::lookup
+                                <v-doctor-multiselect :items="appointmentForm.product_name" v-model="appointmentForm.product_id"></v-doctor-multiselect>
+                                <!-- <x-admin::lookup
                                     ::src="productSearchUrl"
                                     ::params="{ limit: 200 }"
                                     name="appointment_product_edit"
                                     placeholder="Buscar servicio…"
                                     @on-selected="onSelectService"
                                     ::value="{ id: appointmentForm.product_id, name: appointmentForm.product_name }"
-                                />
+                                /> -->
                             </div>
                             <div class="flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Fecha</x-admin::form.control-group.label>
