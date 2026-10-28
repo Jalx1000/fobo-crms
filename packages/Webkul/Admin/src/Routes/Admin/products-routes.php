@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Webkul\Admin\Http\Controllers\Products\ActivityController;
 use Webkul\Admin\Http\Controllers\Products\ProductController;
+use Webkul\Admin\Http\Controllers\Products\PromotionController;
 use Webkul\Admin\Http\Controllers\Products\ServiceZoneController;
 use Webkul\Admin\Http\Controllers\Products\TagController;
 
@@ -44,6 +45,12 @@ Route::group(['middleware' => ['user']], function () {
             Route::get('', 'index')->name('admin.products.zones.index');
 
             Route::post('', 'sync')->name('admin.products.zones.sync');
+        });
+
+        Route::controller(PromotionController::class)->prefix('{id}/promotions')->group(function () {
+            Route::get('', 'index')->name('admin.products.promotions.index');
+
+            Route::post('', 'sync')->name('admin.products.promotions.sync');
         });
     });
 });

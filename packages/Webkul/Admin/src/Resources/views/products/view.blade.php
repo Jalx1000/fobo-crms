@@ -97,11 +97,16 @@
                 ]"
                 :extra-types="[
                     ['name' => 'zones', 'label' => __('Zonas')],
+                    ['name' => 'promotions', 'label' => __('Promociones')],
                     ['name' => 'inventory', 'label' => trans('admin::app.products.view.inventories')],
                 ]"
             >
                 <x-slot:zones>
                     @include('admin::products.view.zones')
+                </x-slot>
+
+                <x-slot:promotions>
+                    @include('admin::products.view.promotions')
                 </x-slot>
 
                 <x-slot:inventory>
