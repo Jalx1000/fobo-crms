@@ -64,6 +64,10 @@ class PersonController extends Controller
         Event::dispatch('contacts.person.create.after', $person);
 
         if (request()->ajax()) {
+            // refresh() para que los casts (emails/contact_numbers = array) lean el
+            // JSON persistido y no el array en memoria (json_decode(array) → 500).
+            $person->refresh();
+
             return response()->json([
                 'data'    => new PersonResource($person),
                 'message' => trans('admin::app.contacts.persons.index.create-success'),
