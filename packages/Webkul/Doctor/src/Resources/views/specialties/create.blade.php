@@ -1,6 +1,6 @@
 <x-admin::layouts>
     <x-slot:title>
-        Crear Especialidad
+        Crear Línea
     </x-slot>
 
     <x-admin::form
@@ -12,7 +12,7 @@
             <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                 <div class="flex flex-col gap-2">
                     <div class="text-xl font-bold dark:text-white">
-                        Crear Especialidad
+                        Crear Línea
                     </div>
                 </div>
 
@@ -39,7 +39,7 @@
                                 name="name"
                                 rules="required|min:2|max:150"
                                 :label="trans('Nombre')"
-                                :placeholder="trans('Nombre de la especialidad')"
+                                :placeholder="trans('Nombre de la línea')"
                                 v-debounce="500"
                             />
                             <x-admin::form.control-group.error control-name="name" />

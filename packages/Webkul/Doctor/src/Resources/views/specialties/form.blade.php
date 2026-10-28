@@ -1,6 +1,6 @@
 <x-admin::layouts>
     <x-slot:title>
-        {{ isset($specialty) ? 'Editar Especialidad' : 'Crear Especialidad' }}
+        {{ isset($specialty) ? 'Editar Línea' : 'Crear Línea' }}
     </x-slot>
 
     <x-admin::form
@@ -11,7 +11,7 @@
             <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                 <div class="flex flex-col gap-2">
                     <div class="text-xl font-bold dark:text-white">
-                        {{ isset($specialty) ? 'Editar Especialidad' : 'Crear Especialidad' }}
+                        {{ isset($specialty) ? 'Editar Línea' : 'Crear Línea' }}
                     </div>
                 </div>
 
@@ -54,7 +54,7 @@
                             name="description"
                             tinymce="true"
                             :label="trans('Descripción')"
-                            :placeholder="trans('Describe la especialidad')"
+                            :placeholder="trans('Describe la línea')"
                             :value="old('description', isset($specialty) ? $specialty->description : '')"
                         />
                         <x-admin::form.control-group.error control-name="description" />

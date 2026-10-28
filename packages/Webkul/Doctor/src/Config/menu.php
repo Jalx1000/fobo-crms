@@ -17,7 +17,7 @@ return [
     ],
     [
         'key'        => 'doctors.specialties',
-        'name'       => 'Especialidades',
+        'name'       => 'Línea',
         'route'      => 'admin.specialties.index',
         'sort'       => 2,
         'icon-class' => '',
