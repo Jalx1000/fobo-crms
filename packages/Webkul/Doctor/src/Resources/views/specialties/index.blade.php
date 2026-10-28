@@ -16,7 +16,7 @@
                     href="{{ route('admin.specialties.create') }}"
                     class="primary-button"
                 >
-                    Crear Especialidad
+                    Crear Línea
                 </a>
             </div>
         </div>
