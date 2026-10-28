@@ -902,49 +902,6 @@
                             </template>
                         </div>
 
-                        <!-- Editor: agregar/editar seguros -->
-                        <div v-else class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-                            <div class="flex flex-col gap-2">
-                                <div class="flex flex-col gap-1">
-                                    <x-admin::form.control-group.label>CI del paciente</x-admin::form.control-group.label>
-                                    <input type="text" v-model="apptInsurance.ci" placeholder="Cédula de identidad"
-                                           class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400" />
-                                </div>
-                                <div class="flex flex-col gap-1">
-                                    <x-admin::form.control-group.label>Seguros del paciente</x-admin::form.control-group.label>
-                                    <p class="text-xs text-gray-400">Marca todos los que correspondan; se verifica cada uno.</p>
-
-                                    <div class="flex max-h-36 flex-col gap-0.5 overflow-y-auto rounded border border-gray-200 p-1.5 dark:border-gray-800">
-                                        <label v-for="opt in insuranceOptions" :key="'dv-ins-'+opt.id"
-                                               class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
-                                            <input type="checkbox" :value="opt.id" v-model="apptInsurance.seguro_ids"
-                                                   class="h-3.5 w-3.5 cursor-pointer rounded border-gray-300" />
-                                            @{{ opt.name }}
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="mt-2 flex items-center gap-2">
-                                <button type="button"
-                                        class="text-xs px-3 py-1.5 rounded border dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-1"
-                                        @click="saveApptInsurance"
-                                        :disabled="apptInsurance.saving || !apptInsurance.ci || !apptInsurance.seguro_ids.length">
-                                    <x-admin::spinner v-if="apptInsurance.saving" class="w-3 h-3" />
-                                    <span>Guardar y verificar</span>
-                                </button>
-                                <button type="button" class="text-xs px-3 py-1.5 rounded text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                                        :disabled="apptInsurance.saving" @click="cancelEditApptInsurance">Cancelar</button>
-                            </div>
-
-                            <!-- Resultado por aseguradora -->
-                            <div v-if="apptInsuranceResults.length" class="mt-2 flex flex-col gap-1">
-                                <span v-for="(r, i) in apptInsuranceResults" :key="'dv-res-'+i"
-                                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                      :class="insuranceBadgeClass(r.badge)">
-                                    <span v-if="r.seguro_name">@{{ r.seguro_name }} - </span>@{{ r.status }} - @{{ r.message }}
-                                </span>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Estado de la cita: selección única (pastel) -->
