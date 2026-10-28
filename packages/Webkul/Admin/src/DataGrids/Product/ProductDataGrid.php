@@ -13,27 +13,22 @@ class ProductDataGrid extends DataGrid
      */
     public function prepareQueryBuilder(): Builder
     {
-        $tablePrefix = DB::getTablePrefix();
-
+        // La especialidad (línea) es la columna real products.specialty_id. Antes
+        // se resolvía contra attribute_values/attribute_options del atributo EAV
+        // "type_service_2", que para un lookup guarda el id de la especialidad y
+        // terminaba matcheando una opción ajena (p. ej. "Membresía Odontoking").
         $queryBuilder = DB::table('products')
-            ->leftJoin('attribute_values as type_service_2_av', function ($join) {
-                $join->on('products.id', '=', 'type_service_2_av.entity_id')
-                    ->where('type_service_2_av.entity_type', '=', DB::raw("'products'"))
-                    ->where('type_service_2_av.attribute_id', '=', function ($query) {
-                        $query->select('id')->from('attributes')->where('code', '=', DB::raw("'type_service_2'"))->limit(1);
-                    });
-            })
-            ->leftJoin('attribute_options as type_service_2_options', 'type_service_2_av.integer_value', '=', 'type_service_2_options.id')->select(
+            ->leftJoin('specialties', 'products.specialty_id', '=', 'specialties.id')
+            ->select(
                 'products.id',
                 'products.sku',
                 'products.name as name',
-                DB::raw('COALESCE('.$tablePrefix.'type_service_2_options.name, '.$tablePrefix.'type_service_2_av.text_value) as type_service_2')
-            )
-            ->groupBy('products.id');
+                'specialties.name as specialty'
+            );
 
         $this->addFilter('sku', 'products.sku');
         $this->addFilter('name', 'products.name');
-        $this->addFilter('type_service_2', DB::raw('COALESCE('.$tablePrefix.'type_service_2_options.name, '.$tablePrefix.'type_service_2_av.text_value)'));
+        $this->addFilter('specialty', 'specialties.name');
 
         return $queryBuilder;
     }
@@ -62,8 +57,8 @@ class ProductDataGrid extends DataGrid
         ]);
 
         $this->addColumn([
-            'index'      => 'type_service_2',
-            'label'      => 'Tipo de servicio',
+            'index'      => 'specialty',
+            'label'      => 'Especialidad / Línea',
             'type'       => 'string',
             'sortable'   => true,
             'searchable' => true,

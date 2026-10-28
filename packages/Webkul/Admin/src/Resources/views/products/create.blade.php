@@ -58,7 +58,7 @@
                         <x-admin::attributes
                             :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
                                 'entity_type' => 'products',
-                                ['code', 'NOTIN', ['price', 'quantity']],
+                                ['code', 'NOTIN', ['price', 'quantity', 'type_service_2']],
                             ])"
                         />
 

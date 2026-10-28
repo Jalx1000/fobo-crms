@@ -20,8 +20,12 @@
 
                     $defaultCodes = ['sku', 'price', 'quantity'];
 
+                    // type_service_2 ("Linea") es redundante con la columna real
+                    // products.specialty_id ("Especialidad"); se oculta del EAV.
+                    $hiddenCodes = ['type_service_2'];
+
                     $defaultAttributes = $all->filter(fn($attr) => in_array(strtolower($attr->code), $defaultCodes));
-                    $customAttributes  = $all->reject(fn($attr) => in_array(strtolower($attr->code), $defaultCodes));
+                    $customAttributes  = $all->reject(fn($attr) => in_array(strtolower($attr->code), array_merge($defaultCodes, $hiddenCodes)));
                 ?>
 
                 <x-admin::attributes.view
