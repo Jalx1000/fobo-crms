@@ -22,6 +22,7 @@ use Webkul\Admin\Http\Resources\StageResource;
 use Webkul\Admin\Support\VisibilidadLeads;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Core\Services\AsignacionDeAsesor;
 use Webkul\Lead\Helpers\MagicAI;
 use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Lead\Repositories\PipelineRepository;
@@ -491,9 +492,11 @@ class LeadController extends Controller
      */
     public function store(LeadForm $request): RedirectResponse|JsonResponse
     {
-        Event::dispatch('lead.create.before');
-
         $data = request()->all();
+
+        app(AsignacionDeAsesor::class)->validar($data, null, esAlta: true);
+
+        Event::dispatch('lead.create.before');
 
         $data['status'] = 1;
 
@@ -587,9 +590,11 @@ class LeadController extends Controller
      */
     public function update(LeadForm $request, int $id): RedirectResponse|JsonResponse
     {
-        Event::dispatch('lead.update.before', $id);
-
         $data = $request->all();
+
+        app(AsignacionDeAsesor::class)->validar($data, $this->leadRepository->findOrFail($id)->user_id);
+
+        Event::dispatch('lead.update.before', $id);
 
         /**
          * El formulario de edicion manda lead_pipeline_stage_id en un input oculto
@@ -642,6 +647,8 @@ class LeadController extends Controller
     public function updateAttributes(int $id)
     {
         $data = request()->all();
+
+        app(AsignacionDeAsesor::class)->validar($data, $this->leadRepository->findOrFail($id)->user_id);
 
         $attributes = $this->attributeRepository->findWhere([
             'entity_type' => 'leads',

@@ -440,6 +440,33 @@
                                 </x-admin::form.control-group>
                             </template>
 
+                            <!-- Puede asignar asesor: sólo para el rol Encargado -->
+                            <template v-if="esEncargado && editaAsignar">
+                                <x-admin::form.control-group>
+                                    <x-admin::form.control-group.label for="puede_asignar">
+                                        @lang('admin::app.settings.users.index.create.puede-asignar')
+                                    </x-admin::form.control-group.label>
+
+                                    <input
+                                        type="hidden"
+                                        name="puede_asignar"
+                                        :value="0"
+                                    />
+
+                                    <x-admin::form.control-group.control
+                                        type="switch"
+                                        name="puede_asignar"
+                                        value="1"
+                                        :label="trans('admin::app.settings.users.index.create.puede-asignar')"
+                                        ::checked="parseInt(user.puede_asignar || 0)"
+                                    />
+
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        @lang('admin::app.settings.users.index.create.puede-asignar-info')
+                                    </p>
+                                </x-admin::form.control-group>
+                            </template>
+
                             {!! view_render_event('admin.settings.users.index.form.role_id.after') !!}
 
                             {!! view_render_event('admin.settings.users.index.form.status.before') !!}
@@ -506,6 +533,10 @@
 
                         rolDistribuidor: @json($rolDistribuidor),
 
+                        rolEncargado: @json($rolEncargado),
+
+                        editaAsignar: @json($editaAsignar),
+
                         user: {
                             view_permission: 'global',
                         },
@@ -534,6 +565,11 @@
                     esDistribuidor() {
                         return this.rolDistribuidor !== null
                             && Number(this.user.role_id) === Number(this.rolDistribuidor);
+                    },
+
+                    esEncargado() {
+                        return this.rolEncargado !== null
+                            && Number(this.user.role_id) === Number(this.rolEncargado);
                     },
                 },
 
