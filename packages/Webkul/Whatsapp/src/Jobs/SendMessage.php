@@ -90,6 +90,8 @@ class SendMessage implements ShouldQueue
             ]);
 
             report($e);
+
+            NotifyMensajeFallido::dispatch($message->id, $e->getMessage())->onQueue(config('whatsapp.queue'));
         }
     }
 }

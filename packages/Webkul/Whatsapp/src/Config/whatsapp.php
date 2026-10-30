@@ -277,6 +277,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Aviso de mensajes que no llegaron
+    |--------------------------------------------------------------------------
+    |
+    | Cuando Meta rechaza un mensaje —al enviarlo, o segundos después por el webhook
+    | de estados— se manda el motivo por mail a estas casillas (separadas por coma).
+    | Vacío = no se avisa.
+    |
+    */
+    'fallos' => [
+        'emails' => env('WHATSAPP_FALLOS_EMAILS', 'jalejandromogro1@gmail.com,dcuellar@sofopolis.com'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Mensajes interactivos (botones y listas)
     |--------------------------------------------------------------------------
     | El agente no aprende una API nueva: numera las opciones con un marcador y

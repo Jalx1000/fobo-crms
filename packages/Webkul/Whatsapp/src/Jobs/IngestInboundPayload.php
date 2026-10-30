@@ -175,7 +175,14 @@ class IngestInboundPayload implements ShouldQueue
             return;
         }
 
+        $yaHabiaFallado = $message->status === 'failed';
+
         $message->update(['status' => $update->status]);
+
+        if ($update->status === 'failed' && ! $yaHabiaFallado) {
+            NotifyMensajeFallido::dispatch($message->id, NotifyMensajeFallido::motivoDeMeta($update->errors))
+                ->onQueue(config('whatsapp.queue'));
+        }
     }
 
     protected function resolveReplyTo(?string $providerId): ?int
