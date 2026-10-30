@@ -135,23 +135,24 @@ it('reprogramar: de punta a punta mueve la cita, avisa a SMD y responde por el c
         ->and(collect($dates['data']['dates'])->pluck('id')->all())->toBe([$this->day->toDateString()]);
 
     $times = step($this->publicPem, $token, 'SLOT_DATE', ['date' => $this->day->toDateString()]);
-    // 09:00 es la cita misma y 11:00 la del extraño: queda 10:00.
-    expect(collect($times['data']['times'])->pluck('id')->all())->toBe(['10:00']);
+    // La cita misma ocupa 09:00-09:30 y la del extraño 11:00: el hueco de
+    // 1 hora arranca 09:30 (se cuenta desde el inicio del hueco, no en punto).
+    expect(collect($times['data']['times'])->pluck('id')->all())->toBe(['09:30']);
 
-    $summary = step($this->publicPem, $token, 'SLOT_TIME', ['time' => '10:00']);
-    expect($summary['data']['detail'])->toContain('Antes:')->toContain('10:00');
+    $summary = step($this->publicPem, $token, 'SLOT_TIME', ['time' => '09:30']);
+    expect($summary['data']['detail'])->toContain('Antes:')->toContain('09:30');
 
     $done = step($this->publicPem, $token, 'SUMMARY', ['confirm' => 'si']);
     expect($done['data']['extension_message_response']['params'])->toMatchArray([
-        'flow' => 'reprogramar_cita', 'status' => 'pending', 'previous_time' => '09:00', 'time' => '10:00',
+        'flow' => 'reprogramar_cita', 'status' => 'pending', 'previous_time' => '09:00', 'time' => '09:30',
     ]);
 
     $activity = DB::table('activities')->find($this->cita['activity_id']);
-    expect(Carbon::parse($activity->schedule_from)->format('H:i'))->toBe('10:00')
-        ->and(Carbon::parse($activity->schedule_to)->format('H:i'))->toBe('11:00');
+    expect(Carbon::parse($activity->schedule_from)->format('H:i'))->toBe('09:30')
+        ->and(Carbon::parse($activity->schedule_to)->format('H:i'))->toBe('10:30');
 
     $patch = auditSent('/events/'.$this->eventId)[0];
-    expect($patch->data()['startDate'])->toBe($this->day->copy()->setTime(10, 0)->utc()->format('Y-m-d\TH:i:s.000\Z'))
+    expect($patch->data()['startDate'])->toBe($this->day->copy()->setTime(9, 30)->utc()->format('Y-m-d\TH:i:s.000\Z'))
         ->and(lastMessage($this->conv->id))->toContain('✅ Cita reprogramada');
 });
 
@@ -159,7 +160,7 @@ it('reprogramar: si el horario se ocupó antes de moverla, la deja como estaba y
     $token = FlowToken::issue($this->conv->id, 'reprogramar_cita');
     step($this->publicPem, $token, 'APPT_SELECT', ['appointment' => (string) $this->cita['activity_id']]);
     step($this->publicPem, $token, 'SLOT_DATE', ['date' => $this->day->toDateString()]);
-    step($this->publicPem, $token, 'SLOT_TIME', ['time' => '10:00']);
+    step($this->publicPem, $token, 'SLOT_TIME', ['time' => '09:30']);
 
     // SMD ya no tiene ese hueco (la verificación en vivo del job lo detecta).
     $this->smd['availability'] = [];

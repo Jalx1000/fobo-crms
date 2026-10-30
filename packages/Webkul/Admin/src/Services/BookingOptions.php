@@ -352,8 +352,10 @@ class BookingOptions
     }
 
     /**
-     * Ventanas libres → turnos de `duration()` en horas en punto, solo futuros.
-     * (Una ventana que arranca 09:30 da 10:00, 11:00…)
+     * Ventanas libres → turnos de `duration()` contados desde el inicio de cada
+     * ventana, solo futuros. (Una ventana que arranca 09:30 da 09:30, 10:30…)
+     * Antes se redondeaba a la hora en punto y un turno que empieza 07:30
+     * (Carolina Rojas, 2026-10-30) perdía su primera media hora en el formulario.
      *
      * @return array<string, array<int, string>>
      */
@@ -371,13 +373,7 @@ class BookingOptions
                 $start = Carbon::parse($day['date'].' '.$window['start_time'], $tz);
                 $end = Carbon::parse($day['date'].' '.$window['end_time'], $tz);
 
-                $cursor = $start->copy()->minute(0)->second(0);
-
-                if ($cursor->lt($start)) {
-                    $cursor->addHour();
-                }
-
-                for (; $cursor->copy()->addMinutes($duration)->lte($end); $cursor->addMinutes($duration)) {
+                for ($cursor = $start->copy(); $cursor->copy()->addMinutes($duration)->lte($end); $cursor->addMinutes($duration)) {
                     if ($cursor->gt($now)) {
                         $times[] = $cursor->format('H:i');
                     }

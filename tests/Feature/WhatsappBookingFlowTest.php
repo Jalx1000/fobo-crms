@@ -51,7 +51,7 @@ beforeEach(function () {
     $this->day = Carbon::tomorrow(config('app.timezone'));
     auditShift($this->doctorId, $this->day, '08:00', '12:00');
 
-    // SMD: libre de 09:00 a 11:00 → turnos de 1 hora en punto: 09:00 y 10:00.
+    // SMD: libre de 09:00 a 11:00 → turnos de 1 hora desde las 09:00: 09:00 y 10:00.
     $this->smd['availability'] = auditSmdAvailability($this->doctorUid, $this->day->copy()->setTime(9, 0), $this->day->copy()->setTime(11, 0));
 
     // Sin catálogo: los horarios se piden a SMD recién al elegir la especialidad
@@ -82,7 +82,9 @@ it('recomienda la especialidad, el doctor y sus horarios, y crea la cita', funct
     $doctors = step($this->publicPem, $this->token, 'SPECIALTY', ['specialty' => (string) $this->specialtyId]);
     expect($doctors['screen'])->toBe('DOCTOR')
         ->and($doctors['data']['doctors'][0]['id'])->toBe((string) $this->doctorId)
-        ->and($doctors['data']['doctors'][0]['description'])->toContain('09:00');
+        // Solo el día, sin la hora (PatientFlow: con la hora parecía ya elegida).
+        ->and($doctors['data']['doctors'][0]['description'])->toStartWith('Tiene horarios desde el ')
+        ->and($doctors['data']['doctors'][0]['description'])->not->toContain('09:00');
 
     $dates = step($this->publicPem, $this->token, 'DOCTOR', ['doctor' => (string) $this->doctorId]);
     expect($dates['screen'])->toBe('SLOT_DATE')
@@ -256,13 +258,23 @@ it('un horario reservado no se le ofrece al siguiente paciente (sin consultar SM
         ->and(auditSent('/schedule/availability'))->toHaveCount($consultas);
 });
 
-it('ofrece turnos de 1 hora siempre en punto, aunque la ventana libre empiece a la media', function () {
-    // Libre de 09:30 a 12:00 (y el turno local llega hasta las 12): solo 10:00 y 11:00.
+it('ofrece turnos de 1 hora contados desde el inicio de la ventana libre, aunque empiece a la media', function () {
+    // Libre de 09:30 a 12:00 (y el turno local llega hasta las 12): 09:30 y 10:30.
+    // 11:30 no entra: terminaría 12:30, después del cierre.
     $this->smd['availability'] = auditSmdAvailability($this->doctorUid, $this->day->copy()->setTime(9, 30), $this->day->copy()->setTime(12, 0));
 
     $result = app(BookingOptions::class)->fetch($this->specialtyId, $this->day->toDateString(), 1);
 
-    expect($result['slots'][$this->doctorId][$this->day->toDateString()])->toBe(['10:00', '11:00']);
+    expect($result['slots'][$this->doctorId][$this->day->toDateString()])->toBe(['09:30', '10:30']);
+});
+
+it('un turno que empieza 07:30 ofrece las 07:30 (caso Carolina Rojas), no las 08:00', function () {
+    DB::table('doctor_shifts')->where('doctor_id', $this->doctorId)->update(['start_time' => '07:30:00']);
+    $this->smd['availability'] = auditSmdAvailability($this->doctorUid, $this->day->copy()->setTime(7, 0), $this->day->copy()->setTime(10, 0));
+
+    $result = app(BookingOptions::class)->fetch($this->specialtyId, $this->day->toDateString(), 1);
+
+    expect($result['slots'][$this->doctorId][$this->day->toDateString()])->toBe(['07:30', '08:30']);
 });
 
 it('"No sé / Consulta general" lleva a los doctores de odontología general', function () {
