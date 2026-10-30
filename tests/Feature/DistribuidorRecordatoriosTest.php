@@ -392,6 +392,23 @@ it('manda la plantilla y cuenta el intento', function () {
         ->and($s->de($c['person_id'])->intentos)->toBe(1);
 });
 
+it('con una plantilla de video manda el video de Sensia, no el logo', function () {
+    conPlantillaDeRecordatorio(['format' => 'VIDEO', 'media' => true, 'variables' => 0]);
+    config(['distribuidor.recordatorios.media' => 'https://ejemplo.test/whatsapp/bienvenida-sensia.mp4']);
+
+    $c = clienteParaRecordatorio();
+    app(Recordatorios::class)->programarTrasEntrega($c['person_id'], now()->subDays(30));
+
+    expect(app(\Webkul\Distribuidor\Services\RecordatorioDeRecompra::class)->enviarA($c['person_id']))->toBeTrue();
+
+    $payload = json_decode(DB::table('whatsapp_messages')->orderByDesc('id')->value('payload'), true);
+
+    expect($payload['header'])->toBe([
+        'format' => 'VIDEO',
+        'link'   => 'https://ejemplo.test/whatsapp/bienvenida-sensia.mp4',
+    ]);
+});
+
 it('con un pedido en curso no se le manda el recordatorio', function () {
     conPlantillaDeRecordatorio();
 

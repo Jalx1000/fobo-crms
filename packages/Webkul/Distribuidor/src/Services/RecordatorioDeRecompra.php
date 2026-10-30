@@ -79,7 +79,7 @@ class RecordatorioDeRecompra
             template: (string) $config['template'],
             language: (string) $config['language'],
             variables: [trim((string) $persona->name) ?: 'cliente'],
-            imagen: (string) (config('whatsapp.bienvenida.logo') ?? ''),
+            imagen: (string) ($config['media'] ?? ''),
             motivo: 'el recordatorio de recompra',
         );
 

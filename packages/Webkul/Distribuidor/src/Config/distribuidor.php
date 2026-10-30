@@ -162,6 +162,13 @@ return [
         'language' => env('DISTRIBUIDOR_RECORDATORIO_LANG', 'es'),
 
         /*
+        | El archivo del encabezado, si la plantilla lo pide (`recordatorio_pedido_video`
+        | lleva el video de Sensia). Si la plantilla no declara encabezado se ignora, y si
+        | lo declara, el archivo tiene que ser del mismo tipo: video para VIDEO.
+        */
+        'media' => env('DISTRIBUIDOR_RECORDATORIO_MEDIA', env('APP_URL').'/whatsapp/bienvenida-sensia.mp4'),
+
+        /*
         | Cada cuántos días compra un cliente del que todavía no sabemos nada.
         |
         | Se usa sólo hasta que tenga DOS entregas; a partir de ahí manda su propio
