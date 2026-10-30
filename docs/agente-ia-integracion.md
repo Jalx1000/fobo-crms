@@ -49,20 +49,30 @@ GET /api/doctors/{id}/available-slots
 |--------------------|-----|---------|---------|-------------|
 | `date`             | sí  | `Y-m-d` | -       | Fecha de inicio (entre hoy y hoy+6 meses) |
 | `days`             | no  | int     | 7       | Días a consultar desde `date` (1–30) |
-| `duration_minutes` | no  | int     | -       | **Duración real de la consulta.** Corta los bloques libres en slots de esa medida (15–480) |
+| `duration_minutes` | no  | int     | -       | **Se ignora** (desde 2026-10-28). Se acepta para no romper llamadas viejas (15–480) |
 | `specialty`        | no  | string  | todas   | Filtra por una especialidad puntual |
 | `subsidiary`       | no  | string  | `Santa Cruz` | Sucursal |
 
-> ⚠️ **`duration_minutes` es clave.** Pasá la duración real del servicio a agendar.
-> Si la consulta es de 30 min usá `duration_minutes=30`; si es de 60, `=60`.
-> Con 60 min no se ofrecen tramos donde no caben 60 min seguidos (correcto: ahí no
-> se puede agendar). Sin el parámetro, devuelve los bloques contiguos completos sin cortar.
+> **Turnos de 1 hora, y de 30 min solo en lo que sobra.** El endpoint corta cada
+> hueco libre en turnos que empiezan en **:00 o :30**: primero de 60 min y, si al
+> final quedan 30 min o más, uno de 30. Lo que queda por debajo de 30 min no se
+> ofrece. Cada slot trae su `duration_minutes` (60 o 30); agendá con esa duración.
+>
+> | Libre en SMD | Turnos ofrecidos |
+> |---|---|
+> | 09:00–11:30 | 09:00–10:00 (60), 10:00–11:00 (60), 11:00–11:30 (30) |
+> | 09:15–11:00 | 09:30–10:30 (60), 10:30–11:00 (30) |
+> | 10:00–10:45 | 10:00–10:30 (30) |
+> | 10:00–10:20 | — |
+>
+> SMD publica la disponibilidad en bloques de 15 min; un turno se ofrece solo si
+> están libres **todos** sus bloques (planning/16-especialidades-en-crm, D-12 a D-14).
 
 ### Ejemplo
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
-  "$ODONTOKING_API_URL/api/doctors/12/available-slots?date=2026-06-29&days=1&duration_minutes=30"
+  "$ODONTOKING_API_URL/api/doctors/12/available-slots?date=2026-06-29&days=1"
 ```
 
 ### Respuesta
@@ -79,8 +89,9 @@ curl -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
     {
       "date": "2026-06-29",
       "slots": [
-        { "start_time": "08:00", "end_time": "08:30", "status": "available" },
-        { "start_time": "14:30", "end_time": "15:00", "status": "available" }
+        { "start_time": "08:00", "end_time": "09:00", "status": "available", "duration_minutes": 60 },
+        { "start_time": "09:00", "end_time": "09:30", "status": "available", "duration_minutes": 30 },
+        { "start_time": "14:30", "end_time": "15:30", "status": "available", "duration_minutes": 60 }
       ]
     }
   ]
@@ -91,7 +102,7 @@ curl -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
 
 | Campo | Qué significa para el agente |
 |-------|------------------------------|
-| `schedule[].slots` | Horarios **ofrecibles** ese día (`start_time`/`end_time` en `H:i`, hora local). |
+| `schedule[].slots` | Turnos **ofrecibles** ese día (`start_time`/`end_time` en `H:i`, hora local; `duration_minutes` 60 o 30). |
 | `slots: []` | Ese día no hay disponibilidad (o la clínica no atiende). Ofrecer otra fecha. |
 | `source: "smd"` | Disponibilidad real (SMD + jornada local + citas). Confiable para agendar. |
 | `source: "local"` + `degraded: true` | SMD no disponible; datos solo locales. Ver `reason`. |
@@ -228,13 +239,30 @@ else:
 ## 6. Reglas para el agente (resumen)
 
 1. **Disponibilidad** → solo `GET /api/doctors/{id}/available-slots`.
-2. Pasar **`duration_minutes`** = duración real del servicio.
+2. Ofrecer primero los turnos de 60 min; los de 30 son lo que sobra. Agendar con el `duration_minutes` del slot elegido.
 3. Ofrecer únicamente los `slots` devueltos; `slots: []` ⇒ proponer otra fecha.
 4. **Agendar** con `POST /api/v1/activities`, doctor y paciente en `participants`.
 5. Manejar `422` al agendar: re-consultar disponibilidad y reintentar, salvo
    `details.code = "patient_already_booked"` (ya tiene cita ese día con ese doctor:
    avisar, no reintentar).
 6. Loguear `degraded=true` / `reason` para visibilidad operativa.
+7. **Derivar a recepción = llamar a `POST /api/v1/whatsapp/conversations/{id}/handoff`
+   ANTES de decírselo al paciente.** Decir «le paso con una recepcionista» sin esa llamada
+   deja al agente encendido y a nadie avisado: el paciente espera a una persona que no
+   sabe que la esperan. Si la llamada falla, no prometer el traspaso.
+   Caso real (dev, 29/10/2026): conversación 5970, el paciente eligió «4. Otro tema (le
+   paso con una recepcionista)»; el agente respondió «Estoy avisando a una recepcionista»
+   y no hubo `/handoff` (sin registro en el log, `ai_enabled` siguió en `true`).
+   `fuera_de_horario` lo calcula el CRM con su reloj (lo que mande el agente solo queda
+   en el log) y lo devuelve en la respuesta: `handoff.fuera_de_horario`. Para avisarle al
+   paciente antes de derivar, usar `clinica.fuera_de_horario` del webhook (§7.1).
+8. **No crear un lead nuevo por cada conversación.** Antes de crear, buscar el lead
+   abierto del paciente y reutilizarlo. En ese mismo caso el paciente quedó con 4 leads
+   «Consulta - Alejandro».
+
+El CRM marca «Pide recepcionista» en la lista de WhatsApp cuando el paciente pidió una
+persona en las últimas 24 h y nadie le respondió (frases en
+`whatsapp.ai.human_request_keywords`). Es una red de seguridad, no reemplaza al `/handoff`.
 
 ---
 
@@ -255,12 +283,30 @@ este contacto ya agendó:
 
 ```json
 "pacientes_a_cargo": [
-  {"person_id": 4521, "nombre": "Juan Pérez López", "relacion": "hijo"}
+  {"person_id": 4521, "nombre": "Juan Pérez López", "relacion": "hijo", "cita_activa": 9120}
+],
+"citas_activas": [
+  {"lead_id": 9120, "person_id": 4521, "paciente": "Juan Pérez López", "fecha": "05/11/2026", "hora": "15:00", "doctor": "…", "servicio": null, "estado": "…"}
 ]
 ```
 
 Si la cita es para uno de ellos, agendar directo con su `person_id`. Sus citas ya vienen
-en `patient_context.citas` (campo `paciente`).
+en `patient_context.citas` (campos `paciente` y `person_id`).
+
+**Para cancelar o reprogramar, mirar `citas_activas`**, no solo `cita_activa`: trae la cita
+vigente de **cada** persona (el titular y sus pacientes a cargo). Una mamá sin cita propia
+que quiere cancelar la del hijo la ve ahí (y en `pacientes_a_cargo[].cita_activa`).
+`cita_activa` sigue siendo un solo id (la última vigente de todas) por compatibilidad.
+
+**Hora y horario (`clinica`, en cada webhook):** usar esto en lugar de calcular la hora:
+
+```json
+"clinica": {"ahora": "jueves 29/10/2026 10:53", "ahora_iso": "2026-10-29T10:53:00-04:00",
+            "zona_horaria": "America/La_Paz", "fuera_de_horario": false, "horario_hoy": "07:30 a 18:30"}
+```
+
+Horario: lunes a viernes 07:30–18:30, sábado 09:00–12:00, domingo y feriados cerrado. Las
+fechas y horas de `citas` y `recordatorios` ya están en hora de Bolivia.
 
 ### 7.2 Enviar el formulario
 
@@ -292,11 +338,19 @@ llegue con esos valores elegidos (el paciente puede cambiarlos):
 | `specialty` | id de especialidad del CRM, su nombre (sin importar tildes ni mayúsculas) o `general` / `No sé` | Especialidad elegida al llegar a esa pantalla |
 | `doctor` | **id del doctor en el CRM** (recomendado) o su nombre (`"Dr. Eloy"`) | Doctor elegido, si tiene horarios en esa especialidad. Sin `specialty`, se elige la especialidad de ese doctor. Por nombre debe coincidir con **un solo** doctor |
 | `date` | `YYYY-MM-DD` | El día, si tiene horarios; si no, el siguiente día con horarios; si está más allá de la lista de días, "Otra fecha" con ese día ya puesto |
-| `time` | `HH:MM` (24 h; acepta `H:MM`) | La hora, si está libre; si no, la hora libre más cercana |
+| `time` | `HH:MM` (24 h; acepta `H:MM`) | La hora, si está libre; si no, la hora libre más cercana. **Solo si el paciente dijo una hora exacta** |
+| `time_slot` | `manana` (07:30–11:59) · `mediodia` (12:00–13:59) · `tarde` (14:00–18:30) | La franja que pidió el paciente ("en la tarde"): en "Turno sugerido" va primero y marcada |
+
+**Red de seguridad:** una `date` pasada, domingo o feriado se ignora (se sugiere el próximo
+día con turnos); un `time` fuera del horario de atención (23:00, 05:00, 15:00 un sábado)
+también (se ofrecen las franjas).
 
 **Turno sugerido (R9):** después de elegir el doctor, el formulario muestra una pantalla
-"Turno sugerido" con **el turno libre más próximo** de ese doctor ya marcado (o el pedido con
-`date`/`time`, si está libre: "El turno que pediste con…"). Si le sirve, **Continuar** va
+"Turno sugerido". **Sin `time`**: el turno más próximo de **cada franja** (mañana, mediodía,
+tarde) desde el día pedido o el primero con turnos; si una franja no tiene turno ese día, el
+de un día siguiente. Con `time_slot`, esa franja va primero y marcada; sin franja, se marca el
+más próximo. **Con `time`**: una sola opción, el pedido si está libre ("El turno que pediste
+con…") o el más cercano. Si le sirve, **Continuar** va
 directo al resumen; si no, "Quiero otra fecha y hora" sigue con la elección normal de día y
 hora (sin volver a marcar la sugerencia). Pasa con o sin `prefill`. Todo es una
 **sugerencia** sobre la agenda real: nunca se ofrece un horario que no esté libre.
@@ -308,7 +362,7 @@ falta decidir:
 | Lo que se mandó | Abre en |
 |---|---|
 | paciente + especialidad (o doctor) + doctor + `date` + `time`, y el turno está libre | **"Revisá tu cita"** — solo falta confirmar |
-| ídem, pero el turno pedido no está libre, o sin `time` | **"Turno sugerido"** (el más cercano) |
+| ídem, pero el turno pedido no está libre, o sin `time` | **"Turno sugerido"** (el más cercano, o uno por franja sin `time`) |
 | paciente + especialidad, sin doctor | la lista de **doctores** |
 | paciente, sin especialidad ni doctor | **especialidad** |
 | tercero nuevo (sin ficha), o paciente sin cédula cargada | el principio (hay que pedirle los datos) |

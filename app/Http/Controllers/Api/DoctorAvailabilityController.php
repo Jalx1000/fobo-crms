@@ -21,7 +21,7 @@ class DoctorAvailabilityController extends Controller
      * citas locales del CRM. Si SMD no se puede consultar, degrada a la
      * disponibilidad local e informa el motivo (`source`/`degraded`/`reason`).
      *
-     * GET /api/doctors/{id}/available-slots?date=YYYY-MM-DD&days=7&duration_minutes=30&specialty=&subsidiary=
+     * GET /api/doctors/{id}/available-slots?date=YYYY-MM-DD&days=7&specialty=&subsidiary=
      *
      * @OA\Get(
      *     path="/api/doctors/{id}/available-slots",
@@ -46,7 +46,7 @@ class DoctorAvailabilityController extends Controller
      *     ),
      *     @OA\Parameter(
      *         name="duration_minutes", in="query", required=false,
-     *         description="Si se envía, recorta cada ventana libre en slots de esta duración (15–480). Si se omite, devuelve las ventanas libres completas.",
+     *         description="Se ignora (planning/16, D-14): siempre se devuelven turnos de 60 min que empiezan en :00 o :30 y, en lo que sobra, de 30 min. Se acepta para no romper llamadas viejas.",
      *         @OA\Schema(type="integer", minimum=15, maximum=480, example=30)
      *     ),
      *     @OA\Parameter(
@@ -82,8 +82,9 @@ class DoctorAvailabilityController extends Controller
      *                         property="slots", type="array",
      *                         @OA\Items(
      *                             @OA\Property(property="start_time", type="string", example="09:00"),
-     *                             @OA\Property(property="end_time", type="string", example="09:30"),
-     *                             @OA\Property(property="status", type="string", example="available")
+     *                             @OA\Property(property="end_time", type="string", example="10:00"),
+     *                             @OA\Property(property="status", type="string", example="available"),
+     *                             @OA\Property(property="duration_minutes", type="integer", enum={60, 30}, example=60)
      *                         )
      *                     )
      *                 )
@@ -130,11 +131,21 @@ class DoctorAvailabilityController extends Controller
         $startDate = Carbon::createFromFormat('Y-m-d', $data['date'])->startOfDay();
         $days      = (int) ($data['days'] ?? 7);
 
+        // `duration_minutes` se acepta pero se ignora (planning/16, D-14): el
+        // agente siempre recibe turnos de 1 h y, en lo que sobra, de 30 min. Se
+        // pide en bloques de 15 para no perder ese resto en la agenda local.
         $result = $this->resolver->resolve($id, $startDate, $days, [
-            'duration_minutes' => $data['duration_minutes'] ?? 0,
+            'duration_minutes' => 15,
             'specialty'        => $data['specialty']        ?? null,
             'subsidiary'       => $data['subsidiary']       ?? null,
         ]);
+
+        $tz = config('app.timezone', 'America/La_Paz');
+
+        foreach ($result['schedule'] as &$day) {
+            $day['slots'] = AvailabilityResolverService::agentSlots($day['date'], $day['slots'], $tz);
+        }
+        unset($day);
 
         return response()->json($result);
     }

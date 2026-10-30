@@ -170,3 +170,28 @@ it('la modificación no le cambia la recepcionista a la cita', function () {
 
     expect(ownershipLead($result)->user_id)->toBe($ana);
 });
+
+/**
+ * Las especialidades de cada doctor se administran solo en Sofo
+ * (planning/16-especialidades-en-crm, RF-8). La sync le agregaba "General" a
+ * cada doctor de cada cita entrante, y así terminaba ofrecido en "General / No
+ * sé qué necesito" de WhatsApp sin que nadie lo decidiera.
+ */
+it('la sync no le asigna especialidades al doctor de la cita', function () {
+    ownershipUser($this->roleId, 'Ana');
+    $payload = ownershipPayload();
+    // Un médico que el CRM no conoce: la sync lo da de alta sin especialidades.
+    // Con un nombre real (Adriana Soria) lo reconocería por nombre y traería las suyas.
+    $apellido = 'Zq'.uniqid();
+    $payload['attendances'][1] = array_merge($payload['attendances'][1], [
+        'name'     => 'Doctora',
+        'lastName' => $apellido,
+        'fullName' => 'Doctora '.$apellido,
+    ]);
+
+    $result = app(IncomingAppointmentService::class)->processDropbox($payload);
+    $doctorIds = DB::table('doctor_activities')->where('activity_id', $result['activity_id'])->pluck('doctor_id');
+
+    expect($doctorIds)->not->toBeEmpty()
+        ->and(DB::table('doctor_specialty')->whereIn('doctor_id', $doctorIds)->count())->toBe(0);
+});

@@ -23,6 +23,7 @@ Route::controller(InboxController::class)
         Route::get('templates', 'templates')->name('templates');
         Route::post('send-template', 'sendTemplate')->name('send-template');
         Route::patch('conversations/{id}/agent', 'toggleAgent')->name('agent');
+        Route::patch('conversations/agent', 'toggleAgentForContact')->name('agent.contact');
         Route::post('conversations/{id}/notes', 'storeNote')->name('notes.store');
         Route::post('reminders/send', 'sendReminder')->name('reminders.send');
     });

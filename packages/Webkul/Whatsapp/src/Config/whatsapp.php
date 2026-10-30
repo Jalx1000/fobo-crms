@@ -168,6 +168,12 @@ return [
     */
     'templates' => [
         'cache_minutes' => (int) env('WHATSAPP_TEMPLATES_CACHE_MINUTES', 30),
+
+        // Plantillas que no son nuestras: el chat no las ofrece y
+        // `whatsapp:templates-create` intenta borrarlas de la cuenta.
+        // hello_world es la de muestra que Meta crea con cada cuenta; Meta no
+        // deja borrarla, así que en su caso solo queda oculta.
+        'remove'        => ['hello_world'],
     ],
 
     /*
@@ -193,6 +199,11 @@ return [
         // confirmada") espera a que el agente conteste el flow_reply, para que
         // llegue DESPUÉS de su "estoy registrando…". 0 = enviar al toque.
         'confirm_wait_seconds' => (int) env('WHATSAPP_FLOW_CONFIRM_WAIT', 40),
+
+        // Segundos máximos que el formulario pedido por el agente espera a que
+        // salga su texto ("¡Hola! … le envié un formulario"), para que llegue
+        // DESPUÉS del saludo. 0 = enviar al toque.
+        'send_wait_seconds' => (int) env('WHATSAPP_FLOW_SEND_WAIT', 10),
 
         // Segundos que "Revisá tu cita" espera el resultado del seguro (Meta da
         // ~10 s por pantalla). Si no llega, muestra "todavía verificando".
@@ -290,6 +301,16 @@ return [
     */
     'ai' => [
         'enabled'      => env('WHATSAPP_AI_ENABLED', false),
+
+        // Frases con las que el paciente pide una persona. Si aparece una en las
+        // últimas 24 h y nadie le respondió, la conversación se marca «Pide
+        // recepcionista» en la lista: red de seguridad por si el agente promete
+        // el traspaso sin llamar a /handoff. La comparación ignora mayúsculas y
+        // acentos (collation de la BD).
+        'human_request_keywords' => [
+            'recepcionista', 'hablar con alguien', 'hablar con una persona', 'hablar con un humano',
+            'persona real', 'un humano', 'asesor', 'asesora', 'operador', 'operadora', 'atención humana',
+        ],
 
         // Test mode: with this on, the agent only answers the numbers listed
         // below and stays silent for everyone else, whatever the per-conversation
@@ -406,6 +427,28 @@ return [
     'clinic' => [
         'address'    => env('WHATSAPP_CLINIC_ADDRESS'),
         'survey_url' => env('WHATSAPP_CLINIC_SURVEY_URL'),
+
+        // Horario de atención (ver Services/ClinicHours). Días 1 = lunes … 7 =
+        // domingo; un día sin entrada está cerrado. Lo dio el equipo del agente
+        // (2026-10-29): lunes a viernes 07:30–18:30, sábado 09:00–12:00.
+        'hours' => [
+            1 => ['07:30', '18:30'],
+            2 => ['07:30', '18:30'],
+            3 => ['07:30', '18:30'],
+            4 => ['07:30', '18:30'],
+            5 => ['07:30', '18:30'],
+            6 => ['09:00', '12:00'],
+        ],
+
+        // Feriados en que no se atiende, YYYY-MM-DD separados por coma.
+        'holidays' => env('WHATSAPP_CLINIC_HOLIDAYS', ''),
+
+        // Franjas del formulario ("Turno sugerido" ofrece la más próxima de cada una).
+        'time_slots' => [
+            'manana'   => ['07:30', '11:59', 'Mañana'],
+            'mediodia' => ['12:00', '13:59', 'Mediodía'],
+            'tarde'    => ['14:00', '18:30', 'Tarde'],
+        ],
     ],
 
     /*

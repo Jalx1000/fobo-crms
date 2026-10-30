@@ -232,6 +232,8 @@ function prefillScreen(string $method, array $args): array
 }
 
 it('sanitize: doctor como texto, date YYYY-MM-DD válida y time HH:MM (acepta H:MM)', function () {
+    // Una fecha pasada se descarta (ClinicHoursAndTimeSlotsTest): el reloj queda fijo antes del 30/10.
+    $this->travelTo(\Carbon\CarbonImmutable::parse('2026-10-29 10:00', 'America/La_Paz'));
     $clean = FlowPrefill::sanitize(['doctor' => ' Dr. Eloy ', 'date' => '2026-10-30', 'time' => '9:00']);
     expect($clean)->toMatchArray(['doctor' => 'Dr. Eloy', 'date' => '2026-10-30', 'time' => '09:00']);
 

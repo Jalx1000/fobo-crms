@@ -51,56 +51,58 @@
                             >
                         </div>
 
-                        <!-- Celular: la fila de etapas va plegada detrás de este botón. -->
-                        <button v-if="stages.length" type="button"
+                        <!-- Celular: etapa y «Mostrar» van plegados detrás de este botón. -->
+                        <button type="button"
                                 class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-600 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:text-gray-300 dark:hover:bg-gray-800 lg:hidden"
                                 :class="filtrosAbiertos ? 'bg-gray-100 dark:bg-gray-800' : ''"
                                 :aria-expanded="filtrosAbiertos ? 'true' : 'false'"
-                                aria-label="Filtrar por etapa"
+                                aria-label="Más filtros"
                                 @click="filtrosAbiertos = !filtrosAbiertos">
                             <span class="icon-filter text-2xl"></span>
                             <span v-if="filtrosActivos" class="absolute right-1 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brandColor px-1 text-[10px] font-bold text-white">@{{ filtrosActivos }}</span>
                         </button>
                         </div>
 
-                        <!-- Los filtros ya no entran en el ancho de la columna, así
-                             que la fila scrollea. La rueda del mouse desplaza en
-                             vertical por defecto y aquí no hay nada que desplazar,
-                             de modo que se traduce a horizontal a mano. -->
-                        <div class="wa-scroll wa-scroll-x flex gap-1.5 pb-1"
-                             @wheel.prevent="$event.currentTarget.scrollLeft += ($event.deltaY || $event.deltaX)"
-                             @mousedown="dragScroll">
-                            <button v-for="f in filters" :key="f.value" type="button"
-                                    class="shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor max-lg:h-9 max-lg:px-3.5 max-lg:text-[13px]"
-                                    :class="filter === f.value
-                                        ? 'bg-brandColor text-white'
-                                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'"
-                                    @click="filter = f.value; load()">
-                                @{{ f.label }}
+                        <!-- Bandeja: tres pestañas que entran siempre en el ancho. Lo
+                             que necesita a una persona («Atender») lleva su contador. -->
+                        <div class="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800" role="group" aria-label="Bandeja">
+                            <button v-for="t in tabs" :key="t.value" type="button"
+                                    class="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor max-lg:h-10 max-lg:text-[13px]"
+                                    :class="filter === t.value
+                                        ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-white'
+                                        : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'"
+                                    :aria-pressed="filter === t.value ? 'true' : 'false'"
+                                    @click="setFilter(t.value)">
+                                @{{ t.label }}
+                                <span v-if="t.count && counts[t.count]"
+                                      class="rounded-full px-1.5 py-px text-[10px] font-bold"
+                                      :class="t.value === 'attention' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' : 'bg-brandColor text-white'">
+                                    @{{ counts[t.count] }}
+                                </span>
                             </button>
                         </div>
 
-                        <!-- stage filter: chips from the default pipeline -->
-                        <div v-if="stages.length" class="wa-scroll wa-scroll-x flex gap-1.5 pb-1"
-                             :class="filtrosAbiertos ? '' : 'max-lg:hidden'"
-                             @wheel.prevent="$event.currentTarget.scrollLeft += ($event.deltaY || $event.deltaX)"
-                             @mousedown="dragScroll">
-                            <button type="button"
-                                    class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium transition max-lg:h-8 max-lg:px-3 max-lg:text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
-                                    :class="!stageFilter
-                                        ? 'bg-sky-600 text-white'
-                                        : 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300'"
-                                    @click="stageFilter = null; load()">
-                                Todas las etapas
-                            </button>
-                            <button v-for="s in stages" :key="s" type="button"
-                                    class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium transition max-lg:h-8 max-lg:px-3 max-lg:text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
-                                    :class="stageFilter === s
-                                        ? 'bg-sky-600 text-white'
-                                        : 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300'"
-                                    @click="stageFilter = s; load()">
-                                @{{ s }}
-                            </button>
+                        <!-- Etapa y el resto de los filtros: desplegables, no filas de
+                             chips que se cortan. En el celular van detrás del botón. -->
+                        <div class="grid grid-cols-2 gap-2" :class="filtrosAbiertos ? '' : 'max-lg:hidden'">
+                            <label class="flex min-w-0 flex-col gap-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                                Etapa
+                                <select :value="stageFilter || ''" @change="setStage($event.target.value)"
+                                        class="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 max-lg:h-10 max-lg:text-sm"
+                                        :class="stageFilter ? 'border-brandColor font-semibold' : ''">
+                                    <option value="">Todas</option>
+                                    <option v-for="s in stages" :key="s" :value="s">@{{ s }}</option>
+                                </select>
+                            </label>
+                            <label class="flex min-w-0 flex-col gap-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                                Mostrar
+                                <select :value="moreFilter" @change="setFilter($event.target.value || 'all')"
+                                        class="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:border-brandColor focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 max-lg:h-10 max-lg:text-sm"
+                                        :class="moreFilter ? 'border-brandColor font-semibold' : ''">
+                                    <option value="">Todos los contactos</option>
+                                    <option v-for="f in moreFilters" :key="f.value" :value="f.value">@{{ f.label }}</option>
+                                </select>
+                            </label>
                         </div>
                     </div>
 
@@ -108,6 +110,16 @@
                     <div class="wa-scroll flex-1 divide-y divide-gray-100 overflow-y-auto dark:divide-gray-800">
                         <div v-if="listLoading" class="flex justify-center py-12">
                             <x-admin::spinner />
+                        </div>
+
+                        <!-- Si la lista no cargó, decirlo: vacía parecería «no hay conversaciones». -->
+                        <div v-else-if="listError" class="flex flex-col items-center gap-2 px-6 py-14 text-center" role="alert">
+                            <span class="icon-error text-3xl text-red-400" aria-hidden="true"></span>
+                            <p class="text-sm text-gray-600 dark:text-gray-300">No se pudieron cargar las conversaciones.</p>
+                            <button type="button" @click="load()"
+                                    class="rounded-md bg-gray-100 px-3 py-1.5 text-xs font-semibold text-brandColor transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:bg-gray-800 max-lg:h-10 max-lg:px-4">
+                                Reintentar
+                            </button>
                         </div>
 
                         <div v-else-if="!conversations.length" class="flex flex-col items-center gap-1 px-6 py-14 text-center">
@@ -135,21 +147,23 @@
                                     <div class="flex items-baseline justify-between gap-2">
                                         <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">@{{ c.name }}</span>
                                         <span class="shrink-0 text-[11px]"
-                                              :class="c.unread_count ? 'font-semibold text-brandColor' : 'text-gray-400'">
+                                              :class="c.unread_count && ! isSelected(c) ? 'font-semibold text-brandColor' : 'text-gray-400'">
                                             @{{ relativeTime(c.last_message_at) }}
                                         </span>
                                     </div>
 
                                     <div class="mt-0.5 flex items-center justify-between gap-2">
                                         <span class="flex min-w-0 items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                                            <span v-if="c.ai_enabled" title="El agente IA atiende esta conversación"
-                                                  class="shrink-0 rounded bg-emerald-100 px-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">IA</span>
+                                            <!-- Quién tiene que responder: con texto, no solo color. -->
+                                            <span v-if="statusBadge(c)" :title="statusBadge(c).title"
+                                                  class="shrink-0 rounded px-1 text-[10px] font-bold"
+                                                  :class="statusBadge(c).class">@{{ statusBadge(c).label }}</span>
                                             <!-- Recordatorio de cita ya enviado. -->
                                             <span v-if="c.reminded_at" :title="'Recordatorio enviado el ' + c.reminded_at"
                                                   class="shrink-0 rounded bg-sky-100 px-1 text-[10px] font-bold text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">REC</span>
                                             <span class="truncate">@{{ c.preview || 'Sin mensajes' }}</span>
                                         </span>
-                                        <span v-if="c.unread_count"
+                                        <span v-if="c.unread_count && ! isSelected(c)"
                                               class="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-brandColor px-1 text-[10px] font-bold leading-none text-white">
                                             @{{ c.unread_count }}
                                         </span>
@@ -244,22 +258,30 @@
                         filtrosAbiertos: false,
                         search: '',
                         filter: 'all',
-                        filters: [
+                        tabs: [
                             { value: 'all', label: 'Todas' },
-                            { value: 'unread', label: 'No leídas' },
+                            { value: 'unread', label: 'No leídas', count: 'unread' },
+                            // Derivadas sin respuesta o que pidieron una persona.
+                            { value: 'attention', label: 'Atender', count: 'attention' },
+                        ],
+                        moreFilters: [
                             { value: 'unassigned', label: 'Sin asignar' },
                             // Quién ya recibió el recordatorio de su cita.
-                            { value: 'reminded', label: 'Recordatorio' },
+                            { value: 'reminded', label: 'Con recordatorio' },
                             // Staff, not patients: listed from the doctors table
                             // rather than from existing conversations, so a
                             // doctor who never wrote is still reachable.
                             { value: 'doctors', label: 'Doctores' },
                         ],
+                        // Totales de la bandeja que manda el servidor con la lista.
+                        counts: { unread: 0, attention: 0 },
                         stages: [],
                         stageFilter: null,
                         page: 1,
                         lastPage: 1,
                         listLoading: false,
+                        // La última carga visible falló (las de fondo no tapan la lista).
+                        listError: false,
                         searchTimer: null,
                         pollTimer: null,
                         // Monotonic tag for list requests. The 10s poll and a
@@ -286,7 +308,12 @@
                     // Filtros plegados que están puestos (el número del botón en el
                     // celular). En Odontoking la Bandeja solo pliega la etapa.
                     filtrosActivos() {
-                        return this.stageFilter ? 1 : 0;
+                        return (this.stageFilter ? 1 : 0) + (this.moreFilter ? 1 : 0);
+                    },
+
+                    // El filtro del desplegable «Mostrar», si es el elegido.
+                    moreFilter() {
+                        return this.moreFilters.some(f => f.value === this.filter) ? this.filter : '';
                     },
                 },
 
@@ -341,8 +368,14 @@
                                 this.conversations = res.data?.data ?? [];
                                 this.page = res.data?.current_page ?? 1;
                                 this.lastPage = res.data?.last_page ?? 1;
+                                // La lista de doctores no trae totales: se conservan.
+                                if (res.data?.counts) this.counts = res.data.counts;
+                                this.listError = false;
                             })
-                            .catch(() => {})
+                            .catch(() => {
+                                // Un poll de fondo que falla no borra la lista que ya se ve.
+                                if (seq === this.loadSeq && ! background) this.listError = true;
+                            })
                             .finally(() => { if (seq === this.loadSeq) this.listLoading = false; });
                     },
 
@@ -372,39 +405,6 @@
                     // A doctor who has never written has no conversation yet, so
                     // `id` is null for several rows at once: key and compare by
                     // the phone, which is what actually identifies the chat.
-                    // Arrastrar la fila de filtros con el cursor. No usa
-                    // preventDefault en el mousedown: eso mataría el clic de los
-                    // botones. En su lugar solo desplaza si el puntero se movió
-                    // más que el umbral, y en ese caso se traga el clic siguiente
-                    // para que arrastrar no termine seleccionando un filtro.
-                    dragScroll(event) {
-                        if (event.button !== 0) return;
-
-                        const el = event.currentTarget;
-                        const startX = event.pageX;
-                        const startLeft = el.scrollLeft;
-                        let arrastro = false;
-
-                        const mover = ev => {
-                            const delta = ev.pageX - startX;
-                            if (!arrastro && Math.abs(delta) < 4) return;
-                            arrastro = true;
-                            el.scrollLeft = startLeft - delta;
-                        };
-
-                        const soltar = () => {
-                            document.removeEventListener('mousemove', mover);
-                            document.removeEventListener('mouseup', soltar);
-
-                            if (arrastro) {
-                                el.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); }, { capture: true, once: true });
-                            }
-                        };
-
-                        document.addEventListener('mousemove', mover);
-                        document.addEventListener('mouseup', soltar);
-                    },
-
                     rowKey(c) {
                         return c.id || ('doc-' + (c.doctor_id ?? c.phone));
                     },
@@ -415,6 +415,25 @@
                         return this.selected.id && c.id
                             ? this.selected.id === c.id
                             : this.selected.phone === c.phone;
+                    },
+
+                    setFilter(value) {
+                        this.filter = value;
+                        this.load();
+                    },
+
+                    setStage(value) {
+                        this.stageFilter = value || null;
+                        this.load();
+                    },
+
+                    statusBadge(c) {
+                        return {
+                            ia:         { label: 'IA', title: 'El agente IA atiende esta conversación', class: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+                            human:      { label: 'Humano', title: 'La atiende una persona', class: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
+                            derived:    { label: 'Derivada', title: 'Derivada a recepción: todavía nadie respondió', class: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
+                            asks_human: { label: 'Pide recepcionista', title: 'El paciente pidió hablar con una persona y nadie le respondió', class: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+                        }[c.status] || null;
                     },
 
                     select(conversation) {

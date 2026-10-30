@@ -3,9 +3,14 @@
 namespace Webkul\Admin\Services;
 
 use Carbon\Carbon;
+use GuzzleHttp\Middleware;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Psr\Http\Message\ResponseInterface;
 use Webkul\Admin\Services\Smd\ApiBudget;
+use Webkul\Admin\Services\Smd\QuotaExceeded;
+use Webkul\Admin\Services\Smd\SmdAlerts;
 use Webkul\Doctor\Repositories\SpecialtyRepository;
 
 class ShareMeDataService
@@ -40,13 +45,50 @@ class ShareMeDataService
         $client = Http::withHeaders([
             'Accept'  => 'application/json',
             'apikey'  => $this->apiKey,
-        ]);
+        ])->withMiddleware(Middleware::mapResponse(function (ResponseInterface $response) use ($endpoint) {
+            $this->alertOnStatus($endpoint, $response->getStatusCode());
+
+            return $response;
+        }));
 
         if (app()->environment(['local', 'testing'])) {
             $client = $client->withoutVerifying();
         }
 
         return $client;
+    }
+
+    /** Métodos que consultan la disponibilidad (A-1). */
+    protected const AVAILABILITY_ENDPOINTS = ['availabilityBySpecialty', 'checkAvailability'];
+
+    /**
+     * Errores críticos por código HTTP (planning/16, RF-10): apikey rechazada
+     * en cualquier endpoint (A-2) o disponibilidad que no responde (A-1).
+     */
+    protected function alertOnStatus(string $endpoint, int $status): void
+    {
+        if (in_array($status, [401, 403], true)) {
+            app(SmdAlerts::class)->report(SmdAlerts::AUTH, ['endpoint' => $endpoint, 'status' => $status]);
+        } elseif ($status >= 400 && in_array($endpoint, self::AVAILABILITY_ENDPOINTS, true)) {
+            app(SmdAlerts::class)->report(SmdAlerts::AVAILABILITY, ['endpoint' => $endpoint, 'status' => $status]);
+        }
+    }
+
+    /**
+     * A-3: no se pudo crear/editar la cita en SMD y quedó solo en Sofo. No
+     * cuenta el horario ocupado (es una respuesta normal), ni la apikey
+     * rechazada ni el tope diario (tienen su propia alerta).
+     */
+    protected function alertOnEventWrite(string $endpoint, ?int $status, string $message, array $context = []): void
+    {
+        if ($status !== null && (in_array($status, [401, 403], true)
+            || in_array($status, (array) config('smd.alerts.slot_taken_statuses', []), true))) {
+            return;
+        }
+
+        app(SmdAlerts::class)->report(SmdAlerts::EVENT_WRITE, array_merge([
+            'endpoint' => $endpoint, 'status' => $status, 'mensaje' => mb_substr($message, 0, 300),
+        ], $context));
     }
 
     /**
@@ -163,6 +205,10 @@ class ShareMeDataService
         } catch (\Exception $e) {
             Log::error('ShareMeData: Error verificando disponibilidad: '.$e->getMessage());
 
+            if ($e instanceof ConnectionException) {
+                app(SmdAlerts::class)->report(SmdAlerts::AVAILABILITY, ['endpoint' => 'checkAvailability', 'error' => 'sin respuesta: '.$e->getMessage()]);
+            }
+
             return [];
         }
     }
@@ -183,6 +229,7 @@ class ShareMeDataService
     public function availabilityBySpecialty(string $specialty, string $subsidiary, string $from, string $to, ?int $timeout = null): ?array
     {
         $this->lastTimedOut = false;
+        $this->lastResponse = null;
 
         try {
             $tz = config('app.timezone', 'America/La_Paz');
@@ -195,10 +242,19 @@ class ShareMeDataService
                 'timeZone'   => 'America/La_Paz',
             ]);
 
+            // Para distinguir "SMD no respondió" (null, 5xx) de un 4xx.
+            $this->lastResponse = ['status' => $response->status(), 'body' => $response->json() ?: $response->body()];
+
             return $response->successful() && is_array($response->json()) ? $response->json() : null;
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+        } catch (ConnectionException $e) {
             $this->lastTimedOut = true;
             Log::info('[SMD] availabilityBySpecialty: sin respuesta dentro del tiempo', ['specialty' => $specialty, 'timeout' => $timeout]);
+
+            // Con `$timeout` la cortó la pantalla de WhatsApp a propósito (la
+            // termina un job): no es una falla de SMD.
+            if ($timeout === null) {
+                app(SmdAlerts::class)->report(SmdAlerts::AVAILABILITY, ['endpoint' => 'availabilityBySpecialty', 'error' => 'sin respuesta: '.$e->getMessage()]);
+            }
 
             return null;
         } catch (\Exception $e) {
@@ -206,6 +262,25 @@ class ShareMeDataService
 
             return null;
         }
+    }
+
+    /**
+     * La agenda de TODOS los doctores para un rango, en una sola consulta: en
+     * SMD todos están en `smd.availability_specialty` ("General") y Sofo decide
+     * quién atiende qué especialidad. Lo usa SmdAgenda; nadie más debería
+     * pedirle disponibilidad a SMD por especialidad en modo `single`.
+     *
+     * @return array<int, array{physician: array, slots: array}>|null null = SMD no respondió bien
+     */
+    public function agenda(string $from, string $to, ?int $timeout = null): ?array
+    {
+        return $this->availabilityBySpecialty(
+            (string) config('smd.availability_specialty', 'General'),
+            (string) config('smd.default_subsidiary', 'Santa Cruz'),
+            $from,
+            $to,
+            $timeout,
+        );
     }
 
     public function getLastResponse()
@@ -624,13 +699,20 @@ class ShareMeDataService
                 ];
             }
 
+            $message = (string) ($response->json('message') ?: $response->body());
+            $this->alertOnEventWrite('createEvent', $response->status(), $message);
+
             return [
                 'success' => false,
-                'message' => $response->json('message') ?: $response->body(),
+                'message' => $message,
                 'status'  => $response->status(),
             ];
         } catch (\Exception $e) {
             Log::error('ShareMeData: Excepción creando evento: '.$e->getMessage());
+
+            if (! $e instanceof QuotaExceeded) {
+                $this->alertOnEventWrite('createEvent', null, $e->getMessage());
+            }
 
             return [
                 'success' => false,
@@ -674,13 +756,20 @@ class ShareMeDataService
                 'body'     => $response->body(),
             ]);
 
+            $message = (string) ($response->json('message') ?: $response->body());
+            $this->alertOnEventWrite('updateEvent', $response->status(), $message, ['evento_smd' => $smdEventId]);
+
             return [
                 'success' => false,
-                'message' => $response->json('message') ?: $response->body(),
+                'message' => $message,
                 'status'  => $response->status(),
             ];
         } catch (\Exception $e) {
             Log::error('[SMD] updateEvent excepción: '.$e->getMessage());
+
+            if (! $e instanceof QuotaExceeded) {
+                $this->alertOnEventWrite('updateEvent', null, $e->getMessage(), ['evento_smd' => $smdEventId]);
+            }
 
             return ['success' => false, 'message' => $e->getMessage()];
         }

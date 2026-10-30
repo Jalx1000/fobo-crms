@@ -427,7 +427,7 @@ function bookingWithPrefill(object $t, array $prefill): string
     return $t->token;
 }
 
-it('R7–R9: después del doctor (marcado por el chat) aparece su turno más próximo, y Continuar va directo al resumen', function () {
+it('R7–R9: después del doctor (marcado por el chat) aparece su turno más próximo por franja, y Continuar va directo al resumen', function () {
     bookingWithPrefill($this, ['doctor' => (string) $this->doctorId]);
 
     $doctors = step($this->publicPem, $this->token, 'SPECIALTY', ['specialty' => (string) $this->specialtyId]);
@@ -435,13 +435,14 @@ it('R7–R9: después del doctor (marcado por el chat) aparece su turno más pr�
         ->and($doctors['data']['init_doctor'])->toBe((string) $this->doctorId);
 
     $next = step($this->publicPem, $this->token, 'DOCTOR', ['doctor' => (string) $this->doctorId]);
+    // Sin hora pedida: el más próximo de cada franja (acá solo hay de mañana).
     expect($next['screen'])->toBe('NEXT_SLOT')
-        ->and($next['data']['init_choice'])->toBe('accept')
-        ->and($next['data']['heading'])->toStartWith('El turno más próximo con')
-        ->and($next['data']['options'][0]['title'])->toEndWith($this->day->format('d/m').' a las 09:00')
+        ->and($next['data']['init_choice'])->toBe('slot:manana')
+        ->and($next['data']['heading'])->toStartWith('Los turnos más próximos con')
+        ->and($next['data']['options'][0]['title'])->toStartWith('Mañana · ')->toEndWith($this->day->format('d/m').' 09:00')
         ->and($next['data']['options'][1])->toMatchArray(['id' => 'other', 'title' => 'Quiero otra fecha y hora']);
 
-    $summary = step($this->publicPem, $this->token, 'NEXT_SLOT', ['slot_choice' => 'accept']);
+    $summary = step($this->publicPem, $this->token, 'NEXT_SLOT', ['slot_choice' => 'slot:manana']);
     expect($summary['screen'])->toBe('SUMMARY')
         ->and(FlowSession::get($this->token))->toMatchArray(['date' => $this->day->toDateString(), 'time' => '09:00']);
 });
@@ -653,4 +654,93 @@ it('no reutiliza un lead que no está en Consultas (p.ej. derivado a recepción)
     expect(leadOfBooking($this, $this->mama->id))->not->toBeNull()->not->toBeIn([$recepcion, $cerrado])
         ->and((int) DB::table('leads')->where('id', $recepcion)->value('lead_pipeline_stage_id'))
         ->toBe((int) config('whatsapp.crm.stage_recepcion'));
+});
+
+/*
+|--------------------------------------------------------------------------
+| Modo `single` (planning/16): una agenda de SMD para todas las especialidades
+|--------------------------------------------------------------------------
+*/
+
+function singleModeOn(object $t): void
+{
+    config(['smd.availability_mode' => 'single', 'smd.availability_specialty' => 'General']);
+    $from = now(config('app.timezone'))->toDateString();
+    $t->agendaKeys = ["smd:agenda:{$from}:14", "booking:avail:agenda:{$from}:14:fetching"];
+    array_map(fn ($k) => \Illuminate\Support\Facades\Cache::forget($k), $t->agendaKeys);
+}
+
+/** Otro doctor reservable, con su especialidad, y SMD publica a los dos. */
+function secondDoctor(object $t, string $specialtyName): array
+{
+    $doctorId = auditDoctor(['name' => 'Dr Segundo '.uniqid()]);
+    $uid = DB::table('doctors')->where('id', $doctorId)->value('unique_id');
+    $specialtyId = DB::table('specialties')->where('name', $specialtyName)->value('id')
+        ?? DB::table('specialties')->insertGetId([
+            'name' => $specialtyName, 'slug' => 'zq-'.uniqid(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+    DB::table('doctor_specialty')->insert(['doctor_id' => $doctorId, 'specialty_id' => $specialtyId]);
+    auditShift($doctorId, $t->day, '08:00', '12:00');
+
+    $t->smd['availability'] = array_merge(
+        auditSmdAvailability($t->doctorUid, $t->day->copy()->setTime(9, 0), $t->day->copy()->setTime(11, 0)),
+        auditSmdAvailability($uid, $t->day->copy()->setTime(9, 0), $t->day->copy()->setTime(11, 0)),
+    );
+
+    return [$doctorId, $specialtyId];
+}
+
+it('single: dos especialidades distintas en el mismo rango hacen UNA consulta, con General', function () {
+    singleModeOn($this);
+    [$otherDoctor, $otherSpecialty] = secondDoctor($this, 'Zq Odontopediatria '.uniqid());
+
+    startBooking($this);
+    $first = step($this->publicPem, $this->token, 'SPECIALTY', ['specialty' => (string) $this->specialtyId]);
+
+    $otro = auditPerson(['name' => 'Otro Paciente '.uniqid()]);
+    $tokenOtro = FlowToken::issue(flowConversation($otro->id)->id);
+    $confirm = step($this->publicPem, $tokenOtro, 'PATIENT_SELECT', ['choice' => 'self']);
+    step($this->publicPem, $tokenOtro, 'CONFIRM', $confirm['data']);
+    $second = step($this->publicPem, $tokenOtro, 'SPECIALTY', ['specialty' => (string) $otherSpecialty]);
+
+    $consultas = auditSent('/schedule/availability');
+    // Cada especialidad muestra solo a SUS doctores de Sofo.
+    expect(collect($first['data']['doctors'])->pluck('id')->all())->toBe([(string) $this->doctorId])
+        ->and(collect($second['data']['doctors'])->pluck('id')->all())->toBe([(string) $otherDoctor])
+        ->and($consultas)->toHaveCount(1)
+        ->and(urldecode($consultas[0]->url()))->toContain('specialty=General');
+
+    array_map(fn ($k) => \Illuminate\Support\Facades\Cache::forget($k), $this->agendaKeys);
+});
+
+it('single: "General / No sé" junta solo a los doctores con especialidad general EN SOFO', function () {
+    singleModeOn($this);
+    // El segundo doctor es general en Sofo; el primero no, aunque SMD lo tenga en "General".
+    [$generalDoctor, $general] = secondDoctor($this, 'Zq General Test');
+
+    startBooking($this);
+    $doctors = step($this->publicPem, $this->token, 'SPECIALTY', ['specialty' => 'general']);
+
+    expect($doctors['screen'])->toBe('DOCTOR')
+        ->and(collect($doctors['data']['doctors'])->pluck('id')->all())->toBe([(string) $generalDoctor])
+        ->and(auditSent('/schedule/availability'))->toHaveCount(1);
+
+    array_map(fn ($k) => \Illuminate\Support\Facades\Cache::forget($k), $this->agendaKeys);
+});
+
+it('single: si SMD tarda, despacha UN job por rango aunque se pidan dos especialidades', function () {
+    singleModeOn($this);
+    [, $otherSpecialty] = secondDoctor($this, 'Zq Endodoncia '.uniqid());
+    \Illuminate\Support\Facades\Queue::fake([\Webkul\Admin\Jobs\FetchSpecialtyAvailability::class]);
+    config(['whatsapp.flows.booking.wait_seconds' => 0]);
+
+    $booking = app(BookingOptions::class);
+    $from = now(config('app.timezone'))->toDateString();
+    $booking->availability($this->specialtyId, $from, 14, microtime(true));
+    $booking->availability($otherSpecialty, $from, 14, microtime(true));
+
+    \Illuminate\Support\Facades\Queue::assertPushed(\Webkul\Admin\Jobs\FetchSpecialtyAvailability::class, 1);
+    expect(auditSent('/schedule/availability'))->toHaveCount(0);
+
+    array_map(fn ($k) => \Illuminate\Support\Facades\Cache::forget($k), $this->agendaKeys);
 });

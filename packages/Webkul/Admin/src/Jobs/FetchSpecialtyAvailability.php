@@ -15,6 +15,9 @@ use Webkul\Admin\Services\BookingOptions;
  * tardar más de lo que Meta espera una pantalla; el formulario la espera y,
  * si no llega a tiempo, la toma ya guardada en el siguiente toque.
  *
+ * En modo `single` (planning/16) se despacha uno por rango, no por
+ * especialidad: la agenda que trae sirve para todas.
+ *
  * Una sola vez: si falla, BookingOptions guarda la falla y el formulario
  * deriva a recepción. Nunca se reintenta en bucle contra SMD.
  */

@@ -133,6 +133,16 @@
                         </select>
 
                         <x-admin::form.control-group.error control-name="specialties" />
+
+                        {{-- Sin especialidad no aparece en el formulario de WhatsApp ni en el agente (planning/16, RF-9). --}}
+                        @if (isset($doctor) && $doctor->specialties->isEmpty())
+                            <p
+                                id="doctor-sin-especialidad"
+                                style="margin-top:8px;padding:8px 12px;border-left:4px solid #B45309;background:#FEF3C7;color:#78350F;font-size:13px;border-radius:4px;"
+                            >
+                                Este doctor no tiene especialidades: los pacientes no lo van a ver al agendar por WhatsApp. Asignale al menos una.
+                            </p>
+                        @endif
                     </x-admin::form.control-group>
 
                     <x-admin::form.control-group>

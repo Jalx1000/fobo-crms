@@ -88,6 +88,12 @@ class TemplateCatalog
                 continue;
             }
 
+            // Not ours (Meta's hello_world sample, which the API refuses to
+            // delete): never offered to the advisor.
+            if (in_array($raw['name'] ?? '', (array) config('whatsapp.templates.remove', []), true)) {
+                continue;
+            }
+
             $templates[] = $this->normalize($raw);
         }
 

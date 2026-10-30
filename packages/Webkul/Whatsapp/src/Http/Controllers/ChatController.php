@@ -17,6 +17,7 @@ use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Product\Models\ProductProxy;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
+use Webkul\Whatsapp\Services\AttentionState;
 use Webkul\Whatsapp\Services\PhoneNumber;
 
 /**
@@ -108,6 +109,14 @@ class ChatController extends Controller
                 'stage_name'
             );
 
+        AttentionState::withColumns($query);
+
+        // Totales de la bandeja para las pestañas, sin búsqueda ni filtros.
+        $counts = [
+            'unread'    => (clone $query)->where('unread_count', '>', 0)->count(),
+            'attention' => AttentionState::onlyNeedingAttention(clone $query)->count(),
+        ];
+
         if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search) {
                 $q->where('wa_name', 'like', "%{$search}%")
@@ -119,6 +128,9 @@ class ChatController extends Controller
         match ($request->input('filter')) {
             'unassigned' => $query->whereNull('person_id')->whereNull('lead_id'),
             'unread'     => $query->where('unread_count', '>', 0),
+            // Las que necesitan a una persona: derivadas sin respuesta o que la
+            // pidieron y nadie contestó.
+            'attention'  => AttentionState::onlyNeedingAttention($query),
             // Sólo los que ya recibieron un recordatorio de cita, para revisar
             // la cobertura del envío del día.
             'reminded'   => $query->whereExists(function ($q) {
@@ -155,6 +167,7 @@ class ChatController extends Controller
                 'lead_id'      => $c->lead_id,
                 'unread_count' => (int) $c->unread_count,
                 'ai_enabled'   => $c->aiEffective(),
+                'status'       => AttentionState::status($c, $c->last_direction),
                 'stage'        => $c->stage_name,
                 'preview'      => $c->last_direction
                     ? ($c->last_direction === 'outbound' ? '↩ ' : '').Str::limit((string) $c->last_body, 60)
@@ -164,6 +177,7 @@ class ChatController extends Controller
             ]),
             'current_page' => $conversations->currentPage(),
             'last_page'    => $conversations->lastPage(),
+            'counts'       => $counts,
         ]);
     }
 

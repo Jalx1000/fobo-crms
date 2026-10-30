@@ -198,6 +198,27 @@ describe('SMD gamma ↔ doctores', function () {
         expect($sinEspecialidad)->toBeEmpty('Doctores activos sin especialidad: '.implode(', ', $sinEspecialidad));
     });
 
+    it('modo single: cada doctor activo vinculado está en la agenda "General" de SMD (A-7)', function () {
+        // planning/16: con SMD_AVAILABILITY_MODE=single solo se consulta esa
+        // especialidad; un doctor fuera de ella no muestra horarios.
+        $specialty = (string) config('smd.availability_specialty', 'General');
+        $tz = config('app.timezone', 'America/La_Paz');
+        $from = now($tz)->startOfDay();
+        $rows = app(ShareMeDataService::class)->availabilityBySpecialty(
+            $specialty, (string) config('smd.default_subsidiary', 'Santa Cruz'),
+            $from->toIso8601String(), $from->copy()->addDays(13)->endOfDay()->toIso8601String(),
+        );
+
+        expect($rows)->not->toBeNull("SMD no devolvió la agenda de \"{$specialty}\".");
+
+        $published = collect($rows)->pluck('physician._id')->filter()->all();
+        $missing = DB::table('doctors')->where('is_active', 1)->whereNotNull('unique_id')->where('unique_id', '!=', '')
+            ->whereNotIn('unique_id', $published)
+            ->get(['id', 'name'])->map(fn ($d) => "#{$d->id} ".trim($d->name))->all();
+
+        expect($missing)->toBeEmpty("Doctores activos que SMD no tiene en \"{$specialty}\":\n".implode("\n", $missing));
+    });
+
     it('la carpeta de Dropbox de pruebas recibe eventos', function () {
         $dropbox = app(DropboxService::class);
         $files = [];

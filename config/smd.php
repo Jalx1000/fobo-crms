@@ -20,6 +20,14 @@ return [
     ],
     'fallback_doctor_id' => env('SMD_FALLBACK_DOCTOR_ID', null),
 
+    // En SMD todos los doctores están en una sola especialidad: una consulta con
+    // ella trae la agenda de todos y Sofo filtra quién atiende qué
+    // (planning/16-especialidades-en-crm). `per_specialty` es el comportamiento
+    // anterior (una consulta por especialidad); `single`, el nuevo. Se cambia
+    // sin deploy.
+    'availability_mode'      => env('SMD_AVAILABILITY_MODE', 'per_specialty'),
+    'availability_specialty' => env('SMD_AVAILABILITY_SPECIALTY', 'General'),
+
     // Las citas que entran por la sync no tienen usuario en sesión: se reparten
     // entre los usuarios activos de este rol (ReceptionistAssigner) y se marcan
     // con este origen y tipo de lead.
@@ -101,6 +109,14 @@ return [
     // Pacientes que SMD respondió que NO existen (por id o por nombre): se
     // recuerdan en Redis para no volver a preguntar en cada sync de Dropbox.
     'patient_missing_cache_hours' => (int) env('SMD_PATIENT_MISSING_CACHE_HOURS', 168),
+
+    // Alertas por correo de la integración (planning/16, RF-10). Una cita que
+    // SMD rechaza por horario ocupado NO es un error de integración (A-3).
+    // SIN VERIFICAR: que SMD responda 409 en ese caso sale de logs de tests
+    // (N-1 de la spec); confirmarlo con una respuesta real y ajustar acá.
+    'alerts' => [
+        'slot_taken_statuses' => array_map('intval', array_filter(explode(',', (string) env('SMD_SLOT_TAKEN_STATUSES', '409')))),
+    ],
 
     'api_budget' => [
         'daily_cap'     => (int) env('SMD_DAILY_CAP', 800),

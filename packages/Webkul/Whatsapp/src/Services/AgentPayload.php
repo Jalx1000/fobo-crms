@@ -45,6 +45,9 @@ class AgentPayload
             // CONTRATO A: the patient's full appointment history, so the agent
             // does not have to call get_citas on every turn.
             'patient_context' => $this->patientContext->build($conversation),
+            // Hora de Bolivia y si la clínica está atendiendo, con el reloj del
+            // CRM: el modelo se equivoca con la hora (ver ClinicHours).
+            'clinica'         => ClinicHours::snapshot(),
             'window'          => [
                 'open'       => $window->open,
                 'expires_at' => $window->expiresAt?->toIso8601String(),

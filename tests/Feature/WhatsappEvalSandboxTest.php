@@ -96,7 +96,8 @@ it('el agente puede mandar un formulario a una conversación sandbox sin ventana
 
     $this->postJson("/api/v1/whatsapp/conversations/{$conv->id}/flows", ['flow' => 'cancelar_cita'])->assertOk();
 
-    Queue::assertPushed(SendMessage::class);
+    // Sale detrás del texto del agente (FlowAfterGreetingTest).
+    Queue::assertPushed(\Webkul\Whatsapp\Jobs\SendFlowAfterAgent::class);
 });
 
 // ─── whatsapp:eval-seed ─────────────────────────────────────────────────────

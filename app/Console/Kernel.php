@@ -4,6 +4,7 @@ namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+use Webkul\Admin\Services\Smd\SmdAgenda;
 use Webkul\Admin\Support\SmdSyncState;
 
 class Kernel extends ConsoleKernel
@@ -24,6 +25,13 @@ class Kernel extends ConsoleKernel
             ->everyThirtyMinutes()
             ->withoutOverlapping(10)
             ->when(fn () => ! SmdSyncState::isPaused());
+
+        // Doctores sin especialidad o que SMD no publica (planning/16, A-6/A-7).
+        // Solo en modo `single`: asume que en SMD todos están en "General"; si
+        // no, cada doctor fuera de esa especialidad sería una falsa alarma.
+        $schedule->command('smd:check-doctors')
+            ->dailyAt('07:00')
+            ->when(fn () => SmdAgenda::enabled());
     }
 
     /**

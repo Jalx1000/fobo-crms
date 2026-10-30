@@ -83,19 +83,25 @@ class PatientContext
             [$fecha, $hora] = $this->fechaHora($lead);
 
             return [
-                'lead_id'  => $lead->id,
-                'paciente' => $nombres[$lead->person_id] ?? null,
-                'fecha'    => $fecha,
-                'hora'     => $hora,
-                'doctor'   => $this->leadAttribute($lead, 'cita_doctor'),
-                'servicio' => $this->servicio($lead),
-                'estado'   => $labels[(int) $lead->lead_pipeline_stage_id] ?? 'desconocido',
+                'lead_id'   => $lead->id,
+                'person_id' => $lead->person_id,
+                'paciente'  => $nombres[$lead->person_id] ?? null,
+                'fecha'     => $fecha,
+                'hora'      => $hora,
+                'doctor'    => $this->leadAttribute($lead, 'cita_doctor'),
+                'servicio'  => $this->servicio($lead),
+                'estado'    => $labels[(int) $lead->lead_pipeline_stage_id] ?? 'desconocido',
             ];
         })->values();
 
         // The vigente appointment: a lead in the "confirmada" stage. If several,
         // the most recent wins.
         $activa = $leads->where('lead_pipeline_stage_id', $activaStage)->last();
+
+        // Una cita vigente POR PERSONA: la mamá sin cita propia que quiere
+        // cancelar la del hijo tiene que verla (cita_activa es una sola).
+        $activas = $leads->where('lead_pipeline_stage_id', $activaStage)->groupBy('person_id')->map->last();
+        $citasActivas = $citas->filter(fn ($c) => isset($activas[$c['person_id']]) && $activas[$c['person_id']]->id === $c['lead_id'])->values();
 
         // CI/seguro live on the lead (copied per cita). Read them from the active
         // cita, or the latest one, so a returning patient is pre-filled.
@@ -112,7 +118,12 @@ class PatientContext
             // los ofrece como opción; para un tercero nuevo, enviar el Flow
             // "paciente_tercero" (POST /conversations/{id}/flows).
             'pacientes_a_cargo'      => ($aCargo ?? collect())
-                ->map(fn ($p) => ['person_id' => $p->id, 'nombre' => $p->name, 'relacion' => $p->relation ?? null])
+                ->map(fn ($p) => [
+                    'person_id'   => $p->id,
+                    'nombre'      => $p->name,
+                    'relacion'    => $p->relation ?? null,
+                    'cita_activa' => isset($activas[$p->id]) ? $activas[$p->id]->id : null,
+                ])
                 ->values()->all(),
             'paciente_nuevo'         => $citas->isEmpty(),
             'nombre_registrado'      => $person->name ?: null,
@@ -120,6 +131,8 @@ class PatientContext
             'seguro_registrado'      => $source ? $this->leadAttribute($source, 'seguro') : null,
             'citas'                  => $citas->all(),
             'cita_activa'            => $activa?->id,
+            // Las vigentes de todos (titular y a cargo), con de quién es cada una.
+            'citas_activas'          => $citasActivas->all(),
             'recordatorios'          => $this->recordatorios($conversation),
         ];
     }
@@ -264,6 +277,7 @@ class PatientContext
             'pacientes_a_cargo'      => [],
             'citas'                  => [],
             'cita_activa'            => null,
+            'citas_activas'          => [],
             'recordatorios'          => [],
         ];
     }

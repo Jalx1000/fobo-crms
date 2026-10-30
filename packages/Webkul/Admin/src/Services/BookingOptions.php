@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 use Webkul\Admin\Jobs\FetchSpecialtyAvailability;
+use Webkul\Admin\Services\Smd\SmdAgenda;
 
 /**
  * Lo reservable desde el formulario de WhatsApp: especialidades, doctores y
@@ -24,6 +25,10 @@ use Webkul\Admin\Jobs\FetchSpecialtyAvailability;
  * en segundo plano (FetchSpecialtyAvailability) y la pantalla la espera un
  * rato; si no llega, el paciente vuelve a tocar "Siguiente" y la toma ya lista,
  * sin otra consulta.
+ *
+ * En modo `single` (planning/16) la consulta es UNA para todas las
+ * especialidades: la agenda de SMD de todos los doctores (SmdAgenda), que acá
+ * se filtra por los doctores que Sofo tiene en la especialidad elegida.
  */
 class BookingOptions
 {
@@ -137,8 +142,9 @@ class BookingOptions
             return $hit;
         }
 
-        // Un solo pedido por especialidad y rango, aunque toquen varios a la vez.
-        if (Cache::add($key.':fetching', true, now()->addMinute())) {
+        // Un solo pedido por especialidad y rango (en modo single, por rango),
+        // aunque toquen varios a la vez.
+        if (Cache::add($this->lockKey($specialtyId, $from, $days), true, now()->addMinute())) {
             // Se consulta acá mismo, con el tiempo que le queda a la pantalla:
             // por la cola dependía de que el worker estuviera libre, y el
             // 13/10 tardó 11 s en tomarla (Meta corta a ~10 s).
@@ -165,6 +171,11 @@ class BookingOptions
             if ($hit = Cache::get($key)) {
                 return $hit;
             }
+
+            // Otra especialidad ya trajo la agenda de todos: se filtra sin consultar.
+            if (SmdAgenda::enabled() && $this->agenda()->cached(Carbon::parse($from, config('app.timezone')), $days) !== null) {
+                return $this->fetch($specialtyId, $from, $days);
+            }
         }
 
         return null;
@@ -185,13 +196,15 @@ class BookingOptions
         $doctors = collect($this->doctorsOf($specialtyId))->keyBy('unique_id');
 
         try {
-            $items = $this->smd->availabilityBySpecialty(
-                $name,
-                (string) config('smd.default_subsidiary', 'Santa Cruz'),
-                $start->format('Y-m-d H:i:s'),
-                $start->copy()->addDays($days - 1)->endOfDay()->format('Y-m-d H:i:s'),
-                $timeout,
-            );
+            $items = SmdAgenda::enabled()
+                ? $this->agendaItems($start, $days, $timeout)
+                : $this->smd->availabilityBySpecialty(
+                    $name,
+                    (string) config('smd.default_subsidiary', 'Santa Cruz'),
+                    $start->format('Y-m-d H:i:s'),
+                    $start->copy()->addDays($days - 1)->endOfDay()->format('Y-m-d H:i:s'),
+                    $timeout,
+                );
         } catch (Throwable $e) {
             $items = null;
         }
@@ -205,7 +218,7 @@ class BookingOptions
         if ($items === null) {
             $result = ['failed' => true];
             Cache::put($key, $result, now()->addMinute());
-            Cache::forget($key.':fetching');
+            Cache::forget($this->lockKey($specialtyId, $from, $days));
 
             Log::warning('[Agenda] SMD no devolvió los horarios de la especialidad', ['especialidad' => $name]);
 
@@ -235,7 +248,7 @@ class BookingOptions
 
         $result = ['failed' => false, 'slots' => $slots];
         Cache::put($key, $result, now()->addMinutes(self::TTL_MINUTES));
-        Cache::forget($key.':fetching');
+        Cache::forget($this->lockKey($specialtyId, $from, $days));
         $this->remember($key);
 
         Log::info('[Agenda] Horarios de la especialidad consultados a SMD', [
@@ -384,6 +397,39 @@ class BookingOptions
     protected function key(int $specialtyId, string $from, int $days): string
     {
         return "booking:avail:{$specialtyId}:{$from}:{$days}";
+    }
+
+    /** En modo single la consulta es la misma para todas las especialidades. */
+    protected function lockKey(int $specialtyId, string $from, int $days): string
+    {
+        return SmdAgenda::enabled()
+            ? "booking:avail:agenda:{$from}:{$days}:fetching"
+            : $this->key($specialtyId, $from, $days).':fetching';
+    }
+
+    /** Comparte el cliente de SMD para leer `lastTimedOut` después. */
+    protected function agenda(): SmdAgenda
+    {
+        return new SmdAgenda($this->smd);
+    }
+
+    /**
+     * La agenda de todos los doctores en el formato de availabilityBySpecialty().
+     *
+     * @return array<int, array{physician: array, slots: array}>|null
+     */
+    protected function agendaItems(Carbon $start, int $days, ?int $timeout): ?array
+    {
+        $agenda = $this->agenda()->all($start, $days, $timeout);
+
+        if ($agenda === null) {
+            return null;
+        }
+
+        return collect($agenda)
+            ->map(fn ($slots, $uid) => ['physician' => ['_id' => (string) $uid], 'slots' => $slots])
+            ->values()
+            ->all();
     }
 
     /** Índice de respuestas guardadas, para takeSlot(). */

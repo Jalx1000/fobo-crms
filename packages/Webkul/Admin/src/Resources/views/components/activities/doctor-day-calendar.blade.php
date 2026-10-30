@@ -11,7 +11,7 @@
                 </span> --}}
             </div>
             <div class="ms-actions">
-                <span class="ms-count">@{{ model.length > 2 ? model.length - 2 : 0 }}</span>
+                <span class="ms-count" v-if="model.length > 2">+@{{ model.length - 2 }}</span>
                 <i :class="open ? 'icon-up-arrow' : 'icon-down-arrow'" class="text-xl"></i>
             </div>
         </div>
@@ -23,6 +23,67 @@
                     <span>@{{ d && d.name ? d.name : '' }}</span>
                 </li>
                 <li v-if="!filtered.length" class="ms-empty">Sin resultados</li>
+            </ul>
+        </div>
+    </div>
+</script>
+
+<script type="text/x-template" id="v-filter-select-template">
+    <!-- Filtro desplegable de la barra del calendario (doctores, especialidad,
+         estado). El botón dice qué está filtrado; se usa con teclado y Esc cierra. -->
+    <div class="fs-container" ref="root" @keydown.esc="close(true)">
+        <button
+            v-if="!inline"
+            type="button"
+            ref="trigger"
+            class="fs-trigger"
+            :class="{ 'is-filtered': isFiltered }"
+            aria-haspopup="true"
+            :aria-expanded="open ? 'true' : 'false'"
+            :aria-label="label + ': ' + summary"
+            @click="toggleDropdown"
+        >
+            <span class="fs-label">@{{ label }}</span>
+            <span class="fs-summary">@{{ summary }}</span>
+            <i :class="open ? 'icon-up-arrow' : 'icon-down-arrow'" class="fs-caret" aria-hidden="true"></i>
+        </button>
+
+        <!-- inline: la lista siempre abierta, dentro del panel de filtros del celular. -->
+        <div
+            v-if="inline || open"
+            :class="inline ? 'fs-inline' : 'fs-dropdown'"
+            ref="dropdown"
+            :role="inline ? 'group' : 'dialog'"
+            :aria-label="'Filtrar por ' + label.toLowerCase()"
+        >
+            <div v-if="inline" class="fs-inline-head">
+                <span class="fs-inline-label">@{{ label }}</span>
+                <span class="fs-summary" :class="{ 'is-filtered': isFiltered }">@{{ summary }}</span>
+            </div>
+
+            <input
+                v-if="searchable"
+                ref="search"
+                type="search"
+                v-model="q"
+                class="fs-search"
+                :placeholder="'Buscar ' + label.toLowerCase()"
+                :aria-label="'Buscar ' + label.toLowerCase()"
+            />
+
+            <div class="fs-bulk">
+                <button type="button" class="fs-bulk-btn" @click="selectVisible">Seleccionar todos</button>
+                <button type="button" class="fs-bulk-btn" @click="clearVisible">Ninguno</button>
+            </div>
+
+            <ul class="fs-list">
+                <li v-for="it in filtered" :key="'fs-'+it.id">
+                    <label class="fs-item">
+                        <input type="checkbox" :checked="set.has(String(it.id))" @change="toggle(String(it.id))" />
+                        <span class="fs-item-name">@{{ it.name }}</span>
+                    </label>
+                </li>
+                <li v-if="!filtered.length" class="fs-empty">Sin resultados</li>
             </ul>
         </div>
     </div>
@@ -42,8 +103,8 @@
                     </li>
                 </ul>
                 <ul class="tp-list" ref="minutes">
-                    <li v-for="m in 60" :key="'m-'+m" @click.stop="selectMinute(m-1)" :class="{ 'is-selected': (m-1) == currentMinute }">
-                        @{{ pad2(m-1) }}
+                    <li v-for="m in minuteOptions" :key="'m-'+m" @click.stop="selectMinute(m)" :class="{ 'is-selected': m == currentMinute }">
+                        @{{ pad2(m) }}
                     </li>
                 </ul>
             </div>
@@ -74,6 +135,9 @@
                         @click="setView(v.key)">@{{ v.label }}</button>
             </div>
 
+            <!-- Buscador + botón "Filtros" (este solo en celular/tablet). En escritorio
+                 el contenedor no existe para la grilla (display: contents). -->
+            <div class="ddc-tb-searchrow">
             <!-- Buscador de paciente: nombre, teléfono o CI (PatientSearch en el backend) -->
             <div class="ddc-tb-search">
                 <span class="icon-search ddc-tb-search-icon"></span>
@@ -84,16 +148,135 @@
                     v-model="patientSearch"
                     @input="onPatientSearch"
                 >
+                <button
+                    v-if="patientSearch"
+                    type="button"
+                    class="ddc-tb-search-clear"
+                    aria-label="Borrar búsqueda de paciente"
+                    @click="clearPatientSearch"
+                >×</button>
             </div>
 
-            <div class="ddc-tb-doctors">
-                <div class="ddc-tb-doctors-head">
-                    <span>Doctores</span>
-                    <button type="button" class="ddc-tb-link" @click="selectAllDoctors">Todos</button>
-                    <button type="button" class="ddc-tb-link" @click="clearDoctors">Ninguno</button>
-                </div>
-                <v-doctor-multiselect class="ddc-tb-multi" :items="doctors" v-model="selectedDoctorIds"></v-doctor-multiselect>
+            <button
+                type="button"
+                ref="filtersButton"
+                class="ddc-tb-filters-btn"
+                :class="{ 'is-filtered': activeFilterCount > 0 }"
+                aria-haspopup="dialog"
+                :aria-expanded="mobileFiltersOpen ? 'true' : 'false'"
+                :aria-label="activeFilterCount ? 'Filtros, ' + activeFilterCount + ' activos' : 'Filtros'"
+                @click="openMobileFilters"
+            >
+                <span class="icon-filter text-xl" aria-hidden="true"></span>
+                <span>Filtros</span>
+                <span v-if="activeFilterCount" class="ddc-tb-filters-badge" aria-hidden="true">@{{ activeFilterCount }}</span>
+            </button>
             </div>
+
+            <!-- Filtros: especialidad acota los doctores ofrecidos; estado filtra
+                 las citas. Especialidad y estado vacíos = sin filtrar. -->
+            <div class="ddc-tb-doctors" role="group" aria-label="Filtros del calendario">
+                <v-filter-select
+                    v-if="specialties.length"
+                    class="ddc-tb-multi"
+                    label="Especialidad"
+                    all-text="Todas"
+                    empty-text="Todas"
+                    plural="especialidades"
+                    empty-means-all
+                    :items="specialties"
+                    v-model="selectedSpecialtyIds"
+                ></v-filter-select>
+
+                <v-filter-select
+                    class="ddc-tb-multi"
+                    label="Doctores"
+                    all-text="Todos"
+                    empty-text="Ninguno"
+                    plural="doctores"
+                    :items="doctorsInSpecialty"
+                    v-model="selectedDoctorIds"
+                ></v-filter-select>
+
+                <v-filter-select
+                    v-if="stages.length"
+                    class="ddc-tb-multi"
+                    label="Estado"
+                    all-text="Todos"
+                    empty-text="Todos"
+                    plural="estados"
+                    empty-means-all
+                    :items="stages"
+                    v-model="selectedStageIds"
+                ></v-filter-select>
+
+                <button v-if="hasActiveFilters" type="button" class="ddc-tb-link ddc-tb-clear" @click="clearFilters">Limpiar filtros</button>
+            </div>
+
+            <!-- Celular/tablet: todos los filtros en un panel que sube desde abajo.
+                 Los cambios se aplican al momento; "Ver N citas" cierra. -->
+            <div v-if="mobileFiltersOpen" class="ddc-sheet-overlay" @click="closeMobileFilters"></div>
+            <div
+                v-if="mobileFiltersOpen"
+                ref="filtersSheet"
+                class="ddc-sheet"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="ddc-sheet-title"
+                @keydown.esc.stop="closeMobileFilters"
+            >
+                <div class="ddc-sheet-head">
+                    <h2 id="ddc-sheet-title" class="ddc-sheet-title">Filtros</h2>
+                    <button type="button" ref="sheetClose" class="ddc-sheet-close" aria-label="Cerrar filtros" @click="closeMobileFilters">×</button>
+                </div>
+
+                <div class="ddc-sheet-body">
+                    <v-filter-select
+                        v-if="specialties.length"
+                        inline
+                        label="Especialidad"
+                        all-text="Todas"
+                        empty-text="Todas"
+                        plural="especialidades"
+                        empty-means-all
+                        :items="specialties"
+                        v-model="selectedSpecialtyIds"
+                    ></v-filter-select>
+
+                    <v-filter-select
+                        inline
+                        label="Doctores"
+                        all-text="Todos"
+                        empty-text="Ninguno"
+                        plural="doctores"
+                        :items="doctorsInSpecialty"
+                        v-model="selectedDoctorIds"
+                    ></v-filter-select>
+
+                    <v-filter-select
+                        v-if="stages.length"
+                        inline
+                        label="Estado"
+                        all-text="Todos"
+                        empty-text="Todos"
+                        plural="estados"
+                        empty-means-all
+                        :items="stages"
+                        v-model="selectedStageIds"
+                    ></v-filter-select>
+                </div>
+
+                <div class="ddc-sheet-foot">
+                    <button type="button" class="ddc-sheet-clear" :disabled="!activeFilterCount" @click="clearPanelFilters">Limpiar</button>
+                    <button type="button" class="ddc-sheet-done" @click="closeMobileFilters">Ver @{{ citasLabel(listAppointments.length) }}</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sin doctores en el filtro: aviso en vez de un calendario todo rayado. -->
+        <div v-if="!columns.length && doctors.length && !isLoading" class="ddc-filter-empty" role="status">
+            <span>No hay doctores para mostrar con estos filtros.</span>
+            <button type="button" class="ddc-tb-link" @click="clearFilters">Mostrar todos</button>
         </div>
 
         <div v-if="quickMenu.visible" class="ddc-quick-overlay" @click="closeQuickMenu"></div>
@@ -185,55 +368,99 @@
             </div>
         </div>
 
-        <div v-if="viewType === 'month'" class="dwc-month-view">
+        <div v-if="viewType === 'month'" class="dwc-month-view" :aria-busy="isLoading ? 'true' : 'false'">
+            <div v-if="isLoading" class="dwc-month-loading" role="status">Cargando…</div>
+
             <div class="ddc-date-weekdays mb-0">
                 <span v-for="w in weekdays" :key="'mw-'+w" class="ddc-date-weekday">@{{ w }}</span>
             </div>
-            <div class="ddc-date-grid">
-                <div v-for="cell in monthGridCells" :key="'mc-'+cell.key" class="ddc-date-day dwc-month-cell" 
-                    :class="{ 'is-out': !cell.inMonth, 'is-today': cell.iso === todayISO() }"
+            <div class="ddc-date-grid dwc-month-grid" :class="{ 'is-loading': isLoading }">
+                <!-- Sin turnos de los doctores filtrados: rayado, como en Día y Semana. -->
+                <div v-for="cell in monthGridCells" :key="'mc-'+cell.key" class="dwc-month-cell"
+                    :class="{
+                        'is-out': !cell.inMonth,
+                        'is-today': cell.iso === todayISO(),
+                        'is-off': cell.inMonth && !dayHasShift(cell.iso),
+                        'is-picked': cell.inMonth && cell.iso === monthPickedISO
+                    }"
                 >
-                    <div class="dwc-month-cell-header">
-                        <span :class="{'font-bold text-blue-600': cell.iso === todayISO()}">@{{ cell.day }}</span>
-                    </div>
-                    <div class="dwc-month-cell-events custom-scrollbar">
-                         <div v-for="ev in getEventsForDay(cell.iso)" :key="'mev-'+ev.id"
-                              class="dwc-month-event"
-                              :class="{ 'is-cancelled': ev.is_cancelled, 'is-completed': ev.is_completed, 'is-confirmed': ev.is_confirmed, 'is-surgery': ev.is_surgery, 'is-lost': ev.is_lost }"
-                              :title="ev.title || ev.type"
-                              @click.stop="openViewModal(ev)"
-                              @mouseenter="onEventMouseEnter($event, ev.id, ev)"
-                              @mouseleave="hoveredEventId = null; hoveredEvent = null"
-                         >
-                             <span class="font-semibold">@{{ formatTime(ev.start) }}</span> @{{ ev.title || ev.type }}
-                         </div>
-                    </div>
+                    <template v-if="cell.inMonth">
+                        <div class="dwc-month-cell-header">
+                            <!-- Escritorio: abre la vista Día. Celular: elige el día y muestra sus citas debajo. -->
+                            <button
+                                type="button"
+                                class="dwc-month-day-btn"
+                                :aria-label="formatDate(parseISODate(cell.iso)) + ', ' + citasLabel(getEventsForDay(cell.iso).length)"
+                                :aria-current="cell.iso === todayISO() ? 'date' : null"
+                                @click="onMonthDayClick(cell.iso)"
+                            >@{{ cell.day }}</button>
+                            <span v-if="getEventsForDay(cell.iso).length" class="dwc-month-count" aria-hidden="true">@{{ getEventsForDay(cell.iso).length }}</span>
+                        </div>
+
+                        <div class="dwc-month-cell-events">
+                            <button
+                                v-for="ev in getEventsForDay(cell.iso).slice(0, monthMaxEvents)"
+                                :key="'mev-'+ev.id"
+                                type="button"
+                                class="dwc-month-event"
+                                :class="{ 'is-cancelled': ev.is_cancelled, 'is-completed': ev.is_completed, 'is-confirmed': ev.is_confirmed, 'is-surgery': ev.is_surgery, 'is-lost': ev.is_lost }"
+                                :aria-label="monthEventLabel(ev)"
+                                @click.stop="openViewModal(ev)"
+                                @mouseenter="onEventMouseEnter($event, ev.id, ev)"
+                                @mouseleave="hoveredEventId = null; hoveredEvent = null"
+                            >
+                                <span class="font-semibold">@{{ formatTime(ev.start) }}</span> @{{ monthEventPatient(ev) }}
+                            </button>
+                            <button
+                                v-if="getEventsForDay(cell.iso).length > monthMaxEvents"
+                                type="button"
+                                class="dwc-month-more"
+                                @click.stop="goToDay(cell.iso)"
+                            >+@{{ getEventsForDay(cell.iso).length - monthMaxEvents }} más</button>
+                        </div>
+
+                        <span v-if="getEventsForDay(cell.iso).length" class="dwc-month-dot" aria-hidden="true"></span>
+                    </template>
                 </div>
             </div>
+
+            <!-- Celular: las citas del día elegido, debajo del mes. -->
+            <section class="dwc-month-agenda" :aria-label="'Citas del ' + formatDate(parseISODate(monthPickedISO))">
+                <div class="dwc-month-agenda-head">
+                    <span class="font-semibold">@{{ formatDate(parseISODate(monthPickedISO)) }}</span>
+                    <span class="text-gray-500 dark:text-gray-400">· @{{ citasLabel(getEventsForDay(monthPickedISO).length) }}</span>
+                    <button type="button" class="ddc-tb-link ml-auto" @click="goToDay(monthPickedISO)">Ver día</button>
+                </div>
+                <button
+                    v-for="ev in getEventsForDay(monthPickedISO)"
+                    :key="'mag-'+ev.id"
+                    type="button"
+                    class="dwc-month-agenda-item"
+                    :class="{ 'is-cancelled': ev.is_cancelled, 'is-completed': ev.is_completed, 'is-confirmed': ev.is_confirmed, 'is-surgery': ev.is_surgery, 'is-lost': ev.is_lost }"
+                    @click="openViewModal(ev)"
+                >
+                    <span class="dwc-month-agenda-time">@{{ formatTime(ev.start) }}</span>
+                    <span class="dwc-month-agenda-main">
+                        <span class="dwc-month-agenda-patient">@{{ monthEventPatient(ev) }}</span>
+                        <span class="dwc-month-agenda-meta">
+                            <template v-if="ev.doctor_name">Dr. @{{ ev.doctor_name }}</template><template v-if="ev.doctor_name && getStageName(ev.lead_pipeline_stage_id)"> · </template>@{{ getStageName(ev.lead_pipeline_stage_id) }}
+                        </span>
+                    </span>
+                </button>
+                <p v-if="!isLoading && !getEventsForDay(monthPickedISO).length" class="dwc-month-agenda-empty">Sin citas este día.</p>
+            </section>
         </div>
 
         <div v-else-if="viewType === 'list'" class="dwc-list-view">
-            <!-- Filtro de rango de fechas Desde / Hasta -->
-            <div class="dwc-list-filters">
-                <div class="flex items-end gap-3 flex-wrap">
-                    <label class="flex flex-col gap-1">
-                        <span class="text-xs text-gray-600 dark:text-gray-300">Desde</span>
-                        <input type="date" class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" v-model="rangeStart" @change="applyRange">
-                    </label>
-                    <label class="flex flex-col gap-1">
-                        <span class="text-xs text-gray-600 dark:text-gray-300">Hasta</span>
-                        <input type="date" class="rounded border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" v-model="rangeEnd" @change="applyRange">
-                    </label>
-                    <button type="button" class="primary-button" @click="applyRange">Aplicar</button>
-                    <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">@{{ listAppointments.length }} citas</span>
-                </div>
-            </div>
+            <!-- Sin filtro de fechas propio: la lista muestra la semana de la fecha de
+                 la barra (flechas, "Hoy" y selector de fecha, como las demás vistas). -->
+            <div class="dwc-list-summary text-xs text-gray-500 dark:text-gray-400">@{{ citasLabel(listAppointments.length) }} esta semana</div>
 
             <div v-if="isLoading" class="p-6 text-center text-sm text-gray-500 dark:text-gray-400">Cargando…</div>
 
             <template v-else>
                 <div v-if="!listAppointments.length" class="p-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                    No hay citas en el rango seleccionado.
+                    No hay citas en esta semana.
                 </div>
 
                 <div v-else class="dwc-list-table">
@@ -273,7 +500,7 @@
         <div v-else-if="viewType === 'week' && !isSingleDoctorMode" class="dwc-week-view">
             <div class="dwc-week-header">
                 <div class="dwc-week-header-cell doctor-col">Doctores</div>
-                <div v-for="day in days" :key="'wh-'+day.date" class="dwc-week-header-cell">
+                <div v-for="day in days" :key="'wh-'+day.date" class="dwc-week-header-cell" :class="{ 'is-today': day.date === todayISO() }">
                     @{{ day.label }}
                 </div>
             </div>
@@ -281,23 +508,29 @@
                 <div v-for="col in columns" :key="'wrow-'+col.id" class="dwc-week-row">
                     <div class="dwc-week-doctor-cell">
                         <span class="font-semibold text-sm">@{{ col.name }}</span>
-                        <span class="text-xs text-gray-500">@{{ totalCount(col.id) }} citas</span>
+                        <span class="text-xs text-gray-500">@{{ citasLabel(totalCount(col.id)) }}</span>
                     </div>
+                    <!-- Sin turno ese día: rayado y sin "Añadir cita" (las citas que
+                         hubiera se siguen pudiendo abrir). -->
                     <div v-for="day in days" :key="'wcell-'+col.id+'-'+day.date" 
                          class="dwc-week-day-cell"
-                         :class="{ 'is-today': day.date === todayISO() }"
+                         :class="{ 'is-today': day.date === todayISO(), 'is-off': !hasShift(day.date, col.id) }"
+                         :aria-label="hasShift(day.date, col.id) ? null : col.name + ': sin turno el ' + day.label"
                          @click="onWeekCellClick($event, day, col.id)"
                     >
                         <div v-for="ev in dayDoctorEvents(day.date, col.id)" :key="'wev-'+ev.id"
                              class="dwc-week-event"
                              :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-confirmed': ev.is_confirmed, 'dwc-event-surgery': ev.is_surgery, 'dwc-event-lost': ev.is_lost }"
-                             :title="ev.title || ev.type"
                              @click.stop="openViewModal(ev)"
                              @mouseenter="onEventMouseEnter($event, ev.id, ev)"
                              @mouseleave="hoveredEventId = null; hoveredEvent = null"
                         >
-                            <span class="font-bold">@{{ formatTime(ev.start) }}</span>
-                            <span class="truncate">@{{ ev.title || ev.type }}</span>
+                            <div class="dwc-week-event-main">
+                                <span class="font-bold">@{{ formatTime(ev.start) }}</span>
+                                <span class="truncate">@{{ ev.person_name ? formatPatientName(ev.person_name) : (ev.title || ev.type) }}</span>
+                            </div>
+                            <!-- El estado también en texto: no depender solo del color. -->
+                            <span v-if="getStageName(ev.lead_pipeline_stage_id)" class="dwc-week-event-status truncate">@{{ getStageName(ev.lead_pipeline_stage_id) }}</span>
                         </div>
                     </div>
                 </div>
@@ -320,12 +553,12 @@
             </div>
 
             <div v-for="day in days" :key="'col-day-'+day.date" class="dwc-doctor-col">
-                <div class="dwc-doctor-header justify-center">
+                <div class="dwc-doctor-header justify-center" :class="{ 'is-today': day.date === todayISO() }">
                     <span class="font-bold">@{{ day.label }}</span>
                 </div>
 
                 <div class="dwc-days-stack" :style="{ height: dayHeight + 'px' }">
-                    <div class="dwc-day-block" :style="{ height: dayHeight + 'px', borderBottom: 'none' }" @click="onDayClick($event, day, columns[0].id)">
+                    <div class="dwc-day-block" :style="{ height: dayHeight + 'px', borderBottom: 'none' }" @click="onDayClick($event, day, columns[0].id)" @mousemove="onDayHover($event, day, columns[0].id)" @mouseleave="hoverSlot = null">
                         <!-- Availability -->
                         <div v-for="av in getDoctorAvailability(day.date, columns[0].id)" :key="'av-sd-'+av.id" 
                                 class="dwc-availability-block" 
@@ -334,6 +567,13 @@
 
                         <!-- Lines -->
                         <div v-for="idx in 13" :key="'line-sd-'+idx" class="dwc-hour-line" :style="{ top: ((idx - 1) * hourHeight) + 'px' }"></div>
+                        <div class="dwc-quarter-lines" :style="{ backgroundSize: '100% ' + (slotMinutes * minuteHeight) + 'px' }"></div>
+
+                        <!-- Hora actual sobre la columna de hoy (la etiqueta va en la columna de horas). -->
+                        <div v-if="showNowLine && day.date === todayISO()" class="dwc-now-line dwc-now-line-day" :style="{ top: nowLocalTop + 'px' }"></div>
+
+                        <!-- Slot bajo el cursor: la hora exacta en que se agendaría -->
+                        <div v-if="hoverSlot && hoverSlot.key === slotKey(day.date, columns[0].id)" class="dwc-hover-slot" :style="{ top: hoverSlot.top + 'px', height: hoverSlot.height + 'px' }">@{{ hoverSlot.label }}</div>
 
                         <!-- Events -->
                         <div v-for="ev in dayDoctorEvents(day.date, columns[0].id)" :key="'ev-sd-'+ev.id" class="dwc-event" :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-confirmed': ev.is_confirmed, 'dwc-event-surgery': ev.is_surgery, 'dwc-event-lost': ev.is_lost, 'dwc-event-compact': ev.height < 64, 'dwc-event-tiny': ev.height < 40 }" :style="{ top: ev.top + 'px', height: ev.height + 'px', left: 'calc(' + ev.left + '% + 6px)', width: 'calc(' + ev.width + '% - 12px)' }" @click.stop="openViewModal(ev)" @mouseenter="onEventMouseEnter($event, ev.id, ev)" @mouseleave="hoveredEventId = null; hoveredEvent = null">
@@ -395,13 +635,18 @@
                     </div>
 
                     <div class="dwc-days-stack" :style="{ height: totalHeight + 'px' }">
-                        <div v-for="(day, di) in days" :key="'day-'+di" class="dwc-day-block" :style="{ height: dayHeight + 'px' }" @click="onDayClick($event, day, col.id)">
+                        <div v-for="(day, di) in days" :key="'day-'+di" class="dwc-day-block" :style="{ height: dayHeight + 'px' }" @click="onDayClick($event, day, col.id)" @mousemove="onDayHover($event, day, col.id)" @mouseleave="hoverSlot = null">
                             <div v-for="av in getDoctorAvailability(day.date, col.id)" :key="'av-'+av.id" 
                                  class="dwc-availability-block" 
                                  :style="{ top: av.top + 'px', height: av.height + 'px' }">
                             </div>
 
                             <div v-for="idx in 13" :key="'line-'+di+'-'+idx" class="dwc-hour-line" :style="{ top: ((idx - 1) * hourHeight) + 'px' }"></div>
+                            <div class="dwc-quarter-lines" :style="{ backgroundSize: '100% ' + (slotMinutes * minuteHeight) + 'px' }"></div>
+
+                            <div v-if="showNowLine && day.date === todayISO()" class="dwc-now-line dwc-now-line-day" :style="{ top: nowLocalTop + 'px' }"></div>
+
+                            <div v-if="hoverSlot && hoverSlot.key === slotKey(day.date, col.id)" class="dwc-hover-slot" :style="{ top: hoverSlot.top + 'px', height: hoverSlot.height + 'px' }">@{{ hoverSlot.label }}</div>
 
                             <div v-for="ev in dayDoctorEvents(day.date, col.id)" :key="'ev-'+ev.id" class="dwc-event" :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-confirmed': ev.is_confirmed, 'dwc-event-surgery': ev.is_surgery, 'dwc-event-lost': ev.is_lost, 'dwc-event-compact': ev.height < 64, 'dwc-event-tiny': ev.height < 40 }" :style="{ top: ev.top + 'px', height: ev.height + 'px', left: 'calc(' + ev.left + '% + 6px)', width: 'calc(' + ev.width + '% - 12px)' }" @click.stop="openViewModal(ev)" @mouseenter="onEventMouseEnter($event, ev.id, ev)" @mouseleave="hoveredEventId = null; hoveredEvent = null">
                                 <div class="dwc-event-content dwc-event-layout">
@@ -445,17 +690,24 @@
             <x-slot:header>
                 <div>
                     <h3 class="text-lg font-semibold dark:text-white">Nueva cita</h3>
+                    <!-- En vivo: sigue a la fecha, hora y duración elegidas. -->
                     <p class="mt-0.5 flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
                         <span class="icon-calendar text-base text-brandColor"></span>
-                        @{{ modalContext.dayLabel }} · @{{ modalContext.timeText }}
+                        @{{ appointmentDayLabel }} · @{{ appointmentForm.startTime }}–@{{ appointmentForm.endTime }}
                     </p>
                 </div>
             </x-slot>
 
             <x-slot:content>
-                <div class="flex flex-col gap-4">
+                <div class="flex flex-col gap-4" @keydown.ctrl.enter="saveAppointment" @keydown.meta.enter="saveAppointment">
+                    <!-- Borrador recuperado: se avisa para no agendar al paciente equivocado. -->
+                    <div v-if="draftRestored" class="ddc-appt-draft" role="status">
+                        <span>Se recuperó un borrador sin guardar.</span>
+                        <button type="button" class="ddc-tb-link" @click="discardAppointmentDraft">Descartar</button>
+                    </div>
+
                     <!-- Paciente -->
-                    <div class="flex flex-col gap-1">
+                    <div class="flex flex-col gap-1" ref="apptPatientField">
                         <x-admin::form.control-group.label class="required">Paciente</x-admin::form.control-group.label>
                         <x-admin::lookup
                             ::src="personSearchUrl"
@@ -472,9 +724,9 @@
                     <!-- Datos de la cita -->
                     <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
                         <p class="mb-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Datos de la cita</p>
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="ddc-appt-grid">
                             <div class="flex flex-col gap-1">
-                                <x-admin::form.control-group.label>Doctor(es)</x-admin::form.control-group.label>
+                                <x-admin::form.control-group.label class="required">Doctor(es)</x-admin::form.control-group.label>
                                 <v-doctor-multiselect :items="doctors" v-model="appointmentForm.doctor_ids"></v-doctor-multiselect>
                             </div>
 
@@ -491,9 +743,31 @@
                             </div>
 
                             <div class="flex flex-col gap-1">
-                                <x-admin::form.control-group.label>Hora de inicio</x-admin::form.control-group.label>
+                                <x-admin::form.control-group.label class="required">Fecha</x-admin::form.control-group.label>
+                                <input
+                                    type="date"
+                                    class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm font-normal text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                                    v-model="modalContext.dayISO"
+                                    aria-label="Fecha de la cita"
+                                />
+                            </div>
+
+                            <div class="flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Estado</x-admin::form.control-group.label>
+                                <select
+                                    class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm font-normal text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                                    v-model="appointmentForm.lead_pipeline_stage_id"
+                                >
+                                    <option :value="null" disabled>Seleccionar estado</option>
+                                    <option v-for="stage in creatableStages" :key="'st-modal-'+stage.id" :value="stage.id">@{{ stage.name }}</option>
+                                </select>
+                            </div>
+
+                            <div class="flex flex-col gap-1">
+                                <x-admin::form.control-group.label class="required">Hora de inicio</x-admin::form.control-group.label>
                                 <v-time-picker
                                     v-model="appointmentForm.startTime"
+                                    :step="slotMinutes"
                                     @update:modelValue="syncAppointmentEndTime"
                                 ></v-time-picker>
                             </div>
@@ -512,28 +786,37 @@
                                     <option :value="90">90 min</option>
                                     <option :value="120">120 min</option>
                                 </select>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">Termina a las @{{ appointmentForm.endTime }}</span>
                             </div>
 
-                            <div class="flex flex-col gap-1">
-                                <x-admin::form.control-group.label>Hora de fin</x-admin::form.control-group.label>
-                                <v-time-picker
-                                    v-model="appointmentForm.endTime"
-                                    :disabled="true"
-                                ></v-time-picker>
+                            <!-- Turno y choques del doctor principal (es el que valida el backend). -->
+                            <div class="ddc-appt-wide flex flex-col gap-2">
+                                <div v-if="appointmentSlotIssue" class="ddc-appt-issue" role="alert">@{{ appointmentSlotIssue }}</div>
+                                <p v-else-if="!appointmentAgendaKnown && appointmentPrincipalDoctorId" class="text-xs text-gray-500 dark:text-gray-400">
+                                    Ese día no está cargado en el calendario: el turno y los choques se revisan al guardar.
+                                </p>
+
+                                <div v-if="appointmentAgendaKnown && appointmentPrincipalDoctorId">
+                                    <p class="mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-300">
+                                        Horarios libres de @{{ appointmentForm.duration }} min
+                                        <span class="font-normal text-gray-400">· @{{ appointmentPrincipalDoctorName }}</span>
+                                    </p>
+                                    <div v-if="appointmentFreeSlots.length" class="ddc-appt-slots" role="group" aria-label="Horarios libres">
+                                        <button
+                                            v-for="m in appointmentFreeSlots"
+                                            :key="'free-'+m"
+                                            type="button"
+                                            class="ddc-appt-slot"
+                                            :class="{ 'is-active': minutesToTime(m) === appointmentForm.startTime }"
+                                            :aria-pressed="minutesToTime(m) === appointmentForm.startTime"
+                                            @click="pickAppointmentSlot(m)"
+                                        >@{{ minutesToTime(m) }}</button>
+                                    </div>
+                                    <p v-else class="text-xs text-gray-500 dark:text-gray-400">No quedan horarios libres de esa duración este día.</p>
+                                </div>
                             </div>
 
-                            <div class="flex flex-col gap-1">
-                                <x-admin::form.control-group.label>Estado</x-admin::form.control-group.label>
-                                <select
-                                    class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm font-normal text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
-                                    v-model="appointmentForm.lead_pipeline_stage_id"
-                                >
-                                    <option :value="null" disabled>Seleccionar estado</option>
-                                    <option v-for="stage in stages" :key="'st-modal-'+stage.id" :value="stage.id">@{{ stage.name }}</option>
-                                </select>
-                            </div>
-
-                            <div class="col-span-2 flex flex-col gap-1">
+                            <div class="ddc-appt-wide flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Motivo de consulta</x-admin::form.control-group.label>
                                 <textarea
                                     rows="3"
@@ -545,9 +828,9 @@
                         </div>
                     </div>
 
-                    <div v-if="appointmentForm.person.id" class="col-span-2 border rounded-lg p-3 dark:border-gray-700">
+                    <div v-if="appointmentForm.person.id" class="border rounded-lg p-3 dark:border-gray-700">
                         <div class="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Seguro médico</div>
-                        <div class="grid grid-cols-2 gap-2">
+                        <div class="ddc-appt-grid">
                             <div class="flex flex-col gap-1">
                                 <x-admin::form.control-group.label>CI del paciente</x-admin::form.control-group.label>
                                 <input
@@ -568,7 +851,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="flex items-center gap-2 mt-2">
+                        <div class="flex flex-wrap items-center gap-2 mt-2">
                             <button
                                 type="button"
                                 class="text-xs px-3 py-1.5 rounded border dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-1"
@@ -588,14 +871,19 @@
                         </div>
                     </div>
 
-                    <div class="text-sm text-red-600" v-if="modalError">@{{ modalError }}</div>
+                    <div v-if="modalError" class="text-sm text-red-600" role="alert">
+                        <p>@{{ modalError }}</p>
+                        <ul v-if="modalErrorDetails.length" class="mt-1 list-disc pl-5 text-xs">
+                            <li v-for="(msg, i) in modalErrorDetails" :key="'err-'+i">@{{ msg }}</li>
+                        </ul>
+                    </div>
                 </div>
             </x-slot>
 
             <x-slot:footer>
                 <div class="flex items-center gap-2 justify-end">
                     <button type="button" class="secondary-button" @click="$refs.appointmentModal.close()">Cancelar</button>
-                    <button type="button" class="primary-button" @click="saveAppointment" :disabled="modalSaving">
+                    <button type="button" class="primary-button" @click="saveAppointment" :disabled="modalSaving || !!appointmentSlotIssue">
                         <span v-if="!modalSaving">Guardar</span>
                         <span v-else class="flex items-center gap-2"><x-admin::spinner /> Guardando...</span>
                     </button>
@@ -790,15 +1078,31 @@
 
         <x-admin::modal ref="viewModal" size="large">
             <x-slot:header>
-                <div class="text-lg font-semibold dark:text-white">
-                    Detalles de la Cita
+                <!-- Qué cita es, de un vistazo: día, horario y estado. -->
+                <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-lg font-semibold dark:text-white">
+                    <span>Cita</span>
+                    <template v-if="viewAppointment.data">
+                        <span class="text-base font-normal text-gray-500 dark:text-gray-400">· @{{ apptWhenLabel(viewAppointment.data) }}</span>
+                        <span class="ddc-state-badge" :style="apptStateBadgeStyle(apptState())">
+                            @{{ getStageName(viewAppointment.data.lead_pipeline_stage_id) || apptStateMeta(apptState()).label }}
+                        </span>
+                    </template>
                 </div>
             </x-slot>
 
             <x-slot:content>
                 <div v-if="viewAppointment.data" class="flex flex-col gap-5 lg:h-[72vh] lg:flex-row">
+                  <!-- Celular/tablet: pestañas en vez de dejar el chat debajo de todo. -->
+                  <div class="ddc-view-tabs" role="group" aria-label="Secciones de la cita">
+                      <button type="button" :aria-pressed="viewTab === 'cita'"
+                              :class="{ 'is-active': viewTab === 'cita' }" @click="viewTab = 'cita'">Cita</button>
+                      <button type="button" :aria-pressed="viewTab === 'chat'"
+                              :class="{ 'is-active': viewTab === 'chat' }" @click="viewTab = 'chat'">Chat de WhatsApp</button>
+                  </div>
+
                   <!-- Columna izquierda: detalle / edición de la cita -->
-                  <div class="flex flex-col gap-4 lg:w-1/2 lg:min-w-0 lg:overflow-y-auto lg:pr-1">
+                  <div class="ddc-view-col flex flex-col gap-4 lg:w-1/2 lg:min-w-0 lg:overflow-y-auto lg:pr-1"
+                       :class="{ 'is-tab-hidden': viewTab !== 'cita' }">
                     <template v-if="!editMode">
                     <!-- Cabecera: paciente + estado -->
                     <div class="flex items-start justify-between gap-3 border-b border-gray-200 pb-3 dark:border-gray-800">
@@ -810,38 +1114,17 @@
                             <div class="min-w-0">
                                 <div class="flex items-center gap-2">
                                     <p class="truncate text-base font-bold text-gray-900 dark:text-white">@{{ viewAppointment.data.person_name || 'Paciente' }}</p>
-                                    <button type="button" v-if="!editingPatient" @click="editingPatient = true"
+                                    <!-- Un solo camino para cambiar de paciente: el buscador del modo edición. -->
+                                    <button type="button" @click="changePatientFromView"
                                             class="shrink-0 text-xs text-blue-600 hover:underline dark:text-blue-400">Cambiar</button>
                                 </div>
-                                <p v-if="viewAppointment.data.person_whatsapp && !editingPatient" class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                <a v-if="viewAppointment.data.person_whatsapp" :href="'tel:+' + viewAppointment.data.person_whatsapp"
+                                   class="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 hover:underline dark:text-gray-400"
+                                   :aria-label="'Llamar al ' + viewAppointment.data.person_whatsapp">
                                     <span class="icon-call text-sm"></span> @{{ viewAppointment.data.person_whatsapp }}
-                                </p>
-                                <div v-if="editingPatient" class="mt-1">
-                                    <div class="flex items-center gap-2">
-                                        <input type="text" v-model="patientQuery" @input="searchPatients"
-                                               placeholder="Buscar paciente por nombre…"
-                                               class="w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm text-gray-800 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-                                        <button type="button" @click="cancelEditPatient"
-                                                class="shrink-0 text-xs text-gray-500 hover:underline dark:text-gray-400">Cancelar</button>
-                                    </div>
-                                    <div v-if="patientResults.length" class="mt-1 max-h-40 overflow-auto rounded border border-gray-200 dark:border-gray-800">
-                                        <button v-for="p in patientResults" :key="'pp-'+p.id" type="button" @click="onChangePatient(p)"
-                                                class="block w-full truncate px-2.5 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
-                                            @{{ p.name }}
-                                        </button>
-                                    </div>
-                                    <p v-else-if="patientQuery.length >= 2 && !patientSearching" class="mt-1 text-xs text-gray-400">Sin resultados.</p>
-                                </div>
+                                </a>
                             </div>
                         </div>
-                        <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
-                              :class="viewAppointment.data.is_cancelled
-                                        ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                                        : (viewAppointment.data.is_completed
-                                            ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
-                                            : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300')">
-                            @{{ getStageName(viewAppointment.data.lead_pipeline_stage_id) || 'Agendada' }}
-                        </span>
                     </div>
 
                     <!-- Datos de la cita, en filas legibles -->
@@ -853,14 +1136,9 @@
                         </div>
                         <div class="flex items-center gap-3 px-3 py-2.5">
                             <span class="icon-calendar w-5 shrink-0 text-lg text-brandColor"></span>
-                            <span class="w-24 shrink-0 text-xs font-medium uppercase text-gray-400">Fecha</span>
-                            <span class="text-sm text-gray-800 dark:text-gray-100">@{{ formatDate(new Date(viewAppointment.data.start)) }}</span>
-                        </div>
-                        <div class="flex items-center gap-3 px-3 py-2.5">
-                            <span class="icon-calendar w-5 shrink-0 text-lg text-brandColor"></span>
-                            <span class="w-24 shrink-0 text-xs font-medium uppercase text-gray-400">Horario</span>
+                            <span class="w-24 shrink-0 text-xs font-medium uppercase text-gray-400">Cuándo</span>
                             <span class="text-sm text-gray-800 dark:text-gray-100">
-                                @{{ formatTime(viewAppointment.data.start) }} – @{{ formatTime(viewAppointment.data.end) }}
+                                @{{ apptWhenLabel(viewAppointment.data) }}
                                 <span class="ml-1 text-xs text-gray-400">(@{{ getDuration(viewAppointment.data.start, viewAppointment.data.end) }})</span>
                             </span>
                         </div>
@@ -947,30 +1225,25 @@
                         </div>
                     </div>
 
-                    <!-- Estado de la cita: misma barra que las etapas de leads (.stage):
-                         segmentos sin bordes unidos por flechas, el elegido en color sólido.
-                         En el celular se desliza de costado en vez de apretarse. Colores
-                         inline: las clases calculadas en runtime no están en el CSS de prod. -->
+                    <!-- Estado de la cita: chips sueltos, no flechas de pipeline (los estados no
+                         son una secuencia). El elegido va relleno de su pastel con texto oscuro.
+                         Colores por variable inline: las clases calculadas en runtime no están
+                         en el CSS de prod. -->
                     <div>
                         <p class="mb-1.5 text-xs font-medium uppercase text-gray-400">Estado de la cita</p>
-                        <div ref="apptStatusBar" role="group" aria-label="Estado de la cita" class="ddc-status-bar flex w-full max-w-full overflow-x-auto rounded-lg bg-gray-100 dark:bg-gray-950"
-                             :class="{ 'opacity-50 pointer-events-none': statusUpdating }">
+                        <div ref="apptStatusBar" role="group" aria-label="Estado de la cita" class="ddc-status-chips"
+                             :class="{ 'is-busy': statusUpdating }">
                             <button type="button"
-                                    v-for="st in [
-                                        { key: 'confirmed', label: 'Confirmada',   color: '#2563eb' },
-                                        { key: 'completed', label: 'Completada',   color: '#15803d' },
-                                        { key: 'surgery',   label: 'Cirugía',      color: '#b45309' },
-                                        { key: 'no_show',   label: 'Cita Perdida', color: '#c2410c' },
-                                        { key: 'cancelled', label: 'Cancelada',    color: '#dc2626' },
-                                    ]"
+                                    v-for="st in apptStates"
                                     :key="'st-'+st.key"
                                     :disabled="statusUpdating"
                                     @click="setAppointmentStatus(st.key)"
-                                    class="stage relative flex h-9 cursor-pointer items-center justify-center whitespace-nowrap bg-white font-medium text-gray-700 focus-visible:outline-none dark:bg-gray-900 dark:text-gray-300"
+                                    class="ddc-status-chip"
                                     :class="{ 'is-active': apptState() === st.key }"
-                                    :style="apptState() === st.key ? { '--st-color': st.color, backgroundColor: st.color, color: '#fff' } : {}"
+                                    :style="{ '--st-color': st.color, '--st-fill': st.fill, '--st-text': st.text }"
                                     :aria-pressed="apptState() === st.key">
-                                <span class="z-20">@{{ st.label }}</span>
+                                <span class="ddc-status-dot" aria-hidden="true"></span>
+                                @{{ st.label }}
                             </button>
                         </div>
                     </div>
@@ -1006,22 +1279,23 @@
                     <!-- Historial de citas del paciente -->
                     <div v-if="viewAppointment.data.person_id">
                         <p class="mb-1.5 text-xs font-medium uppercase text-gray-400">
-                            Historial de citas <span v-if="apptHistory.length" class="text-gray-300">(@{{ apptHistory.length }})</span>
+                            Historial de citas <span v-if="apptOtherHistoryCount" class="text-gray-300">(@{{ apptOtherHistoryCount }} otras)</span>
                         </p>
                         <div v-if="apptHistoryLoading" class="py-3 text-center text-xs text-gray-400">Cargando…</div>
-                        <div v-else-if="apptHistory.length" class="max-h-40 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-                            <div v-for="a in apptHistory" :key="'h-'+a.id"
-                                 class="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs"
-                                 :class="a.id === viewAppointment.data.id ? 'bg-gray-50 dark:bg-gray-800' : ''">
+                        <!-- Cada fila abre esa cita (o va a su día si no está cargada). -->
+                        <div v-else-if="apptOtherHistoryCount" class="max-h-40 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+                            <button v-for="a in apptHistory" :key="'h-'+a.id" type="button"
+                                    class="ddc-history-row flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs"
+                                    :class="{ 'is-current': isCurrentHistoryRow(a) }"
+                                    :disabled="isCurrentHistoryRow(a)"
+                                    :aria-current="isCurrentHistoryRow(a) ? 'true' : null"
+                                    @click="openHistoryAppointment(a)">
                                 <span class="text-gray-700 dark:text-gray-300">@{{ a.date }} · @{{ a.time }}</span>
-                                <span class="truncate text-gray-500 dark:text-gray-400">@{{ a.doctor_name || '-' }}</span>
-                                <span class="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
-                                      :class="a.state === 'cancelled' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                                            : (a.state === 'completed' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
-                                            : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300')">
-                                    @{{ a.state === 'cancelled' ? 'Cancelada' : (a.state === 'completed' ? 'Atendida' : 'Confirmada') }}
+                                <span class="truncate text-gray-500 dark:text-gray-400">
+                                    @{{ a.doctor_name || '-' }}<span v-if="isCurrentHistoryRow(a)" class="ml-1 font-medium text-gray-700 dark:text-gray-200">· esta</span>
                                 </span>
-                            </div>
+                                <span class="ddc-state-badge is-small" :style="apptStateBadgeStyle(a.state)">@{{ apptStateMeta(a.state).label }}</span>
+                            </button>
                         </div>
                         <p v-else class="rounded-lg border border-dashed border-gray-300 px-3 py-3 text-center text-xs text-gray-400 dark:border-gray-700">
                             Sin otras citas registradas.
@@ -1029,14 +1303,14 @@
                     </div>
                     </template>
 
-                    <!-- Modo edición inline -->
-                    <template v-else>
+                    <!-- Modo edición inline: mismos controles de turno que "Nueva cita". -->
+                    <div v-else class="flex flex-col gap-4" @keydown.ctrl.enter="saveAppointment" @keydown.meta.enter="saveAppointment">
                         <div class="flex items-center justify-between border-b border-gray-200 pb-3 dark:border-gray-800">
                             <h3 class="text-base font-semibold dark:text-white">Editar cita</h3>
                             <span class="truncate text-sm text-gray-500 dark:text-gray-400">@{{ appointmentForm.person.name }}</span>
                         </div>
 
-                        <div class="flex flex-col gap-1">
+                        <div class="flex flex-col gap-1" ref="apptEditPatientField">
                             <x-admin::form.control-group.label class="required">Paciente</x-admin::form.control-group.label>
                             <x-admin::lookup
                                 ::src="personSearchUrl"
@@ -1049,10 +1323,10 @@
                             />
                         </div>
                         <div class="flex flex-col gap-1">
-                            <x-admin::form.control-group.label>Doctor(es)</x-admin::form.control-group.label>
+                            <x-admin::form.control-group.label class="required">Doctor(es)</x-admin::form.control-group.label>
                             <v-doctor-multiselect :items="doctors" v-model="appointmentForm.doctor_ids"></v-doctor-multiselect>
                         </div>
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="ddc-appt-grid">
                             <div class="flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Servicio</x-admin::form.control-group.label>
                                 <x-admin::lookup
@@ -1065,16 +1339,17 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <x-admin::form.control-group.label>Fecha</x-admin::form.control-group.label>
+                                <x-admin::form.control-group.label class="required">Fecha</x-admin::form.control-group.label>
                                 <input
                                     type="date"
                                     class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
-                                    v-model="appointmentForm.date"
+                                    v-model="modalContext.dayISO"
+                                    aria-label="Fecha de la cita"
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <x-admin::form.control-group.label>Hora de inicio</x-admin::form.control-group.label>
-                                <v-time-picker v-model="appointmentForm.startTime" @update:modelValue="syncAppointmentEndTime"></v-time-picker>
+                                <x-admin::form.control-group.label class="required">Hora de inicio</x-admin::form.control-group.label>
+                                <v-time-picker v-model="appointmentForm.startTime" :step="slotMinutes" @update:modelValue="syncAppointmentEndTime"></v-time-picker>
                             </div>
                             <div class="flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Duración</x-admin::form.control-group.label>
@@ -1086,17 +1361,45 @@
                                     <option :value="90">90 min</option>
                                     <option :value="120">120 min</option>
                                 </select>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">Termina a las @{{ appointmentForm.endTime }}</span>
                             </div>
                             <div class="flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Estado</x-admin::form.control-group.label>
                                 <select class="custom-select w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" v-model="appointmentForm.lead_pipeline_stage_id">
                                     <option :value="null" disabled>Estado</option>
-                                    <option v-for="stage in stages" :key="'ed-st-'+stage.id" :value="stage.id">@{{ stage.name }}</option>
+                                    <option v-for="stage in editableStages" :key="'ed-st-'+stage.id" :value="stage.id">@{{ stage.name }}</option>
                                 </select>
                             </div>
 
+                            <!-- Turno y choques del doctor principal; la propia cita no cuenta como choque. -->
+                            <div class="ddc-appt-wide flex flex-col gap-2">
+                                <div v-if="appointmentSlotIssue" class="ddc-appt-issue" role="alert">@{{ appointmentSlotIssue }}</div>
+                                <p v-else-if="!appointmentAgendaKnown && appointmentPrincipalDoctorId" class="text-xs text-gray-500 dark:text-gray-400">
+                                    Ese día no está cargado en el calendario: el turno y los choques se revisan al guardar.
+                                </p>
+
+                                <div v-if="appointmentAgendaKnown && appointmentPrincipalDoctorId">
+                                    <p class="mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-300">
+                                        Horarios libres de @{{ appointmentForm.duration }} min
+                                        <span class="font-normal text-gray-400">· @{{ appointmentPrincipalDoctorName }}</span>
+                                    </p>
+                                    <div v-if="appointmentFreeSlots.length" class="ddc-appt-slots" role="group" aria-label="Horarios libres">
+                                        <button
+                                            v-for="m in appointmentFreeSlots"
+                                            :key="'ed-free-'+m"
+                                            type="button"
+                                            class="ddc-appt-slot"
+                                            :class="{ 'is-active': minutesToTime(m) === appointmentForm.startTime }"
+                                            :aria-pressed="minutesToTime(m) === appointmentForm.startTime"
+                                            @click="pickAppointmentSlot(m)"
+                                        >@{{ minutesToTime(m) }}</button>
+                                    </div>
+                                    <p v-else class="text-xs text-gray-500 dark:text-gray-400">No quedan horarios libres de esa duración este día.</p>
+                                </div>
+                            </div>
+
                             <!-- Seguro médico del paciente (editable; persiste en la ficha del paciente) -->
-                            <div class="col-span-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                            <div class="ddc-appt-wide rounded-lg border border-gray-200 p-3 dark:border-gray-700">
                                 <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Seguro médico</p>
                                 <div class="flex flex-col gap-2">
                                     <div class="flex flex-col gap-1">
@@ -1137,19 +1440,25 @@
                                     </span>
                                 </div>
                             </div>
-                            <div class="col-span-2 flex flex-col gap-1">
+                            <div class="ddc-appt-wide flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Motivo de consulta</x-admin::form.control-group.label>
                                 <textarea rows="3" class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:focus:border-gray-400" v-model="appointmentForm.reason" placeholder="Motivo de consulta (opcional)"></textarea>
                             </div>
                         </div>
 
-                        <p v-if="modalError" class="text-sm text-red-600 dark:text-red-400">@{{ modalError }}</p>
-                    </template>
+                        <div v-if="modalError" class="text-sm text-red-600 dark:text-red-400" role="alert">
+                            <p>@{{ modalError }}</p>
+                            <ul v-if="modalErrorDetails.length" class="mt-1 list-disc pl-5 text-xs">
+                                <li v-for="(msg, i) in modalErrorDetails" :key="'ed-err-'+i">@{{ msg }}</li>
+                            </ul>
+                        </div>
+                    </div>
                   </div>
                   <!-- /Columna izquierda -->
 
                   <!-- Columna derecha: chat de WhatsApp del paciente -->
-                  <div class="flex min-h-0 flex-col lg:w-1/2 lg:min-w-0 lg:border-l lg:border-gray-200 lg:pl-5 dark:lg:border-gray-800">
+                  <div class="ddc-view-col flex min-h-0 flex-col lg:w-1/2 lg:min-w-0 lg:border-l lg:border-gray-200 lg:pl-5 dark:lg:border-gray-800"
+                       :class="{ 'is-tab-hidden': viewTab !== 'chat' }">
                       <p class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase text-gray-400">
                           <span class="icon-call text-sm text-green-600"></span> Chat de WhatsApp
                       </p>
@@ -1183,7 +1492,7 @@
                 <!-- Footer en modo edición -->
                 <div v-if="viewAppointment.data && editMode" class="flex w-full items-center justify-end gap-2">
                     <button type="button" class="secondary-button" :disabled="modalSaving" @click="cancelInlineEdit">Cancelar</button>
-                    <button type="button" class="primary-button" :disabled="modalSaving" @click="saveAppointment">
+                    <button type="button" class="primary-button" :disabled="modalSaving || !!appointmentSlotIssue" @click="saveAppointment">
                         <span v-if="!modalSaving">Guardar cambios</span>
                         <span v-else class="flex items-center gap-2"><x-admin::spinner /> Guardando…</span>
                     </button>
@@ -1214,16 +1523,13 @@
                             </div>
                         </div>
 
-                    </div>
-
-                    <!-- Grupo 2: navegación / edición -->
-                    <div class="flex items-center gap-2">
                         <button type="button" class="secondary-button" v-if="viewAppointment.data.lead_id" @click="goToLead(viewAppointment.data.lead_id)">
                             Ver lead
                         </button>
-                        <button type="button" class="secondary-button" @click="$refs.viewModal.close()">Cerrar</button>
-                        <button type="button" class="primary-button" @click="editFromView">Editar</button>
                     </div>
+
+                    <!-- Grupo 2: la acción principal. Cerrar ya está en la × del modal. -->
+                    <button type="button" class="primary-button" @click="editFromView">Editar</button>
                 </div>
             </x-slot>
         </x-admin::modal>
@@ -1549,6 +1855,128 @@
         }
     }
 
+    // Filtros del calendario recordados por navegador (ver saveFilters).
+    const FILTERS_STORAGE_KEY = 'odk.calendar.filters.v1';
+
+    app.component('v-filter-select', {
+        template: '#v-filter-select-template',
+        props: {
+            items: { type: Array, default: () => [] },
+            modelValue: { type: Array, default: () => [] },
+            label: { type: String, required: true },
+            // Texto del botón con todo elegido / nada elegido, y plural para "3 doctores".
+            allText: { type: String, default: 'Todos' },
+            emptyText: { type: String, default: 'Ninguno' },
+            plural: { type: String, default: '' },
+            // true: nada elegido = sin filtrar (especialidad, estado).
+            emptyMeansAll: { type: Boolean, default: false },
+            // true: sin botón, la lista siempre visible (panel de filtros del celular).
+            inline: { type: Boolean, default: false },
+        },
+        emits: ['update:modelValue'],
+        data() {
+            return {
+                open: false,
+                q: ''
+            };
+        },
+        computed: {
+            validItems() {
+                return this.items.filter(it => it && it.id);
+            },
+            set() {
+                return new Set(this.modelValue.map(String));
+            },
+            // Solo cuentan los elegidos que están en la lista (la especialidad
+            // puede dejar fuera doctores elegidos antes).
+            selectedItems() {
+                return this.validItems.filter(it => this.set.has(String(it.id)));
+            },
+            summary() {
+                const n = this.selectedItems.length;
+                const total = this.validItems.length;
+
+                if (! n) return this.emptyText;
+                if (n === total) return `${this.allText} (${total})`;
+                if (n === 1) return this.selectedItems[0].name;
+
+                return `${n} ${this.plural}`;
+            },
+            isFiltered() {
+                const n = this.selectedItems.length;
+
+                return this.emptyMeansAll ? n > 0 && n < this.validItems.length : n < this.validItems.length;
+            },
+            searchable() {
+                return this.validItems.length > 6;
+            },
+            filtered() {
+                const q = this.q.trim().toLowerCase();
+
+                return q
+                    ? this.validItems.filter(it => String(it.name || '').toLowerCase().includes(q))
+                    : this.validItems;
+            },
+        },
+        methods: {
+            toggleDropdown() {
+                this.open ? this.close() : this.openDropdown();
+            },
+            openDropdown() {
+                this.open = true;
+                this.$nextTick(() => {
+                    const rect = this.$refs.trigger.getBoundingClientRect();
+                    const dropdown = this.$refs.dropdown;
+
+                    if (dropdown) {
+                        const width = Math.max(rect.width, 240);
+                        dropdown.style.width = width + 'px';
+                        dropdown.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) + 'px';
+                        dropdown.style.top = rect.bottom + 4 + 'px';
+                    }
+
+                    (this.$refs.search || dropdown?.querySelector('input, button'))?.focus();
+                });
+            },
+            close(returnFocus = false) {
+                if (! this.open) return;
+
+                this.open = false;
+                this.q = '';
+
+                if (returnFocus) this.$nextTick(() => this.$refs.trigger?.focus());
+            },
+            emit(ids) {
+                this.$emit('update:modelValue', Array.from(ids));
+            },
+            toggle(id) {
+                const next = new Set(this.modelValue.map(String));
+                next.has(id) ? next.delete(id) : next.add(id);
+                this.emit(next);
+            },
+            // "Seleccionar todos" / "Ninguno" actúan sobre lo que se ve (respetan la búsqueda).
+            selectVisible() {
+                const next = new Set(this.modelValue.map(String));
+                this.filtered.forEach(it => next.add(String(it.id)));
+                this.emit(next);
+            },
+            clearVisible() {
+                const visible = new Set(this.filtered.map(it => String(it.id)));
+                this.emit(this.modelValue.map(String).filter(id => ! visible.has(id)));
+            },
+            onClickOutside(e) {
+                const root = this.$refs.root;
+                if (root && ! root.contains(e.target)) this.close();
+            },
+        },
+        mounted() {
+            window.addEventListener('click', this.onClickOutside);
+        },
+        beforeUnmount() {
+            window.removeEventListener('click', this.onClickOutside);
+        },
+    });
+
     app.component('v-doctor-multiselect', {
         template: '#v-doctor-multiselect-template',
         props: {
@@ -1626,7 +2054,11 @@
 
     app.component('v-time-picker', {
         template: '#v-time-picker-template',
-        props: ['modelValue'],
+        props: {
+            modelValue: { type: String, default: '' },
+            // Paso de los minutos: 15 en la cita (la grilla del calendario), 1 por defecto.
+            step: { type: Number, default: 1 },
+        },
         emits: ['update:modelValue'],
         data() {
             return {
@@ -1640,18 +2072,13 @@
             },
             currentMinute() {
                 return this.modelValue ? parseInt(this.modelValue.split(':')[1], 10) : 0;
-            }
+            },
+            minuteOptions() {
+                const step = Math.max(1, this.step);
+                return Array.from({ length: Math.ceil(60 / step) }, (_, i) => i * step);
+            },
         },
         watch: {
-            // Autosave del formulario de cita NUEVA: si el usuario cierra por
-            // accidente (Esc/click-afuera), al reabrir recupera lo que escribió.
-            appointmentForm: {
-                deep: true,
-                handler(val) {
-                    if (val.id || this.editMode) return; // solo citas nuevas, no edición
-                    try { localStorage.setItem('ddc_appt_draft', JSON.stringify(val)); } catch (e) {}
-                },
-            },
             isOpen(isOpen) {
                 if (isOpen) {
                     this.$nextTick(() => {
@@ -1734,9 +2161,7 @@
         data() {
             const today = new Date();
             const start = new Date(today);
-            const rangeEndDefault = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30);
-
-            // Preferencias persistidas (cookie): vista, fecha ancla y rango.
+            // Preferencias persistidas (cookie): vista y fecha ancla.
             const prefs = ddcLoadPrefs();
 
             return {
@@ -1745,8 +2170,6 @@
                 addError: '',
                 hourHeight: 84,
                 startISO: prefs.startISO || this.toISO(start),
-                rangeStart: prefs.rangeStart || this.toISO(start),
-                rangeEnd: prefs.rangeEnd || this.toISO(rangeEndDefault),
                 days: [],
                 doctors: [],
                 appointments: [],
@@ -1754,6 +2177,16 @@
                 stages: [],
                 selectedDoctorIds: [],
                 doctorFilterInitialized: false,
+                specialties: [],
+                selectedSpecialtyIds: [],
+                // Etapas que no tienen sentido al crear una cita (stage_map de config/smd.php).
+                // Etapa de cada estado de la barra (para reflejar el cambio sin cerrar el modal).
+                stageMap: {!! json_encode(['confirmed' => (int) config('smd.stage_map.confirmed'), 'completed' => (int) config('smd.stage_map.completed'), 'surgery' => (int) config('smd.stage_map.surgery'), 'no_show' => (int) config('smd.stage_map.no_show'), 'cancelled' => (int) config('smd.stage_map.cancelled')]) !!},
+                nonCreatableStageIds: {!! json_encode(array_values(array_filter([(int) config('smd.stage_map.cancelled'), (int) config('smd.stage_map.completed'), (int) config('smd.stage_map.no_show')]))) !!},
+                draftRestored: false,
+                mobileFiltersOpen: false,
+                modalErrorDetails: [],
+                selectedStageIds: [],
                 patientSearch: '',
                 patientSearchTimer: null,
                 nowMinutes: 0,
@@ -1761,7 +2194,11 @@
                 nowTimer: null,
                 datePickerOpen: false,
                 datePickerMonthISO: '',
-                weekdays: ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'],
+                // La semana empieza en lunes, como la vista Semana y startOfWeek() del backend.
+                weekdays: ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'],
+                // Vista Mes: citas visibles por día antes del "+N más"; día elegido en el celular.
+                monthMaxEvents: 3,
+                monthPicked: null,
                 quickMenu: {
                     visible: false,
                     top: 0,
@@ -1854,11 +2291,23 @@
                 editingReason: false,
                 reasonDraft: '',
                 reasonSaving: false,
-                // Cambio de paciente dentro del modal de detalle.
-                editingPatient: false,
-                patientQuery: '',
-                patientResults: [],
-                patientSearching: false,
+                // Estados de la barra; el historial y los badges usan los mismos colores.
+                // Colores inline: las clases calculadas en runtime no están en el CSS de prod.
+                // color: punto del chip. fill: relleno pastel del elegido y del badge.
+                // text: texto sobre el pastel (contraste AA, ver test).
+                apptStates: [
+                    { key: 'confirmed', label: 'Confirmada',   color: '#60a5fa', fill: '#bfdbfe', text: '#1e3a8a' },
+                    { key: 'completed', label: 'Completada',   color: '#4ade80', fill: '#bbf7d0', text: '#14532d' },
+                    { key: 'surgery',   label: 'Cirugía',      color: '#fbbf24', fill: '#fde68a', text: '#78350f' },
+                    { key: 'no_show',   label: 'Cita perdida', color: '#fb923c', fill: '#fed7aa', text: '#7c2d12' },
+                    { key: 'cancelled', label: 'Cancelada',    color: '#f87171', fill: '#fecaca', text: '#7f1d1d' },
+                ],
+                // Pestaña del detalle en celular/tablet: 'cita' | 'chat'.
+                viewTab: 'cita',
+                // Horario con el que se abrió la edición: si no cambia, no se revisa el turno.
+                appointmentOriginal: null,
+                // Cita del historial a abrir cuando cargue su día.
+                pendingOpenAppointmentId: null,
                 // WhatsApp: chat embebido del paciente en el modal de detalle
                 waThreadUrl: "{{ route('admin.whatsapp.thread') }}",
                 waSendUrl: "{{ route('admin.whatsapp.send') }}",
@@ -1906,6 +2355,9 @@
                 ],
                 hoveredEventId: null,
                 hoveredEvent: null,
+                // Granularidad de la cuadrícula: el hover y el click redondean a este paso.
+                slotMinutes: 15,
+                hoverSlot: null,
                 tooltipPos: { top: 0, left: 0 },
                 scheduleStoreUrl: "{{ route('admin.schedules.store') }}",
                 insuranceOptionsUrl: "{{ route('admin.contacts.persons.insurance_options') }}",
@@ -1975,9 +2427,20 @@
             totalHeight() {
                 return this.days.length * this.dayHeight;
             },
+            // Rango de la vista Lista: la semana (lunes a domingo) de la fecha de la barra.
+            rangeStart() {
+                const d = this.parseISODate(this.startISO);
+                d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+                return this.toISO(d);
+            },
+            rangeEnd() {
+                const d = this.parseISODate(this.rangeStart);
+                d.setDate(d.getDate() + 6);
+                return this.toISO(d);
+            },
             dayLabel() {
                 if (this.viewType === 'list') {
-                    return `${this.rangeStart || '-'} → ${this.rangeEnd || '-'}`;
+                    return `${this.formatDate(this.parseISODate(this.rangeStart))} - ${this.formatDate(this.parseISODate(this.rangeEnd))}`;
                 }
                 if (this.viewType === 'week' && this.days.length) {
                     const s = new Date(this.days[0].date);
@@ -1998,15 +2461,119 @@
                 const yyyy = d.getFullYear();
                 return `${names[d.getDay()]} ${dd}/${mm}/${yyyy}`;
             },
+            appointmentDayLabel() {
+                const iso = this.modalContext.dayISO;
+                return iso ? this.formatDate(this.parseISODate(iso)) : '';
+            },
+            // Al editar se ofrecen las mismas etapas que al crear, más la actual.
+            // Cancelar o marcar perdida va por la barra de estado, que pide confirmación.
+            editableStages() {
+                const current = String(this.appointmentForm.lead_pipeline_stage_id);
+                const creatable = new Set(this.creatableStages.map(s => String(s.id)));
+                return this.stages.filter(s => String(s.id) === current || creatable.has(String(s.id)));
+            },
+            // Editar solo el motivo o el servicio no revisa el turno: la cita ya está
+            // agendada y puede venir de SMD fuera del turno cargado.
+            appointmentSlotChanged() {
+                const o = this.appointmentOriginal;
+                if (! this.appointmentForm.id || ! o) return true;
+
+                return o.date !== this.modalContext.dayISO
+                    || o.startTime !== this.appointmentForm.startTime
+                    || o.endTime !== this.appointmentForm.endTime
+                    || String(o.doctorId) !== String(this.appointmentPrincipalDoctorId);
+            },
+            apptOtherHistoryCount() {
+                return this.apptHistory.filter(a => ! this.isCurrentHistoryRow(a)).length;
+            },
+            creatableStages() {
+                const blocked = new Set(this.nonCreatableStageIds.map(String));
+                return this.stages.filter(s => ! blocked.has(String(s.id)));
+            },
+            // El backend valida turno y choques con el primer doctor (el principal).
+            appointmentPrincipalDoctorId() {
+                return (this.appointmentForm.doctor_ids || [])[0] ?? null;
+            },
+            appointmentPrincipalDoctorName() {
+                const d = this.doctors.find(x => String(x.id) === String(this.appointmentPrincipalDoctorId));
+                return d ? d.name : '';
+            },
+            // Solo se puede revisar la agenda de un día cargado y sin el buscador de
+            // paciente activo (con búsqueda solo llegan las citas de ese paciente).
+            appointmentAgendaKnown() {
+                return this.patientSearch.trim() === ''
+                    && this.days.some(d => d.date === this.modalContext.dayISO);
+            },
+            appointmentFreeSlots() {
+                if (! this.appointmentAgendaKnown || ! this.appointmentPrincipalDoctorId) return [];
+
+                return this.freeSlots(this.modalContext.dayISO, this.appointmentPrincipalDoctorId, Number(this.appointmentForm.duration) || 60, this.appointmentForm.id || null);
+            },
+            // Mismo criterio que AppointmentService: dentro del turno y sin choque.
+            appointmentSlotIssue() {
+                const doctorId = this.appointmentPrincipalDoctorId;
+                if (! this.appointmentAgendaKnown || ! doctorId || ! this.appointmentForm.startTime) return null;
+                if (! this.appointmentSlotChanged) return null;
+
+                const date = this.modalContext.dayISO;
+                const from = this.timeToMinutes(this.appointmentForm.startTime);
+                const to = from + (Number(this.appointmentForm.duration) || 0);
+
+                if (! this.inShift(this.shiftRanges(date, doctorId), from, to)) {
+                    return `${this.appointmentForm.startTime}–${this.appointmentForm.endTime} está fuera del turno de ${this.appointmentPrincipalDoctorName} ese día.`;
+                }
+
+                const clash = this.busyIntervals(date, doctorId, this.appointmentForm.id || null).find(b => from < b.to && to > b.from);
+                if (clash) {
+                    const who = clash.appt.person_name ? this.formatPatientName(clash.appt.person_name) : 'otra cita';
+                    return `Choca con ${who} (${this.minutesToTime(clash.from)}–${this.minutesToTime(clash.to)}). Elige un horario libre.`;
+                }
+
+                return null;
+            },
+            // Doctores que ofrece el filtro de especialidad (sin especialidad = todos).
+            doctorsInSpecialty() {
+                const valid = this.doctors.filter(d => d && d.id);
+
+                if (! this.selectedSpecialtyIds.length) return valid;
+
+                const wanted = new Set(this.selectedSpecialtyIds.map(String));
+
+                return valid.filter(d => (d.specialty_ids || []).some(id => wanted.has(String(id))));
+            },
             columns() {
-                const ids = new Set(this.selectedDoctorIds.map(id => Number(id)));
-                return this.doctors.filter(d => d && d.id && ids.has(Number(d.id)));
+                const ids = new Set(this.selectedDoctorIds.map(String));
+                return this.doctorsInSpecialty.filter(d => ids.has(String(d.id)));
+            },
+            visibleDoctorIds() {
+                return new Set(this.columns.map(d => String(d.id)));
+            },
+            // Citas que pasan el filtro de estado (sin estado elegido = todas).
+            visibleAppointments() {
+                if (! this.selectedStageIds.length) return this.appointments;
+
+                const stages = new Set(this.selectedStageIds.map(String));
+
+                return this.appointments.filter(a => stages.has(String(a.lead_pipeline_stage_id)));
+            },
+            // Filtros del panel (sin la búsqueda de paciente, que tiene su propio campo).
+            activeFilterCount() {
+                return (this.selectedSpecialtyIds.length > 0 ? 1 : 0)
+                    + (this.selectedStageIds.length > 0 ? 1 : 0)
+                    + (this.columns.length !== this.doctors.filter(d => d && d.id).length ? 1 : 0);
+            },
+            hasActiveFilters() {
+                return this.patientSearch.trim() !== ''
+                    || this.selectedSpecialtyIds.length > 0
+                    || this.selectedStageIds.length > 0
+                    || this.columns.length !== this.doctors.filter(d => d && d.id).length;
             },
             gridCols() {
                 if (this.viewType === 'month') return 'repeat(7, 1fr)';
 
                 if (this.isSingleDoctorMode && this.viewType === 'week') {
-                    return `80px repeat(${this.days.length}, minmax(200px, 1fr))`;
+                    // 140px: los 7 días entran en una laptop de 1366px sin scroll horizontal.
+                    return `80px repeat(${this.days.length}, minmax(140px, 1fr))`;
                 }
 
                 const count = this.columns.length;
@@ -2016,9 +2583,8 @@
                 return this.columns.length === 1;
             },
             listAppointments() {
-                if (!this.selectedDoctorIds.length) return [];
-                const ids = new Set(this.selectedDoctorIds.map(id => String(id)));
-                return this.appointments
+                const ids = this.visibleDoctorIds;
+                return this.visibleAppointments
                     .filter(a => ids.has(String(a.doctor_id)))
                     .slice()
                     .sort((a, b) => new Date(a.start) - new Date(b.start));
@@ -2046,9 +2612,45 @@
                 // Ensure we are working with the month of startISO
                 return this.buildMonthCells(new Date(d.getFullYear(), d.getMonth(), 1));
             },
+            // Hoy está en el rango mostrado (en la semana startISO puede ser cualquier
+            // día: el backend lo lleva al lunes) y la hora cae dentro de la grilla 07–20.
             showNowLine() {
-                return this.startISO === this.todayISO() && this.nowMinutes >= (7 * 60) && this.nowMinutes < (
-                    23 * 60);
+                return this.days.some(d => d.date === this.todayISO())
+                    && this.nowMinutes >= (7 * 60) && this.nowMinutes < (20 * 60);
+            },
+            nowLocalTop() {
+                return (this.nowMinutes - (7 * 60)) * this.minuteHeight;
+            },
+            // Citas visibles agrupadas por día, en una sola pasada (antes cada una de
+            // las 42 celdas del mes recorría todas las citas en cada render).
+            eventsByDay() {
+                const ids = this.visibleDoctorIds;
+                const map = new Map();
+                for (const a of this.visibleAppointments) {
+                    if (! ids.has(String(a.doctor_id))) continue;
+                    const iso = String(a.start).slice(0, 10);
+                    if (! map.has(iso)) map.set(iso, []);
+                    map.get(iso).push(a);
+                }
+                for (const list of map.values()) list.sort((x, y) => String(x.start).localeCompare(String(y.start)));
+                return map;
+            },
+            // Días con turno de algún doctor visible.
+            shiftDays() {
+                const ids = this.visibleDoctorIds;
+                return new Set(this.availability.filter(s => ids.has(String(s.doctor_id))).map(s => s.date));
+            },
+            // Día elegido en el celular: el tocado si es de este mes; si no, hoy o el día 1.
+            monthPickedISO() {
+                const d = this.parseISODate(this.startISO);
+                const prefix = `${d.getFullYear()}-${this.pad2(d.getMonth() + 1)}`;
+                if (this.monthPicked && this.monthPicked.startsWith(prefix)) return this.monthPicked;
+                const today = this.todayISO();
+                return today.startsWith(prefix) ? today : `${prefix}-01`;
+            },
+            // "fecha|doctor" de los días con turno, para no recalcular por celda.
+            shiftKeys() {
+                return new Set(this.availability.map(s => `${s.date}|${s.doctor_id}`));
             },
             nowTop() {
                 return (this.nowMinutes - (7 * 60)) * this.minuteHeight + 30;
@@ -2080,6 +2682,21 @@
                 if (opt && /no\s*tiene/i.test(opt.name)) return 'Sin seguro seleccionado';
                 return '';
             },
+        },
+        watch: {
+            // Autosave del formulario de cita NUEVA: si el usuario cierra por
+            // accidente (Esc/click-afuera), al reabrir recupera lo que escribió.
+            // Antes vivía en v-time-picker, que no tiene appointmentForm, y nunca corría.
+            appointmentForm: {
+                deep: true,
+                handler(val) {
+                    if (val.id || this.editMode) return; // solo citas nuevas, no edición
+                    try { localStorage.setItem('ddc_appt_draft', JSON.stringify(val)); } catch (e) {}
+                },
+            },
+            selectedDoctorIds() { this.saveFilters(); },
+            selectedSpecialtyIds() { this.saveFilters(); },
+            selectedStageIds() { this.saveFilters(); },
         },
         mounted() {
             this.fetch();
@@ -2341,7 +2958,8 @@
                 const first = new Date(y, m, 1);
                 const last = new Date(y, m + 1, 0);
                 const daysInMonth = last.getDate();
-                const offset = first.getDay();
+                // Lunes primero: getDay() es 0 = domingo.
+                const offset = (first.getDay() + 6) % 7;
                 const cells = [];
                 for (let i = 0; i < offset; i++) {
                     cells.push({
@@ -2433,9 +3051,24 @@
                 this.insurance.seguro_id = null;
                 this.insurance.result = null;
 
-                if (result?.ci_paciente && this.insurance.seguro_id) {
-                    this.verifyInsurance();
-                }
+                // Antes seguro_id se ponía en null justo antes de este chequeo y la
+                // verificación nunca corría: ahora se precarga el seguro guardado del
+                // paciente y, si tiene CI y seguro, se verifica solo.
+                const personId = result?.id;
+                if (! personId) return;
+
+                this.$axios.get(this.insuranceStatusUrlTemplate.replace('replaceId', personId))
+                    .then(res => {
+                        if (String(this.appointmentForm.person.id) !== String(personId)) return; // cambió de paciente
+
+                        if (! this.insurance.ci && res.data?.ci) this.insurance.ci = res.data.ci;
+
+                        const saved = (res.data?.seguros || []).find(sg => this.insuranceOptions.some(o => String(o.id) === String(sg.id)));
+                        if (saved) this.insurance.seguro_id = saved.id;
+
+                        if (this.insurance.ci && this.insurance.seguro_id) this.verifyInsurance();
+                    })
+                    .catch(() => {});
             },
             onSelectService(result) {
                 this.appointmentForm.product_id = result?.id || null;
@@ -2493,7 +3126,9 @@
             },
             prevPeriod() {
                 const d = this.parseISODate(this.startISO);
-                if (this.viewType === 'week') d.setDate(d.getDate() - 7);
+                // Mes: se parte del día 1; desde un 31, setMonth(-1) caía en el mismo mes.
+                if (this.viewType === 'month') d.setDate(1);
+                if (this.viewType === 'week' || this.viewType === 'list') d.setDate(d.getDate() - 7);
                 else if (this.viewType === 'month') d.setMonth(d.getMonth() - 1);
                 else d.setDate(d.getDate() - 1);
                 this.startISO = this.toISO(d);
@@ -2502,7 +3137,8 @@
             },
             nextPeriod() {
                 const d = this.parseISODate(this.startISO);
-                if (this.viewType === 'week') d.setDate(d.getDate() + 7);
+                if (this.viewType === 'month') d.setDate(1);
+                if (this.viewType === 'week' || this.viewType === 'list') d.setDate(d.getDate() + 7);
                 else if (this.viewType === 'month') d.setMonth(d.getMonth() + 1);
                 else d.setDate(d.getDate() + 1);
                 this.startISO = this.toISO(d);
@@ -2515,19 +3151,10 @@
                 this.persistPrefs();
                 this.fetch();
             },
-            applyRange() {
-                if (this.viewType !== 'list') {
-                    this.viewType = 'list';
-                }
-                this.persistPrefs();
-                this.fetch();
-            },
             persistPrefs() {
                 ddcSetCookie(DDC_PREFS_COOKIE, JSON.stringify({
                     viewType: this.viewType,
                     startISO: this.startISO,
-                    rangeStart: this.rangeStart,
-                    rangeEnd: this.rangeEnd,
                 }));
             },
             // Espera a que deje de escribir (400 ms) antes de consultar.
@@ -2541,7 +3168,7 @@
                 // recarga redundante tras navegar o editar.
                 this.lastVersion = null;
 
-                this.$axios.get(this.endpoint, {
+                return this.$axios.get(this.endpoint, {
                         params: {
                             view_type: 'calendar',
                             calendar_mode: 'doctor',
@@ -2555,16 +3182,23 @@
                     .then(r => {
                         this.days = r.data.days;
                         this.doctors = (r.data.doctors || []).filter(d => d && d.id);
+                        this.specialties = r.data.specialties || [];
                         this.appointments = r.data.appointments;
                         this.availability = r.data.availability || [];
                         this.stages = r.data.stages || [];
 
                         if (!this.doctorFilterInitialized) {
-                            this.selectedDoctorIds = this.doctors.map(d => String(d.id));
+                            this.restoreFilters();
                             this.doctorFilterInitialized = true;
                         }
 
                         this.isLoading = false;
+
+                        if (this.pendingOpenAppointmentId != null) {
+                            const pending = this.appointments.find(a => String(a.id) === String(this.pendingOpenAppointmentId));
+                            this.pendingOpenAppointmentId = null;
+                            if (pending) this.$nextTick(() => this.openViewModal(pending));
+                        }
                     })
                     .catch(() => this.isLoading = false);
             },
@@ -2616,16 +3250,100 @@
             selectAllDoctors() {
                 this.selectedDoctorIds = this.doctors.map(d => String(d.id));
             },
-            clearDoctors() {
-                this.selectedDoctorIds = [];
+            clearPatientSearch() {
+                this.patientSearch = '';
+                clearTimeout(this.patientSearchTimer);
+                this.fetch();
+            },
+            openMobileFilters() {
+                this.mobileFiltersOpen = true;
+                this.$nextTick(() => this.$refs.sheetClose?.focus());
+            },
+            closeMobileFilters() {
+                if (! this.mobileFiltersOpen) return;
+                this.mobileFiltersOpen = false;
+                this.$nextTick(() => this.$refs.filtersButton?.focus());
+            },
+            // "Limpiar" del panel: solo los filtros, no la búsqueda de paciente.
+            clearPanelFilters() {
+                this.selectedSpecialtyIds = [];
+                this.selectedStageIds = [];
+                this.selectAllDoctors();
+            },
+            clearFilters() {
+                this.selectedSpecialtyIds = [];
+                this.selectedStageIds = [];
+                this.selectAllDoctors();
+
+                if (this.patientSearch.trim() !== '') this.clearPatientSearch();
+            },
+            /**
+             * Los filtros se recuerdan por navegador (localStorage puede fallar en
+             * modo privado: entonces simplemente no se recuerdan). doctors = null
+             * significa "todos", así un doctor nuevo aparece sin tener que elegirlo.
+             */
+            saveFilters() {
+                if (! this.doctorFilterInitialized) return;
+
+                const allDoctors = this.selectedDoctorIds.length === this.doctors.length;
+
+                try {
+                    window.localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({
+                        doctors: allDoctors ? null : this.selectedDoctorIds,
+                        specialties: this.selectedSpecialtyIds,
+                        stages: this.selectedStageIds,
+                    }));
+                } catch (e) {}
+            },
+            restoreFilters() {
+                let saved = null;
+
+                try {
+                    saved = JSON.parse(window.localStorage.getItem(FILTERS_STORAGE_KEY) || 'null');
+                } catch (e) {}
+
+                // Solo ids que siguen existiendo (un doctor desactivado no vuelve).
+                const keep = (ids, list) => {
+                    const valid = new Set(list.map(x => String(x.id)));
+                    return Array.isArray(ids) ? ids.map(String).filter(id => valid.has(id)) : [];
+                };
+
+                const doctors = keep(saved?.doctors, this.doctors);
+
+                // Nada guardado, "todos" o ninguno válido: todos los doctores.
+                this.selectedDoctorIds = doctors.length ? doctors : this.doctors.map(d => String(d.id));
+                this.selectedSpecialtyIds = keep(saved?.specialties, this.specialties);
+                this.selectedStageIds = keep(saved?.stages, this.stages);
             },
             getEventsForDay(isoDate) {
-                if (!isoDate || !this.selectedDoctorIds.length) return [];
-                const ids = new Set(this.selectedDoctorIds.map(id => String(id)));
-                return this.appointments.filter(a =>
-                    a.start.startsWith(isoDate) &&
-                    ids.has(String(a.doctor_id))
-                );
+                if (!isoDate) return [];
+                return this.eventsByDay.get(isoDate) || [];
+            },
+            dayHasShift(isoDate) {
+                return this.shiftDays.has(isoDate);
+            },
+            monthEventPatient(ev) {
+                return ev.person_name ? this.formatPatientName(ev.person_name) : (ev.title || ev.type);
+            },
+            monthEventLabel(ev) {
+                const parts = [this.formatTime(ev.start), this.monthEventPatient(ev)];
+                if (ev.doctor_name) parts.push('Dr. ' + ev.doctor_name);
+                const stage = this.getStageName(ev.lead_pipeline_stage_id);
+                if (stage) parts.push(stage);
+                return parts.join(', ');
+            },
+            goToDay(iso) {
+                if (!iso) return;
+                this.startISO = iso;
+                this.setView('day');
+            },
+            onMonthDayClick(iso) {
+                // En el celular el mes es compacto: tocar un día muestra sus citas debajo.
+                if (window.matchMedia('(max-width: 639px)').matches) {
+                    this.monthPicked = iso;
+                    return;
+                }
+                this.goToDay(iso);
             },
             getDoctorAvailability(dateStr, doctorId) {
                 return this.availability
@@ -2643,7 +3361,7 @@
                     });
             },
             dayDoctorEvents(dateStr, doctorId) {
-                const events = this.appointments
+                const events = this.visibleAppointments
                     .filter(a => a.start.split(' ')[0] === dateStr && String(a.doctor_id) === String(doctorId))
                     .map(a => {
                         const dtStart = new Date(a.start);
@@ -2736,25 +3454,59 @@
                 return positioned;
             },
             totalCount(doctorId) {
-                return this.appointments.filter(a => String(a.doctor_id) === String(doctorId)).length;
+                return this.visibleAppointments.filter(a => String(a.doctor_id) === String(doctorId)).length;
+            },
+            slotKey(dateStr, doctorId) {
+                return `${dateStr}|${doctorId}`;
+            },
+            /**
+             * Minuto del día (desde 00:00) del slot bajo el cursor, redondeado hacia
+             * abajo a slotMinutes: si el cursor está en 14:22 el slot es 14:15. Lo usan
+             * el hover y el click, así la hora que se ve es la que se agenda.
+             */
+            slotMinutesAt(e) {
+                const yLocal = e.clientY - e.currentTarget.getBoundingClientRect().top;
+                const raw = Math.floor(yLocal / this.minuteHeight);
+                const snapped = Math.floor(raw / this.slotMinutes) * this.slotMinutes;
+
+                return Math.max(0, Math.min(13 * 60 - this.slotMinutes, snapped)) + (7 * 60);
+            },
+            isDoctorAvailableAt(dateStr, doctorId, minutes) {
+                return this.getDoctorAvailability(dateStr, doctorId).some(slot =>
+                    minutes >= this.timeToMinutes(slot.start_time) &&
+                    minutes < this.timeToMinutes(slot.end_time)
+                );
+            },
+            onDayHover(e, day, doctorId) {
+                // Sobre una cita no se muestra el slot: el click ahí abre la cita.
+                if (e.target.closest('.dwc-event')) {
+                    this.hoverSlot = null;
+                    return;
+                }
+
+                const minutes = this.slotMinutesAt(e);
+
+                if (! this.isDoctorAvailableAt(day.date, doctorId, minutes)) {
+                    this.hoverSlot = null;
+                    return;
+                }
+
+                const key = this.slotKey(day.date, doctorId);
+
+                if (this.hoverSlot && this.hoverSlot.key === key && this.hoverSlot.minutes === minutes) return;
+
+                this.hoverSlot = {
+                    key,
+                    minutes,
+                    top: (minutes - (7 * 60)) * this.minuteHeight,
+                    height: this.slotMinutes * this.minuteHeight,
+                    label: `${this.pad2(Math.floor(minutes / 60))}:${this.pad2(minutes % 60)}`,
+                };
             },
             onDayClick(e, day, doctorId) {
-                const container = e.currentTarget;
-                const rect = container.getBoundingClientRect();
-                const yLocal = e.clientY - rect.top;
+                const minutes = this.slotMinutesAt(e);
 
-                const minutes = Math.max(0, Math.min(14 * 60 - 1, Math.round(yLocal / this.minuteHeight))) + (
-                    7 * 60);
-
-                // Check availability
-                const availableSlots = this.getDoctorAvailability(day.date, doctorId);
-                const isAvailable = availableSlots.some(slot => {
-                    const start = this.timeToMinutes(slot.start_time);
-                    const end = this.timeToMinutes(slot.end_time);
-                    return minutes >= start && minutes < end;
-                });
-
-                if (!isAvailable) return;
+                if (! this.isDoctorAvailableAt(day.date, doctorId, minutes)) return;
 
                 const h = Math.floor(minutes / 60);
                 const m = minutes % 60;
@@ -2787,7 +3539,82 @@
                 this.quickMenu.endTime = `${this.pad2(eh)}:${this.pad2(em)}`;
                 this.quickMenu.timeText = `${this.pad2(h)}:${this.pad2(m)}`;
             },
+            citasLabel(n) {
+                return `${n} ${n === 1 ? 'cita' : 'citas'}`;
+            },
+            hasShift(dateStr, doctorId) {
+                return this.shiftKeys.has(`${dateStr}|${doctorId}`);
+            },
+            /**
+             * Citas que ocupan el horario del doctor ese día, en minutos. Mira TODAS
+             * las citas (no las filtradas por estado: un filtro no libera horarios);
+             * canceladas y perdidas no ocupan, igual que en AppointmentService.
+             */
+            // excludeId: la cita que se está editando no choca consigo misma.
+            busyIntervals(dateStr, doctorId, excludeId = null) {
+                return this.appointments
+                    .filter(a => ! a.is_cancelled && ! a.is_lost && String(a.doctor_id) === String(doctorId) && String(a.start).startsWith(dateStr))
+                    .filter(a => excludeId == null || String(a.id) !== String(excludeId))
+                    .map(a => {
+                        const s = new Date(a.start), e = new Date(a.end);
+                        return { from: s.getHours() * 60 + s.getMinutes(), to: e.getHours() * 60 + e.getMinutes(), appt: a };
+                    });
+            },
+            shiftRanges(dateStr, doctorId) {
+                return this.getDoctorAvailability(dateStr, doctorId)
+                    .map(s => [this.timeToMinutes(s.start_time), this.timeToMinutes(s.end_time)]);
+            },
+            // [from, to) entero dentro del turno, revisado de a slotMinutes.
+            inShift(shifts, from, to) {
+                if (to <= from) return false;
+                for (let m = from; m < to; m += this.slotMinutes) {
+                    if (! shifts.some(([s, e]) => m >= s && m < e)) return false;
+                }
+                return true;
+            },
+            // Inicios (en minutos) donde entra una cita de `duration` sin salir del turno ni chocar.
+            freeSlots(dateStr, doctorId, duration, excludeId = null) {
+                const shifts = this.shiftRanges(dateStr, doctorId);
+                const busy = this.busyIntervals(dateStr, doctorId, excludeId);
+
+                const starts = [...new Set(shifts.flatMap(([s, e]) => {
+                    const out = [];
+                    for (let m = s; m < e; m += this.slotMinutes) out.push(m);
+                    return out;
+                }))].sort((a, b) => a - b);
+
+                return starts.filter(m =>
+                    this.inShift(shifts, m, m + duration) &&
+                    ! busy.some(b => m < b.to && m + duration > b.from)
+                );
+            },
+            // Primer hueco de una hora; si no hay, uno de slotMinutes; null si el día está lleno.
+            firstFreeSlot(dateStr, doctorId, duration = 60) {
+                for (const len of [duration, this.slotMinutes]) {
+                    const [first] = this.freeSlots(dateStr, doctorId, len);
+                    if (first !== undefined) return first;
+                }
+
+                return null;
+            },
+            pickAppointmentSlot(m) {
+                this.appointmentForm.startTime = this.minutesToTime(m);
+                this.syncAppointmentEndTime();
+            },
+            discardAppointmentDraft() {
+                this.appointmentForm.person = { id: '', name: '' };
+                this.appointmentForm.product_id = null;
+                this.appointmentForm.product_name = '';
+                this.appointmentForm.reason = '';
+                this.insurance.ci = '';
+                this.insurance.seguro_id = null;
+                this.insurance.result = null;
+                this.draftRestored = false;
+                try { localStorage.removeItem('ddc_appt_draft'); } catch (e) {}
+            },
             onWeekCellClick(e, day, doctorId) {
+                if (! this.hasShift(day.date, doctorId)) return;
+
                 const xView = e.clientX;
                 const yView = e.clientY;
                 const desiredLeft = xView + 8;
@@ -2808,9 +3635,15 @@
                 this.quickMenu.doctorId = doctorId;
                 this.quickMenu.doctorLabel = (this.doctors.find(d => String(d.id) === String(doctorId))?.name ||
                     '');
-                this.quickMenu.startTime = '09:00';
-                this.quickMenu.endTime = '10:00';
-                this.quickMenu.timeText = '09:00';
+                // Día lleno: se propone el inicio del turno y se avisa (se puede sobreturnar).
+                const free = this.patientSearch.trim() === '' ? this.firstFreeSlot(day.date, doctorId) : null;
+                const start = free ?? Math.min(...this.getDoctorAvailability(day.date, doctorId).map(s => this.timeToMinutes(s.start_time)));
+                const end = Math.min(23 * 60 + 59, start + 60);
+                const hhmm = m => `${this.pad2(Math.floor(m / 60))}:${this.pad2(m % 60)}`;
+
+                this.quickMenu.startTime = hhmm(start);
+                this.quickMenu.endTime = hhmm(end);
+                this.quickMenu.timeText = free === null && this.patientSearch.trim() === '' ? `${hhmm(start)} · sin horario libre` : hhmm(start);
             },
             closeQuickMenu() {
                 this.quickMenu.visible = false;
@@ -2848,8 +3681,13 @@
                 this.appointmentForm.duration = this.appointmentForm.duration || 60;
                 this.syncAppointmentEndTime();
                 this.appointmentForm.reason = '';
-                const confirmedStage = this.stages.find(s => /confirm/i.test(s.name));
-                this.appointmentForm.lead_pipeline_stage_id = confirmedStage?.id ?? this.stages[0]?.id ?? null;
+                this.modalErrorDetails = [];
+                this.draftRestored = false;
+                this.insurance.ci = '';
+                this.insurance.seguro_id = null;
+                this.insurance.result = null;
+                const confirmedStage = this.creatableStages.find(s => /confirm/i.test(s.name));
+                this.appointmentForm.lead_pipeline_stage_id = confirmedStage?.id ?? this.creatableStages[0]?.id ?? null;
                 this.appointmentForm.person = {
                     id: '',
                     name: ''
@@ -2859,18 +3697,27 @@
 
                 // Restaurar lo que el usuario había escrito (paciente, servicio,
                 // motivo, etc.), respetando el doctor/día/hora del slot clickeado.
-                if (draft && !draft.id) {
+                // Solo si había algo escrito; se avisa en el modal (draftRestored).
+                const hasDraft = draft && !draft.id && ((draft.person && draft.person.name) || draft.product_id || draft.reason);
+                if (hasDraft) {
                     if (draft.person && draft.person.name) this.appointmentForm.person = draft.person;
                     this.appointmentForm.product_id = draft.product_id || null;
                     this.appointmentForm.product_name = draft.product_name || '';
                     this.appointmentForm.reason = draft.reason || '';
                     if (draft.duration) this.appointmentForm.duration = draft.duration;
-                    if (draft.lead_pipeline_stage_id) this.appointmentForm.lead_pipeline_stage_id = draft.lead_pipeline_stage_id;
+                    const creatable = this.creatableStages.some(st => String(st.id) === String(draft.lead_pipeline_stage_id));
+                    if (creatable) this.appointmentForm.lead_pipeline_stage_id = draft.lead_pipeline_stage_id;
                     this.syncAppointmentEndTime();
+                    this.draftRestored = true;
                 }
 
                 this.closeQuickMenu();
                 this.$refs.appointmentModal.open();
+
+                // Foco al buscador de paciente: es lo primero que se completa.
+                this.$nextTick(() => setTimeout(() => {
+                    this.$refs.apptPatientField?.querySelector('input:not([type="hidden"]), [tabindex="0"], button')?.focus();
+                }, 50));
             },
             // Fill the shared appointmentForm from an existing appointment.
             populateAppointmentForm(ev) {
@@ -2906,6 +3753,12 @@
                 this.appointmentForm.person = { id: ev.person_id || null, name: ev.person_name || '' };
                 this.appointmentForm.product_id = ev.product_id || (ev.product ? ev.product.id : null);
                 this.appointmentForm.product_name = ev.product_name || (ev.product ? ev.product.name : '');
+                this.appointmentOriginal = {
+                    date: isoDate,
+                    startTime: this.appointmentForm.startTime,
+                    endTime: this.appointmentForm.endTime,
+                    doctorId: this.appointmentForm.doctor_ids[0] ?? null,
+                };
             },
 
             // Nombres de todos los doctores de una cita (multi-doctor). Cae al
@@ -2932,6 +3785,7 @@
                 this.loadApptInsurance(ev.person_id);
                 this.populateAppointmentForm(ev);
                 this.editMode = true;
+                this.viewTab = 'cita';
                 this.$refs.viewModal.open();
                 this.revealApptState();
             },
@@ -2940,6 +3794,7 @@
                 this.viewAppointment.visible = true;
                 this.whatsappMenuOpen = false;
                 this.editMode = false;
+                this.viewTab = 'cita';
                 this.loadApptHistory(ev.person_id);
                 this.loadApptInsurance(ev.person_id);
                 this.$refs.viewModal.open();
@@ -2980,6 +3835,49 @@
             cancelInlineEdit() {
                 this.editMode = false;
                 this.modalError = '';
+                this.modalErrorDetails = [];
+            },
+            // "Cambiar" paciente: abre la edición con el foco en el buscador de paciente.
+            changePatientFromView() {
+                this.editFromView();
+                this.viewTab = 'cita';
+                this.$nextTick(() => {
+                    this.$refs.apptEditPatientField?.querySelector('input:not([type="hidden"]), [tabindex="0"], button')?.focus();
+                });
+            },
+            isCurrentHistoryRow(a) {
+                return String(a.id) === String(this.viewAppointment.data?.id);
+            },
+            // Abre una cita del historial; si su día no está cargado, va a ese día y la abre al llegar.
+            openHistoryAppointment(a) {
+                if (this.isCurrentHistoryRow(a)) return;
+
+                const loaded = this.appointments.find(x => String(x.id) === String(a.id));
+                if (loaded) {
+                    this.openViewModal(loaded);
+                    return;
+                }
+                if (! a.date_iso) return;
+
+                this.$refs.viewModal.close();
+                this.pendingOpenAppointmentId = a.id;
+                this.goToDay(a.date_iso);
+            },
+            apptStateMeta(state) {
+                return this.apptStates.find(s => s.key === state)
+                    || { key: 'scheduled', label: 'Agendada', color: '#9ca3af', fill: '#e5e7eb', text: '#374151' };
+            },
+            apptStateBadgeStyle(state) {
+                const meta = this.apptStateMeta(state);
+                return { '--st-color': meta.color, '--st-fill': meta.fill, '--st-text': meta.text };
+            },
+            // "mié 29 oct · 10:00–11:00"
+            apptWhenLabel(ev) {
+                if (! ev?.start) return '';
+                const d = new Date(ev.start);
+                const days = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+                const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+                return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]} · ${this.formatTime(ev.start)}–${this.formatTime(ev.end)}`;
             },
             toggleWhatsappMenu() {
                 this.whatsappMenuOpen = !this.whatsappMenuOpen;
@@ -3063,54 +3961,26 @@
                     .finally(() => { this.reasonSaving = false; });
             },
 
-            // Busca pacientes por nombre para reasignar la cita.
-            searchPatients() {
-                const q = (this.patientQuery || '').trim();
-                if (q.length < 2) { this.patientResults = []; return; }
-
-                this.patientSearching = true;
-                this.$axios.get(this.personSearchUrl, { params: { query: q } })
-                    .then(res => { this.patientResults = res.data?.data || res.data || []; })
-                    .catch(() => { this.patientResults = []; })
-                    .finally(() => { this.patientSearching = false; });
-            },
-
-            cancelEditPatient() {
-                this.editingPatient = false;
-                this.patientQuery = '';
-                this.patientResults = [];
-            },
-
-            // Reasigna la cita a otro paciente existente y la empuja a SMD.
-            onChangePatient(result) {
+            setAppointmentStatus(status) {
                 const ev = this.viewAppointment.data;
-                if (!ev) return;
+                // Tocar el estado que ya tiene no hace nada (antes lo reenviaba a SMD).
+                if (!ev || this.statusUpdating || this.apptState() === status) return;
 
-                if (!result?.id) {
-                    this.$emitter.emit('add-flash', { type: 'error', message: 'Elegí un paciente ya registrado.' });
+                // Cancelada y Cita perdida liberan el turno: un toque de más no puede hacerlo.
+                if (status === 'cancelled' || status === 'no_show') {
+                    const label = this.apptStateMeta(status).label.toLowerCase();
+                    this.$emitter.emit('open-confirm-modal', {
+                        title: status === 'cancelled' ? 'Cancelar la cita' : 'Marcar como cita perdida',
+                        message: `¿Marcar como ${label} la cita de ${ev.person_name || 'este paciente'} del ${this.apptWhenLabel(ev)}? El horario queda libre.`,
+                        options: { btnDisagree: 'Volver', btnAgree: status === 'cancelled' ? 'Sí, cancelar' : 'Sí, marcar' },
+                        agree: () => this.sendAppointmentStatus(status),
+                    });
                     return;
                 }
 
-                this.$axios.post(this.appointmentUpdateUrlTemplate.replace('replaceId', ev.id), {
-                        person_id: result.id,
-                    })
-                    .then(res => {
-                        this.$emitter.emit('add-flash', { type: 'success', message: res.data.message });
-                        this.cancelEditPatient();
-                        this.$refs.viewModal.close();
-                        this.fetch();
-                    })
-                    .catch(err => {
-                        this.$emitter.emit('add-flash', {
-                            type: 'error',
-                            message: err.response?.data?.message || 'No se pudo cambiar el paciente.',
-                        });
-                    });
+                this.sendAppointmentStatus(status);
             },
-
-            // Confirm / cancel the appointment (moves its lead to the mapped
-            // stage). Refreshes the calendar so is_cancelled/is_completed update.
-            setAppointmentStatus(status) {
+            sendAppointmentStatus(status) {
                 const ev = this.viewAppointment.data;
                 if (!ev || this.statusUpdating) return;
 
@@ -3119,8 +3989,10 @@
                 this.$axios.post(this.appointmentStatusUrlTemplate.replace('replaceId', ev.id), { status })
                     .then(res => {
                         this.$emitter.emit('add-flash', { type: 'success', message: res.data.message });
-                        this.$refs.viewModal.close();
-                        this.fetch();
+                        // El modal queda abierto con el estado nuevo; el calendario se recarga detrás.
+                        this.applyAppointmentState(ev, status);
+                        this.loadApptHistory(ev.person_id);
+                        this.fetch()?.then(() => this.refreshViewAppointment(ev.id));
                     })
                     .catch(err => {
                         this.$emitter.emit('add-flash', {
@@ -3129,6 +4001,23 @@
                         });
                     })
                     .finally(() => { this.statusUpdating = false; });
+            },
+            applyAppointmentState(ev, status) {
+                this.viewAppointment.data = {
+                    ...ev,
+                    lead_pipeline_stage_id: this.stageMap[status] || ev.lead_pipeline_stage_id,
+                    is_cancelled: status === 'cancelled',
+                    is_lost: status === 'no_show',
+                    is_completed: status === 'completed',
+                    is_surgery: status === 'surgery',
+                    is_confirmed: status === 'confirmed',
+                };
+            },
+            // Tras recargar, el detalle muestra la cita fresca (si sigue abierta la misma).
+            refreshViewAppointment(id) {
+                if (String(this.viewAppointment.data?.id) !== String(id)) return;
+                const fresh = this.appointments.find(a => String(a.id) === String(id));
+                if (fresh) this.viewAppointment.data = fresh;
             },
 
             // Send the reminder THROUGH the CRM gateway (Kommo/Cloud API) so it
@@ -3192,8 +4081,15 @@
                 this.$refs.unavailableModal.open();
             },
             saveAppointment() {
+                if (this.modalSaving) return;
+
+                // Atajo Ctrl/Cmd+Enter: mismo bloqueo que el botón Guardar.
+                // Crear y editar: fuera de turno o choque no se envía (al editar, solo si cambió el horario).
+                if (this.appointmentSlotIssue) return;
+
                 this.modalSaving = true;
                 this.modalError = '';
+                this.modalErrorDetails = [];
 
                 if (!this.appointmentForm.person?.name) {
                     this.modalSaving = false;
@@ -3233,7 +4129,7 @@
                     const url = this.appointmentUpdateUrlTemplate.replace('replaceId', this.appointmentForm.id);
 
                     const updatePayload = {
-                        date: this.appointmentForm.date,
+                        date: this.modalContext.dayISO,
                         start_time: this.appointmentForm.startTime,
                         end_time: this.appointmentForm.endTime,
                         duration_minutes: this.appointmentForm.duration,
@@ -3269,7 +4165,12 @@
                     })
                     .catch(err => {
                         this.modalSaving = false;
-                        this.modalError = err?.response?.data?.message || 'Error al guardar';
+                        const data = err?.response?.data || {};
+                        this.modalError = data.message || 'Error al guardar';
+                        // 422 de validación: un mensaje por campo (antes se perdían).
+                        const fieldErrors = data.errors ? Object.values(data.errors).flat() : [];
+                        const details = Array.isArray(data.details) ? data.details.filter(d => typeof d === 'string') : [];
+                        this.modalErrorDetails = [...fieldErrors, ...details].filter(msg => msg !== this.modalError);
                     });
             },
             saveGroupAppointment() {
@@ -3843,6 +4744,7 @@
         border-radius: 9999px
     }
 
+    /* Selector de doctores de los modales de cita (v-doctor-multiselect). */
     .ms-container {
         display: inline-block;
         min-width: 240px;
@@ -3972,6 +4874,120 @@
         font-size: 12px
     }
 
+    /* Filtro desplegable (v-filter-select). */
+    .fs-container { position: relative; min-width: 0; }
+    .fs-trigger {
+        display: flex; align-items: center; gap: 6px; width: 100%; height: 36px; padding: 0 10px;
+        border: 0; border-radius: 8px; background: #f3f4f6; color: #374151; font-size: 14px; white-space: nowrap;
+    }
+    .fs-trigger:hover { background: #e5e7eb; }
+    .fs-label { color: #6b7280; }
+    .fs-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: #111827; }
+    .fs-caret { margin-left: auto; font-size: 18px; color: #6b7280; }
+    /* Filtro activo: se distingue por el color y por el texto del resumen. */
+    .fs-trigger.is-filtered { background: #eff6ff; box-shadow: inset 0 0 0 1px #93c5fd; }
+    .fs-trigger.is-filtered .fs-summary { color: #1d4ed8; }
+    .fs-trigger:focus-visible, .fs-bulk-btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+
+    .fs-dropdown {
+        position: fixed; z-index: 100001; padding: 8px;
+        border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px;
+        background: var(--hours-bg, #fff); box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+    }
+    .fs-search {
+        width: 100%; margin-bottom: 6px; padding: 6px 8px; font-size: 13px;
+        border: 1px solid var(--border-color, #e5e7eb); border-radius: 6px;
+    }
+    .fs-bulk { display: flex; gap: 12px; padding: 2px 6px 6px; border-bottom: 1px solid var(--border-color, #e5e7eb); margin-bottom: 4px; }
+    .fs-bulk-btn { border: 0; background: none; padding: 0; color: #2563eb; font-size: 12px; font-weight: 500; }
+    .fs-list { max-height: 240px; overflow: auto; }
+    .fs-item { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+    .fs-item:hover { background: #f3f4f6; }
+    .fs-item input:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+    .fs-item-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fs-empty { padding: 6px; color: #6b7280; font-size: 12px; }
+
+    /* Modo inline (panel del celular): sin caja flotante y sin scroll propio. */
+    .fs-inline-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .fs-inline-label { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #6b7280; }
+    .fs-inline .fs-summary { font-size: 13px; }
+    .fs-inline .fs-summary.is-filtered { color: #1d4ed8; }
+    .fs-inline .fs-list { max-height: none; overflow: visible; }
+    .fs-inline .fs-item { padding: 10px 6px; font-size: 15px; }
+    .fs-inline .fs-item input { width: 18px; height: 18px; }
+    .fs-inline .fs-search { font-size: 16px; padding: 8px 10px; } /* 16px: iOS no hace zoom */
+    .dark .fs-inline .fs-summary.is-filtered { color: #93c5fd; }
+
+    .dark .fs-trigger { background: #1f2937; color: #e5e7eb; }
+    .dark .fs-trigger:hover { background: #374151; }
+    .dark .fs-label, .dark .fs-caret { color: #9ca3af; }
+    .dark .fs-summary { color: #f3f4f6; }
+    .dark .fs-trigger.is-filtered { background: #172554; box-shadow: inset 0 0 0 1px #1d4ed8; }
+    .dark .fs-trigger.is-filtered .fs-summary { color: #93c5fd; }
+    .dark .fs-dropdown { border-color: #1f2937; background: #0b0f19; }
+    .dark .fs-search { border-color: #1f2937; background: #0b0f19; color: #cbd5e1; }
+    .dark .fs-bulk { border-bottom-color: #1f2937; }
+    .dark .fs-bulk-btn { color: #60a5fa; }
+    .dark .fs-item { color: #e5e7eb; }
+    .dark .fs-item:hover { background: #262b36; }
+
+    /* Detalle de la cita: badge de estado con color inline (ver apptStates). */
+    .ddc-state-badge {
+        display: inline-flex; align-items: center; flex-shrink: 0; border-radius: 9999px;
+        padding: 2px 10px; font-size: 12px; font-weight: 600; line-height: 18px; white-space: nowrap;
+        background: var(--st-fill, #e5e7eb); color: var(--st-text, #374151);
+    }
+    .ddc-state-badge.is-small { padding: 1px 6px; font-size: 11px; line-height: 16px; font-weight: 500; }
+    .ddc-history-row { width: 100%; text-align: left; cursor: pointer; }
+    .ddc-history-row:hover { background: #f9fafb; }
+    .ddc-history-row:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+    .ddc-history-row.is-current { background: #f3f4f6; cursor: default; }
+    .dark .ddc-history-row:hover, .dark .ddc-history-row.is-current { background: #1f2937; }
+    /* Celular/tablet: pestañas Cita | Chat; en escritorio van las dos columnas. */
+    .ddc-view-tabs { display: none; }
+    @media (max-width: 1023px) {
+        .ddc-view-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 8px; background: #f3f4f6; }
+        .ddc-view-tabs button { flex: 1; height: 34px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #4b5563; }
+        .ddc-view-tabs button.is-active { background: #fff; color: #111827; box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
+        .ddc-view-tabs button:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+        .ddc-view-col.is-tab-hidden { display: none !important; }
+    }
+    .dark .ddc-view-tabs { background: #030712; }
+    .dark .ddc-view-tabs button { color: #9ca3af; }
+    .dark .ddc-view-tabs button.is-active { background: #1f2937; color: #f9fafb; }
+
+    /* Modal "Nueva cita": una columna en el celular, dos desde 640px. */
+    .ddc-appt-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    @media (min-width: 640px) {
+        .ddc-appt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .ddc-appt-wide { grid-column: 1 / -1; }
+    }
+    .ddc-appt-slots { display: flex; flex-wrap: wrap; gap: 6px; max-height: 96px; overflow: auto; }
+    .ddc-appt-slot {
+        height: 30px; padding: 0 10px; border: 1px solid #e5e7eb; border-radius: 6px;
+        background: #fff; color: #374151; font-size: 13px; font-variant-numeric: tabular-nums;
+    }
+    .ddc-appt-slot:hover { border-color: #93c5fd; background: #eff6ff; }
+    .ddc-appt-slot.is-active { border-color: #2563eb; background: #2563eb; color: #fff; }
+    .ddc-appt-slot:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+    .ddc-appt-issue { padding: 8px 10px; border-radius: 6px; background: #fef2f2; color: #b91c1c; font-size: 13px; }
+    .ddc-appt-draft {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 8px 10px; border-radius: 6px; background: #fffbeb; color: #92400e; font-size: 13px;
+    }
+    .dark .ddc-appt-slot { border-color: #1f2937; background: #111827; color: #e5e7eb; }
+    .dark .ddc-appt-slot:hover { border-color: #1d4ed8; background: #172554; }
+    .dark .ddc-appt-slot.is-active { border-color: #3b82f6; background: #2563eb; color: #fff; }
+    .dark .ddc-appt-issue { background: #450a0a; color: #fecaca; }
+    .dark .ddc-appt-draft { background: #451a03; color: #fde68a; }
+
+    /* Aviso cuando el filtro deja el calendario sin doctores. */
+    .ddc-filter-empty {
+        display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px;
+        border-radius: 8px; background: #fffbeb; color: #92400e; font-size: 14px;
+    }
+    .dark .ddc-filter-empty { background: #451a03; color: #fde68a; }
+
     .dwc-container {
         display: flex;
         flex-direction: column;
@@ -4058,13 +5074,17 @@
         background: var(--hours-bg)
     }
 
+    /* Fondo = horario NO disponible (rayado); los turnos del doctor se pintan
+       encima como bloques blancos (.dwc-availability-block). */
     .dwc-days-stack {
         position: relative;
-        background: #ecececff;
+        background-color: #f3f4f6;
+        background-image: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(0, 0, 0, 0.06) 6px 7px);
     }
 
     .dark .dwc-days-stack {
-        background: #111827;
+        background-color: #111827;
+        background-image: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(255, 255, 255, 0.05) 6px 7px);
     }
 
     .dwc-availability-block {
@@ -4073,12 +5093,40 @@
         right: 0;
         background: var(--hours-bg, #fff);
         z-index: 0;
+        cursor: pointer;
     }
 
     .dwc-day-block {
         position: relative;
         border-bottom: 1px solid var(--border-color);
-        cursor: pointer;
+        cursor: not-allowed;
+    }
+
+    /* Subdivisiones de cada hora (una línea tenue por slot de slotMinutes). */
+    .dwc-quarter-lines {
+        position: absolute;
+        inset: 0;
+        background-image: linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+        opacity: 0.6;
+        z-index: 1;
+        pointer-events: none;
+    }
+
+    .dwc-hover-slot {
+        position: absolute;
+        left: 3px;
+        right: 3px;
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        border: 1px solid color-mix(in srgb, var(--event-accent) 35%, transparent);
+        border-radius: 4px;
+        background: color-mix(in srgb, var(--event-accent) 10%, var(--hours-bg, #fff));
+        color: var(--event-accent);
+        font-size: 12px;
+        font-weight: 500;
+        z-index: 1;
+        pointer-events: none;
     }
 
     .dwc-hour-line {
@@ -4412,8 +5460,13 @@
         text-transform: capitalize;
     }
 
+    /* Sin la clase del selector de fechas (.ddc-date-day): su :hover pisaba el fondo. */
     .dwc-month-cell {
-        height: 156px;
+        display: flex;
+        position: relative;
+        height: 140px;
+        min-width: 0;
+        color: var(--day-text, #111827);
         align-items: stretch;
         justify-content: flex-start;
         flex-direction: column;
@@ -4423,7 +5476,7 @@
         transition: box-shadow .15s ease, border-color .15s ease;
     }
 
-    .dwc-month-cell:hover {
+    .dwc-month-cell:not(.is-out):hover {
         border-color: color-mix(in srgb, var(--brand-color, #6750A4) 35%, transparent);
         box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
     }
@@ -4433,15 +5486,21 @@
         background: rgba(59, 130, 246, 0.06);
     }
 
+    /* Celdas de otros meses: solo el hueco, sin marco. */
     .dwc-month-cell.is-out {
-        background: var(--gray-50, rgba(0, 0, 0, 0.02));
-        opacity: 0.6;
+        border-color: transparent;
+        background: transparent;
     }
 
-    /* La regla base .ddc-date-day.is-out oculta el número (color: transparent);
-       en el mes lo mostramos atenuado en vez de desaparecerlo. */
-    .dwc-month-view .dwc-month-cell.is-out .dwc-month-cell-header {
-        color: var(--hour-text, #9ca3af);
+    /* Sin turnos: el mismo rayado que el horario no disponible. */
+    .dwc-month-cell.is-off {
+        background-color: #f3f4f6;
+        background-image: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(0, 0, 0, 0.06) 6px 7px);
+    }
+
+    .dark .dwc-month-cell.is-off {
+        background-color: #111827;
+        background-image: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(255, 255, 255, 0.05) 6px 7px);
     }
 
     .dwc-month-cell-header {
@@ -4449,21 +5508,43 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 6px 10px;
+        padding: 6px 8px 4px;
         font-size: 13px;
     }
+
+    .dwc-month-day-btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-width: 26px; height: 26px; padding: 0 4px; border: 0; border-radius: 9999px;
+        background: transparent; color: var(--day-text, #111827); font-size: 13px; font-weight: 600;
+    }
+    .dwc-month-day-btn:hover { background: #e5e7eb; }
+    .dwc-month-cell.is-today .dwc-month-day-btn { background: #2563eb; color: #fff; }
+    .dwc-month-day-btn:focus-visible,
+    .dwc-month-event:focus-visible,
+    .dwc-month-more:focus-visible,
+    .dwc-month-agenda-item:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+
+    .dwc-month-count {
+        min-width: 20px; padding: 0 6px; border-radius: 9999px; background: #e5e7eb;
+        color: #374151; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center;
+    }
+    .dark .dwc-month-count { background: #374151; color: #e5e7eb; }
+    .dark .dwc-month-day-btn:hover { background: #374151; }
 
     .dwc-month-cell-events {
         width: 100%;
         display: flex;
         flex-direction: column;
-        gap: 4px;
-        padding: 0 8px 8px;
-        overflow-y: auto;
-        max-height: 118px;
+        gap: 3px;
+        padding: 0 6px 6px;
+        min-width: 0;
     }
 
     .dwc-month-event {
+        display: block;
+        width: 100%;
+        border: 0;
+        text-align: left;
         font-size: 11.5px;
         line-height: 1.35;
         white-space: nowrap;
@@ -4488,12 +5569,57 @@
         border-left-color: #60a5fa;
     }
 
+    .dwc-month-more {
+        align-self: flex-start; border: 0; background: none; padding: 1px 4px;
+        color: #2563eb; font-size: 11.5px; font-weight: 600;
+    }
+    .dark .dwc-month-more { color: #60a5fa; }
+
     /* Colores por estado en la vista mes (mismos que día/semana). */
-    .dwc-month-event.is-confirmed { background: #ADD8E6; color: #0c4a6e; border-left-color: #3b82f6; }
-    .dwc-month-event.is-surgery   { background: #FFBB76; color: #7c2d12; border-left-color: #f59e0b; }
-    .dwc-month-event.is-lost      { background: #FFAA8F; color: #7f1d1d; border-left-color: #f87171; }
-    .dwc-month-event.is-completed { background: #DCFCE7; color: #14532d; border-left-color: #22c55e; }
-    .dwc-month-event.is-cancelled { background: #f3f4f6; color: #6b7280; border-left-color: #9ca3af; text-decoration: line-through; opacity: 0.7; }
+    .dwc-month-event.is-confirmed, .dwc-month-agenda-item.is-confirmed { background: #ADD8E6; color: #0c4a6e; border-left-color: #3b82f6; }
+    .dwc-month-event.is-surgery, .dwc-month-agenda-item.is-surgery     { background: #FFBB76; color: #7c2d12; border-left-color: #f59e0b; }
+    .dwc-month-event.is-lost, .dwc-month-agenda-item.is-lost           { background: #FFAA8F; color: #7f1d1d; border-left-color: #f87171; }
+    .dwc-month-event.is-completed, .dwc-month-agenda-item.is-completed { background: #DCFCE7; color: #14532d; border-left-color: #22c55e; }
+    .dwc-month-event.is-cancelled, .dwc-month-agenda-item.is-cancelled { background: #f3f4f6; color: #6b7280; border-left-color: #9ca3af; text-decoration: line-through; opacity: 0.7; }
+
+    .dwc-month-loading { font-size: 13px; color: var(--hour-text, #6b7280); }
+    .dwc-month-grid.is-loading { opacity: .5; transition: opacity .15s ease; }
+
+    /* Punto de "tiene citas" y lista del día: solo en el celular. */
+    .dwc-month-dot { display: none; }
+    .dwc-month-agenda { display: none; }
+
+    @media (max-width: 639px) {
+        .dwc-month-view { padding: 8px; gap: 8px; }
+        .dwc-month-view .ddc-date-weekdays, .dwc-month-view .ddc-date-grid { gap: 4px; }
+        .dwc-month-cell { height: 48px; border-radius: 8px; align-items: center; justify-content: center; }
+        .dwc-month-cell-events, .dwc-month-count { display: none; }
+        .dwc-month-cell-header { justify-content: center; padding: 0; }
+        /* Toda la celda es el botón del día. */
+        .dwc-month-day-btn { position: static; }
+        .dwc-month-day-btn::after { content: ''; position: absolute; inset: 0; }
+        .dwc-month-cell.is-picked { border-color: #2563eb; box-shadow: inset 0 0 0 1px #2563eb; }
+        .dwc-month-dot {
+            display: block; position: absolute; bottom: 5px; left: 50%; width: 5px; height: 5px;
+            margin-left: -2.5px; border-radius: 50%; background: #2563eb; pointer-events: none;
+        }
+
+        .dwc-month-agenda { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; border-top: 1px solid var(--border-color); }
+        .dwc-month-agenda-head { display: flex; align-items: center; gap: 6px; padding: 6px 2px; font-size: 14px; color: var(--day-text, #111827); }
+        .dwc-month-agenda-head > * { white-space: nowrap; }
+        .dwc-month-agenda-item {
+            display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 8px 10px; border: 0;
+            border-left: 3px solid var(--brand-color, #3b82f6); border-radius: 8px; text-align: left;
+            background: #dbeafe; color: #1e40af; font-size: 14px;
+        }
+        .dwc-month-agenda-time { font-weight: 600; font-variant-numeric: tabular-nums; }
+        .dwc-month-agenda-main { display: flex; flex-direction: column; min-width: 0; }
+        .dwc-month-agenda-patient { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .dwc-month-agenda-meta { font-size: 12px; opacity: .85; }
+        .dwc-month-agenda-empty { padding: 8px 2px; font-size: 13px; color: var(--hour-text, #6b7280); }
+        .dark .dwc-month-agenda-head { color: #f3f4f6; }
+        .dark .dwc-month-agenda-item { background: #1e3a8a; color: #dbeafe; }
+    }
 
     .dwc-week-view {
         display: flex;
@@ -4502,13 +5628,30 @@
         border-radius: 8px;
         background: var(--hours-bg);
         overflow: auto;
+        /* Con altura propia el encabezado y la columna de doctores quedan fijos. */
+        max-height: 70vh;
     }
 
     .dwc-week-header {
         display: grid;
         grid-template-columns: 150px repeat(7, minmax(120px, 1fr));
         border-bottom: 1px solid var(--border-color);
-        background: var(--gray-50);
+        background: var(--hours-bg, #fff);
+        position: sticky;
+        top: 0;
+        z-index: 3;
+    }
+
+    .dwc-week-header-cell.is-today,
+    .dwc-doctor-header.is-today {
+        color: #2563eb;
+        box-shadow: inset 0 -2px 0 #2563eb;
+    }
+
+    .dark .dwc-week-header-cell.is-today,
+    .dark .dwc-doctor-header.is-today {
+        color: #60a5fa;
+        box-shadow: inset 0 -2px 0 #60a5fa;
     }
 
     .dark .dwc-week-header {
@@ -4527,6 +5670,9 @@
     .dwc-week-header-cell.doctor-col {
         text-align: left;
         padding-left: 16px;
+        position: sticky;
+        left: 0;
+        background: var(--hours-bg, #fff);
     }
 
     .dwc-week-body {
@@ -4547,8 +5693,11 @@
         display: flex;
         flex-direction: column;
         justify-content: center;
-        background: var(--gray-50);
+        background: var(--hours-bg, #fff);
         color: var(--day-text);
+        position: sticky;
+        left: 0;
+        z-index: 2;
     }
 
     .dark .dwc-week-doctor-cell {
@@ -4572,6 +5721,18 @@
         background-color: rgba(59, 130, 246, 0.05);
     }
 
+    /* Sin turno: el mismo rayado que el horario no disponible de la vista Día. */
+    .dwc-week-day-cell.is-off {
+        background-color: #f3f4f6;
+        background-image: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(0, 0, 0, 0.06) 6px 7px);
+        cursor: not-allowed;
+    }
+
+    .dark .dwc-week-day-cell.is-off {
+        background-color: #111827;
+        background-image: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(255, 255, 255, 0.05) 6px 7px);
+    }
+
     .dwc-week-event {
         font-size: 11px;
         background: #e0f2fe;
@@ -4580,10 +5741,15 @@
         border-radius: 4px;
         cursor: pointer;
         display: flex;
-        gap: 4px;
-        align-items: center;
+        flex-direction: column;
         overflow: hidden;
     }
+
+    .dwc-week-event-main { display: flex; gap: 4px; align-items: center; min-width: 0; }
+    .dwc-week-event-status { font-size: 10px; opacity: .85; }
+
+    /* Línea de la hora actual dentro de la columna de hoy. */
+    .dwc-now-line-day { z-index: 3; }
 
     .dark .dwc-week-event {
         background: #075985;
@@ -4722,24 +5888,14 @@
         background-color: var(--brand-color, #2563eb);
     }
 
-    /* ===== Vista Lista por rango ===== */
+    /* ===== Vista Lista (semana de la fecha de la barra) ===== */
     .dwc-list-view {
         display: flex;
         flex-direction: column;
         gap: 12px;
     }
 
-    .dwc-list-filters {
-        padding: 12px;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        background: #fff;
-    }
-
-    .dark .dwc-list-filters {
-        background: #111827;
-        border-color: #1f2937;
-    }
+    .dwc-list-summary { padding: 0 4px; }
 
     .dwc-list-table {
         border: 1px solid #e5e7eb;
@@ -4856,20 +6012,38 @@
         height: 32px;
         font-size: 16px;
     }
-    /* Barra de estado de la cita (modal de detalle): flecha del segmento elegido
-       en su color, y el último segmento sin flecha que sobresalga. */
-    .ddc-status-bar .stage { flex: 1 0 auto; padding-left: 1.2rem; padding-right: .4rem; font-size: .8125rem; }
-    .ddc-status-bar .stage:first-child { padding-left: .7rem; border-top-left-radius: .5rem; border-bottom-left-radius: .5rem; }
-    .ddc-status-bar .stage:last-child { border-top-right-radius: .5rem; border-bottom-right-radius: .5rem; }
-    .ddc-status-bar .stage:last-child::after { display: none; }
-    .ddc-status-bar .stage.is-active::after { background-color: var(--st-color); }
+    /* Estado de la cita (modal de detalle): chips claros con un punto de color; el
+       elegido, relleno pastel con texto oscuro de su tono (contraste AA, ver test). */
+    /* Los chips se estiran para ocupar todo el ancho de cada fila. */
+    .ddc-status-chips { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+    .ddc-status-chips.is-busy { opacity: .5; pointer-events: none; }
+    .ddc-status-chip {
+        display: inline-flex; flex: 1 1 auto; align-items: center; justify-content: center;
+        gap: 7px; height: 32px; padding: 0 12px;
+        border: 1px solid #e5e7eb; border-radius: 6px; background: #fff;
+        color: #4b5563; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer;
+        transition: background-color .12s, border-color .12s, color .12s;
+    }
+    .ddc-status-chip:hover {
+        border-color: color-mix(in srgb, var(--st-color) 40%, #e5e7eb);
+        background: color-mix(in srgb, var(--st-color) 5%, #fff);
+    }
+    .ddc-status-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 9999px; background: var(--st-color); }
+    .ddc-status-chip.is-active {
+        border-color: var(--st-color); background: var(--st-fill);
+        color: var(--st-text); font-weight: 600; cursor: default;
+    }
+    .ddc-status-chip.is-active .ddc-status-dot { background: var(--st-text); }
+    .dark .ddc-status-chip { border-color: #1f2937; background: #111827; color: #d1d5db; }
+    .dark .ddc-status-chip:hover { border-color: color-mix(in srgb, var(--st-color) 50%, #1f2937); background: #1f2937; }
+    .dark .ddc-status-chip.is-active { border-color: var(--st-color); background: var(--st-fill); color: var(--st-text); }
     /* ── Barra de controles del calendario ─────────────────────────────── */
-    /* Escritorio: fecha (y buscador) a la izquierda; doctores y vista siempre
-       juntos a la derecha. Entre 1024 y 1439px no entra todo en una fila: el
-       buscador baja a la segunda fila, a la izquierda. */
+    /* Escritorio, dos filas: fecha y vista arriba; buscador a la izquierda y
+       filtros (especialidad, doctores, estado) a la derecha debajo. Con tres
+       filtros no entra todo en una fila ni en pantallas anchas. */
     .ddc-toolbar {
-        display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(16rem, 26rem) auto;
-        grid-template-areas: "date . doctors seg" "search search . .";
+        display: grid; grid-template-columns: minmax(0, 22rem) minmax(0, 1fr) auto;
+        grid-template-areas: "date . seg" "search doctors doctors";
         border: 0; gap: 10px 12px; padding: 10px; align-items: center;
     }
     .ddc-tb-date { grid-area: date; }
@@ -4904,14 +6078,21 @@
     .ddc-tb-search input:focus { outline: 2px solid #93c5fd; outline-offset: 0; background: #fff; }
     .ddc-tb-search input::placeholder { color: #6b7280; }
     /* Foco con teclado visible (la regla de .ddc-container no alcanza a la barra). */
-    .ddc-toolbar button:focus-visible, .ddc-status-bar .stage:focus-visible {
+    .ddc-toolbar button:focus-visible, .ddc-status-chip:focus-visible {
         outline: 2px solid #2563eb; outline-offset: 2px;
     }
 
-    .ddc-tb-doctors { display: flex; align-items: center; gap: 12px; }
-    .ddc-tb-doctors-head { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #6b7280; white-space: nowrap; }
-    .ddc-tb-link { border: 0; background: none; padding: 0; color: #2563eb; font-size: 12px; font-weight: 500; }
-    .ddc-tb-multi { flex: 1 1 auto; min-width: 0; max-height: 100%; }
+    .ddc-tb-searchrow { display: contents; }
+    .ddc-tb-filters-btn, .ddc-sheet, .ddc-sheet-overlay { display: none; }
+    .ddc-tb-doctors { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    .ddc-tb-link { border: 0; background: none; padding: 0; color: #2563eb; font-size: 13px; font-weight: 500; white-space: nowrap; }
+    .ddc-tb-multi { flex: 0 1 15rem; min-width: 0; }
+    .ddc-tb-search-clear {
+        position: absolute; right: 6px; width: 24px; height: 24px; border: 0; border-radius: 50%;
+        background: transparent; color: #6b7280; font-size: 18px; line-height: 1;
+    }
+    .ddc-tb-search-clear:hover { background: #e5e7eb; }
+    .ddc-tb-search input { padding-right: 34px; }
 
     .dark .ddc-tb-icon, .dark .ddc-tb-chip, .dark .ddc-tb-date-label,
     .dark .ddc-seg, .dark .ddc-tb-search input { background: #1f2937; color: #e5e7eb; }
@@ -4929,9 +6110,59 @@
         .ddc-tb-date .ddc-tb-date-label { flex: 1; }
         .ddc-tb-search { max-width: none; }
         .ddc-tb-search input { font-size: 16px; } /* 16px: iOS no hace zoom al enfocar */
-        .ddc-tb-doctors { flex-direction: column; align-items: stretch; gap: 6px; }
-        .ddc-tb-doctors-head span { margin-right: auto; }
-        .ddc-tb-multi { min-width: 0; max-width: none; width: 100%; }
+        /* .dwc-controls trae flex-wrap: wrap; en columna eso hace que el ancho lo
+           dicte el hijo más ancho y la barra se salía de la pantalla. */
+        .ddc-toolbar { flex-wrap: nowrap; }
+        /* Los filtros van en el panel: buscador y botón "Filtros" en una fila. */
+        .ddc-tb-doctors { display: none; }
+        .ddc-tb-searchrow { display: flex; gap: 8px; align-items: center; }
+        .ddc-tb-searchrow .ddc-tb-search { flex: 1 1 auto; min-width: 0; }
+        .ddc-tb-filters-btn {
+            display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; height: 36px; padding: 0 12px;
+            border: 0; border-radius: 8px; background: #f3f4f6; color: #374151; font-size: 14px; font-weight: 500;
+        }
+        .ddc-tb-filters-btn.is-filtered { background: #eff6ff; color: #1d4ed8; box-shadow: inset 0 0 0 1px #93c5fd; }
+        .ddc-tb-filters-btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+        .ddc-tb-filters-badge {
+            min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9999px; background: #2563eb;
+            color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+        }
+        .dark .ddc-tb-filters-btn { background: #1f2937; color: #e5e7eb; }
+        .dark .ddc-tb-filters-btn.is-filtered { background: #172554; color: #93c5fd; box-shadow: inset 0 0 0 1px #1d4ed8; }
+
+        /* Panel de filtros que sube desde abajo. */
+        .ddc-sheet-overlay { display: block; position: fixed; inset: 0; z-index: 10000; background: rgba(17, 24, 39, .45); }
+        .ddc-sheet {
+            display: flex; flex-direction: column; position: fixed; left: 0; right: 0; bottom: 0; z-index: 10001;
+            max-height: 85vh; border-radius: 16px 16px 0 0; background: var(--hours-bg, #fff);
+            box-shadow: 0 -8px 24px rgba(0, 0, 0, .18);
+        }
+        .ddc-sheet-head {
+            display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px;
+            border-bottom: 1px solid var(--border-color, #e5e7eb);
+        }
+        .ddc-sheet-title { font-size: 16px; font-weight: 700; color: var(--day-text, #111827); }
+        .ddc-sheet-close {
+            width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent;
+            color: #6b7280; font-size: 24px; line-height: 1;
+        }
+        .ddc-sheet-close:hover { background: #f3f4f6; }
+        .ddc-sheet-body {
+            display: flex; flex-direction: column; gap: 18px; padding: 12px 16px;
+            overflow-y: auto; overscroll-behavior: contain;
+        }
+        .ddc-sheet-foot {
+            display: flex; gap: 10px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+            border-top: 1px solid var(--border-color, #e5e7eb);
+        }
+        .ddc-sheet-clear, .ddc-sheet-done { height: 44px; padding: 0 16px; border-radius: 8px; font-size: 15px; font-weight: 600; }
+        .ddc-sheet-clear { border: 1px solid #e5e7eb; background: #fff; color: #374151; }
+        .ddc-sheet-clear:disabled { opacity: .5; }
+        .ddc-sheet-done { flex: 1; border: 0; background: #2563eb; color: #fff; }
+        .ddc-sheet-close:focus-visible, .ddc-sheet-clear:focus-visible, .ddc-sheet-done:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+        .dark .ddc-sheet-title { color: #f3f4f6; }
+        .dark .ddc-sheet-close:hover { background: #1f2937; }
+        .dark .ddc-sheet-clear { background: #111827; border-color: #1f2937; color: #e5e7eb; }
     }
     /* Encabezado de doctor SIEMPRE en una línea: la columna de horas no tiene
        encabezado y asume esa altura. Un nombre largo en dos líneas ("DIANA
@@ -4940,13 +6171,6 @@
     .dwc-doctor-header { gap: 6px; white-space: nowrap; }
     .dwc-doctor-header-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .dwc-doctor-header-count { flex-shrink: 0; }
-    /* Pantallas anchas: todo en una fila (doctores al lado de la vista). */
-    @media (min-width: 1440px) {
-        .ddc-toolbar {
-            grid-template-columns: auto minmax(12rem, 1fr) minmax(0, 30rem) auto;
-            grid-template-areas: "date search doctors seg";
-        }
-    }
 
     /* Escritorio: estilo del admin (botones blancos con borde fino, vista como
        grupo de botones). El estilo de relleno gris es solo para el celular. */
@@ -4965,6 +6189,11 @@
         .ddc-seg-btn.is-active { background: #f3f4f6; color: #2563eb; box-shadow: none; }
 
         .ddc-tb-search input { height: 34px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; }
+        .fs-trigger { height: 34px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; }
+        .fs-trigger:hover { background: #f9fafb; }
+        .fs-trigger.is-filtered { border-color: #93c5fd; background: #eff6ff; box-shadow: none; }
+        .dark .fs-trigger { background: #111827; border-color: #1f2937; }
+        .dark .fs-trigger.is-filtered { background: #172554; border-color: #1d4ed8; }
         .ddc-tb-search input:focus { outline: 2px solid #93c5fd; outline-offset: -1px; border-color: #60a5fa; }
 
         .dark .ddc-tb-icon, .dark .ddc-tb-chip, .dark .ddc-tb-date-label,

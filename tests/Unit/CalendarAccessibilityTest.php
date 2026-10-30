@@ -25,13 +25,19 @@ function a11yContrast(string $a, string $b): float
     return ($hi + 0.05) / ($lo + 0.05);
 }
 
-it('el texto blanco de cada estado de la cita tiene contraste AA sobre su color', function () {
-    preg_match_all("/key: '(\\w+)',\\s+label: '[^']+',\\s+color: '(#[0-9a-f]{6})'/i", a11yView('components/activities/doctor-day-calendar.blade.php'), $m, PREG_SET_ORDER);
+it('el texto de cada estado tiene contraste AA sobre su relleno pastel', function () {
+    $view = a11yView('components/activities/doctor-day-calendar.blade.php');
+    $states = substr($view, strpos($view, 'apptStates: ['), 1400);
+    preg_match_all("/key: '(\\w+)',\\s+label: '[^']+',\\s+color: '#[0-9a-f]{6}',\\s+fill: '(#[0-9a-f]{6})',\\s+text: '(#[0-9a-f]{6})'/i", $states, $m, PREG_SET_ORDER);
 
     expect($m)->toHaveCount(5);
 
-    foreach ($m as [, $state, $color]) {
-        expect(a11yContrast('#ffffff', $color))->toBeGreaterThanOrEqual(4.5, "Estado {$state}: contraste insuficiente con {$color}");
+    // El chip elegido y el badge pintan el pastel (fill) con el texto (text).
+    expect($view)->toContain('background: var(--st-fill, #e5e7eb); color: var(--st-text, #374151);')
+        ->toContain("border-color: var(--st-color); background: var(--st-fill);\n        color: var(--st-text);");
+
+    foreach ($m as [, $state, $fill, $text]) {
+        expect(a11yContrast($text, $fill))->toBeGreaterThanOrEqual(4.5, "Estado {$state}: contraste insuficiente de {$text} sobre {$fill}");
     }
 });
 
@@ -48,7 +54,7 @@ it('la vista Día/Semana/Mes/Lista y el estado de la cita son grupos de botones 
 it('los controles muestran el foco con teclado y el buscador no lo elimina', function () {
     $view = a11yView('components/activities/doctor-day-calendar.blade.php');
 
-    expect($view)->toContain('.ddc-toolbar button:focus-visible, .ddc-status-bar .stage:focus-visible {')
+    expect($view)->toContain('.ddc-toolbar button:focus-visible, .ddc-status-chip:focus-visible {')
         ->not->toContain('.ddc-tb-search input:focus { outline: 0;');
 
     expect(a11yView('components/smd-sync-control.blade.php'))

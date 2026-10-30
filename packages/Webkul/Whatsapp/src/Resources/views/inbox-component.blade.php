@@ -49,15 +49,19 @@
                             <span v-else class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Sin número</span>
 
                             <!-- 24h WhatsApp window -->
+                            <!-- Ámbar con menos de 2 h: después solo se podrá enviar una plantilla. -->
                             <span v-if="window.applies && window.open"
-                                  class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                                  title="Tiempo restante para enviar texto libre">
-                                @{{ windowLabel }} restantes
+                                  class="rounded-full px-1.5 py-0.5 text-[11px] font-medium"
+                                  :class="windowClosingSoon
+                                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'"
+                                  title="WhatsApp permite texto libre hasta 24 h después del último mensaje del paciente. Después, solo plantillas.">
+                                Ventana 24 h · quedan @{{ windowLabel }}
                             </span>
                             <span v-else-if="window.applies && !window.open"
                                   class="rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300"
                                   title="Fuera de la ventana de 24h">
-                                Ventana cerrada
+                                Ventana 24 h cerrada
                             </span>
                         </div>
                     </div>
@@ -78,7 +82,7 @@
                         modo prueba
                     </span>
                     <span class="relative inline-flex h-5 w-9 items-center">
-                        <input type="checkbox" :checked="aiEnabled" @change="toggleAgent($event.target.checked)" class="peer sr-only">
+                        <input type="checkbox" :checked="aiEnabled" @change="toggleAgent($event.target.checked); $event.target.checked = aiEnabled" :disabled="agentToggling || ! hasRecipient" aria-label="Agente IA en esta conversación" class="peer sr-only">
                         <span class="h-5 w-9 rounded-full bg-gray-300 transition peer-checked:bg-brandColor dark:bg-gray-600"></span>
                         <span class="absolute left-0.5 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4"></span>
                     </span>
@@ -93,8 +97,19 @@
                     <x-admin::spinner /> <span>Cargando conversación…</span>
                 </div>
 
-                <div v-else-if="!messages.length" class="m-auto text-sm text-gray-500 dark:text-gray-400">
-                    Sin mensajes todavía.
+                <!-- Un error al cargar no es «sin mensajes»: se dice y se puede reintentar. -->
+                <div v-else-if="loadError" class="m-auto flex flex-col items-center gap-2 px-4 text-center text-sm text-gray-600 dark:text-gray-300" role="alert">
+                    <span class="icon-error text-2xl text-red-500" aria-hidden="true"></span>
+                    <span>No se pudo cargar la conversación.</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">@{{ loadError }}</span>
+                    <button type="button" @click="retryLoad"
+                            class="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-brandColor shadow-sm transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:bg-gray-800 max-lg:h-10 max-lg:px-4">
+                        Reintentar
+                    </button>
+                </div>
+
+                <div v-else-if="!messages.length" class="m-auto text-center text-sm text-gray-500 dark:text-gray-400">
+                    @{{ hasRecipient ? 'Sin mensajes todavía.' : 'Este contacto todavía no tiene WhatsApp.' }}
                 </div>
 
                 <template v-else v-for="(msg, i) in messages" :key="msg.id">
@@ -213,9 +228,15 @@
                             <div v-else class="italic text-gray-500">Tipo no soportado</div>
 
                             <!-- why it failed: the agent is who needs this, not the log -->
-                            <div v-if="msg.status === 'failed' && msg.error"
-                                 class="mt-1 rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
-                                <span class="font-semibold">No se envió:</span> @{{ msg.error }}
+                            <div v-if="msg.status === 'failed'"
+                                 class="mt-1 rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300"
+                                 role="alert">
+                                <span class="font-semibold">No se envió:</span> @{{ msg.error || 'el servidor no confirmó el envío.' }}
+                                <!-- El texto ya salió de la caja: reintentar sin reescribirlo. -->
+                                <button v-if="canRetry(msg)" type="button" @click="retrySend(msg)"
+                                        class="ml-1 font-semibold underline transition hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:hover:text-red-100 max-lg:inline-flex max-lg:h-8 max-lg:items-center">
+                                    Reintentar
+                                </button>
                             </div>
 
                             <!-- meta row -->
@@ -296,13 +317,20 @@
 
                 <template v-else>
 
-                <div v-if="!context.phone" class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-                    Este contacto no tiene número de WhatsApp. Asigna un teléfono para poder chatear.
+                <div v-if="!hasRecipient" class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300" role="status">
+                    Este contacto no tiene número de WhatsApp. Asigna un teléfono en su ficha para poder chatear.
                 </div>
 
-                <div v-else-if="aiEnabled" class="flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
-                    <span class="rounded bg-emerald-200 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100">IA</span>
-                    <span>El agente IA está atendiendo esta conversación. <button class="font-semibold underline" @click="toggleAgent(false)">Desactivalo</button> para escribir a mano.</span>
+                <!-- Con el agente activo no hay caja de escribir: una barra y una acción. -->
+                <div v-else-if="aiEnabled" class="flex items-center gap-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200 max-lg:flex-col" role="status">
+                    <span class="flex min-w-0 flex-1 items-center gap-2">
+                        <span class="shrink-0 rounded bg-emerald-200 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100" aria-hidden="true">IA</span>
+                        <span>El agente IA está atendiendo esta conversación.</span>
+                    </span>
+                    <button type="button" @click="toggleAgent(false)" :disabled="agentToggling"
+                            class="shrink-0 rounded-md bg-brandColor px-3 py-1.5 text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:opacity-50 max-lg:h-11">
+                        Tomar la conversación
+                    </button>
                 </div>
 
                 <div v-else-if="window.applies && !window.open" class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
@@ -409,16 +437,17 @@
                 <!-- Not a v-else: the picker above is teleported away, so there is
                      no adjacent v-if to chain to. The composer still hides while
                      the picker is open. -->
-                <template v-if="! showTemplates">
+                <!-- Sin número ni conversación no hay a quién enviarle: sin caja de escribir. -->
+                <template v-if="! showTemplates && hasRecipient">
                     <!-- reminder to re-enable the agent when the human is done -->
-                    <div v-if="agentNote" class="mb-2 flex items-center justify-between rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                    <div v-if="agentNote && ! aiEnabled" class="mb-2 flex items-center justify-between rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
                         <span>Desactivaste el agente. Acordate de <button class="font-semibold underline" @click="toggleAgent(true)">reactivarlo</button> cuando termines.</span>
                         <button type="button" aria-label="Descartar aviso"
                                 class="ml-2 rounded text-amber-600 transition hover:text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                                 @click="agentNote = false">✕</button>
                     </div>
 
-                <div class="relative flex items-end gap-2" :class="agentLocked ? 'opacity-60' : ''">
+                <div v-if="! agentLocked" class="relative flex items-end gap-2">
                     <!-- "/" picker: canned replies matching what follows the slash -->
                     <div v-if="qrMatches.length" ref="qrList"
                          class="absolute bottom-12 left-0 z-10 max-h-48 w-80 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800">
@@ -698,12 +727,12 @@
                             </template>
 
                             <!-- active lead -->
-                            <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Pedido en curso</p>
+                            <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Cita en curso</p>
                             <a v-if="profile.active_lead" :href="profile.active_lead.url" target="_blank"
                                class="group mb-3 block rounded-lg border border-gray-200 p-2.5 transition hover:border-brandColor dark:border-gray-800">
                                 <div class="flex items-center justify-between gap-2">
                                     <span class="truncate text-sm font-medium text-gray-800 group-hover:text-brandColor dark:text-gray-200">@{{ profile.active_lead.title }}</span>
-                                    <span v-if="profile.active_lead.value" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">$@{{ profile.active_lead.value }}</span>
+                                    <span v-if="Number(profile.active_lead.value) > 0" class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300">$@{{ profile.active_lead.value }}</span>
                                 </div>
                                 <div class="mt-1 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
                                     <span v-if="profile.active_lead.stage" class="rounded-full bg-sky-100 px-2 py-px font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">@{{ profile.active_lead.stage }}</span>
@@ -713,11 +742,11 @@
                             <button v-else type="button"
                                     class="mb-3 block w-full rounded-lg border border-dashed border-gray-300 px-3 py-3 text-center text-xs text-gray-400 transition hover:border-brandColor hover:text-brandColor dark:border-gray-700"
                                     @click="profileTab = 'pedidos'; leadFormOpen = true">
-                                Sin pedido en curso - crear uno
+                                Sin cita en curso - crear una
                             </button>
 
                             <!-- next scheduled activity -->
-                            <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Próxima actividad</p>
+                            <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Próxima cita</p>
                             <div v-if="profile.next_activity" class="mb-3 flex items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-2 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
                                 <span class="icon-calendar text-lg text-brandColor"></span>
                                 <span class="min-w-0 flex-1">
@@ -726,21 +755,17 @@
                                 </span>
                             </div>
                             <p v-else class="mb-3 rounded-lg border border-dashed border-gray-300 px-3 py-2.5 text-center text-xs text-gray-400 dark:border-gray-700">
-                                Sin actividades programadas.
+                                Sin citas programadas.
                             </p>
 
-                            <div class="mb-3 grid grid-cols-3 gap-2">
+                            <div class="mb-3 grid grid-cols-2 gap-2">
                                 <div class="rounded-lg border border-gray-200 p-2 text-center dark:border-gray-800">
                                     <p class="text-base font-bold text-gray-900 dark:text-white">@{{ profile.whatsapp.messages }}</p>
                                     <p class="text-[10px] text-gray-500 dark:text-gray-400">Mensajes</p>
                                 </div>
                                 <div class="rounded-lg border border-gray-200 p-2 text-center dark:border-gray-800">
                                     <p class="text-base font-bold text-gray-900 dark:text-white">@{{ profile.leads.length }}</p>
-                                    <p class="text-[10px] text-gray-500 dark:text-gray-400">Pedidos</p>
-                                </div>
-                                <div class="rounded-lg border border-gray-200 p-2 text-center dark:border-gray-800">
-                                    <p class="truncate text-base font-bold text-brandColor">$@{{ profile.leads_total }}</p>
-                                    <p class="text-[10px] text-gray-500 dark:text-gray-400">Valor</p>
+                                    <p class="text-[10px] text-gray-500 dark:text-gray-400">Citas</p>
                                 </div>
                             </div>
 
@@ -753,7 +778,7 @@
                                     <span class="icon-mail text-base text-brandColor"></span> <span class="truncate">@{{ email }}</span>
                                 </div>
                                 <div v-if="profile.created_at" class="flex items-center gap-2 px-2.5 py-1.5 text-sm text-gray-700 dark:text-gray-300">
-                                    <span class="icon-calendar text-base text-brandColor"></span> Cliente desde @{{ profile.created_at }}
+                                    <span class="icon-calendar text-base text-brandColor"></span> Paciente desde @{{ profile.created_at }}
                                 </div>
                             </div>
 
@@ -764,12 +789,12 @@
                                     <span class="font-medium text-gray-800 dark:text-gray-200">@{{ profile.whatsapp.first_contact || '-' }}</span>
                                 </div>
                                 <div class="flex items-center justify-between px-2.5 py-1.5 text-xs">
-                                    <span class="text-gray-500 dark:text-gray-400">Último mensaje</span>
+                                    <span class="text-gray-500 dark:text-gray-400">Último mensaje del paciente</span>
                                     <span class="font-medium text-gray-800 dark:text-gray-200">@{{ profile.whatsapp.last_inbound || '-' }}</span>
                                 </div>
                                 <div class="flex items-center justify-between px-2.5 py-1.5 text-xs">
                                     <span class="text-gray-500 dark:text-gray-400">Canal</span>
-                                    <span class="rounded-full bg-gray-100 px-2 py-0.5 font-medium capitalize text-gray-700 dark:bg-gray-800 dark:text-gray-300">@{{ gateway || 'WhatsApp' }}</span>
+                                    <span class="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">@{{ gatewayLabel }}</span>
                                 </div>
                             </div>
                         </template>
@@ -938,7 +963,7 @@
                                 </div>
                             </div>
                             <p v-else class="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-xs text-gray-400 dark:border-gray-700">
-                                Sin productos en los pedidos de este cliente.
+                                Sin servicios en las citas de este paciente.
                             </p>
                         </template>
 
@@ -946,7 +971,7 @@
                         <template v-else-if="profileTab === 'pedidos'">
                             <div class="mb-1.5 flex items-center justify-between">
                                 <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                                    Pedidos (@{{ profile.leads.length }})
+                                    Citas (@{{ profile.leads.length }})
                                 </p>
                                 <button type="button"
                                         class="text-xs font-semibold text-brandColor transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor"
@@ -990,7 +1015,7 @@
                             </div>
 
                             <p v-else-if="!leadFormOpen" class="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-xs text-gray-400 dark:border-gray-700">
-                                Este cliente no tiene pedidos.
+                                Este paciente no tiene citas.
                             </p>
                         </template>
                     </div>
@@ -1178,6 +1203,8 @@
                     draft: '',
                     isLoading: false,
                     aiEnabled: false,
+                    // Sube con cada cambio del switch: invalida los polls en vuelo.
+                    agentVersion: 0,
                     // Test mode is on and this number is not whitelisted: the
                     // agent stays silent here no matter what the switch says.
                     agentTestBlocked: false,
@@ -1202,6 +1229,13 @@
                     templateError: '',
                     since: null,
                     pollTimer: null,
+                    // Error de la carga inicial (la conversación no se pudo traer).
+                    loadError: '',
+                    // El hilo se consulta solo mientras se ve: pestaña del navegador
+                    // visible y el chat en pantalla (lead/persona lo ocultan con v-show).
+                    isVisible: false,
+                    pollStarted: false,
+                    pollPaused: false,
                     // What the active provider can do. Conservative default:
                     // text only, until the server says otherwise.
                     capabilities: { send: ['text'], receive: [] },
@@ -1263,6 +1297,11 @@
             },
 
             computed: {
+                // Hay a quién escribirle: un teléfono o una conversación ya abierta.
+                hasRecipient() {
+                    return !! (this.context.phone || this.conversationId || this.context.conversationId);
+                },
+
                 initials() {
                     return (this.context.name || '?')
                         .split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -1291,7 +1330,18 @@
                     if (s == null) return '';
                     const h = Math.floor(s / 3600);
                     const m = Math.floor((s % 3600) / 60);
-                    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+                    return h > 0 ? `${h} h ${m} m` : `${m} m`;
+                },
+
+                // Nombre del canal para la recepción, no el del driver.
+                gatewayLabel() {
+                    return { cloud_api: 'WhatsApp Business', kommo: 'Kommo', sandbox: 'Pruebas' }[this.gateway] || 'WhatsApp';
+                },
+
+                windowClosingSoon() {
+                    const s = this.window.seconds_left;
+
+                    return s != null && s < 2 * 3600;
                 },
 
                 // Hide shared-media tabs with nothing in them (Kommo relays
@@ -1406,13 +1456,23 @@
                 // When it becomes visible: focus the composer AND land at the
                 // bottom of the thread (a hidden container can't be scrolled).
                 this.visibilityObserver = new IntersectionObserver(entries => {
-                    if (entries.some(entry => entry.isIntersecting)) {
+                    const visible = entries.some(entry => entry.isIntersecting);
+                    this.isVisible = visible;
+
+                    if (visible) {
                         // Celular: no se abre el teclado solo, taparía medio hilo.
                         if (! this.esCelular) this.focusComposer();
                         this.scrollToBottom();
+                        this.resumePoll();
                     }
                 });
                 this.visibilityObserver.observe(this.$el);
+
+                // Volver a la pestaña del navegador: traer lo nuevo en el acto.
+                this.pageVisibilityHandler = () => {
+                    if (! document.hidden) this.resumePoll();
+                };
+                document.addEventListener('visibilitychange', this.pageVisibilityHandler);
 
                 // Esc closes the profile drawer and any open picker.
                 this.escHandler = (event) => {
@@ -1438,7 +1498,9 @@
             },
 
             beforeUnmount() {
-                if (this.pollTimer) clearInterval(this.pollTimer);
+                this.destroyed = true;
+                if (this.pollTimer) clearTimeout(this.pollTimer);
+                if (this.pageVisibilityHandler) document.removeEventListener('visibilitychange', this.pageVisibilityHandler);
                 if (this.visibilityObserver) this.visibilityObserver.disconnect();
                 if (this.escHandler) document.removeEventListener('keydown', this.escHandler);
                 if (this.docClickHandler) document.removeEventListener('click', this.docClickHandler);
@@ -1585,7 +1647,7 @@
                         this.agentNote = !enabled;
                         return;
                     }
-                    if (!this.conversationId || this.agentToggling) return;
+                    if (this.agentToggling || ! this.hasRecipient) return;
 
                     // Optimista: el checkbox del header y el candado del composer
                     // (ambos derivan de aiEnabled) tienen que moverse JUNTOS al
@@ -1596,8 +1658,25 @@
                     this.agentNote = !enabled;
 
                     this.agentToggling = true;
-                    this.$axios.patch(`${this.agentUrlBase}/${this.conversationId}/agent`, { enabled })
+                    // Un poll que salió antes de este cambio trae el estado viejo:
+                    // fetchThread lo descarta comparando esta versión.
+                    this.agentVersion++;
+
+                    // Paciente que nunca escribió: no hay conversación donde guardar
+                    // el cambio, el servidor la crea vinculada al contacto.
+                    const request = this.conversationId
+                        ? this.$axios.patch(`${this.agentUrlBase}/${this.conversationId}/agent`, { enabled })
+                        : this.$axios.patch(`${this.agentUrlBase}/agent`, {
+                            enabled,
+                            phone: this.context.phone,
+                            name: this.context.name,
+                            person_id: this.context.personId,
+                            lead_id: this.context.leadId,
+                        });
+
+                    request
                         .then(res => {
+                            if (res.data?.conversation?.id) this.conversationId = res.data.conversation.id;
                             // El servidor manda el estado efectivo (p.ej. bloqueado
                             // por whitelist de prueba): reconciliamos con él.
                             this.aiEnabled = res.data?.agent?.effective ?? enabled;
@@ -1620,7 +1699,10 @@
                             this.aiEnabled = previous;
                             this.agentNote = !previous;
                         })
-                        .finally(() => { this.agentToggling = false; });
+                        .finally(() => {
+                            this.agentToggling = false;
+                            this.agentVersion++;
+                        });
                 },
 
                 loadMock() {
@@ -1651,14 +1733,56 @@
                     if (!this.context.phone && !this.context.personId && !this.context.leadId && !this.context.conversationId) return;
                     this.loadQuickReplies();
                     this.isLoading = true;
+                    this.loadError = '';
                     this.fetchThread(true).finally(() => {
                         this.isLoading = false;
                         // poll for incoming (until Reverb replaces this in HU-05)
-                        this.pollTimer = setInterval(() => this.fetchThread(false), 4000);
+                        this.pollStarted = true;
+                        this.schedulePoll();
                     });
                 },
 
+                retryLoad() {
+                    this.loadError = '';
+                    this.isLoading = true;
+                    this.fetchThread(true).finally(() => {
+                        this.isLoading = false;
+                        this.pollStarted = true;
+                        this.schedulePoll();
+                    });
+                },
+
+                /**
+                 * Consulta encadenada (setTimeout, no setInterval): una respuesta lenta
+                 * no se superpone con la siguiente. Con el chat oculto o la pestaña del
+                 * navegador en segundo plano se pausa; resumePoll() la retoma al volver.
+                 */
+                schedulePoll() {
+                    if (this.destroyed || this.pollTimer) return;
+                    this.pollTimer = setTimeout(() => this.pollTick(), 4000);
+                },
+
+                pollTick() {
+                    this.pollTimer = null;
+                    if (this.destroyed) return;
+
+                    if (document.hidden || ! this.isVisible) {
+                        this.pollPaused = true;
+                        return;
+                    }
+
+                    this.fetchThread(false).finally(() => this.schedulePoll());
+                },
+
+                resumePoll() {
+                    if (! this.pollStarted || ! this.pollPaused || this.destroyed) return;
+                    this.pollPaused = false;
+                    this.fetchThread(false).finally(() => this.schedulePoll());
+                },
+
                 fetchThread(initial) {
+                    const agentVersion = this.agentVersion;
+
                     return this.$axios.get(this.threadUrl, {
                             params: {
                                 conversation_id: this.context.conversationId,
@@ -1672,9 +1796,18 @@
                             if (res.data?.server_time) this.since = res.data.server_time;
                             if (res.data?.capabilities) this.capabilities = res.data.capabilities;
                             if (res.data?.window) this.window = res.data.window;
-                            if (res.data?.conversation?.id) this.conversationId = res.data.conversation.id;
+                            if (res.data?.conversation?.id) {
+                                const known = this.conversationId;
+                                this.conversationId = res.data.conversation.id;
+
+                                // Fuera de la página de WhatsApp el id llega recién acá:
+                                // recuperar lo que el asesor había dejado escrito.
+                                if (! known && ! this.draft && waDrafts[this.conversationId]) {
+                                    this.draft = waDrafts[this.conversationId];
+                                }
+                            }
                             if (res.data?.conversation?.gateway) this.gateway = res.data.conversation.gateway;
-                            if (res.data?.agent) {
+                            if (res.data?.agent && agentVersion === this.agentVersion && ! this.agentToggling) {
                                 this.aiEnabled = res.data.agent.effective;
                                 this.agentTestBlocked = res.data.agent.test_blocked ?? false;
                             }
@@ -1690,17 +1823,31 @@
                             if (initial) {
                                 this.messages = incoming;
                             } else {
+                                let inbound = false;
+
                                 for (const m of incoming) {
-                                    if (this.messages.findIndex(x => x.id === m.id) === -1) appended = true;
+                                    if (this.messages.findIndex(x => x.id === m.id) === -1) {
+                                        appended = true;
+                                        if (m.direction === 'inbound') inbound = true;
+                                    }
 
                                     this.guardarMensaje(m);
                                 }
+
+                                // «Último mensaje del paciente» y contadores del panel.
+                                if (inbound && this.profileOpen) this.refreshProfile();
                             }
 
                             if (stick) this.scrollToBottom();
                             else if (appended) this.newBelow = true;
                         })
-                        .catch(() => {});
+                        .catch(error => {
+                            // Un poll que falla se reintenta solo; la carga inicial no.
+                            if (initial) {
+                                this.loadError = error.response?.data?.message
+                                    || (error.response ? `Error ${error.response.status}.` : 'Sin conexión con el servidor.');
+                            }
+                        });
                 },
 
                 send() {
@@ -1760,10 +1907,37 @@
                             // Si el poll ya lo trajo, se saca el provisorio y no queda duplicado.
                             this.guardarMensaje(res.data?.message, tempId);
                         })
-                        .catch(() => {
+                        .catch(error => {
                             const i = this.messages.findIndex(m => m.id === tempId);
-                            if (i !== -1) this.messages[i].status = 'failed';
+                            if (i === -1) return;
+
+                            this.messages[i].status = 'failed';
+                            this.messages[i].error = error.response?.data?.message
+                                || (error.response ? `error ${error.response.status} del servidor.` : 'sin conexión con el servidor.');
+                            this.messages[i].retryReplyId = replyId;
                         });
+                },
+
+                // Solo texto: un adjunto o una plantilla se vuelven a elegir.
+                canRetry(msg) {
+                    return msg.direction === 'outbound' && msg.type === 'text' && !! msg.text
+                        && ! this.useMock && ! this.agentLocked && this.hasRecipient;
+                },
+
+                retrySend(msg) {
+                    if (! this.canRetry(msg)) return;
+
+                    // El provisorio que falló se reemplaza; uno real queda como historial.
+                    if (String(msg.id).startsWith('tmp-')) {
+                        this.messages = this.messages.filter(m => m.id !== msg.id);
+                    }
+
+                    const original = msg.retryReplyId
+                        ? this.messages.find(m => m.id === msg.retryReplyId)
+                        : null;
+                    this.replyingTo = original ? (msg.replyTo || null) : null;
+
+                    this.sendReal(msg.text);
                 },
 
                 loadQuickReplies() {
@@ -1872,6 +2046,15 @@
                     this.profileOpen = !this.profileOpen;
 
                     if (this.profileOpen) this.fetchProfile();
+                },
+
+                // Sin spinner: el panel ya se ve; solo trae fechas y contadores nuevos.
+                refreshProfile() {
+                    if (! this.profile || ! this.context.personId || ! this.personUrlBase) return;
+
+                    this.$axios.get(`${this.personUrlBase}/${this.context.personId}`)
+                        .then(res => { if (res.data?.person) this.profile = res.data.person; })
+                        .catch(() => {});
                 },
 
                 fetchProfile() {

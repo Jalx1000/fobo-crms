@@ -389,7 +389,7 @@ describe('disponibilidad real del doctor', function () {
             ->assertJson(['source' => 'smd', 'degraded' => false]);
 
         expect($res->json('schedule.0.slots'))->toBe([
-            ['start_time' => '09:00', 'end_time' => '10:00', 'status' => 'available'],
+            ['start_time' => '09:00', 'end_time' => '10:00', 'status' => 'available', 'duration_minutes' => 60],
         ]);
 
         // A SMD se le pidió por este doctor y en hora de La Paz.

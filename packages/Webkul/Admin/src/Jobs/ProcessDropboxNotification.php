@@ -11,6 +11,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Webkul\Admin\Services\DropboxService;
+use Webkul\Admin\Services\Smd\SmdAlerts;
 use Webkul\Admin\Services\SmdAppointmentSyncService;
 
 /**
@@ -46,6 +47,7 @@ class ProcessDropboxNotification implements ShouldBeUnique, ShouldQueue
 
             if (! $cursor) {
                 Log::error('[DropboxWebhook] No se pudo inicializar el cursor. Revisá las credenciales de Dropbox.');
+                app(SmdAlerts::class)->report(SmdAlerts::DROPBOX, ['motivo' => 'no se pudo inicializar el cursor del webhook']);
 
                 return;
             }
@@ -60,6 +62,8 @@ class ProcessDropboxNotification implements ShouldBeUnique, ShouldQueue
             // El histórico lo cubre el poll/manual; el webhook sigue con lo nuevo.
             if (! empty($result['reset'])) {
                 Log::warning('[DropboxWebhook] Cursor reseteado, reinicializando a estado actual');
+                // Lo que cambió entre el cursor viejo y "ahora" no entra por acá.
+                app(SmdAlerts::class)->report(SmdAlerts::DROPBOX, ['motivo' => 'Dropbox invalidó el cursor del webhook; se reinicia desde ahora']);
                 $this->initCursor($dropbox);
 
                 break;
@@ -87,6 +91,10 @@ class ProcessDropboxNotification implements ShouldBeUnique, ShouldQueue
         } while ($hasMore);
 
         Log::info('[DropboxWebhook] Procesamiento completado', $summary);
+
+        if (($summary['errores'] ?? 0) > 0) {
+            app(SmdAlerts::class)->report(SmdAlerts::DROPBOX, array_merge(['motivo' => 'la sync terminó con errores'], $summary));
+        }
     }
 
     /**

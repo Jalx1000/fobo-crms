@@ -94,6 +94,9 @@ class AgentController extends Controller
 
         $conversation = ConversationProxy::modelClass()::findOrFail($id);
 
+        // Lo decide el reloj del CRM, no el modelo; lo que mandó queda en el log.
+        $fueraDeHorario = \Webkul\Whatsapp\Services\ClinicHours::isClosed();
+
         $conversation->update([
             'ai_enabled'     => false,
             // Sella el traspaso: es lo que mide whatsapp:reactivate-agent.
@@ -103,17 +106,19 @@ class AgentController extends Controller
         ]);
 
         Log::info('WhatsApp: el agente derivó la conversación a recepción', [
-            'conversation_id'  => $conversation->id,
-            'person_id'        => $conversation->person_id,
-            'motivo'           => $data['motivo'] ?? null,
-            'fuera_de_horario' => (bool) ($data['fuera_de_horario'] ?? false),
+            'conversation_id'         => $conversation->id,
+            'person_id'               => $conversation->person_id,
+            'motivo'                  => $data['motivo'] ?? null,
+            'fuera_de_horario'        => $fueraDeHorario,
+            'fuera_de_horario_agente' => $data['fuera_de_horario'] ?? null,
         ]);
 
         return response()->json([
             'handoff' => [
-                'conversation_id' => $conversation->id,
-                'ai_enabled'      => $conversation->ai_enabled,
-                'derivada_at'     => optional($conversation->ai_disabled_at)->toIso8601String(),
+                'conversation_id'  => $conversation->id,
+                'ai_enabled'       => $conversation->ai_enabled,
+                'derivada_at'      => optional($conversation->ai_disabled_at)->toIso8601String(),
+                'fuera_de_horario' => $fueraDeHorario,
             ],
         ]);
     }
@@ -314,7 +319,8 @@ class AgentController extends Controller
 
         $conversation->forceFill(['last_message_at' => now()])->save();
 
-        SendMessage::dispatch($message->id)->onQueue(config('whatsapp.queue'));
+        // Detrás del texto que el agente manda al terminar su turno (el saludo).
+        \Webkul\Whatsapp\Jobs\SendFlowAfterAgent::dispatch($message->id, time())->onQueue(config('whatsapp.queue'));
 
         return response()->json([
             'message'    => ['id' => $message->id, 'status' => $message->status, 'type' => 'flow'],

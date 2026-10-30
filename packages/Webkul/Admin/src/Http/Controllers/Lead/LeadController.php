@@ -15,13 +15,16 @@ use Illuminate\View\View;
 use Prettus\Repository\Criteria\RequestCriteria;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Admin\DataGrids\Lead\LeadDataGrid;
+use Webkul\Admin\Exceptions\AppointmentException;
 use Webkul\Admin\Http\Controllers\Controller;
 use Webkul\Admin\Http\Requests\LeadForm;
 use Webkul\Admin\Http\Requests\MassDestroyRequest;
 use Webkul\Admin\Http\Requests\MassUpdateRequest;
 use Webkul\Admin\Http\Resources\LeadResource;
 use Webkul\Admin\Http\Resources\StageResource;
+use Webkul\Admin\Services\AppointmentService;
 use Webkul\Admin\Services\ShareMeDataService;
+use Webkul\Admin\Services\Smd\SmdAgenda;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Doctor\Repositories\DoctorRepository;
@@ -302,7 +305,9 @@ class LeadController extends Controller
 
             if (empty($doctorExternalId)) {
                 // Descubrimiento automático (Lógica reducida para LeadController)
-                $discoverySpecialties = $doctor->specialties->pluck('name')->toArray() ?: ['General'];
+                $discoverySpecialties = SmdAgenda::enabled()
+                    ? [(string) config('smd.availability_specialty', 'General')]
+                    : ($doctor->specialties->pluck('name')->toArray() ?: ['General']);
                 foreach ($discoverySpecialties as $spec) {
                     $this->shareMeDataService->checkAvailability(null, $spec, 'Santa Cruz', $scheduleFrom->format('Y-m-d H:i:s'), $scheduleTo->format('Y-m-d H:i:s'));
                     $raw = $this->shareMeDataService->getLastResponse();
@@ -321,18 +326,32 @@ class LeadController extends Controller
                 }
             }
 
-            $doctorSpecialties = $doctor->specialties->pluck('name')->toArray() ?: ['General'];
-            $isAvailableExternally = false;
-            foreach ($doctorSpecialties as $specialty) {
-                $slots = $this->shareMeDataService->checkAvailability($doctorExternalId, $specialty, 'Santa Cruz', $scheduleFrom->format('Y-m-d H:i:s'), $scheduleTo->format('Y-m-d H:i:s'));
-                if (! empty($slots)) {
+            $msg = 'El doctor no tiene disponibilidad en SHAREMEDATA para el horario solicitado.';
+
+            if (SmdAgenda::enabled()) {
+                // La misma validación que AppointmentService: 1 consulta y todos
+                // los bloques de 15 min libres (planning/16, RF-5). La de abajo
+                // daba por libre el horario si SMD devolvía cualquier bloque.
+                try {
+                    app(AppointmentService::class)->assertAvailableInSmd($doctorExternalId, $scheduleFrom, $scheduleTo);
                     $isAvailableExternally = true;
-                    break;
+                } catch (AppointmentException $e) {
+                    $isAvailableExternally = false;
+                    $msg = $e->getMessage();
+                }
+            } else {
+                $doctorSpecialties = $doctor->specialties->pluck('name')->toArray() ?: ['General'];
+                $isAvailableExternally = false;
+                foreach ($doctorSpecialties as $specialty) {
+                    $slots = $this->shareMeDataService->checkAvailability($doctorExternalId, $specialty, 'Santa Cruz', $scheduleFrom->format('Y-m-d H:i:s'), $scheduleTo->format('Y-m-d H:i:s'));
+                    if (! empty($slots)) {
+                        $isAvailableExternally = true;
+                        break;
+                    }
                 }
             }
 
             if (! $isAvailableExternally) {
-                $msg = 'El doctor no tiene disponibilidad en SHAREMEDATA para el horario solicitado.';
                 if (request()->ajax()) {
                     return response()->json(['message' => $msg], 422);
                 }

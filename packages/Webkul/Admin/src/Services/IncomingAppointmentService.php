@@ -9,7 +9,6 @@ use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Admin\Support\SmdTime;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Doctor\Repositories\DoctorRepository;
-use Webkul\Doctor\Repositories\SpecialtyRepository;
 use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Tag\Repositories\TagRepository;
 
@@ -25,7 +24,6 @@ class IncomingAppointmentService
 
     public function __construct(
         protected DoctorRepository $doctorRepository,
-        protected SpecialtyRepository $specialtyRepository,
         protected PersonRepository $personRepository,
         protected LeadRepository $leadRepository,
         protected ActivityRepository $activityRepository,
@@ -408,14 +406,11 @@ class IncomingAppointmentService
     private function process(array $data): array
     {
         return DB::transaction(function () use ($data) {
+            // Sin tocar las especialidades del doctor: se administran solo en Sofo.
+            // Antes se le agregaba "General" a cada doctor de cada cita entrante y
+            // quedaba ofrecido en "General / No sé qué necesito" de WhatsApp sin que
+            // nadie lo decidiera (planning/16-especialidades-en-crm, RF-8).
             $doctors = $this->resolveDoctors($data);
-            $specialty = $this->specialtyRepository->fetchOrCreateByName($data['specialty'] ?? 'General');
-
-            foreach ($doctors as $doctor) {
-                if (! $doctor->specialties->contains($specialty->id)) {
-                    $doctor->specialties()->attach($specialty->id);
-                }
-            }
 
             $person = $this->resolvePerson(
                 $data['patient_phone'] ?? null,

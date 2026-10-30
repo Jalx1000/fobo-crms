@@ -106,21 +106,32 @@
                         Buscando…
                     </li>
 
-                    <template v-else-if="filteredResults.length === 0">
-                        <li class="px-4 py-2 text-gray-500">
-                            @lang('admin::app.components.lookup.no-results')
-                        </li>
+                    <!-- Con menos de 3 letras no se busca: decir eso, no «sin resultados». -->
+                    <li
+                        v-else-if="filteredResults.length === 0 && ! preload && searchTerm.length <= 2"
+                        class="px-4 py-2 text-gray-500"
+                    >
+                        Escribe al menos 3 letras para buscar.
+                    </li>
 
-                        <li
-                            v-if="searchTerm.length > 2 && canAddNew"
-                            @click="selectItem({ id: '', name: searchTerm })"
-                            class="cursor-pointer border-t border-gray-800 px-4 py-2 text-gray-500 hover:bg-brandColor hover:text-white dark:border-gray-300 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
-                        >
-                            <i class="icon-add text-md"></i>
+                    <li
+                        v-else-if="filteredResults.length === 0"
+                        class="px-4 py-2 text-gray-500"
+                    >
+                        @lang('admin::app.components.lookup.no-results')
+                    </li>
 
-                            @lang('admin::app.components.lookup.add-as-new')
-                        </li>
-                    </template>
+                    <!-- Crear uno nuevo también cuando hay coincidencias: dos pacientes
+                         pueden llamarse igual (antes solo salía sin resultados). -->
+                    <li
+                        v-if="canAddNew && searchTerm.length > 2 && ! isSearching"
+                        @click="selectItem({ id: '', name: searchTerm })"
+                        class="cursor-pointer border-t border-gray-200 px-4 py-2 text-gray-600 hover:bg-brandColor hover:text-white dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
+                    >
+                        <i class="icon-add text-md"></i>
+
+                        @lang('admin::app.components.lookup.add-as-new'): «@{{ searchTerm }}»
+                    </li>
                 </ul>
             </div>
         </div>
@@ -202,6 +213,12 @@
                     isSearching: false,
 
                     cancelToken: null,
+
+                    // Número de la última búsqueda: solo esa apaga «Buscando…» y
+                    // deja sus resultados. No se compara el cancelToken porque
+                    // desde data() llega envuelto en un Proxy reactivo y nunca
+                    // es === al objeto original (quedaba «Buscando…» para siempre).
+                    lastRequestId: 0,
                 };
             },
 
@@ -310,6 +327,14 @@
                  * @return {void}
                  */
                 search(preload = false) {
+                    const requestId = ++this.lastRequestId;
+
+                    if (this.cancelToken) {
+                        this.cancelToken.cancel();
+
+                        this.cancelToken = null;
+                    }
+
                     if (
                         ! preload
                         && this.searchTerm.length <= 2
@@ -323,11 +348,7 @@
 
                     this.isSearching = true;
 
-                    if (this.cancelToken) {
-                        this.cancelToken.cancel();
-                    }
-
-                    const cancelToken = this.cancelToken = this.$axios.CancelToken.source();
+                    this.cancelToken = this.$axios.CancelToken.source();
 
                     this.$axios.get(this.src, {
                             params: {
@@ -337,7 +358,9 @@
                             cancelToken: this.cancelToken.token,
                         })
                         .then(response => {
-                            this.searchedResults = response.data.data;
+                            if (requestId === this.lastRequestId) {
+                                this.searchedResults = response.data.data;
+                            }
                         })
                         .catch(error => {
                             if (! this.$axios.isCancel(error)) {
@@ -345,7 +368,7 @@
                             }
                         })
                         .finally(() => {
-                            if (this.cancelToken === cancelToken) {
+                            if (requestId === this.lastRequestId) {
                                 this.isSearching = false;
                             }
                         });

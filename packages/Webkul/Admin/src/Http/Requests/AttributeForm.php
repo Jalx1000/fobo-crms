@@ -3,6 +3,7 @@
 namespace Webkul\Admin\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
 use Webkul\Core\Contracts\Validations\Decimal;
@@ -106,9 +107,20 @@ class AttributeForm extends FormRequest
                     ? $attribute->code.'.*.value'
                     : $attribute->code
                 ], function ($field, $value, $fail) use ($attribute) {
-                    if (! $this->attributeValueRepository->isValueUnique($this->id, $attribute->entity_type, $attribute, request($field))) {
-                        $fail('The value has already been taken.');
+                    $ownerId = $this->attributeValueRepository->valueOwnerId($this->id, $attribute->entity_type, $attribute, request($field));
+
+                    if ($ownerId === null) {
+                        return;
                     }
+
+                    // En pacientes se dice quién lo tiene, para buscarlo en vez de duplicarlo.
+                    $owner = $attribute->entity_type === 'persons'
+                        ? DB::table('persons')->where('id', $ownerId)->value('name')
+                        : null;
+
+                    $fail($owner
+                        ? "«{$value}» ya lo tiene el paciente {$owner} (#{$ownerId})."
+                        : "«{$value}» ya está en uso.");
                 });
             }
 

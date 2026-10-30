@@ -22,35 +22,36 @@ function statusBarMarkup(): string
     return substr($view, $start, strpos($view, '<!-- Motivo (editable) -->', $start) - $start);
 }
 
-it('usa la barra de etapas de leads, sin grilla por breakpoint ni anillos', function () {
+it('son chips sueltos (no flechas de pipeline) que pasan de línea en vez de desbordar', function () {
     expect(statusBarMarkup())
-        ->toContain('ddc-status-bar')
-        ->toContain('class="stage ')
-        ->toContain('overflow-x-auto')
+        ->toContain('class="ddc-status-chips"')
+        ->toContain('class="ddc-status-chip"')
+        ->toContain('<span class="ddc-status-dot" aria-hidden="true"></span>')
+        ->not->toContain('class="stage ')
         ->not->toContain('sm:grid-cols-5')
-        ->not->toContain('ring-2');
+        ->and(doctorDayCalendarView())->toContain('.ddc-status-chips { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }')
+        // A todo el ancho: cada chip se estira dentro de su fila.
+        ->toContain('display: inline-flex; flex: 1 1 auto; align-items: center; justify-content: center;');
 });
 
 it('ofrece los cinco estados y marca el elegido con color inline', function () {
     $markup = statusBarMarkup();
+    $view = doctorDayCalendarView();
+    $states = substr($view, strpos($view, 'apptStates: ['), 1200);
+
+    // La lista vive en data (apptStates): la comparten la barra, el badge y el historial.
+    expect($markup)->toContain('v-for="st in apptStates"');
 
     foreach (['confirmed', 'completed', 'surgery', 'no_show', 'cancelled'] as $state) {
-        expect($markup)->toContain("key: '{$state}'");
+        expect($states)->toContain("key: '{$state}'");
     }
 
     // Colores calculados en runtime: inline, no clases (no están en el CSS de prod).
-    expect($markup)->toContain("'--st-color': st.color, backgroundColor: st.color");
+    expect($markup)->toContain(":style=\"{ '--st-color': st.color, '--st-fill': st.fill, '--st-text': st.text }\"");
 });
 
-it('los tamaños de la barra están en el CSS del componente (pl-6/pl-5 no están compiladas)', function () {
+it('el estado elegido va relleno de su pastel con texto oscuro', function () {
     expect(doctorDayCalendarView())
-        ->toContain('.ddc-status-bar .stage { flex: 1 0 auto;')
-        ->toContain('.ddc-status-bar .stage.is-active::after { background-color: var(--st-color); }');
-});
-
-it('al abrir el modal desplaza la barra hasta el estado elegido', function () {
-    $view = doctorDayCalendarView();
-
-    expect($view)->toContain('revealApptState() {')
-        ->and(substr_count($view, 'this.revealApptState();'))->toBe(2);
+        ->toContain("border-color: var(--st-color); background: var(--st-fill);\n        color: var(--st-text); font-weight: 600; cursor: default;")
+        ->toContain('.ddc-status-chip.is-active .ddc-status-dot { background: var(--st-text); }');
 });

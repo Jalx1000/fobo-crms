@@ -205,10 +205,13 @@ it('las tareas programadas son solo las revisadas: una nueva hace fallar esta pr
     // Revisadas el 2026-10-15: solo smd:sync-dropbox puede llamar a SMD, y
     // únicamente por pacientes nuevos. Agregar una tarea exige revisar su
     // costo en consultas a SMD y sumarla acá.
+    // 2026-10-28: smd:check-doctors, 1 consulta por día y solo en modo single
+    // (planning/16, A-6/A-7).
     expect($commands)->toBe([
         'campaign:process',
         'inbound-emails:process',
         'queue:work',
+        'smd:check-doctors',
         'smd:sync-dropbox',
         'whatsapp:appointment-reminders',
         'whatsapp:reactivate-agent',

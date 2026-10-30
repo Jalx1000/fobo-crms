@@ -5,6 +5,7 @@ namespace Webkul\Admin\Services;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Webkul\Admin\Services\Smd\SmdAlerts;
 
 class DropboxService
 {
@@ -51,12 +52,14 @@ class DropboxService
             ]);
         } catch (\Throwable $e) {
             Log::error('[Dropbox] Excepcion refrescando token', ['error' => $e->getMessage()]);
+            $this->alertToken(['error' => $e->getMessage()]);
 
             return config('smd.dropbox.access_token') ?? '';
         }
 
         if (! $response->successful()) {
             Log::error('[Dropbox] Error refrescando token', ['body' => $response->body()]);
+            $this->alertToken(['status' => $response->status()]);
 
             return config('smd.dropbox.access_token') ?? '';
         }
@@ -65,6 +68,7 @@ class DropboxService
 
         if (! $newToken) {
             Log::error('[Dropbox] El refresh no devolvio access_token', ['body' => $response->body()]);
+            $this->alertToken(['status' => $response->status(), 'error' => 'la respuesta no trae access_token']);
 
             return config('smd.dropbox.access_token') ?? '';
         }
@@ -73,6 +77,12 @@ class DropboxService
         Log::info('[Dropbox] Token renovado correctamente');
 
         return $newToken;
+    }
+
+    /** A-4 (planning/16): sin token renovado, la sync con Dropbox se cae. */
+    private function alertToken(array $context): void
+    {
+        app(SmdAlerts::class)->report(SmdAlerts::DROPBOX, array_merge(['motivo' => 'no se pudo renovar el token de Dropbox'], $context));
     }
 
     /**

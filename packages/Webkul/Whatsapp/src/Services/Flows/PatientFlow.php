@@ -11,6 +11,7 @@ use Webkul\Admin\Services\PatientIdentityResolver;
 use Webkul\Whatsapp\Jobs\VerifyFlowInsurance;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
+use Webkul\Whatsapp\Services\ClinicHours;
 
 /**
  * Lógica del Flow "¿Para quién es la cita?" (resources/flows/paciente_tercero.json).
@@ -942,7 +943,7 @@ class PatientFlow
         FlowSession::merge($token, [
             'specialty_id' => (int) $offered[$doctorId],
             'doctor_id'    => $doctorId, 'doctor_slots' => $slots, 'date' => null, 'time' => null,
-            'suggested'    => null, 'declined_suggestion' => false,
+            'suggested'    => null, 'suggested_options' => [], 'declined_suggestion' => false,
         ]);
 
         return $this->nextSlotScreen($token, $doctorId, $slots) ?? $this->dateScreen($slots, null, $token);
@@ -972,6 +973,12 @@ class PatientFlow
         }
 
         $date = $date !== '' ? $date : (string) array_key_first($slots);
+
+        // Sin hora pedida: el más próximo de cada franja (mañana, mediodía, tarde).
+        if (! isset($prefill['time'])) {
+            return $this->slotOptionsScreen($token, $doctorId, $slots, $date, $prefill['time_slot'] ?? null);
+        }
+
         $times = array_values($slots[$date] ?? []);
         $time = FlowPrefill::time($prefill, $times) ?: ($times[0] ?? null);
 
@@ -979,7 +986,7 @@ class PatientFlow
             return null;
         }
 
-        FlowSession::merge($token, ['suggested' => ['date' => $date, 'time' => $time]]);
+        FlowSession::merge($token, ['suggested' => ['date' => $date, 'time' => $time], 'suggested_options' => []]);
 
         $asked = ($prefill['date'] ?? null) === $date && ($prefill['time'] ?? null) === $time;
         $doctor = $this->name('doctors', $doctorId);
@@ -991,6 +998,72 @@ class PatientFlow
                 ['id' => 'other', 'title' => 'Quiero otra fecha y hora'],
             ],
             'init_choice' => 'accept',
+        ]);
+    }
+
+    /**
+     * "Turno sugerido" con el turno más próximo de cada franja, desde el día
+     * pedido (o el primero con turnos) en adelante: si una franja no tiene turno
+     * ese día, el de un día siguiente. La franja pedida en el chat va primero y
+     * marcada; sin franja, se marca el turno más próximo.
+     */
+    protected function slotOptionsScreen(string $token, int $doctorId, array $slots, string $from, ?string $wanted): ?array
+    {
+        $found = [];
+        ksort($slots);
+
+        foreach (ClinicHours::timeSlots() as $id => [$start, $end, $name]) {
+            foreach ($slots as $date => $times) {
+                if ($date < $from) {
+                    continue;
+                }
+
+                $first = collect($times)->sort()->first(fn ($t) => $t >= $start && $t <= $end);
+
+                if ($first) {
+                    $found[$id] = ['date' => $date, 'time' => $first, 'name' => $name];
+
+                    break;
+                }
+            }
+        }
+
+        if (! $found) {
+            return null;
+        }
+
+        if ($wanted && isset($found[$wanted])) {
+            $found = [$wanted => $found[$wanted]] + $found;
+            $marked = $wanted;
+        } else {
+            $marked = collect($found)->sortBy(fn ($f) => $f['date'].' '.$f['time'])->keys()->first();
+        }
+
+        $options = [];
+        $picks = [];
+
+        foreach ($found as $id => $f) {
+            $options[] = [
+                'id'          => 'slot:'.$id,
+                'title'       => mb_substr($f['name'].' · '.$this->dayLabel($f['date']).' '.$f['time'], 0, 30),
+                'description' => 'El más próximo '.($id === 'manana' ? 'a la mañana' : ($id === 'mediodia' ? 'al mediodía' : 'a la tarde')),
+            ];
+            $picks['slot:'.$id] = ['date' => $f['date'], 'time' => $f['time']];
+        }
+
+        $options[] = ['id' => 'other', 'title' => 'Quiero otra fecha y hora'];
+
+        FlowSession::merge($token, ['suggested' => $picks['slot:'.$marked], 'suggested_options' => $picks]);
+
+        $doctor = $this->name('doctors', $doctorId);
+        $heading = $wanted && $marked === $wanted
+            ? 'El turno más próximo '.($wanted === 'manana' ? 'a la mañana' : ($wanted === 'mediodia' ? 'al mediodía' : 'a la tarde')).' con '.$doctor
+            : 'Los turnos más próximos con '.$doctor;
+
+        return $this->screen('NEXT_SLOT', [
+            'heading'     => $heading,
+            'options'     => $options,
+            'init_choice' => 'slot:'.$marked,
         ]);
     }
 
@@ -1083,12 +1156,15 @@ class PatientFlow
     {
         $session = FlowSession::get($token);
         $slots = $this->sessionSlots($session);
-        $suggested = (array) ($session['suggested'] ?? []);
+        $choice = (string) ($data['slot_choice'] ?? '');
+
+        // Una de las franjas ("slot:tarde") o la sugerencia única ("accept").
+        $suggested = (array) ($choice === 'accept' ? ($session['suggested'] ?? []) : ($session['suggested_options'][$choice] ?? []));
         $date = (string) ($suggested['date'] ?? '');
         $time = (string) ($suggested['time'] ?? '');
 
-        // Aceptado y todavía libre en lo consultado: directo al resumen.
-        if (($data['slot_choice'] ?? null) === 'accept' && in_array($time, $slots[$date] ?? [], true)) {
+        // Elegido y todavía libre en lo consultado: directo al resumen.
+        if ($date !== '' && in_array($time, $slots[$date] ?? [], true)) {
             FlowSession::merge($token, ['date' => $date, 'time' => $time]);
 
             return $this->summaryScreen($token);

@@ -51,10 +51,13 @@ class InboxController extends Controller
             } else {
                 // Initial load: latest 200 in chronological order.
                 $messages = $query->orderByDesc('id')->limit(200)->get()->sortBy('id')->values();
+            }
 
-                if ($conversation->unread_count) {
-                    $conversation->update(['unread_count' => 0]);
-                }
+            // Someone has the thread open (the client only polls while it is on
+            // screen), so whatever just arrived is read. Clearing it only on the
+            // first load left the open chat showing unread messages.
+            if ($conversation->unread_count) {
+                $conversation->update(['unread_count' => 0]);
             }
 
             $messages = $messages->map(fn ($message) => $this->transform($message));
@@ -123,7 +126,34 @@ class InboxController extends Controller
     {
         $data = $request->validate(['enabled' => 'required|boolean']);
 
-        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+        return $this->applyAgentToggle(ConversationProxy::modelClass()::findOrFail($id), $data['enabled']);
+    }
+
+    /**
+     * Same switch for a patient who never wrote: with no conversation there is
+     * nothing to store the flag on, and the global default (agent on) locked
+     * the composer with no way out. Taking over creates the conversation - the
+     * same one the first message would - so the choice sticks.
+     */
+    public function toggleAgentForContact(Request $request, ConversationResolver $resolver): JsonResponse
+    {
+        $data = $request->validate([
+            'enabled'   => 'required|boolean',
+            'phone'     => 'required|string',
+            'name'      => 'nullable|string',
+            'person_id' => 'nullable|integer',
+            'lead_id'   => 'nullable|integer',
+        ]);
+
+        $conversation = $this->existingConversation($request)
+            ?? DB::transaction(fn () => $resolver->findOrCreate($data['phone'], $data['name'] ?? null));
+
+        return $this->applyAgentToggle($conversation, $data['enabled']);
+    }
+
+    protected function applyAgentToggle($conversation, bool $enabled): JsonResponse
+    {
+        $data = ['enabled' => $enabled];
 
         // Stamp the hand-over so whatsapp:reactivate-agent knows how long the
         // human has had it; cleared the moment the agent is back on.
@@ -146,7 +176,8 @@ class InboxController extends Controller
         }
 
         return response()->json([
-            'agent' => [
+            'conversation' => ['id' => $conversation->id],
+            'agent'        => [
                 'enabled'      => $conversation->ai_enabled,
                 'effective'    => $conversation->aiEffective(),
                 'test_blocked' => ! AgentTestMode::allows($conversation->wa_phone),

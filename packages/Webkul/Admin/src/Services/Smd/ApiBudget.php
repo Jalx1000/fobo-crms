@@ -119,6 +119,8 @@ class ApiBudget
                     'tope' => $cap, 'primera_bloqueada' => "{$source} → {$endpoint}",
                 ]);
 
+                app(SmdAlerts::class)->report(SmdAlerts::QUOTA, ['tope' => $cap, 'primera_bloqueada' => "{$source} → {$endpoint}"]);
+
                 throw new QuotaExceeded("Tope diario de consultas a SMD alcanzado ({$cap}): {$source} → {$endpoint}");
             }
 

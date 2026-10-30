@@ -68,6 +68,26 @@ class ActivityController extends Controller
                 ->orderBy('name')
                 ->get();
 
+            // Filtro por especialidad del calendario: cada doctor lleva sus
+            // specialty_ids y solo se ofrecen especialidades con algún doctor activo.
+            $doctorSpecialties = DB::table('doctor_specialty')
+                ->whereIn('doctor_id', $doctors->pluck('id'))
+                ->get(['doctor_id', 'specialty_id'])
+                ->groupBy('doctor_id');
+
+            $doctors = $doctors->map(function ($doctor) use ($doctorSpecialties) {
+                $doctor->specialty_ids = $doctorSpecialties->get($doctor->id, collect())
+                    ->pluck('specialty_id')->map(fn ($id) => (int) $id)->values()->all();
+
+                return $doctor;
+            });
+
+            $specialties = DB::table('specialties')
+                ->select(['id', 'name'])
+                ->whereIn('id', $doctorSpecialties->flatten()->pluck('specialty_id')->unique())
+                ->orderBy('name')
+                ->get();
+
             $prefix = DB::getTablePrefix();
 
             $appointments = DB::table('activities')
@@ -266,6 +286,7 @@ class ActivityController extends Controller
                         })
                     )),
                 'doctors'       => $doctors,
+                'specialties'   => $specialties,
                 'appointments'  => $appointments,
                 'availability'  => $availability,
                 'calendar_view' => $view,
@@ -964,8 +985,16 @@ class ActivityController extends Controller
      */
     public function personAppointments(int $personId): JsonResponse
     {
-        $cancelledStageIds = array_filter([(int) config('smd.stage_map.cancelled'), (int) config('smd.stage_map.no_show')]);
-        $completedStageIds = array_filter([(int) config('smd.stage_map.completed')]);
+        // Etapa -> estado con los mismos nombres que la barra de estado del calendario.
+        // Antes "cita perdida" salía como cancelada y "cirugía" como confirmada.
+        $stateByStage = [];
+        foreach (['cancelled', 'no_show', 'completed', 'surgery', 'confirmed'] as $state) {
+            $stageId = (int) config('smd.stage_map.'.$state);
+
+            if ($stageId > 0 && ! isset($stateByStage[$stageId])) {
+                $stateByStage[$stageId] = $state;
+            }
+        }
 
         $rows = DB::table('activities')
             ->join('activity_participants', 'activity_participants.activity_id', '=', 'activities.id')
@@ -985,16 +1014,18 @@ class ActivityController extends Controller
                 DB::raw('MAX('.DB::getTablePrefix().'leads.lead_pipeline_stage_id) as stage_id'),
             ]);
 
-        $appointments = $rows->map(function ($r) use ($cancelledStageIds, $completedStageIds) {
-            $state = in_array((int) $r->stage_id, $cancelledStageIds, true) ? 'cancelled'
-                : (in_array((int) $r->stage_id, $completedStageIds, true) ? 'completed' : 'confirmed');
+        $appointments = $rows->map(function ($r) use ($stateByStage) {
+            $stageId = $r->stage_id !== null ? (int) $r->stage_id : null;
 
             return [
                 'id'          => $r->id,
                 'date'        => $r->start ? Carbon::parse($r->start)->format('d/m/Y') : null,
+                'date_iso'    => $r->start ? Carbon::parse($r->start)->toDateString() : null,
                 'time'        => $r->start ? Carbon::parse($r->start)->format('H:i') : null,
                 'doctor_name' => $r->doctor_name,
-                'state'       => $state,
+                'stage_id'    => $stageId,
+                // Sin etapa conocida (p. ej. Consulta): agendada.
+                'state'       => $stateByStage[$stageId] ?? 'scheduled',
             ];
         });
 

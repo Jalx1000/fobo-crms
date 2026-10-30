@@ -13,7 +13,7 @@ function calendarViewFile(string $path): string
 
 it('la barra de controles no usa botones con borde gris y sigue el orden fecha, vista, buscador, doctores', function () {
     $view = calendarViewFile('components/activities/doctor-day-calendar.blade.php');
-    $toolbar = substr($view, strpos($view, '<div class="dwc-controls ddc-toolbar">'), 4000);
+    $toolbar = substr($view, strpos($view, '<div class="dwc-controls ddc-toolbar">'), 7000);
 
     expect($toolbar)->not->toContain('rounded border');
 
@@ -24,8 +24,18 @@ it('la barra de controles no usa botones con borde gris y sigue el orden fecha, 
 
 it('en el celular los controles van uno por fila y a lo ancho', function () {
     expect(calendarViewFile('components/activities/doctor-day-calendar.blade.php'))
-        ->toContain('.ddc-toolbar { display: flex; flex-direction: column; align-items: stretch; border-radius: 0; padding: 10px 12px; }')
-        ->toContain('.ddc-tb-multi { min-width: 0; max-width: none; width: 100%; }');
+        ->toContain('.ddc-toolbar { display: flex; flex-direction: column; align-items: stretch; border-radius: 0; padding: 10px 12px; }');
+});
+
+it('en el celular los filtros van en el panel y la barra no se sale de la pantalla', function () {
+    $view = calendarViewFile('components/activities/doctor-day-calendar.blade.php');
+    $mobile = substr($view, strpos($view, '/* Celular y tablet: una fila por control, todo a lo ancho. */'), 3000);
+
+    expect($mobile)
+        // Ni desplegables apilados (la base flex de 15rem se aplicaba a la altura) ni fila de chips.
+        ->toContain('.ddc-tb-doctors { display: none; }')
+        // .dwc-controls trae flex-wrap: wrap: en columna, el hijo más ancho ensanchaba toda la barra.
+        ->toContain('.ddc-toolbar { flex-wrap: nowrap; }');
 });
 
 it('la cabecera en el celular va sin borde y con las acciones en una fila propia', function () {
@@ -57,15 +67,14 @@ it('en el celular no queda fondo gris: sin separación y el calendario de borde 
         ->toContain('.dwc-container .dwc-grid { border-left: 0; border-right: 0; border-radius: 0; }');
 });
 
-it('en escritorio los doctores van al lado de Día/Semana/Mes/Lista y el buscador a la izquierda', function () {
+it('en escritorio la fecha y la vista van arriba, el buscador y los filtros debajo', function () {
     expect(calendarViewFile('components/activities/doctor-day-calendar.blade.php'))
-        // 1024–1439px: doctores + vista en la primera fila; el buscador baja a la izquierda.
-        ->toContain('grid-template-areas: "date . doctors seg" "search search . .";')
-        // ≥1440px: todo en una fila.
-        ->toContain('grid-template-areas: "date search doctors seg";')
+        // Dos filas en todo escritorio: con tres filtros no entra todo en una.
+        ->toContain('grid-template-areas: "date . seg" "search doctors doctors";')
+        ->not->toContain('grid-template-areas: "date search doctors seg";')
         ->toContain('.ddc-tb-search { grid-area: search; justify-self: start; width: 100%; }')
-        // En el celular vuelve a una columna.
-        ->toContain('.ddc-tb-doctors { flex-direction: column; align-items: stretch; gap: 6px; }');
+        // En el celular los filtros van en una fila deslizable.
+        ->not->toContain('.ddc-tb-doctors { flex-direction: column; align-items: stretch; gap: 6px; }');
 });
 
 it('en escritorio las tres acciones de la cabecera van pegadas al selector lista/calendario', function () {

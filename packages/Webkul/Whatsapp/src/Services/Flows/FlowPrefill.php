@@ -3,6 +3,7 @@
 namespace Webkul\Whatsapp\Services\Flows;
 
 use Webkul\Whatsapp\Models\MessageProxy;
+use Webkul\Whatsapp\Services\ClinicHours;
 
 /**
  * Pre-llenado del formulario de agendar con lo que el paciente ya dijo en el
@@ -27,7 +28,12 @@ class FlowPrefill
      * Solo las claves conocidas, como texto recortado. Cualquier otra cosa
      * (claves de más, tipos raros, valores vacíos) se descarta sin error.
      *
-     * @return array{relation?: string, relationship?: string, patient_name?: string, specialty?: string, doctor?: string, date?: string, time?: string}
+     * Fecha y hora además tienen que ser atendibles (red de seguridad por si el
+     * modelo se equivoca): una fecha pasada, domingo o feriado se descarta (se
+     * sugiere el próximo día con turnos) y una hora fuera del horario de
+     * atención también (se ofrecen las franjas).
+     *
+     * @return array{relation?: string, relationship?: string, patient_name?: string, specialty?: string, doctor?: string, date?: string, time?: string, time_slot?: string}
      */
     public static function sanitize(mixed $raw): array
     {
@@ -64,14 +70,25 @@ class FlowPrefill
 
         // Fecha YYYY-MM-DD (una fecha inexistente se descarta).
         $date = $text($raw['date'] ?? null, 10);
-        if ($date !== null && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m) && checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+        if ($date !== null && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m) && checkdate((int) $m[2], (int) $m[3], (int) $m[1])
+            && $date >= ClinicHours::now()->toDateString() && ClinicHours::isOpenDay($date)) {
             $clean['date'] = $date;
         }
 
         // Hora HH:MM (acepta H:MM).
         $time = $text($raw['time'] ?? null, 5);
         if ($time !== null && preg_match('/^([01]?\d|2[0-3]):([0-5]\d)$/', $time, $m)) {
-            $clean['time'] = sprintf('%02d:%s', $m[1], $m[2]);
+            $time = sprintf('%02d:%s', $m[1], $m[2]);
+
+            if (ClinicHours::timeAllowed($time, $clean['date'] ?? null)) {
+                $clean['time'] = $time;
+            }
+        }
+
+        // Franja que pidió el paciente ("en la tarde"): manana, mediodia o tarde.
+        $slot = self::normalize((string) ($text($raw['time_slot'] ?? null, 20) ?? ''), '');
+        if (array_key_exists($slot, ClinicHours::timeSlots())) {
+            $clean['time_slot'] = $slot;
         }
 
         return $clean;
@@ -199,10 +216,10 @@ class FlowPrefill
         return count($matches) === 1 ? (int) $matches[0] : null;
     }
 
-    /** ¿El agente mandó una preferencia de agenda (doctor, día u hora)? */
+    /** ¿El agente mandó una preferencia de agenda (doctor, día, hora o franja)? */
     public static function wantsSchedule(array $prefill): bool
     {
-        return isset($prefill['doctor']) || isset($prefill['date']) || isset($prefill['time']);
+        return isset($prefill['doctor']) || isset($prefill['date']) || isset($prefill['time']) || isset($prefill['time_slot']);
     }
 
     /**
@@ -249,7 +266,16 @@ class FlowPrefill
         $wanted = $prefill['time'] ?? null;
 
         if ($wanted === null) {
-            return self::wantsSchedule($prefill) ? $times[0] : '';
+            if (! self::wantsSchedule($prefill)) {
+                return '';
+            }
+
+            // Con franja pedida, el primer horario de esa franja (si hay).
+            $inSlot = isset($prefill['time_slot'])
+                ? array_values(array_filter($times, fn ($t) => ClinicHours::slotOf($t) === $prefill['time_slot']))
+                : [];
+
+            return $inSlot[0] ?? $times[0];
         }
 
         if (in_array($wanted, $times, true)) {

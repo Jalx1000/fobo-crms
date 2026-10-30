@@ -51,7 +51,8 @@ it('la herramienta del agente encola un mensaje de tipo flow con un token de est
         ->and($message->payload['flow']['name'])->toBe('odontoking_paciente_tercero')
         ->and(FlowToken::conversationId($res->json('flow_token')))->toBe($this->conversation->id);
 
-    Queue::assertPushed(SendMessage::class);
+    // Sale detrás del saludo del agente (FlowAfterGreetingTest).
+    Queue::assertPushed(\Webkul\Whatsapp\Jobs\SendFlowAfterAgent::class);
 });
 
 it('rechaza flows desconocidos y conversaciones fuera de la ventana de 24 h', function () {
@@ -185,8 +186,11 @@ it('el contexto del agente incluye los pacientes a cargo y las citas del hijo si
 
     $context = app(\Webkul\Whatsapp\Services\PatientContext::class)->build($this->conversation->fresh());
 
-    expect($context['pacientes_a_cargo'])->toBe([['person_id' => $hijo->id, 'nombre' => $hijo->name, 'relacion' => 'hijo']])
-        ->and(collect($context['citas'])->pluck('paciente')->all())->toContain($hijo->name);
+    // La mamá no tiene cita propia: la del hijo igual tiene que verse (punto 8).
+    expect($context['pacientes_a_cargo'])->toBe([['person_id' => $hijo->id, 'nombre' => $hijo->name, 'relacion' => 'hijo', 'cita_activa' => $lead->id]])
+        ->and(collect($context['citas'])->pluck('paciente')->all())->toContain($hijo->name)
+        ->and($context['citas_activas'])->toHaveCount(1)
+        ->and($context['citas_activas'][0])->toMatchArray(['lead_id' => $lead->id, 'person_id' => $hijo->id, 'paciente' => $hijo->name]);
 });
 
 it('el inbox muestra el formulario enviado con su botón y la respuesta del paciente', function () {

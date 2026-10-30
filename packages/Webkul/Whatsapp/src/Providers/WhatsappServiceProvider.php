@@ -6,6 +6,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Webkul\Whatsapp\Console\Commands\CreateTemplates;
 use Webkul\Whatsapp\Console\Commands\EvalSeed;
 use Webkul\Whatsapp\Console\Commands\FlowsKeys;
 use Webkul\Whatsapp\Console\Commands\FlowsPublish;
@@ -65,6 +66,7 @@ class WhatsappServiceProvider extends ServiceProvider
                 NormalizePhones::class,
                 RepairGateway::class,
                 ListTemplates::class,
+                CreateTemplates::class,
                 ReactivateAgent::class,
                 SendAppointmentReminders::class,
                 SendDoctorShiftReminders::class,
@@ -158,6 +160,11 @@ class WhatsappServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(
             dirname(__DIR__).'/Config/whatsapp.php',
             'whatsapp'
+        );
+
+        $this->mergeConfigFrom(
+            dirname(__DIR__).'/Config/templates.php',
+            'whatsapp-templates'
         );
 
         $this->mergeConfigFrom(

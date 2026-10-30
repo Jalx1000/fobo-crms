@@ -237,6 +237,13 @@ class Importer extends AbstractImporter
 
         $this->productRepository->deleteWhere([['id', 'IN', $idsToDelete]]);
 
+        // deleteWhere borra en bloque y no pasa por los hooks del modelo
+        // (CustomAttribute): sin esto sus attribute_values quedaban huérfanos.
+        $this->attributeValueRepository->deleteWhere([
+            ['entity_type', '=', 'products'],
+            ['entity_id', 'IN', $idsToDelete],
+        ]);
+
         return true;
     }
 

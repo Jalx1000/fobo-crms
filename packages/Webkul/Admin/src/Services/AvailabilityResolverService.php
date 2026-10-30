@@ -4,6 +4,7 @@ namespace Webkul\Admin\Services;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Webkul\Admin\Services\Smd\SmdAgenda;
 use Webkul\Doctor\Repositories\DoctorRepository;
 use Webkul\Doctor\Services\DoctorAvailabilityService;
 
@@ -45,6 +46,27 @@ class AvailabilityResolverService
         }
 
         $tz = config('app.timezone', 'America/La_Paz');
+
+        // Modo `single`: los horarios del doctor salen de la agenda compartida (1
+        // consulta con "General" para todos), no de una consulta por cada una de
+        // sus especialidades (planning/16-especialidades-en-crm, RF-4).
+        if (SmdAgenda::enabled()) {
+            $agenda = app(SmdAgenda::class);
+            $slots = $agenda->forDoctor((string) $doctor->unique_id, $startDate, $days);
+
+            if ($slots === null) {
+                // Igual que el modo anterior: SMD caído o 5xx → agenda local; un
+                // 4xx cuenta como "SMD respondió sin horarios".
+                if ($agenda->lastStatus === null || $agenda->lastStatus >= 500) {
+                    return $this->localResult($doctorId, $startDate, $days, $duration, 'smd_unavailable');
+                }
+
+                $slots = [];
+            }
+
+            return $this->scheduleFromSmd($doctorId, $startDate, $days, self::parseSmdSlots($slots, $tz), $duration);
+        }
+
         $from = $startDate->copy()->startOfDay();
         $to = $startDate->copy()->addDays($days - 1)->endOfDay();
 
@@ -311,6 +333,67 @@ class AvailabilityResolverService
         }
 
         return $merged;
+    }
+
+    /**
+     * Turnos para el agente IA (planning/16, RF-12): no se le ofrecen bloques de
+     * 15 min. Cada hueco libre se corta en turnos que empiezan en :00 o :30,
+     * primero de 60 min y, si al final sobran 30 min o más, uno de 30. Lo que
+     * sobra por debajo de 30 min no se ofrece.
+     *
+     * Ej.: libre 09:00–11:30 → 09:00–10:00, 10:00–11:00, 11:00–11:30.
+     *      libre 09:15–11:00 → 09:30–10:30, 10:30–11:00.
+     *
+     * @param  array<int, array{start_time:string, end_time:string}>  $slots  de un día
+     * @return array<int, array{start_time:string, end_time:string, status:string, duration_minutes:int}>
+     */
+    public static function agentSlots(string $date, array $slots, string $tz): array
+    {
+        $windows = [];
+
+        // Une los tramos contiguos: el hueco real puede venir partido en bloques.
+        foreach ($slots as $slot) {
+            $s = Carbon::parse($date.' '.$slot['start_time'], $tz);
+            $e = Carbon::parse($date.' '.$slot['end_time'], $tz);
+            $last = count($windows) - 1;
+
+            if ($last >= 0 && $windows[$last][1]->gte($s)) {
+                $windows[$last][1] = $e->max($windows[$last][1]);
+            } else {
+                $windows[] = [$s, $e];
+            }
+        }
+
+        $turns = [];
+
+        foreach ($windows as [$s, $e]) {
+            $cursor = $s->copy()->second(0);
+
+            if (! in_array($cursor->minute, [0, 30], true) || $cursor->lt($s)) {
+                $cursor = $cursor->minute < 30 ? $cursor->minute(30) : $cursor->addHour()->minute(0);
+            }
+
+            while ($cursor->copy()->addMinutes(60)->lte($e)) {
+                $turns[] = self::agentTurn($cursor, 60);
+                $cursor->addMinutes(60);
+            }
+
+            if ($cursor->copy()->addMinutes(30)->lte($e)) {
+                $turns[] = self::agentTurn($cursor, 30);
+            }
+        }
+
+        return $turns;
+    }
+
+    protected static function agentTurn(Carbon $start, int $minutes): array
+    {
+        return [
+            'start_time'       => $start->format('H:i'),
+            'end_time'         => $start->copy()->addMinutes($minutes)->format('H:i'),
+            'status'           => 'available',
+            'duration_minutes' => $minutes,
+        ];
     }
 
     /**

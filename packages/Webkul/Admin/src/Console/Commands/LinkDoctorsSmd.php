@@ -5,6 +5,7 @@ namespace Webkul\Admin\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Webkul\Admin\Services\ShareMeDataService;
+use Webkul\Admin\Services\Smd\SmdAgenda;
 
 /**
  * Audita y corrige el vínculo entre doctors.unique_id (local) y el
@@ -42,7 +43,11 @@ class LinkDoctorsSmd extends Command
         $to = now()->addDays($days)->endOfDay()->format('Y-m-d H:i:s');
 
         // 1) Recolectar todos los physicians reales que expone SMD ─────────────
-        $specialties = $this->smd->getSpecialties();
+        // En modo `single` todos los médicos están en una especialidad de SMD:
+        // 1 consulta (planning/16).
+        $specialties = SmdAgenda::enabled()
+            ? [(string) config('smd.availability_specialty', 'General')]
+            : $this->smd->getSpecialties();
         if (empty($specialties)) {
             $specialties = DB::table('specialties')->pluck('name')->toArray();
         }

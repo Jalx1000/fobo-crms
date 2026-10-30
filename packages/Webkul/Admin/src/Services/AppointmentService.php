@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Admin\Exceptions\AppointmentException;
+use Webkul\Admin\Services\Smd\SmdAgenda;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Doctor\Repositories\DoctorRepository;
 use Webkul\Doctor\Repositories\SpecialtyRepository;
@@ -179,15 +180,24 @@ class AppointmentService
         if ($validateWithSmd) {
             // ── 3. Auto-descubrir unique_id en SMD si falta ──────────────────
             if (empty($doctorExternalId) || empty($doctorEmail)) {
-                $doctorModel = $this->doctorRepository->with('specialties')->find($doctorId);
-                $discoverySpecialties = $doctorModel->specialties->pluck('name')->toArray();
+                // Un id cargado a mano no se pisa (planning/16, D-9): si ya hay
+                // id, solo se completa el email del médico con ESE mismo id.
+                $hadId = ! empty($doctorExternalId);
 
-                if (empty($discoverySpecialties)) {
-                    $discoverySpecialties = $this->specialtyRepository->all()->pluck('name')->toArray();
-                }
+                if (SmdAgenda::enabled()) {
+                    // Todos los médicos están en una especialidad: 1 consulta.
+                    $discoverySpecialties = [(string) config('smd.availability_specialty', 'General')];
+                } else {
+                    $doctorModel = $this->doctorRepository->with('specialties')->find($doctorId);
+                    $discoverySpecialties = $doctorModel->specialties->pluck('name')->toArray();
 
-                if (empty($discoverySpecialties)) {
-                    $discoverySpecialties = ['General'];
+                    if (empty($discoverySpecialties)) {
+                        $discoverySpecialties = $this->specialtyRepository->all()->pluck('name')->toArray();
+                    }
+
+                    if (empty($discoverySpecialties)) {
+                        $discoverySpecialties = ['General'];
+                    }
                 }
 
                 $found = false;
@@ -205,8 +215,10 @@ class AppointmentService
                                 ($item['physician']['name'] ?? '').' '.
                                 ($item['physician']['lastName'] ?? '')
                             ));
-                            if ($smdName === trim(strtolower($doctor->name))) {
-                                $doctorExternalId = $item['physician']['_id'] ?? null;
+                            $foundId = $item['physician']['_id'] ?? null;
+
+                            if ($smdName === trim(strtolower($doctor->name)) && $foundId && (! $hadId || $foundId === $doctorExternalId)) {
+                                $doctorExternalId = $foundId;
                                 $doctorEmail = $item['physician']['email'] ?? null;
                                 if ($doctorExternalId) {
                                     $this->doctorRepository->update(
@@ -221,7 +233,7 @@ class AppointmentService
                     }
                 }
 
-                if (! $found) {
+                if (! $found && ! $hadId) {
                     throw new AppointmentException(
                         "No se pudo vincular al doctor {$doctor->name} con ShareMeData. ".
                         'Verifica que el nombre coincida exactamente.'
@@ -230,96 +242,12 @@ class AppointmentService
             }
 
             // ── 4. Verificar disponibilidad en ShareMeData ────────────────────
-            $doctorModel = $this->doctorRepository->with('specialties')->find($doctorId);
-            $doctorSpecialties = $doctorModel->specialties->pluck('name')->toArray();
-
-            if (empty($doctorSpecialties)) {
-                $doctorSpecialties = $this->specialtyRepository->all()->pluck('name')->toArray();
-            }
-
-            if (empty($doctorSpecialties)) {
-                $doctorSpecialties = ['General'];
-            }
-
-            // Si se sabe con qué especialidad se agenda (el formulario de WhatsApp
-            // la conoce), se valida esa primero: 1 consulta a SMD en vez de una
-            // por cada especialidad del doctor hasta dar con la correcta.
-            if (! empty($data['specialty_id'])) {
-                $booked = $this->specialtyRepository->find((int) $data['specialty_id'])?->name;
-
-                if ($booked && in_array($booked, $doctorSpecialties, true)) {
-                    $doctorSpecialties = array_values(array_unique(array_merge([$booked], $doctorSpecialties)));
-                }
-            }
-
-            $isAvailableExternally = false;
-            $smdErrors = [];
-
-            foreach ($doctorSpecialties as $specialty) {
-                $slots = $this->shareMeDataService->checkAvailability(
-                    $doctorExternalId, $specialty, 'Santa Cruz',
-                    $scheduleFrom->format('Y-m-d H:i:s'),
-                    $scheduleTo->format('Y-m-d H:i:s')
-                );
-                $lastResponse = $this->shareMeDataService->getLastResponse();
-
-                if (! empty($slots)) {
-                    $requiredIntervals = [];
-                    $current = $scheduleFrom->copy();
-                    while ($current->lessThan($scheduleTo)) {
-                        $requiredIntervals[] = [
-                            'start' => $current->timestamp,
-                            'end'   => $current->copy()->addMinutes(15)->timestamp,
-                        ];
-                        $current->addMinutes(15);
-                    }
-
-                    $foundCount = 0;
-                    foreach ($requiredIntervals as $required) {
-                        foreach ($slots as $daySlots) {
-                            foreach ($daySlots as $date => $intervals) {
-                                foreach ($intervals as $interval) {
-                                    if (
-                                        Carbon::parse($interval['start'])->timestamp === $required['start'] &&
-                                        Carbon::parse($interval['end'])->timestamp === $required['end']
-                                    ) {
-                                        $foundCount++;
-
-                                        continue 3;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if ($foundCount === count($requiredIntervals)) {
-                        $isAvailableExternally = true;
-                        break;
-                    }
-
-                    $smdErrors[$specialty] = "Solo se encontraron {$foundCount} de ".count($requiredIntervals).' bloques de 15m libres.';
-                } else {
-                    $smdErrors[$specialty] = $lastResponse['body']['message'] ?? 'Sin disponibilidad devuelta por SMD';
-                }
-            }
-
-            Log::debug('[SMD-DEBUG] Resultado check disponibilidad', [
-                'doctor_id'          => $doctorId,
-                'doctor_external_id' => $doctorExternalId,
-                'schedule_from'      => $scheduleFrom->format('Y-m-d H:i:s'),
-                'schedule_to'        => $scheduleTo->format('Y-m-d H:i:s'),
-                'schedule_from_tz'   => $scheduleFrom->setTimezone(config('app.timezone', 'America/La_Paz'))->format('Y-m-d\TH:i:sP'),
-                'schedule_to_tz'     => $scheduleTo->setTimezone(config('app.timezone', 'America/La_Paz'))->format('Y-m-d\TH:i:sP'),
-                'is_available'       => $isAvailableExternally,
-                'smd_errors'         => $smdErrors,
-                'specialties_tried'  => $doctorSpecialties,
-            ]);
-
-            if (! $isAvailableExternally) {
-                throw new AppointmentException(
-                    'El doctor no tiene disponibilidad en SHAREMEDATA para el horario solicitado.',
-                    ['smd_errors' => $smdErrors, 'doctor_external_id' => $doctorExternalId]
-                );
+            // En modo `single` (SMD con todos en "General") es 1 consulta; si no,
+            // una por cada especialidad del doctor, como antes.
+            if (SmdAgenda::enabled()) {
+                $this->assertAvailableInSmd($doctorExternalId, $scheduleFrom, $scheduleTo);
+            } else {
+                $this->assertAvailablePerSpecialty($doctorId, $doctorExternalId, $scheduleFrom, $scheduleTo, $data);
             }
 
             // ── 5. Crear evento en ShareMeData PRIMERO ────────────────────────
@@ -799,5 +727,132 @@ class AppointmentService
             '_id'     => $evt['_id'] ?? ($created['_id'] ?? null) ?? ($evt['event']['_id'] ?? null),
             'eventId' => $evt['eventId'] ?? ($created['eventId'] ?? null) ?? ($evt['event']['eventId'] ?? null),
         ];
+    }
+
+    /**
+     * Valida la cita contra SMD con UNA consulta en el momento (no usa la agenda
+     * guardada, D-10): el doctor tiene que tener libres todos los bloques de
+     * 15 min del horario. La usa también LeadController (planning/16, RF-5).
+     *
+     * @throws AppointmentException
+     */
+    public function assertAvailableInSmd(?string $doctorExternalId, Carbon $scheduleFrom, Carbon $scheduleTo): void
+    {
+        $free = app(SmdAgenda::class)->isAvailable((string) $doctorExternalId, $scheduleFrom, $scheduleTo);
+
+        if ($free === null) {
+            throw new AppointmentException(
+                'SHAREMEDATA no respondió y no se pudo validar la disponibilidad. Intentá de nuevo en unos minutos.',
+                ['doctor_external_id' => $doctorExternalId]
+            );
+        }
+
+        if (! $free) {
+            throw new AppointmentException(
+                'El doctor no tiene disponibilidad en SHAREMEDATA para el horario solicitado.',
+                ['doctor_external_id' => $doctorExternalId]
+            );
+        }
+    }
+
+    /**
+     * Validación anterior al modo `single`: una consulta por cada especialidad
+     * del doctor hasta encontrar una con el horario libre.
+     *
+     * @throws AppointmentException
+     */
+    protected function assertAvailablePerSpecialty(int $doctorId, ?string $doctorExternalId, Carbon $scheduleFrom, Carbon $scheduleTo, array $data): void
+    {
+        $doctorModel = $this->doctorRepository->with('specialties')->find($doctorId);
+        $doctorSpecialties = $doctorModel->specialties->pluck('name')->toArray();
+
+        if (empty($doctorSpecialties)) {
+            $doctorSpecialties = $this->specialtyRepository->all()->pluck('name')->toArray();
+        }
+
+        if (empty($doctorSpecialties)) {
+            $doctorSpecialties = ['General'];
+        }
+
+        // Si se sabe con qué especialidad se agenda (el formulario de WhatsApp
+        // la conoce), se valida esa primero: 1 consulta a SMD en vez de una
+        // por cada especialidad del doctor hasta dar con la correcta.
+        if (! empty($data['specialty_id'])) {
+            $booked = $this->specialtyRepository->find((int) $data['specialty_id'])?->name;
+
+            if ($booked && in_array($booked, $doctorSpecialties, true)) {
+                $doctorSpecialties = array_values(array_unique(array_merge([$booked], $doctorSpecialties)));
+            }
+        }
+
+        $isAvailableExternally = false;
+        $smdErrors = [];
+
+        foreach ($doctorSpecialties as $specialty) {
+            $slots = $this->shareMeDataService->checkAvailability(
+                $doctorExternalId, $specialty, 'Santa Cruz',
+                $scheduleFrom->format('Y-m-d H:i:s'),
+                $scheduleTo->format('Y-m-d H:i:s')
+            );
+            $lastResponse = $this->shareMeDataService->getLastResponse();
+
+            if (! empty($slots)) {
+                $requiredIntervals = [];
+                $current = $scheduleFrom->copy();
+                while ($current->lessThan($scheduleTo)) {
+                    $requiredIntervals[] = [
+                        'start' => $current->timestamp,
+                        'end'   => $current->copy()->addMinutes(15)->timestamp,
+                    ];
+                    $current->addMinutes(15);
+                }
+
+                $foundCount = 0;
+                foreach ($requiredIntervals as $required) {
+                    foreach ($slots as $daySlots) {
+                        foreach ($daySlots as $date => $intervals) {
+                            foreach ($intervals as $interval) {
+                                if (
+                                    Carbon::parse($interval['start'])->timestamp === $required['start'] &&
+                                    Carbon::parse($interval['end'])->timestamp === $required['end']
+                                ) {
+                                    $foundCount++;
+
+                                    continue 3;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if ($foundCount === count($requiredIntervals)) {
+                    $isAvailableExternally = true;
+                    break;
+                }
+
+                $smdErrors[$specialty] = "Solo se encontraron {$foundCount} de ".count($requiredIntervals).' bloques de 15m libres.';
+            } else {
+                $smdErrors[$specialty] = $lastResponse['body']['message'] ?? 'Sin disponibilidad devuelta por SMD';
+            }
+        }
+
+        Log::debug('[SMD-DEBUG] Resultado check disponibilidad', [
+            'doctor_id'          => $doctorId,
+            'doctor_external_id' => $doctorExternalId,
+            'schedule_from'      => $scheduleFrom->format('Y-m-d H:i:s'),
+            'schedule_to'        => $scheduleTo->format('Y-m-d H:i:s'),
+            'schedule_from_tz'   => $scheduleFrom->setTimezone(config('app.timezone', 'America/La_Paz'))->format('Y-m-d\TH:i:sP'),
+            'schedule_to_tz'     => $scheduleTo->setTimezone(config('app.timezone', 'America/La_Paz'))->format('Y-m-d\TH:i:sP'),
+            'is_available'       => $isAvailableExternally,
+            'smd_errors'         => $smdErrors,
+            'specialties_tried'  => $doctorSpecialties,
+        ]);
+
+        if (! $isAvailableExternally) {
+            throw new AppointmentException(
+                'El doctor no tiene disponibilidad en SHAREMEDATA para el horario solicitado.',
+                ['smd_errors' => $smdErrors, 'doctor_external_id' => $doctorExternalId]
+            );
+        }
     }
 }
