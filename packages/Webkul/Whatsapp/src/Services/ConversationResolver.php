@@ -21,7 +21,7 @@ class ConversationResolver
      * whichever is available, preferring the provider's own id since it is
      * exact.
      */
-    public function resolve(ContactIdentity $contact, ?string $providerConversationId, string $gateway): ?Model
+    public function resolve(ContactIdentity $contact, ?string $providerConversationId, string $gateway, bool $abrirPedido = true): ?Model
     {
         $model = ConversationProxy::modelClass();
 
@@ -39,7 +39,7 @@ class ConversationResolver
         }
 
         if ($conversation) {
-            return $this->backfill($conversation, $contact, $providerConversationId);
+            return $this->backfill($conversation, $contact, $providerConversationId, $abrirPedido);
         }
 
         $person = $this->resolveOrCreatePerson($contact);
@@ -51,7 +51,7 @@ class ConversationResolver
             'wa_name'                  => $contact->name,
             'person_id'                => $person?->id,
             // El pedido abierto del contacto, o uno nuevo vacío (LeadOpener).
-            'lead_id'                  => $this->leads->forPerson($person),
+            'lead_id'                  => $this->leads->forPerson($person, $abrirPedido),
             'status'                   => $person ? 'open' : 'unassigned',
             /*
              * Sin decisión propia: hereda WHATSAPP_AI_ENABLED, o la lista de números
@@ -66,7 +66,7 @@ class ConversationResolver
      * Fill in details we learn later (the provider id on a phone-matched
      * conversation, a name, or a Person once the number gets registered).
      */
-    protected function backfill(Model $conversation, ContactIdentity $contact, ?string $providerConversationId): Model
+    protected function backfill(Model $conversation, ContactIdentity $contact, ?string $providerConversationId, bool $abrirPedido = true): Model
     {
         $updates = [];
 
@@ -87,7 +87,7 @@ class ConversationResolver
         if (! $conversation->person_id) {
             if ($person = $this->resolveOrCreatePerson($contact)) {
                 $updates['person_id'] = $person->id;
-                $updates['lead_id'] = $this->leads->forPerson($person);
+                $updates['lead_id'] = $this->leads->forPerson($person, $abrirPedido);
                 $updates['status'] = 'open';
             }
         } elseif (! $conversation->lead_id && config('whatsapp.auto_create_lead', true)) {
@@ -95,7 +95,7 @@ class ConversationResolver
              * Conversación con contacto pero sin pedido (las anteriores a este cambio,
              * o un pedido que se borró): se le abre o vincula en el próximo mensaje.
              */
-            if ($leadId = $this->leads->forPerson($conversation->person)) {
+            if ($leadId = $this->leads->forPerson($conversation->person, $abrirPedido)) {
                 $updates['lead_id'] = $leadId;
             }
         }
@@ -110,12 +110,13 @@ class ConversationResolver
     /**
      * Find or create the conversation for an outbound message addressed by phone.
      */
-    public function findOrCreate(string $phone, ?string $name = null): Model
+    public function findOrCreate(string $phone, ?string $name = null, bool $abrirPedido = true): Model
     {
         return $this->resolve(
             new ContactIdentity(phone: $phone, name: $name),
             null,
             (string) config('whatsapp.gateway'),
+            $abrirPedido,
         );
     }
 

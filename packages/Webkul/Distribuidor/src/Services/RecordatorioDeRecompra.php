@@ -4,7 +4,9 @@ namespace Webkul\Distribuidor\Services;
 
 use Illuminate\Support\Facades\Log;
 use Webkul\Contact\Models\PersonProxy;
+use Webkul\Lead\Models\LeadProxy;
 use Webkul\Whatsapp\Services\EnvioDePlantilla;
+use Webkul\Whatsapp\Services\LeadOpener;
 
 /**
  * Manda el recordatorio de recompra a un cliente.
@@ -81,6 +83,13 @@ class RecordatorioDeRecompra
             variables: [trim((string) $persona->name) ?: 'cliente'],
             imagen: (string) ($config['media'] ?? ''),
             motivo: 'el recordatorio de recompra',
+            /*
+             * Sin pedido vacío: el recordatorio es una pregunta, no una compra. El
+             * pedido lo abre la respuesta del cliente. Antes se abría uno en
+             * Prospectos al enviarlo, nadie lo cerraba si el cliente no contestaba, y
+             * ese mismo pedido bloqueaba el siguiente recordatorio para siempre.
+             */
+            abrirPedido: false,
         );
 
         /*
@@ -100,15 +109,23 @@ class RecordatorioDeRecompra
         return true;
     }
 
+    /**
+     * Un pedido vacío que abrió el CRM (LeadOpener) no es un pedido en curso: nadie
+     * pidió nada. Son los que dejaron los recordatorios anteriores, que trababan al
+     * cliente para siempre si no contestaba.
+     */
     protected function tienePedidoEnCurso(int $personId): bool
     {
-        return \Illuminate\Support\Facades\DB::table('leads')
+        $opener = app(LeadOpener::class);
+
+        return LeadProxy::modelClass()::query()
             ->where('person_id', $personId)
             ->whereNotIn('lead_pipeline_stage_id', function ($q) {
                 $q->select('id')->from('lead_pipeline_stages')
                     ->whereIn('code', \Webkul\Lead\Services\CitySyncService::CLOSED_STAGE_CODES);
             })
-            ->exists();
+            ->get()
+            ->contains(fn ($lead) => ! $opener->isUntouched($lead));
     }
 
     protected function telefonoDe($persona): ?string

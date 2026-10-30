@@ -409,6 +409,34 @@ it('con una plantilla de video manda el video de Sensia, no el logo', function (
     ]);
 });
 
+it('el recordatorio no le abre un pedido vacío al cliente', function () {
+    conPlantillaDeRecordatorio();
+
+    $c = clienteParaRecordatorio();
+    app(Recordatorios::class)->programarTrasEntrega($c['person_id'], now()->subDays(30));
+
+    $antes = DB::table('leads')->where('person_id', $c['person_id'])->count();
+
+    expect(app(\Webkul\Distribuidor\Services\RecordatorioDeRecompra::class)->enviarA($c['person_id']))->toBeTrue()
+        ->and(DB::table('leads')->where('person_id', $c['person_id'])->count())->toBe($antes);
+});
+
+it('un pedido vacío que abrió el CRM no traba el recordatorio', function () {
+    conPlantillaDeRecordatorio();
+
+    $c = clienteParaRecordatorio();
+    app(Recordatorios::class)->programarTrasEntrega($c['person_id'], now()->subDays(30));
+
+    $leadId = otroPedidoDe($c);
+    DB::table('leads')->where('id', $leadId)->update([
+        'title'      => \Webkul\Whatsapp\Services\LeadOpener::TITLE_PREFIX.'Cliente',
+        'lead_value' => 0,
+        'status'     => 1,
+    ]);
+
+    expect(app(\Webkul\Distribuidor\Services\RecordatorioDeRecompra::class)->enviarA($c['person_id']))->toBeTrue();
+});
+
 it('con un pedido en curso no se le manda el recordatorio', function () {
     conPlantillaDeRecordatorio();
 
