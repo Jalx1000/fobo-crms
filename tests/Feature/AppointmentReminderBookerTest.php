@@ -66,3 +66,15 @@ it('un paciente sin teléfono y sin quien agendó se omite', function () {
         '--date' => $this->day->toDateString(), '--person' => $paciente->id, '--dry-run' => true,
     ])->expectsOutputToContain('sin teléfono')->assertSuccessful();
 });
+
+it('el nombre del doctor con salto de línea final (como viene de SMD) sale limpio', function () {
+    $doctorId = auditDoctor(['name' => 'Dra Salto '.uniqid()."\n"]);
+    $paciente = auditPerson(['name' => 'Paciente Salto', 'contact_numbers' => [['value' => '59175556666', 'label' => 'work']]]);
+    reminderAppointment($doctorId, $paciente->id, $this->day);
+
+    $this->artisan('whatsapp:appointment-reminders', [
+        '--date' => $this->day->toDateString(), '--person' => $paciente->id, '--dry-run' => true,
+    ])->expectsOutputToContain('a horas 10:00 | Dra Salto')
+        ->doesntExpectOutputToContain("\n\n")
+        ->assertSuccessful();
+});

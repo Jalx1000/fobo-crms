@@ -203,7 +203,7 @@ class SendAppointmentReminders extends Command
 
         return [
             $this->longDate($start).' a horas '.$start->format('H:i'),
-            $appt->doctor_name ?? '',
+            trim((string) $appt->doctor_name),
         ];
     }
 
@@ -217,7 +217,7 @@ class SendAppointmentReminders extends Command
         return strtr(config('whatsapp.reminders.template'), [
             ':fecha'     => $this->longDate($start),
             ':hora'      => $start->format('H:i'),
-            ':doctor'    => $appt->doctor_name ?? '',
+            ':doctor'    => trim((string) $appt->doctor_name),
             ':direccion' => config('whatsapp.clinic.address') ?? '',
             ':encuesta'  => config('whatsapp.clinic.survey_url') ?? '',
         ]);

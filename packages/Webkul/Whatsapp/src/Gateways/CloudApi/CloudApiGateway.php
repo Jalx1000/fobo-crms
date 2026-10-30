@@ -219,8 +219,12 @@ class CloudApiGateway extends BaseGateway implements SupportsFlows
         $name = $template['name'] ?? $templateKey;
         $languageCode = $language ?? $template['language'] ?? 'es';
 
+        // Meta rejects a body parameter with a newline, a tab or more than 4
+        // consecutive spaces (error 132018). Names synced from SMD carry a
+        // trailing "\n" (e.g. "CAROLINA ROJAS\n"), which made the reminder fail,
+        // so every value is collapsed to single-spaced text.
         $parameters = array_map(
-            fn ($value) => ['type' => 'text', 'text' => (string) $value],
+            fn ($value) => ['type' => 'text', 'text' => trim(preg_replace('/\s+/u', ' ', (string) $value))],
             array_values($variables),
         );
 

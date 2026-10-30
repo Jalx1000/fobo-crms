@@ -220,3 +220,19 @@ it('el inbox muestra el formulario enviado con su botón y la respuesta del paci
     $view = file_get_contents(base_path('packages/Webkul/Whatsapp/src/Resources/views/inbox-component.blade.php'));
     expect($view)->toContain("msg.type === 'flow'")->toContain("msg.type === 'flow_reply'");
 });
+
+it('los parámetros de un template van a Meta sin saltos de línea ni espacios repetidos (error 132018)', function () {
+    app()->forgetInstance(\Illuminate\Http\Client\Factory::class);
+    Http::clearResolvedInstances();
+    Http::preventStrayRequests();
+    Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.TPL1']]], 200)]);
+
+    app(CloudApiGateway::class, ['config' => config('whatsapp.gateways.cloud_api')])
+        ->sendTemplate($this->conversation, 'appointment_reminder', ['Sábado 31 de Octubre a horas 10:00', "CAROLINA ROJAS\n", "Av  Roca\t y     Coronado"]);
+
+    Http::assertSent(function ($request) {
+        $texts = array_column($request->data()['template']['components'][0]['parameters'], 'text');
+
+        return $texts === ['Sábado 31 de Octubre a horas 10:00', 'CAROLINA ROJAS', 'Av Roca y Coronado'];
+    });
+});
