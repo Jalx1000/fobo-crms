@@ -2,8 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use Webkul\Doctor\Http\Controllers\DoctorController;
-use Webkul\Doctor\Http\Controllers\SpecialtyController;
 use Webkul\Doctor\Http\Controllers\ScheduleController;
+use Webkul\Doctor\Http\Controllers\SpecialtyController;
 
 Route::prefix('doctor')->group(function () {
     Route::get('', [DoctorController::class, 'index'])->name('admin.doctor.index');
@@ -33,4 +33,7 @@ Route::prefix('schedules')->group(function () {
     Route::get('edit/{id}', [ScheduleController::class, 'edit'])->name('admin.schedules.edit');
     Route::put('edit/{id}', [ScheduleController::class, 'update'])->name('admin.schedules.update');
     Route::delete('{id}', [ScheduleController::class, 'destroy'])->name('admin.schedules.delete');
+    // {doctorId}, no {doctor}: con el nombre del modelo Concord llegaría el modelo, no el id.
+    Route::delete('doctor/{doctorId}', [ScheduleController::class, 'destroyAll'])->name('admin.schedules.delete_all');
+    Route::delete('doctor/{doctorId}/range', [ScheduleController::class, 'destroyRange'])->name('admin.schedules.delete_range');
 });

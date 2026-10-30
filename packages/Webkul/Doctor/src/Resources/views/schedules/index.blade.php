@@ -88,9 +88,21 @@
                                             <div class="flex flex-col">
                                                 <span class="font-semibold dark:text-white">@{{ doctor.name }}</span>
                                                 <span class="text-xs text-gray-600 dark:text-gray-400">@{{ doctorWeeklyTotal(doctor.id) }}</span>
+                                                <span class="text-xs font-medium" :style="{ color: lastDayInfo(doctor).color }">@{{ lastDayInfo(doctor).text }}</span>
                                             </div>
                                         </div>
-                                        <a :href="'{{ route('admin.doctor.edit', 'replaceId') }}'.replace('replaceId', doctor.id)" class="icon-edit text-2xl"></a>
+                                        <div class="flex items-center gap-1">
+                                            <a :href="'{{ route('admin.doctor.edit', 'replaceId') }}'.replace('replaceId', doctor.id)" class="icon-edit text-2xl"></a>
+
+                                            @if (bouncer()->hasPermission('doctors.schedules.delete'))
+                                                <button
+                                                    type="button"
+                                                    class="icon-delete text-2xl text-red-600"
+                                                    title="Borrar todo el horario"
+                                                    @click="deleteAllShifts(doctor)"
+                                                ></button>
+                                            @endif
+                                        </div>
                                     </div>
                                 </td>
                                 <td v-for="day in days" class="border-b p-3 align-top dark:border-gray-800">
@@ -136,8 +148,9 @@
                 <!-- Modals -->
                 <x-admin::modal ref="scheduleOptionsModal">
                     <x-slot:header>
-                        <div class="text-lg font-semibold dark:text-white">
-                            Gestionar Horario
+                        <div class="flex flex-col">
+                            <div class="text-lg font-semibold dark:text-white">Gestionar Horario</div>
+                            <div class="text-sm font-semibold text-blue-600">@{{ modalContext.doctorName }}</div>
                         </div>
                     </x-slot>
                     <x-slot:content>
@@ -156,6 +169,15 @@
                                     <div class="text-xs text-gray-500">Generar múltiples turnos automáticamente</div>
                                 </div>
                             </button>
+                            @if (bouncer()->hasPermission('doctors.schedules.delete'))
+                                <button type="button" class="w-full text-left px-4 py-3 rounded border hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-3" @click="openDeleteRangeModal">
+                                    <span class="icon-delete text-xl text-red-600"></span>
+                                    <div>
+                                        <div class="font-semibold text-sm">Eliminar turnos en un rango</div>
+                                        <div class="text-xs text-gray-500">Borrar los turnos entre dos fechas (p. ej. cerrar una semana)</div>
+                                    </div>
+                                </button>
+                            @endif
                             <!--
                             <button type="button" class="w-full text-left px-4 py-3 rounded border hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-3" @click="openTimeOffModal">
                                 <span class="icon-calendar text-xl text-orange-600"></span>
@@ -171,14 +193,15 @@
 
                 <x-admin::modal ref="addModal">
                     <x-slot:header>
-                        <div class="text-lg font-semibold dark:text-white">
-                            Añadir turno
+                        <div class="flex flex-col">
+                            <div class="text-lg font-semibold dark:text-white">@{{ addDlg.shiftId ? 'Editar turno' : 'Añadir turno' }}</div>
+                            <div class="text-sm font-semibold text-blue-600">@{{ modalContext.doctorName }}</div>
                         </div>
                     </x-slot>
                     <x-slot:content>
                         <div class="flex flex-col gap-3">
                             <div class="text-sm text-gray-600 dark:text-gray-300">
-                                @{{ modalContext.dateLabel }} · @{{ modalContext.doctorName }}
+                                @{{ modalContext.dateLabel }}
                             </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <v-time-picker v-model="addDlg.startTime"></v-time-picker>
@@ -200,8 +223,9 @@
 
                 <x-admin::modal ref="recurringModal">
                     <x-slot:header>
-                        <div class="text-lg font-semibold dark:text-white">
-                            Turnos Recurrentes
+                        <div class="flex flex-col">
+                            <div class="text-lg font-semibold dark:text-white">Turnos Recurrentes</div>
+                            <div class="text-sm font-semibold text-blue-600">@{{ modalContext.doctorName }}</div>
                         </div>
                     </x-slot>
                     <x-slot:content>
@@ -260,6 +284,51 @@
                             <button type="button" class="primary-button" @click="saveRecurring" :disabled="addDlg.saving">
                                 <span v-if="!addDlg.saving">Generar Turnos</span>
                                 <span v-else class="flex items-center gap-2"><x-admin::spinner /> Procesando...</span>
+                            </button>
+                        </div>
+                    </x-slot>
+                </x-admin::modal>
+
+                <x-admin::modal ref="deleteRangeModal">
+                    <x-slot:header>
+                        <div class="flex flex-col">
+                            <div class="text-lg font-semibold dark:text-white">Eliminar turnos en un rango</div>
+                            <div class="text-sm font-semibold text-blue-600">@{{ modalContext.doctorName }}</div>
+                        </div>
+                    </x-slot>
+                    <x-slot:content>
+                        <div class="flex flex-col gap-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-xs font-medium text-gray-500">Desde</label>
+                                    <input type="date" class="rounded border px-2 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" v-model="deleteRangeForm.start_date" />
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-xs font-medium text-gray-500">Hasta</label>
+                                    <input type="date" class="rounded border px-2 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300" v-model="deleteRangeForm.end_date" />
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col gap-2">
+                                <label class="text-xs font-medium text-gray-500">Días de la semana (sin marcar = todos los días)</label>
+                                <div class="flex flex-wrap gap-2">
+                                    <label v-for="(day, idx) in ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']" :key="'dr-'+idx" class="flex items-center gap-2 px-3 py-2 border rounded cursor-pointer hover:bg-white dark:hover:bg-gray-700 transition-colors" :class="deleteRangeForm.days.includes(idx+1) ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/30 dark:border-blue-500 dark:text-blue-300' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700'">
+                                        <input type="checkbox" :value="idx+1" v-model="deleteRangeForm.days" class="hidden" />
+                                        <span class="text-sm font-medium">@{{ day }}</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="text-xs text-gray-500">Las citas ya agendadas no se borran.</div>
+                            <div class="text-sm text-red-600" v-if="addDlg.error">@{{ addDlg.error }}</div>
+                        </div>
+                    </x-slot>
+                    <x-slot:footer>
+                        <div class="flex items-center gap-2 justify-end">
+                            <button type="button" class="secondary-button" @click="$refs.deleteRangeModal.close()">Cancelar</button>
+                            <button type="button" class="primary-button" @click="saveDeleteRange" :disabled="addDlg.saving">
+                                <span v-if="!addDlg.saving">Eliminar turnos</span>
+                                <span v-else class="flex items-center gap-2"><x-admin::spinner /> Eliminando...</span>
                             </button>
                         </div>
                     </x-slot>
@@ -463,6 +532,11 @@ app.component('v-schedules', {
                             days: [],
                             time_slots: []
                         },
+                        deleteRangeForm: {
+                            start_date: '',
+                            end_date: '',
+                            days: [],
+                        },
                         timeOffForm: {
                             doctor_id: null,
                             type: 'Vacaciones anuales',
@@ -563,6 +637,67 @@ app.component('v-schedules', {
                     },
                     removeTimeSlot(index) {
                         this.recurringForm.time_slots.splice(index, 1);
+                    },
+                    openDeleteRangeModal() {
+                        this.$refs.scheduleOptionsModal.close();
+
+                        this.deleteRangeForm.start_date = this.modalContext.date;
+                        this.deleteRangeForm.end_date = this.modalContext.date;
+                        this.deleteRangeForm.days = [];
+                        this.addDlg.error = '';
+
+                        this.$refs.deleteRangeModal.open();
+                    },
+                    saveDeleteRange() {
+                        const { start_date, end_date, days } = this.deleteRangeForm;
+
+                        if (!start_date || !end_date || end_date < start_date) {
+                            this.addDlg.error = 'Elegí un rango válido: la fecha "Hasta" no puede ser anterior a "Desde".';
+                            return;
+                        }
+
+                        this.addDlg.error = '';
+
+                        const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+                        const which = days.length
+                            ? 'los ' + [...days].sort().map(d => dayNames[d - 1]).join(', ')
+                            : 'todos los días';
+
+                        this.$emitter.emit('open-confirm-modal', {
+                            title: 'Eliminar turnos',
+                            message: `Se borrarán los turnos de ${this.modalContext.doctorName.trim()} del ${start_date} al ${end_date} (${which}). ¿Continuar?`,
+                            agree: () => {
+                                this.addDlg.saving = true;
+
+                                fetch('{{ route('admin.schedules.delete_range', 'replaceId') }}'.replace('replaceId', this.modalContext.doctorId), {
+                                    method: 'DELETE',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json',
+                                        'X-Requested-With': 'XMLHttpRequest',
+                                        'X-CSRF-TOKEN': this.getCsrf(),
+                                    },
+                                    // Mismo mapeo que los turnos recurrentes: Dom (7) → 0, como Carbon.
+                                    body: JSON.stringify({ start_date, end_date, days: days.map(d => d === 7 ? 0 : d) }),
+                                })
+                                .then(async (r) => {
+                                    const data = await r.json().catch(() => ({}));
+                                    if (!r.ok) throw new Error(data.message || 'No se pudieron eliminar los turnos');
+                                    return data;
+                                })
+                                .then((data) => {
+                                    this.$refs.deleteRangeModal.close();
+                                    this.fetchWeek();
+                                    this.$emitter.emit('add-flash', { type: 'success', message: data.message });
+                                })
+                                .catch((e) => {
+                                    this.addDlg.error = e.message;
+                                })
+                                .finally(() => {
+                                    this.addDlg.saving = false;
+                                });
+                            },
+                        });
                     },
                     saveRecurring() {
                         this.addDlg.saving = true;
@@ -748,6 +883,7 @@ app.component('v-schedules', {
                                     this.shifts.push(shift);
                                 }
                                 this.$refs.addModal.close();
+                                this.fetchWeek(); // actualiza "Disponible hasta"
                             })
                             .catch((e) => {
                                 this.addDlg.error = e.message || 'Error al guardar';
@@ -775,9 +911,38 @@ app.component('v-schedules', {
                         .then(() => {
                             const idx = this.shifts.findIndex(s => s.id === shift.id);
                             if (idx !== -1) this.shifts.splice(idx, 1);
+                            this.fetchWeek(); // actualiza "Disponible hasta"
                         })
                         .catch((e) => {
                             this.addDlg.error = e.message || 'No se pudo eliminar el turno';
+                        });
+                    },
+                    deleteAllShifts(doctor) {
+                        this.$emitter.emit('open-confirm-modal', {
+                            title: 'Borrar todo el horario',
+                            message: `Se borrarán TODOS los turnos de ${doctor.name.trim()} (pasados y futuros). Sus citas no se tocan. ¿Continuar?`,
+                            agree: () => {
+                                fetch('{{ route('admin.schedules.delete_all', 'replaceId') }}'.replace('replaceId', doctor.id), {
+                                    method: 'DELETE',
+                                    headers: {
+                                        'Accept': 'application/json',
+                                        'X-Requested-With': 'XMLHttpRequest',
+                                        'X-CSRF-TOKEN': this.getCsrf(),
+                                    },
+                                })
+                                .then(async (r) => {
+                                    const data = await r.json().catch(() => ({}));
+                                    if (!r.ok) throw new Error(data.message || 'No se pudo borrar el horario');
+                                    return data;
+                                })
+                                .then((data) => {
+                                    this.fetchWeek();
+                                    this.$emitter.emit('add-flash', { type: 'success', message: data.message });
+                                })
+                                .catch((e) => {
+                                    this.$emitter.emit('add-flash', { type: 'error', message: e.message });
+                                });
+                            },
                         });
                     },
                     goPrevWeek() {
@@ -809,6 +974,22 @@ app.component('v-schedules', {
                     dayTotal(date) {
                         const mins = this.shifts.filter(s => s.date === date).reduce((sum, s) => sum + this.minutes(s), 0);
                         return this.fmtMinutes(mins);
+                    },
+                    // Último día con turno cargado (sobre todos sus turnos, no solo esta semana).
+                    // Color inline: clases calculadas en runtime no llegan al CSS de producción.
+                    lastDayInfo(doctor) {
+                        if (!doctor.last_shift_date) {
+                            return { text: 'Sin horario cargado', color: '#dc2626' };
+                        }
+
+                        const label = new Date(doctor.last_shift_date + 'T00:00:00')
+                            .toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+                        if (doctor.last_shift_date < this.toISO(new Date())) {
+                            return { text: `Sin disponibilidad desde ${label}`, color: '#dc2626' };
+                        }
+
+                        return { text: `Disponible hasta ${label}`, color: '#059669' };
                     },
                     doctorWeeklyTotal(doctorId) {
                         const mins = this.shifts.filter(s => s.doctor_id === doctorId).reduce((sum, s) => sum + this.minutes(s), 0);

@@ -35,6 +35,9 @@ class ScheduleController extends Controller
             ['date', '<=', $end->toDateString()],
         ]);
 
+        // Sobre todos los turnos, no solo los de la semana visible.
+        $lastDates = $this->shiftRepository->lastDateByDoctor();
+
         $days = [];
         $cursor = $start->copy();
         while ($cursor->lte($end)) {
@@ -52,8 +55,9 @@ class ScheduleController extends Controller
             ],
             'days'    => $days,
             'doctors' => $doctors->map(fn ($d) => [
-                'id'   => $d->id,
-                'name' => $d->name,
+                'id'              => $d->id,
+                'name'            => $d->name,
+                'last_shift_date' => $lastDates[$d->id] ?? null,
             ])->values(),
             'shifts' => $shifts->map(fn ($s) => [
                 'id'         => $s->id,
@@ -278,5 +282,48 @@ class ScheduleController extends Controller
         } catch (\Throwable $e) {
             return new JsonResponse(['message' => 'No se pudo eliminar el turno'], 400);
         }
+    }
+
+    /**
+     * Borra los turnos de un doctor en un rango de fechas, opcionalmente solo
+     * ciertos días de la semana (0 = domingo). Sus citas no se tocan.
+     */
+    public function destroyRange(Request $request, int $doctorId): JsonResponse
+    {
+        $doctor = $this->doctorRepository->findOrFail($doctorId);
+
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date'   => ['required', 'date', 'after_or_equal:start_date'],
+            'days'       => ['nullable', 'array'],
+            'days.*'     => ['integer', 'between:0,6'],
+        ]);
+
+        $deleted = $this->shiftRepository->deleteForDoctorInRange(
+            $doctor->id,
+            Carbon::parse($validated['start_date'])->toDateString(),
+            Carbon::parse($validated['end_date'])->toDateString(),
+            array_map('intval', $validated['days'] ?? []),
+        );
+
+        return new JsonResponse([
+            'message' => "Se borraron {$deleted} turnos de ".trim($doctor->name).'.',
+            'deleted' => $deleted,
+        ], 200);
+    }
+
+    /**
+     * Borra todo el horario de un doctor (sus citas no se tocan).
+     */
+    public function destroyAll(int $doctorId): JsonResponse
+    {
+        $doctor = $this->doctorRepository->findOrFail($doctorId);
+
+        $deleted = $this->shiftRepository->deleteAllForDoctor($doctor->id);
+
+        return new JsonResponse([
+            'message' => "Se borraron {$deleted} turnos de ".trim($doctor->name).'.',
+            'deleted' => $deleted,
+        ], 200);
     }
 }

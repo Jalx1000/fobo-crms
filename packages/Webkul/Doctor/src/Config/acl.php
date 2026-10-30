@@ -76,7 +76,7 @@ return [
     [
         'key'   => 'doctors.schedules.delete',
         'name'  => 'Eliminar',
-        'route' => 'admin.schedules.delete',
+        'route' => ['admin.schedules.delete', 'admin.schedules.delete_all', 'admin.schedules.delete_range'],
         'sort'  => 3,
     ],
 ];
