@@ -22,7 +22,8 @@
                     <x-admin::attributes.view
                         :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
                             'entity_type' => 'persons',
-                            ['code', 'NOTIN', ['name', 'expected_close_date', 'organization_id']]
+                            // CI, seguro y su estado van en el bloque «Cobertura».
+                            ['code', 'NOTIN', ['name', 'expected_close_date', 'organization_id', 'ci_paciente', 'seguro_paciente', 'estado_seguro_paciente']]
                         ])"
                         :entity="$person"
                         :url="route('admin.contacts.persons.update', $person->id)"

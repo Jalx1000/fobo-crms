@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Webkul\Admin\Services\DropboxService;
 use Webkul\Admin\Services\IncomingAppointmentService;
-use Webkul\Admin\Services\SmdStatusMapper;
 
 uses(DatabaseTransactions::class);
 
@@ -103,11 +102,11 @@ beforeEach(function () {
 // ---------------------------------------------------------------------------
 
 it('comando smd:sync-dropbox procesa evento nuevo y lo inserta en smd_synced_events', function () {
-    $json      = makeSmdJson();
+    $json = makeSmdJson();
     $externalId = $json['_id'];
 
     $filePath = '/smd-events/2026-05-12/'.$externalId.'.json';
-    $files    = [['name' => $externalId.'.json', 'path_lower' => $filePath]];
+    $files = [['.tag' => 'file', 'name' => $externalId.'.json', 'path_lower' => $filePath]];
 
     fakeDropboxForDate('2026-05-12', $files, [$json]);
 
@@ -125,7 +124,7 @@ it('comando smd:sync-dropbox procesa evento nuevo y lo inserta en smd_synced_eve
 // ---------------------------------------------------------------------------
 
 it('comando smd:sync-dropbox hace skip cuando el hash del payload no cambia', function () {
-    $json       = makeSmdJson();
+    $json = makeSmdJson();
     $externalId = $json['_id'];
     $rawPayload = json_encode($json);
 
@@ -140,7 +139,7 @@ it('comando smd:sync-dropbox hace skip cuando el hash del payload no cambia', fu
         'updated_at'   => now(),
     ]);
 
-    $files = [['name' => $externalId.'.json', 'path_lower' => '/smd-events/2026-05-12/'.$externalId.'.json']];
+    $files = [['.tag' => 'file', 'name' => $externalId.'.json', 'path_lower' => '/smd-events/2026-05-12/'.$externalId.'.json']];
     fakeDropboxForDate('2026-05-12', $files, [$json]);
 
     // Espiar IncomingAppointmentService para verificar que NO se llama processDropbox
@@ -163,7 +162,7 @@ it('comando smd:sync-dropbox hace skip cuando el hash del payload no cambia', fu
 // ---------------------------------------------------------------------------
 
 it('comando smd:sync-dropbox llama updateDropbox cuando el payload cambia', function () {
-    $json       = makeSmdJson();
+    $json = makeSmdJson();
     $externalId = $json['_id'];
 
     // Insertar con payload diferente (hash distinto)
@@ -179,7 +178,7 @@ it('comando smd:sync-dropbox llama updateDropbox cuando el payload cambia', func
         'updated_at'   => now(),
     ]);
 
-    $files = [['name' => $externalId.'.json', 'path_lower' => '/smd-events/2026-05-12/'.$externalId.'.json']];
+    $files = [['.tag' => 'file', 'name' => $externalId.'.json', 'path_lower' => '/smd-events/2026-05-12/'.$externalId.'.json']];
     fakeDropboxForDate('2026-05-12', $files, [$json]);
 
     $updateCalled = false;
@@ -207,13 +206,13 @@ it('comando smd:sync-dropbox llama updateDropbox cuando el payload cambia', func
 // ---------------------------------------------------------------------------
 
 it('comando smd:sync-dropbox llama cancelDropbox cuando status es CANCELED y existe registro previo', function () {
-    $json       = makeSmdJson(['status' => 'CANCELED', 'archived' => false]);
+    $json = makeSmdJson(['status' => 'CANCELED', 'archived' => false]);
     $externalId = $json['_id'];
 
     DB::table('smd_synced_events')->insert([
         'external_id'  => $externalId,
         'source_file'  => '/smd-events/2026-05-12/'.$externalId.'.json',
-        'raw_payload'  => json_encode($json),
+        'raw_payload'  => json_encode(array_merge($json, ['status' => '', 'archived' => false])),
         'status'       => '',
         'activity_id'  => null,
         'lead_id'      => null,
@@ -222,7 +221,7 @@ it('comando smd:sync-dropbox llama cancelDropbox cuando status es CANCELED y exi
         'updated_at'   => now(),
     ]);
 
-    $files = [['name' => $externalId.'.json', 'path_lower' => '/smd-events/2026-05-12/'.$externalId.'.json']];
+    $files = [['.tag' => 'file', 'name' => $externalId.'.json', 'path_lower' => '/smd-events/2026-05-12/'.$externalId.'.json']];
     fakeDropboxForDate('2026-05-12', $files, [$json]);
 
     $cancelCalled = false;
@@ -254,13 +253,13 @@ it('comando smd:sync-dropbox llama cancelDropbox cuando status es CANCELED y exi
 // ---------------------------------------------------------------------------
 
 it('comando smd:sync-dropbox llama cancelDropbox cuando archived es true', function () {
-    $json       = makeSmdJson(['archived' => true, 'status' => '']);
+    $json = makeSmdJson(['archived' => true, 'status' => '']);
     $externalId = $json['_id'];
 
     DB::table('smd_synced_events')->insert([
         'external_id'  => $externalId,
         'source_file'  => '/smd-events/2026-05-12/'.$externalId.'.json',
-        'raw_payload'  => json_encode($json),
+        'raw_payload'  => json_encode(array_merge($json, ['status' => '', 'archived' => false])),
         'status'       => '',
         'activity_id'  => null,
         'lead_id'      => null,
@@ -269,7 +268,7 @@ it('comando smd:sync-dropbox llama cancelDropbox cuando archived es true', funct
         'updated_at'   => now(),
     ]);
 
-    $files = [['name' => $externalId.'.json', 'path_lower' => '/smd-events/2026-05-12/'.$externalId.'.json']];
+    $files = [['.tag' => 'file', 'name' => $externalId.'.json', 'path_lower' => '/smd-events/2026-05-12/'.$externalId.'.json']];
     fakeDropboxForDate('2026-05-12', $files, [$json]);
 
     $cancelCalled = false;
@@ -297,13 +296,13 @@ it('comando smd:sync-dropbox llama cancelDropbox cuando archived es true', funct
 // ---------------------------------------------------------------------------
 
 it('comando smd:sync-dropbox NO llama cancelDropbox cuando archived es true pero no hay registro previo', function () {
-    $json       = makeSmdJson(['archived' => true, 'status' => '']);
+    $json = makeSmdJson(['archived' => true, 'status' => '']);
     $externalId = $json['_id'];
 
     // Asegurar que NO existe en smd_synced_events
     DB::table('smd_synced_events')->where('external_id', $externalId)->delete();
 
-    $files = [['name' => $externalId.'.json', 'path_lower' => '/smd-events/2026-05-12/'.$externalId.'.json']];
+    $files = [['.tag' => 'file', 'name' => $externalId.'.json', 'path_lower' => '/smd-events/2026-05-12/'.$externalId.'.json']];
     fakeDropboxForDate('2026-05-12', $files, [$json]);
 
     $cancelCalled = false;
@@ -368,7 +367,7 @@ it('DropboxService renueva token cuando Dropbox responde 401', function () {
     \Illuminate\Support\Facades\Cache::forget('dropbox_access_token');
 
     $dropbox = app(DropboxService::class);
-    $files   = $dropbox->listFilesForDate('2026-05-12');
+    $files = $dropbox->listFilesForDate('2026-05-12');
 
     expect($files)->toBe([]);
     // Si llegamos aquí sin excepción, el retry funcionó
@@ -380,11 +379,11 @@ it('DropboxService renueva token cuando Dropbox responde 401', function () {
 
 it('comando smd:sync-dropbox incrementa errores cuando el JSON descargado es null', function () {
     $externalId = 'ev-null-'.uniqid();
-    $files      = [['name' => $externalId.'.json', 'path_lower' => '/smd-events/2026-05-12/'.$externalId.'.json']];
+    $files = [['.tag' => 'file', 'name' => $externalId.'.json', 'path_lower' => '/smd-events/2026-05-12/'.$externalId.'.json']];
 
     Http::fake([
-        'https://api.dropboxapi.com/oauth2/token'        => Http::response(['access_token' => 'fake'], 200),
-        'https://api.dropboxapi.com/2/files/list_folder' => Http::response(['entries' => $files, 'cursor' => 'c', 'has_more' => false], 200),
+        'https://api.dropboxapi.com/oauth2/token'         => Http::response(['access_token' => 'fake'], 200),
+        'https://api.dropboxapi.com/2/files/list_folder'  => Http::response(['entries' => $files, 'cursor' => 'c', 'has_more' => false], 200),
         'https://content.dropboxapi.com/2/files/download' => Http::response('not-json', 200),
     ]);
 
@@ -398,11 +397,11 @@ it('comando smd:sync-dropbox incrementa errores cuando el JSON descargado es nul
 // ---------------------------------------------------------------------------
 
 it('comando smd:sync-dropbox incrementa errores cuando el JSON no tiene _id', function () {
-    $files = [['name' => 'sin-id.json', 'path_lower' => '/smd-events/2026-05-12/sin-id.json']];
+    $files = [['.tag' => 'file', 'name' => 'sin-id.json', 'path_lower' => '/smd-events/2026-05-12/sin-id.json']];
 
     Http::fake([
-        'https://api.dropboxapi.com/oauth2/token'        => Http::response(['access_token' => 'fake'], 200),
-        'https://api.dropboxapi.com/2/files/list_folder' => Http::response(['entries' => $files, 'cursor' => 'c', 'has_more' => false], 200),
+        'https://api.dropboxapi.com/oauth2/token'         => Http::response(['access_token' => 'fake'], 200),
+        'https://api.dropboxapi.com/2/files/list_folder'  => Http::response(['entries' => $files, 'cursor' => 'c', 'has_more' => false], 200),
         'https://content.dropboxapi.com/2/files/download' => Http::response(json_encode(['summary' => 'Sin ID']), 200),
     ]);
 

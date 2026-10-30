@@ -1,6 +1,6 @@
 ---
 name: project-smd-integration-state
-description: Estado actual de la integración SMD en la vista del paciente — qué existe, qué falta, qué endpoints hay
+description: Estado actual de la integración SMD en la vista del paciente - qué existe, qué falta, qué endpoints hay
 metadata:
   type: project
 ---
@@ -15,16 +15,16 @@ metadata:
 
 ## Modelo y base de datos
 
-- `persons.smd_patient_id` — columna en BD (migración `2026_05_19_000001_add_smd_patient_id_to_persons_table.php`)
+- `persons.smd_patient_id` - columna en BD (migración `2026_05_19_000001_add_smd_patient_id_to_persons_table.php`)
 - El modelo `Person` tiene `smd_patient_id` en `$fillable`
 
 ## Endpoints disponibles para SMD
 
-- `GET admin.contacts.persons.search_smd` — busca en SMD por teléfono/CI (throttle 30/min)
-- `POST admin.contacts.persons.sync_smd` — vincula al paciente con SMD
-- `ShareMeDataService::searchPatient(phone)` — busca por teléfono
-- `ShareMeDataService::searchPatientByCi(ci)` — busca por CI
-- `ShareMeDataService::updatePatient(smdId, data)` — actualiza datos en SMD
+- `GET admin.contacts.persons.search_smd` - busca en SMD por teléfono/CI (throttle 30/min)
+- `POST admin.contacts.persons.sync_smd` - vincula al paciente con SMD
+- `ShareMeDataService::searchPatient(phone)` - busca por teléfono
+- `ShareMeDataService::searchPatientByCi(ci)` - busca por CI
+- `ShareMeDataService::updatePatient(smdId, data)` - actualiza datos en SMD
 
 ## Datos que SMD retorna por paciente
 

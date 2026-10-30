@@ -1,0 +1,138 @@
+{
+  "version": "7.3",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "APPT_SELECT": [
+      "CONFIRM_CANCEL"
+    ],
+    "CONFIRM_CANCEL": []
+  },
+  "screens": [
+    {
+      "id": "APPT_SELECT",
+      "title": "Tus citas",
+      "data": {
+        "heading": {
+          "type": "string",
+          "__example__": "¿Qué cita querés cancelar?"
+        },
+        "appointments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "77587",
+              "title": "Mié 15/10 · 10:00",
+              "description": "Juan Pérez · CAROLINA ROJAS"
+            }
+          ]
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "${data.heading}"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "name": "appointment",
+            "label": "Cita",
+            "required": true,
+            "data-source": "${data.appointments}"
+          },
+          {
+            "type": "Footer",
+            "label": "Siguiente",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "appointment": "${form.appointment}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "CONFIRM_CANCEL",
+      "title": "Cancelar cita",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "heading": {
+          "type": "string",
+          "__example__": "¿Cancelar esta cita?"
+        },
+        "detail": {
+          "type": "string",
+          "__example__": "Paciente: Juan Pérez\nDoctor/a: CAROLINA ROJAS\nFecha: Mié 15/10 · 10:00"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "no_puedo",
+              "title": "No puedo asistir"
+            }
+          ]
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "${data.heading}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.detail}"
+          },
+          {
+            "type": "Dropdown",
+            "name": "reason",
+            "label": "Motivo (opcional)",
+            "required": false,
+            "data-source": "${data.reasons}"
+          },
+          {
+            "type": "Footer",
+            "label": "Confirmar",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "reason": "${form.reason}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

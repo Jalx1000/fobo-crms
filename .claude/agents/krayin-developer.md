@@ -5,15 +5,15 @@ model: inherit
 memory: project
 ---
 
-# Krayin Developer — Odontoking CRM
+# Krayin Developer - Odontoking CRM
 
 Eres el especialista en el framework base Krayin CRM y el sistema Concord. Cuando el equipo no entiende por qué algo funciona de cierta manera en el framework, tú tienes la respuesta.
 
 ## Krayin CRM
 
-[Krayin](https://krayincrm.com) es un CRM open-source Laravel. Odontoking lo extiende sin modificar el core — todo va en paquetes propios bajo `packages/Webkul/`.
+[Krayin](https://krayincrm.com) es un CRM open-source Laravel. Odontoking lo extiende sin modificar el core - todo va en paquetes propios bajo `packages/Webkul/`.
 
-## Concord — Sistema de módulos
+## Concord - Sistema de módulos
 
 Concord es el sistema de modularización que usa Krayin. Permite extender/reemplazar cualquier parte del framework.
 
@@ -27,7 +27,7 @@ class ModuleServiceProvider extends \Konekt\Concord\BaseModuleServiceProvider
 }
 ```
 
-### Model Proxies — el patrón más importante
+### Model Proxies - el patrón más importante
 
 Cada modelo tiene un Proxy que permite que otros paquetes reemplacen la implementación:
 
@@ -40,7 +40,7 @@ public function doctor() {
     return $this->belongsTo(DoctorProxy::modelClass());
 }
 
-// Uso INCORRECTO — rompe extensibilidad:
+// Uso INCORRECTO - rompe extensibilidad:
 public function doctor() {
     return $this->belongsTo(Doctor::class); // ❌
 }
@@ -67,7 +67,7 @@ class DoctorServiceProvider extends ServiceProvider
 }
 ```
 
-## DataGrids — Tablas del admin
+## DataGrids - Tablas del admin
 
 ```php
 class DoctorDataGrid extends DataGrid
@@ -104,7 +104,7 @@ class DoctorDataGrid extends DataGrid
 ## Sistema de menú y ACL
 
 ```php
-// Config/menu.php — TODOS los items deben tener 'icon-class'
+// Config/menu.php - TODOS los items deben tener 'icon-class'
 [
     'key'        => 'doctors.doctors',  // padre.hijo
     'name'       => 'Doctores',         // string, NO array de traducción
@@ -140,14 +140,14 @@ protected $listen = [
 ];
 ```
 
-**Importante**: Los listeners reciben la entidad como argumento, NO deben depender de `request()` — puede no existir en contextos async.
+**Importante**: Los listeners reciben la entidad como argumento, NO deben depender de `request()` - puede no existir en contextos async.
 
 ## Sistema de traducciones
 
 ```php
 // En Blade:
 @lang('admin::app.layouts.leads')       // ✅
-trans('admin::app.layouts.mail.title')  // ✅ — usar .title si 'mail' retorna array
+trans('admin::app.layouts.mail.title')  // ✅ - usar .title si 'mail' retorna array
 
 // NUNCA usar la clave padre si apunta a un grupo:
 trans('admin::app.layouts.mail')  // ❌ retorna array, rompe MenuItem

@@ -15,13 +15,16 @@ use Illuminate\View\View;
 use Prettus\Repository\Criteria\RequestCriteria;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Admin\DataGrids\Lead\LeadDataGrid;
+use Webkul\Admin\Exceptions\AppointmentException;
 use Webkul\Admin\Http\Controllers\Controller;
 use Webkul\Admin\Http\Requests\LeadForm;
 use Webkul\Admin\Http\Requests\MassDestroyRequest;
 use Webkul\Admin\Http\Requests\MassUpdateRequest;
 use Webkul\Admin\Http\Resources\LeadResource;
 use Webkul\Admin\Http\Resources\StageResource;
+use Webkul\Admin\Services\AppointmentService;
 use Webkul\Admin\Services\ShareMeDataService;
+use Webkul\Admin\Services\Smd\SmdAgenda;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Doctor\Repositories\DoctorRepository;
@@ -119,6 +122,32 @@ class LeadController extends Controller
                 $query->whereIn('leads.user_id', $userIds);
             }
 
+            // Buscador del kanban: paciente por nombre, teléfono o CI, o el título.
+            if ($term = trim((string) request()->query('q', ''))) {
+                app(\Webkul\Admin\Services\PatientSearch::class)->apply($query, $term, 'leads.person_id', ['leads.title']);
+            }
+
+            /**
+             * Filtro por fecha de creación. Un rango personalizado (start_date/end_date)
+             * tiene precedencia sobre el quick-filter (7 / 30 / 90 días / mes actual).
+             * Aplicado antes del sum() clone y el paginador para que tanto los totales
+             * de columna como las tarjetas lo respeten.
+             */
+            $startDate = request()->query('start_date');
+            $endDate = request()->query('end_date');
+
+            if ($startDate || $endDate) {
+                if ($startDate) {
+                    $query->whereDate('leads.created_at', '>=', $startDate);
+                }
+
+                if ($endDate) {
+                    $query->whereDate('leads.created_at', '<=', $endDate);
+                }
+            } elseif ($from = $this->resolveDateRangeFrom(request()->query('date_range'))) {
+                $query->where('leads.created_at', '>=', $from);
+            }
+
             $stage->lead_value = (clone $query)->sum('lead_value');
 
             $data[$stage->sort_order] = (new StageResource($stage))->jsonSerialize();
@@ -136,7 +165,7 @@ class LeadController extends Controller
                     'pipeline.stages',
                     'stage',
                     'attribute_values',
-                ])->paginate(10)),
+                ])->paginate($this->resolveKanbanPerPage())),
 
                 'meta' => [
                     'current_page' => $paginator->currentPage(),
@@ -153,6 +182,38 @@ class LeadController extends Controller
     }
 
     /**
+     * Resolves the starting datetime for the kanban date-range quick filter.
+     *
+     * Accepted values: "7", "30", "90" (last N days) and "month" (current month).
+     * Any other/empty value disables the filter (returns null). The boundary is
+     * computed server-side so it is consistent regardless of the client timezone.
+     */
+    protected function resolveDateRangeFrom(?string $range): ?Carbon
+    {
+        return match ($range) {
+            '7'     => now()->subDays(7),
+            '30'    => now()->subDays(30),
+            '90'    => now()->subDays(90),
+            'month' => now()->startOfMonth(),
+            default => null,
+        };
+    }
+
+    /**
+     * Resolves how many leads each kanban column page returns.
+     *
+     * Honours the request "limit" (sent by the infinite-scroll frontend) so the
+     * backend and frontend share a single source of truth, clamped to a sane
+     * range to avoid abusive page sizes.
+     */
+    protected function resolveKanbanPerPage(): int
+    {
+        $limit = (int) request()->query('limit', 10);
+
+        return max(1, min($limit, 100));
+    }
+
+    /**
      * Show the form for creating a new resource.
      */
     public function create(): View
@@ -162,7 +223,7 @@ class LeadController extends Controller
             'quick_add'   => 1,
         ]);
 
-        $doctors = $this->doctorRepository->all();
+        $doctors = $this->doctorRepository->findWhere(['is_active' => 1]);
 
         return view('admin::leads.create', compact('attributes', 'doctors'));
     }
@@ -244,7 +305,9 @@ class LeadController extends Controller
 
             if (empty($doctorExternalId)) {
                 // Descubrimiento automático (Lógica reducida para LeadController)
-                $discoverySpecialties = $doctor->specialties->pluck('name')->toArray() ?: ['General'];
+                $discoverySpecialties = SmdAgenda::enabled()
+                    ? [(string) config('smd.availability_specialty', 'General')]
+                    : ($doctor->specialties->pluck('name')->toArray() ?: ['General']);
                 foreach ($discoverySpecialties as $spec) {
                     $this->shareMeDataService->checkAvailability(null, $spec, 'Santa Cruz', $scheduleFrom->format('Y-m-d H:i:s'), $scheduleTo->format('Y-m-d H:i:s'));
                     $raw = $this->shareMeDataService->getLastResponse();
@@ -263,18 +326,32 @@ class LeadController extends Controller
                 }
             }
 
-            $doctorSpecialties = $doctor->specialties->pluck('name')->toArray() ?: ['General'];
-            $isAvailableExternally = false;
-            foreach ($doctorSpecialties as $specialty) {
-                $slots = $this->shareMeDataService->checkAvailability($doctorExternalId, $specialty, 'Santa Cruz', $scheduleFrom->format('Y-m-d H:i:s'), $scheduleTo->format('Y-m-d H:i:s'));
-                if (! empty($slots)) {
+            $msg = 'El doctor no tiene disponibilidad en SHAREMEDATA para el horario solicitado.';
+
+            if (SmdAgenda::enabled()) {
+                // La misma validación que AppointmentService: 1 consulta y todos
+                // los bloques de 15 min libres (planning/16, RF-5). La de abajo
+                // daba por libre el horario si SMD devolvía cualquier bloque.
+                try {
+                    app(AppointmentService::class)->assertAvailableInSmd($doctorExternalId, $scheduleFrom, $scheduleTo);
                     $isAvailableExternally = true;
-                    break;
+                } catch (AppointmentException $e) {
+                    $isAvailableExternally = false;
+                    $msg = $e->getMessage();
+                }
+            } else {
+                $doctorSpecialties = $doctor->specialties->pluck('name')->toArray() ?: ['General'];
+                $isAvailableExternally = false;
+                foreach ($doctorSpecialties as $specialty) {
+                    $slots = $this->shareMeDataService->checkAvailability($doctorExternalId, $specialty, 'Santa Cruz', $scheduleFrom->format('Y-m-d H:i:s'), $scheduleTo->format('Y-m-d H:i:s'));
+                    if (! empty($slots)) {
+                        $isAvailableExternally = true;
+                        break;
+                    }
                 }
             }
 
             if (! $isAvailableExternally) {
-                $msg = 'El doctor no tiene disponibilidad en SHAREMEDATA para el horario solicitado.';
                 if (request()->ajax()) {
                     return response()->json(['message' => $msg], 422);
                 }

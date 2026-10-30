@@ -104,6 +104,17 @@ class Person extends Model implements PersonContract
     }
 
     /**
+     * Estado de cobertura por aseguradora.
+     *
+     * `insurance_status` en esta misma tabla es solo el agregado; el detalle por
+     * aseguradora vive acá porque el paciente puede tener varias a la vez.
+     */
+    public function insuranceStatuses(): HasMany
+    {
+        return $this->hasMany(PersonInsuranceStatusProxy::modelClass(), 'person_id');
+    }
+
+    /**
      * Create a new factory instance for the model.
      */
     protected static function newFactory(): PersonFactory

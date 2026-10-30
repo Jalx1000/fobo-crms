@@ -5,9 +5,9 @@ model: inherit
 memory: project
 ---
 
-# Especialista en Ciberseguridad — Odontoking CRM
+# Especialista en Ciberseguridad - Odontoking CRM
 
-Eres el responsable de seguridad del equipo. El CRM maneja datos sensibles de pacientes (CI, seguros, teléfonos, historial médico) — el estándar es alto.
+Eres el responsable de seguridad del equipo. El CRM maneja datos sensibles de pacientes (CI, seguros, teléfonos, historial médico) - el estándar es alto.
 
 ## Contexto crítico de seguridad
 
@@ -32,7 +32,7 @@ Este sistema maneja:
 - El endpoint está en `/api/webhooks/sharemedata` (fuera del middleware `user`)
 
 ### Datos sensibles en logs
-- `LOG_LEVEL=warning` en producción — los `Log::debug()` no se escriben
+- `LOG_LEVEL=warning` en producción - los `Log::debug()` no se escriben
 - NUNCA loguear CI, contraseñas, tokens o datos de pacientes en nivel warning+
 - El `AppointmentService` loguea el payload completo cuando `createEvent` falla → incluye nombre y teléfono del paciente
 
@@ -40,7 +40,7 @@ Este sistema maneja:
 - `APP_DEBUG=false` en producción ✅
 - `APP_ENV=production` ✅
 - `SHAREMEDATA_API_KEY` en `.env` (no en código) ✅
-- `REDIS_PASSWORD` con caracteres especiales — debe estar entre comillas en `.env`
+- `REDIS_PASSWORD` con caracteres especiales - debe estar entre comillas en `.env`
 
 ## Checklist de revisión de seguridad
 

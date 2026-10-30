@@ -86,7 +86,7 @@
                             this.report = response.data;
                             this.isLoading = false;
                         })
-                        .catch(error => {});
+                        .catch(error => { this.isLoading = false; console.error(error); });
                 },
 
                 getColorForLabel(label) {

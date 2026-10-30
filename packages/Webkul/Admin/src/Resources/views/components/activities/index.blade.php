@@ -39,14 +39,20 @@
         <template v-else>
             {!! view_render_event('admin.components.activities.content.before') !!}
 
-            <div class="w-full rounded-md border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-                <div class="flex gap-2 overflow-x-auto border-b border-gray-200 dark:border-gray-800">
+            <div class="w-full rounded-md border border-gray-200 bg-white max-lg:rounded-none max-lg:border-x-0 dark:border-gray-800 dark:bg-gray-900">
+                {{-- Pestañas en una línea que se desliza (sin partir «Registros de cambios»); en el celular, con altura táctil. --}}
+                <div
+                    ref="pestanas"
+                    class="pestanas-scroll flex gap-2 overflow-x-auto border-b border-gray-200 max-lg:gap-0 max-lg:px-1 dark:border-gray-800"
+                    @wheel="ruedaEnPestanas"
+                >
                     {!! view_render_event('admin.components.activities.content.types.before') !!}
 
                     <div
                         v-for="type in types"
-                        class="cursor-pointer px-3 py-2.5 text-sm font-medium dark:text-white"
+                        class="shrink-0 cursor-pointer whitespace-nowrap px-3 py-2.5 text-sm font-medium max-lg:py-3 dark:text-white"
                         :class="{'border-brandColor border-b-2 !text-brandColor transition': selectedType == type.name }"
+                        :data-activa="selectedType == type.name ? 'si' : null"
                         @click="selectedType = type.name"
                     >
                         @{{ type.label }}
@@ -91,11 +97,12 @@
                                 {!! view_render_event('admin.components.activities.content.activity.item.details.before') !!}
 
                                 <!-- Activity Details -->
+                                {{-- min-w-0 y corte en cualquier punto: un valor largo sin espacios estiraba la ficha en el celular. --}}
                                 <div
-                                    class="flex w-full justify-between gap-4 rounded-md p-4"
+                                    class="flex w-full min-w-0 justify-between gap-4 rounded-md p-4"
                                     :class="{'bg-gray-100 dark:bg-gray-950': index % 2 != 0 }"
                                 >
-                                    <div class="flex flex-col gap-2">
+                                    <div class="flex min-w-0 flex-col gap-2 [overflow-wrap:anywhere]">
                                         {!! view_render_event('admin.components.activities.content.activity.item.title.before') !!}
 
                                         <!-- Activity Title -->
@@ -107,14 +114,15 @@
                                                 @{{ activity.title }}
 
                                                 <template v-if="activity.type == 'system' && activity.additional">
-                                                    <p class="flex items-center gap-1">
+                                                    {{-- flex-wrap: un valor largo baja de renglón en vez de aplastar al otro. --}}
+                                                    <p class="flex flex-wrap items-center gap-1">
                                                         <span>:</span>
 
-                                                        <span class="break-words">
+                                                        <span class="[overflow-wrap:anywhere]">
                                                             @{{ (activity.additional.old.label ? String(activity.additional.old.label).replaceAll('<br>', ' ') : "@lang('admin::app.components.activities.index.empty')") }}
                                                         </span>
 
-                                                        <span class="break-words">
+                                                        <span class="[overflow-wrap:anywhere]">
                                                             @{{ (activity.additional.new.label ? String(activity.additional.new.label).replaceAll('<br>', ' ') : "@lang('admin::app.components.activities.index.empty')") }}
                                                         </span>
                                                     </p>
@@ -522,9 +530,10 @@
                         }, {
                             name: 'note',
                             label: "{{ trans('admin::app.components.activities.index.notes') }}",
-                        }, {
-                            name: 'call',
-                            label: "{{ trans('admin::app.components.activities.index.calls') }}",
+                        // Oculto por requerimiento: pestaña "Llamadas" (no eliminar)
+                        // }, {
+                        //     name: 'call',
+                        //     label: "{{ trans('admin::app.components.activities.index.calls') }}",
                         }, {
                             name: 'meeting',
                             label: "{{ trans('admin::app.components.activities.index.meetings') }}",
@@ -640,9 +649,10 @@
             mounted() {
                 this.get();
 
+                // `primera: true` pone la pestaña al principio (WhatsApp en cita y paciente).
                 if (this.extraTypes?.length) {
                     this.extraTypes.forEach(type => {
-                        this.types.push(type);
+                        type.primera ? this.types.unshift(type) : this.types.push(type);
                     });
                 }
 
@@ -653,12 +663,50 @@
                     });
                 } */
 
-                this.selectedType = 'all';
+                // Abre en la pestaña pedida (`active-type`); antes se forzaba «Todo».
+                this.selectedType = this.types.find((type) => type.name === this.activeType)
+                    ? this.activeType
+                    : 'all';
 
                 this.$emitter.on('on-activity-added', (activity) => this.activities.unshift(activity));
             },
 
             methods: {
+                /**
+                 * Celular: la fila de pestañas se desliza hasta la abierta
+                 * (WhatsApp queda a la derecha y no se veía cuál estaba activa).
+                 */
+                mostrarPestanaActiva() {
+                    const fila = this.$refs.pestanas;
+
+                    const activa = fila?.querySelector('[data-activa]');
+
+                    if (fila && activa && fila.scrollWidth > fila.clientWidth) {
+                        fila.scrollLeft = activa.offsetLeft - fila.offsetLeft - 12;
+                    }
+                },
+
+                /**
+                 * Mouse sin touchpad: la rueda sobre las pestañas las desliza de
+                 * costado. Solo si no entran y mientras quede lugar; en el borde,
+                 * la rueda vuelve a desplazar la página.
+                 */
+                ruedaEnPestanas(evento) {
+                    const fila = this.$refs.pestanas;
+
+                    if (! fila || fila.scrollWidth <= fila.clientWidth || Math.abs(evento.deltaX) > Math.abs(evento.deltaY)) {
+                        return;
+                    }
+
+                    const antes = fila.scrollLeft;
+
+                    fila.scrollLeft += evento.deltaY;
+
+                    if (fila.scrollLeft !== antes) {
+                        evento.preventDefault();
+                    }
+                },
+
                 get() {
                     this.isLoading = true;
 
@@ -667,6 +715,8 @@
                             this.activities = response.data.data;
 
                             this.isLoading = false;
+
+                            this.$nextTick(() => this.mostrarPestanaActiva());
                         })
                         .catch(error => {
                             console.error(error);
@@ -811,7 +861,7 @@
 
                         <div v-for="ev in dayDoctorEvents(day.date, col.id)" :key="'ev-'+ev.id" class="dwc-event" :style="{ top: ev.top + 'px', height: ev.height + 'px' }">
                             <div class="dwc-event-title">@{{ ev.title || ev.type }}</div>
-                            <div class="dwc-event-time">@{{ formatTime(ev.start) }} — @{{ formatTime(ev.end) }} · @{{ day.label }}</div>
+                            <div class="dwc-event-time">@{{ formatTime(ev.start) }} - @{{ formatTime(ev.end) }} · @{{ day.label }}</div>
                             <div class="flex items-center gap-2 mt-1">
                                 <a :href="editUrl(ev.id)" class="icon-edit text-xl"></a>
                                 <button type="button" class="icon-delete text-xl text-red-600" @click.stop="remove(ev)"></button>
@@ -896,7 +946,7 @@ app.component('v-doctor-week-calendar', {
             if (!this.days.length) return '';
             const s = new Date(this.days[0].date);
             const e = new Date(this.days[this.days.length - 1].date);
-            return `${this.formatDate(s)} — ${this.formatDate(e)}`;
+            return `${this.formatDate(s)} - ${this.formatDate(e)}`;
         },
         columns() {
             const ids = new Set(this.selectedDoctorIds.map(id => String(id)));

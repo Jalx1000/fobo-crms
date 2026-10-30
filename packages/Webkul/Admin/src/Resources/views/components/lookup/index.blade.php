@@ -65,7 +65,7 @@
                         class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm font-normal text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
                         placeholder="@lang('admin::app.components.lookup.search')"
                         ref="searchInput"
-                        @keyup="search"
+                        @input="onInput"
                     />
 
                     <!-- Search Icon (absolute positioned) -->
@@ -89,23 +89,49 @@
                         @click="selectItem(item)"
                     >
                         @{{ item.name }}
+
+                        <!-- Para distinguir homónimos cuando el backend busca también por CI/teléfono -->
+                        <span
+                            v-if="serverFiltered && itemDetail(item)"
+                            class="block text-xs text-gray-500 dark:text-gray-400"
+                        >
+                            @{{ itemDetail(item) }}
+                        </span>
                     </li>
 
-                    <template v-if="filteredResults.length === 0">
-                        <li class="px-4 py-2 text-gray-500">
-                            @lang('admin::app.components.lookup.no-results')
-                        </li>
+                    <li
+                        v-if="isSearching && filteredResults.length === 0"
+                        class="px-4 py-2 text-gray-500"
+                    >
+                        Buscando…
+                    </li>
 
-                        <li
-                            v-if="searchTerm.length > 2 && canAddNew"
-                            @click="selectItem({ id: '', name: searchTerm })"
-                            class="cursor-pointer border-t border-gray-800 px-4 py-2 text-gray-500 hover:bg-brandColor hover:text-white dark:border-gray-300 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
-                        >
-                            <i class="icon-add text-md"></i>
+                    <!-- Con menos de 3 letras no se busca: decir eso, no «sin resultados». -->
+                    <li
+                        v-else-if="filteredResults.length === 0 && ! preload && searchTerm.length <= 2"
+                        class="px-4 py-2 text-gray-500"
+                    >
+                        Escribe al menos 3 letras para buscar.
+                    </li>
 
-                            @lang('admin::app.components.lookup.add-as-new')
-                        </li>
-                    </template>
+                    <li
+                        v-else-if="filteredResults.length === 0"
+                        class="px-4 py-2 text-gray-500"
+                    >
+                        @lang('admin::app.components.lookup.no-results')
+                    </li>
+
+                    <!-- Crear uno nuevo también cuando hay coincidencias: dos pacientes
+                         pueden llamarse igual (antes solo salía sin resultados). -->
+                    <li
+                        v-if="canAddNew && searchTerm.length > 2 && ! isSearching"
+                        @click="selectItem({ id: '', name: searchTerm })"
+                        class="cursor-pointer border-t border-gray-200 px-4 py-2 text-gray-600 hover:bg-brandColor hover:text-white dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
+                    >
+                        <i class="icon-add text-md"></i>
+
+                        @lang('admin::app.components.lookup.add-as-new'): «@{{ searchTerm }}»
+                    </li>
                 </ul>
             </div>
         </div>
@@ -156,6 +182,16 @@
                     default: false,
                 },
 
+                /**
+                 * El backend ya filtra (ej. pacientes por nombre, CI o teléfono):
+                 * no volver a filtrar por nombre en el navegador, que descartaría
+                 * los que coincidieron por CI o teléfono.
+                 */
+                serverFiltered: {
+                    type: Boolean,
+                    default: false,
+                },
+
                 preload: {
                     type: Boolean,
                     default: false,
@@ -177,6 +213,12 @@
                     isSearching: false,
 
                     cancelToken: null,
+
+                    // Número de la última búsqueda: solo esa apaga «Buscando…» y
+                    // deja sus resultados. No se compara el cancelToken porque
+                    // desde data() llega envuelto en un Proxy reactivo y nunca
+                    // es === al objeto original (quedaba «Buscando…» para siempre).
+                    lastRequestId: 0,
                 };
             },
 
@@ -209,6 +251,10 @@
                  * @return {Array}
                  */
                 filteredResults() {
+                    if (this.serverFiltered) {
+                        return this.searchedResults;
+                    }
+
                     return this.searchedResults.filter(item =>
                         item.name.toLowerCase().includes(this.searchTerm.toLowerCase())
                     );
@@ -216,6 +262,35 @@
             },
 
             methods: {
+                /**
+                 * CI y primer teléfono del resultado, si los trae (PersonResource).
+                 *
+                 * @param {Object} item
+                 *
+                 * @return {String}
+                 */
+                itemDetail(item) {
+                    const phone = Array.isArray(item.contact_numbers) ? item.contact_numbers[0]?.value : null;
+
+                    return [item.ci_paciente ? 'CI ' + item.ci_paciente : null, phone]
+                        .filter(Boolean)
+                        .join(' · ');
+                },
+
+                /**
+                 * Mientras se escribe (v-debounce actualiza searchTerm 500 ms
+                 * después), marcar que hay una búsqueda en camino, salvo que el
+                 * texto haya vuelto a ser el ya buscado.
+                 *
+                 * @param {Event} event
+                 *
+                 * @return {void}
+                 */
+                onInput(event) {
+                    this.isSearching = event.target.value !== this.searchTerm
+                        && event.target.value.length > 2;
+                },
+
                 /**
                  * Toggle the popup.
                  *
@@ -252,6 +327,14 @@
                  * @return {void}
                  */
                 search(preload = false) {
+                    const requestId = ++this.lastRequestId;
+
+                    if (this.cancelToken) {
+                        this.cancelToken.cancel();
+
+                        this.cancelToken = null;
+                    }
+
                     if (
                         ! preload
                         && this.searchTerm.length <= 2
@@ -265,10 +348,6 @@
 
                     this.isSearching = true;
 
-                    if (this.cancelToken) {
-                        this.cancelToken.cancel();
-                    }
-
                     this.cancelToken = this.$axios.CancelToken.source();
 
                     this.$axios.get(this.src, {
@@ -279,16 +358,20 @@
                             cancelToken: this.cancelToken.token,
                         })
                         .then(response => {
-                            this.searchedResults = response.data.data;
+                            if (requestId === this.lastRequestId) {
+                                this.searchedResults = response.data.data;
+                            }
                         })
                         .catch(error => {
                             if (! this.$axios.isCancel(error)) {
                                 console.error("Search request failed:", error);
                             }
-
-                            this.isSearching = false;
                         })
-                        .finally(() => this.isSearching = false);
+                        .finally(() => {
+                            if (requestId === this.lastRequestId) {
+                                this.isSearching = false;
+                            }
+                        });
                 },
 
                 /**

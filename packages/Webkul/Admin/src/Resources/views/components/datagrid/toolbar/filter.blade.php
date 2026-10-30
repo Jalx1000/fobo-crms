@@ -38,7 +38,8 @@
                     v-if="available.columns.some(column => column.filterable)"
                 >
                     <x-slot:toggle>
-                        <div class="relative flex cursor-pointer items-center rounded-md bg-sky-100 px-4 py-[9px] font-semibold text-sky-600 dark:bg-brandColor dark:text-white">
+                        {{-- datagrid-filtro-toggle: una página con su propio panel «Filtros» lo esconde en el celular. --}}
+                        <div class="datagrid-filtro-toggle relative flex cursor-pointer items-center rounded-md bg-sky-100 px-4 py-[9px] font-semibold text-sky-600 dark:bg-brandColor dark:text-white">
                             @lang('admin::app.components.datagrid.toolbar.filter.title')
 
                             <span
@@ -942,6 +943,25 @@
                 this.savedFilters.params.filters.columns = JSON.parse(JSON.stringify(this.filters.columns));
 
                 this.getSavedFilters();
+
+                // Celular: el panel «Filtros» de la página abre estos filtros y muestra cuántos hay.
+                this.$emitter.on('datagrid:filtros-por-columna', this.abrirDesdeMovil);
+
+                this.$nextTick(this.avisarColumnasFiltradas);
+            },
+
+            beforeUnmount() {
+                this.$emitter.off('datagrid:filtros-por-columna', this.abrirDesdeMovil);
+            },
+
+            watch: {
+                'applied.filters.columns': {
+                    handler() {
+                        this.avisarColumnasFiltradas();
+                    },
+
+                    deep: true,
+                },
             },
 
             computed: {
@@ -976,6 +996,14 @@
                  */
                 hasAnyAppliedColumn() {
                     return this.getAppliedColumns().length > 0;
+                },
+
+                abrirDesdeMovil() {
+                    this.$refs.filterDrawer?.open();
+                },
+
+                avisarColumnasFiltradas() {
+                    this.$emitter.emit('datagrid:columnas-filtradas', this.getAppliedColumns().length);
                 },
 
                 /**

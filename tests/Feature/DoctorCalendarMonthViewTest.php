@@ -1,7 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 it('retorna datos para vista mensual con days/doctors/appointments/availability', function () {
     $admin = getDefaultAdmin();
@@ -9,7 +9,7 @@ it('retorna datos para vista mensual con days/doctors/appointments/availability'
 
     // Crear doctor
     $doctorId = DB::table('doctors')->insertGetId([
-        'name'       => 'Dr. Mes ' . rand(100, 999),
+        'name'       => 'Dr. Mes '.rand(100, 999),
         'created_at' => now(),
         'updated_at' => now(),
     ]);
@@ -44,8 +44,7 @@ it('retorna datos para vista mensual con days/doctors/appointments/availability'
     expect(is_array($json['days']))->toBeTrue();
     expect(count($json['days']))->toBeGreaterThanOrEqual(28);
 
-    $availForMonth = array_values(array_filter($json['availability'], fn ($s) =>
-        (int)($s['doctor_id'] ?? 0) === (int)$doctorId
+    $availForMonth = array_values(array_filter($json['availability'], fn ($s) => (int) ($s['doctor_id'] ?? 0) === (int) $doctorId
     ));
     expect(count($availForMonth))->toBeGreaterThanOrEqual(1);
 });

@@ -8,7 +8,7 @@ use Webkul\Admin\Services\DropboxService;
 
 class InitDropboxCursor extends Command
 {
-    protected $signature   = 'smd:dropbox-init-cursor';
+    protected $signature = 'smd:dropbox-init-cursor';
 
     protected $description = 'Inicializa el cursor de Dropbox para el webhook (ejecutar una vez antes del primer webhook)';
 
@@ -36,7 +36,7 @@ class InitDropboxCursor extends Command
             ['value' => $cursor, 'updated_at' => now()]
         );
 
-        $this->info('Cursor guardado: ' . substr($cursor, 0, 40) . '...');
+        $this->info('Cursor guardado: '.substr($cursor, 0, 40).'...');
         $this->info('El webhook ya puede recibir notificaciones.');
 
         return self::SUCCESS;

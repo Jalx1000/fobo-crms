@@ -30,7 +30,8 @@
                     <x-admin::attributes.view
                         :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
                             'entity_type' => 'leads',
-                            ['code', 'NOTIN', ['title', 'description', 'lead_pipeline_id', 'lead_pipeline_stage_id', 'expected_close_date']]
+                            // 'lead_value' oculto por requerimiento: Valor total (no eliminar, remover del NOTIN para reactivar)
+                            ['code', 'NOTIN', ['title', 'description', 'lead_pipeline_id', 'lead_pipeline_stage_id', 'expected_close_date', 'lead_value']]
                         ])"
                         :entity="$lead"
                         :url="route('admin.leads.attributes.update', $lead->id)"

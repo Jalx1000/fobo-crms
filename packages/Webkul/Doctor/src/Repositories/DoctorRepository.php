@@ -33,6 +33,10 @@ class DoctorRepository extends Repository
     {
         $data = $this->sanitize($data);
 
+        if (! isset($data['unique_id']) && isset($data['name'])) {
+            $data['unique_id'] = implode('|', array_filter([$data['number'] ?? null, $data['name'] ?? null]));
+        }
+
         $specialtyIds = $this->resolveSpecialties($data);
 
         $doctor = parent::create(Arr::except($data, ['specialties', 'specialty_names']));
@@ -47,6 +51,14 @@ class DoctorRepository extends Repository
     public function update(array $data, $id)
     {
         $data = $this->sanitize($data);
+
+        // unique_id = _id del médico en ShareMeData: solo se escribe cuando llega
+        // uno explícito (vinculación con SMD). Nunca se inventa ni se vacía al
+        // editar: antes se pisaba con "número|nombre" y el doctor dejaba de
+        // recibir sus citas de SMD.
+        if (array_key_exists('unique_id', $data) && trim((string) $data['unique_id']) === '') {
+            unset($data['unique_id']);
+        }
 
         $specialtyIds = $this->resolveSpecialties($data);
 
@@ -75,10 +87,6 @@ class DoctorRepository extends Repository
 
         if (array_key_exists('email', $data)) {
             $data['email'] = trim((string) $data['email']);
-        }
-
-        if (! isset($data['unique_id']) && isset($data['name'])) {
-            $data['unique_id'] = implode('|', array_filter([$data['number'] ?? null, $data['name'] ?? null]));
         }
 
         if (array_key_exists('is_active', $data)) {

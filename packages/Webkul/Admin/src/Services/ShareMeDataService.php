@@ -3,8 +3,14 @@
 namespace Webkul\Admin\Services;
 
 use Carbon\Carbon;
+use GuzzleHttp\Middleware;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Psr\Http\Message\ResponseInterface;
+use Webkul\Admin\Services\Smd\ApiBudget;
+use Webkul\Admin\Services\Smd\QuotaExceeded;
+use Webkul\Admin\Services\Smd\SmdAlerts;
 use Webkul\Doctor\Repositories\SpecialtyRepository;
 
 class ShareMeDataService
@@ -25,18 +31,64 @@ class ShareMeDataService
         $this->patientsBaseUrl = config('services.sharemedata.patients_url', 'https://gamma.sharemedata.com/api');
     }
 
+    /**
+     * Cliente para UNA consulta a SMD. Toda consulta pasa por acá y se cuenta
+     * contra la cuota contratada (ApiBudget): quién la pidió y con qué método.
+     */
     protected function http(): \Illuminate\Http\Client\PendingRequest
     {
+        $endpoint = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2)[1]['function'] ?? 'http';
+        // Pasado el tope diario, una consulta no esencial lanza QuotaExceeded
+        // acá: cada método la atrapa como una falla de SMD y responde vacío.
+        app(ApiBudget::class)->authorize($endpoint, ApiBudget::callerOutside(self::class));
+
         $client = Http::withHeaders([
             'Accept'  => 'application/json',
             'apikey'  => $this->apiKey,
-        ]);
+        ])->withMiddleware(Middleware::mapResponse(function (ResponseInterface $response) use ($endpoint) {
+            $this->alertOnStatus($endpoint, $response->getStatusCode());
+
+            return $response;
+        }));
 
         if (app()->environment(['local', 'testing'])) {
             $client = $client->withoutVerifying();
         }
 
         return $client;
+    }
+
+    /** Métodos que consultan la disponibilidad (A-1). */
+    protected const AVAILABILITY_ENDPOINTS = ['availabilityBySpecialty', 'checkAvailability'];
+
+    /**
+     * Errores críticos por código HTTP (planning/16, RF-10): apikey rechazada
+     * en cualquier endpoint (A-2) o disponibilidad que no responde (A-1).
+     */
+    protected function alertOnStatus(string $endpoint, int $status): void
+    {
+        if (in_array($status, [401, 403], true)) {
+            app(SmdAlerts::class)->report(SmdAlerts::AUTH, ['endpoint' => $endpoint, 'status' => $status]);
+        } elseif ($status >= 400 && in_array($endpoint, self::AVAILABILITY_ENDPOINTS, true)) {
+            app(SmdAlerts::class)->report(SmdAlerts::AVAILABILITY, ['endpoint' => $endpoint, 'status' => $status]);
+        }
+    }
+
+    /**
+     * A-3: no se pudo crear/editar la cita en SMD y quedó solo en Sofo. No
+     * cuenta el horario ocupado (es una respuesta normal), ni la apikey
+     * rechazada ni el tope diario (tienen su propia alerta).
+     */
+    protected function alertOnEventWrite(string $endpoint, ?int $status, string $message, array $context = []): void
+    {
+        if ($status !== null && (in_array($status, [401, 403], true)
+            || in_array($status, (array) config('smd.alerts.slot_taken_statuses', []), true))) {
+            return;
+        }
+
+        app(SmdAlerts::class)->report(SmdAlerts::EVENT_WRITE, array_merge([
+            'endpoint' => $endpoint, 'status' => $status, 'mensaje' => mb_substr($message, 0, 300),
+        ], $context));
     }
 
     /**
@@ -103,9 +155,9 @@ class ShareMeDataService
     {
         try {
             $this->lastResponse = null;
-            $appTz         = config('app.timezone', 'America/La_Paz');
+            $appTz = config('app.timezone', 'America/La_Paz');
             $fromFormatted = Carbon::parse($from)->setTimezone($appTz)->format('Y-m-d\TH:i:sP');
-            $toFormatted   = Carbon::parse($to)->setTimezone($appTz)->format('Y-m-d\TH:i:sP');
+            $toFormatted = Carbon::parse($to)->setTimezone($appTz)->format('Y-m-d\TH:i:sP');
 
             $queryParams = [
                 'where'      => 'subsidiary='.urlencode($subsidiary).'&specialty='.urlencode($specialty),
@@ -153,6 +205,10 @@ class ShareMeDataService
         } catch (\Exception $e) {
             Log::error('ShareMeData: Error verificando disponibilidad: '.$e->getMessage());
 
+            if ($e instanceof ConnectionException) {
+                app(SmdAlerts::class)->report(SmdAlerts::AVAILABILITY, ['endpoint' => 'checkAvailability', 'error' => 'sin respuesta: '.$e->getMessage()]);
+            }
+
             return [];
         }
     }
@@ -160,16 +216,96 @@ class ShareMeDataService
     /**
      * Obtener la última respuesta en crudo
      */
+    /**
+     * Disponibilidad de TODOS los doctores de una especialidad en una sola
+     * consulta: SMD filtra por especialidad y sucursal, no por doctor.
+     * (checkAvailability pide lo mismo y se queda con un doctor.)
+     *
+     * @return array<int, array{physician: array, slots: array}>|null null = SMD no respondió bien
+     */
+    /** La última availabilityBySpecialty() se cortó por tiempo (no es que SMD falló). */
+    public bool $lastTimedOut = false;
+
+    public function availabilityBySpecialty(string $specialty, string $subsidiary, string $from, string $to, ?int $timeout = null): ?array
+    {
+        $this->lastTimedOut = false;
+        $this->lastResponse = null;
+
+        try {
+            $tz = config('app.timezone', 'America/La_Paz');
+
+            $response = $this->http()->timeout($timeout ?? (int) config('smd.availability_timeout', 30))->get("{$this->baseUrl}/schedule/availability", [
+                'where'      => 'subsidiary='.urlencode($subsidiary).'&specialty='.urlencode($specialty),
+                'from'       => Carbon::parse($from)->setTimezone($tz)->format('Y-m-d\TH:i:sP'),
+                'to'         => Carbon::parse($to)->setTimezone($tz)->format('Y-m-d\TH:i:sP'),
+                'groupByDay' => 'true',
+                'timeZone'   => 'America/La_Paz',
+            ]);
+
+            // Para distinguir "SMD no respondió" (null, 5xx) de un 4xx.
+            $this->lastResponse = ['status' => $response->status(), 'body' => $response->json() ?: $response->body()];
+
+            return $response->successful() && is_array($response->json()) ? $response->json() : null;
+        } catch (ConnectionException $e) {
+            $this->lastTimedOut = true;
+            Log::info('[SMD] availabilityBySpecialty: sin respuesta dentro del tiempo', ['specialty' => $specialty, 'timeout' => $timeout]);
+
+            // Con `$timeout` la cortó la pantalla de WhatsApp a propósito (la
+            // termina un job): no es una falla de SMD.
+            if ($timeout === null) {
+                app(SmdAlerts::class)->report(SmdAlerts::AVAILABILITY, ['endpoint' => 'availabilityBySpecialty', 'error' => 'sin respuesta: '.$e->getMessage()]);
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::warning('[SMD] availabilityBySpecialty: '.$e->getMessage(), ['specialty' => $specialty]);
+
+            return null;
+        }
+    }
+
+    /**
+     * La agenda de TODOS los doctores para un rango, en una sola consulta: en
+     * SMD todos están en `smd.availability_specialty` ("General") y Sofo decide
+     * quién atiende qué especialidad. Lo usa SmdAgenda; nadie más debería
+     * pedirle disponibilidad a SMD por especialidad en modo `single`.
+     *
+     * @return array<int, array{physician: array, slots: array}>|null null = SMD no respondió bien
+     */
+    public function agenda(string $from, string $to, ?int $timeout = null): ?array
+    {
+        return $this->availabilityBySpecialty(
+            (string) config('smd.availability_specialty', 'General'),
+            (string) config('smd.default_subsidiary', 'Santa Cruz'),
+            $from,
+            $to,
+            $timeout,
+        );
+    }
+
     public function getLastResponse()
     {
         return $this->lastResponse;
     }
 
     /**
-     * Buscar paciente en SMD por teléfono. Retorna array de pacientes encontrados.
+     * Buscar paciente en SMD por teléfono. Retorna array de pacientes encontrados
+     * ([] también si SMD falló; para distinguir, usar searchPatientOrNull()).
      * La API de SMD requiere búsqueda regex: where=phone=/numero/
      */
     public function searchPatient(string $phone): array
+    {
+        return $this->searchPatientOrNull($phone) ?? [];
+    }
+
+    /**
+     * Igual que searchPatient(), pero devuelve null si SMD no respondió bien.
+     *
+     * searchPatient() convierte un fallo en [], y quien llama no puede saber si
+     * el paciente no existe o si SMD estaba caído: un contacto nuevo de WhatsApp
+     * quedaba registrado "sin datos de SMD" sin que nadie supiera por qué.
+     */
+    public function searchPatientOrNull(string $phone): ?array
     {
         try {
             $response = $this->http()->get("{$this->patientsBaseUrl}/patients", [
@@ -188,11 +324,11 @@ class ShareMeDataService
                 'status'       => $response->status(),
             ]);
 
-            return [];
+            return null;
         } catch (\Exception $e) {
             Log::error('[SMD] searchPatient excepción: '.$e->getMessage());
 
-            return [];
+            return null;
         }
     }
 
@@ -222,6 +358,94 @@ class ShareMeDataService
     /**
      * Buscar paciente en SMD por email (secondEmail).
      */
+    /**
+     * Buscar paciente en SMD por nombre (regex sobre fullName).
+     *
+     * Hace falta porque el `_id` que trae el asistente del calendario NO siempre
+     * resuelve en la API de pacientes: hay pacientes que existen en SMD y cuyo
+     * `GET /patients/{_id}` viene vacío. Sin esta vía se los daba por
+     * inexistentes y quedaban sin teléfono para siempre.
+     *
+     * El nombre se pasa por tokens y no entero: el CRM guarda "VACA AGUILERA,
+     * CATALINA" y SMD "CATALINA VACA AGUILERA (SISTEMA 2020) AP COBERTURA...",
+     * así que un regex sobre el nombre completo no coincidiría nunca.
+     */
+    public function searchPatientByName(string $name, int $limit = 20): array
+    {
+        $this->lastLookup = 'missing';
+
+        // Sin acentos: SMD guarda "EMILIA MONTES SANCHEZ" y el CRM "Emilia Montes
+        // Sánchez". Buscar "Sánchez" contra "SANCHEZ" no devuelve nada. El regex
+        // de la API sí ignora mayúsculas por su cuenta.
+        $sinAcentos = fn (string $t): string => iconv('UTF-8', 'ASCII//TRANSLIT', $t) ?: $t;
+
+        $tokens = collect(preg_split('/[^\p{L}]+/u', $name, -1, PREG_SPLIT_NO_EMPTY))
+            ->map(fn ($t) => preg_replace('/[^a-zA-Z]/', '', $sinAcentos($t)))
+            ->filter(fn ($t) => mb_strlen($t) >= 3)
+            ->take(3);
+
+        if ($tokens->isEmpty()) {
+            return [];
+        }
+
+        // Se filtra en SMD por UN token y el resto se confirma acá: un regex con
+        // lookaheads para exigir todos a la vez no da resultados contra esta API.
+        //
+        // Se prueba token por token porque un apellido común desborda la página:
+        // "Sanchez" devuelve más de `pageSize` fichas y la buscada queda afuera,
+        // mientras que "Emilia" la encuentra de una. Se empieza por el más largo
+        // -suele ser el más distintivo- y se sigue hasta confirmar.
+        $confirma = function (array $patient) use ($tokens, $sinAcentos): bool {
+            $full = mb_strtolower($sinAcentos($patient['fullName'] ?? ''));
+
+            foreach ($tokens as $token) {
+                if (! str_contains($full, mb_strtolower($token))) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        foreach ($tokens->sortByDesc(fn ($t) => mb_strlen($t)) as $ancla) {
+            try {
+                $response = $this->http()->get("{$this->patientsBaseUrl}/patients", [
+                    // Sin el flag `/i`: con él la API devuelve vacío siempre, sin
+                    // error. Igual ignora mayúsculas por su cuenta.
+                    'where'      => 'fullName=/'.urlencode($ancla).'/',
+                    'select'     => '_id,fullName,phone,secondEmail,name,lastName,personID,birthday,extra',
+                    'pageSize'   => $limit,
+                    'pageNumber' => 1,
+                ]);
+
+                if (! $response->successful()) {
+                    $this->lastLookup = 'error';
+                    Log::warning('[SMD] searchPatientByName falló', [
+                        'status' => $response->status(),
+                        'token'  => $ancla,
+                    ]);
+
+                    continue;
+                }
+
+                $found = $response->json('data') ?? $response->json() ?? [];
+
+                $confirmados = array_values(array_filter($found, $confirma));
+
+                if ($confirmados) {
+                    $this->lastLookup = 'found';
+
+                    return $confirmados;
+                }
+            } catch (\Exception $e) {
+                $this->lastLookup = 'error';
+                Log::error('[SMD] searchPatientByName excepción: '.$e->getMessage());
+            }
+        }
+
+        return [];
+    }
+
     public function searchPatientByEmail(string $email): array
     {
         try {
@@ -254,15 +478,15 @@ class ShareMeDataService
         try {
             $payload = array_filter([
                 'name'        => $data['first_name'] ?? null,
-                'lastName'    => $data['last_name']  ?? null,
-                'phone'       => $data['phone']       ?? null,
-                'birthday'    => $data['birthday']    ?? null,
-                'gender'      => $data['gender']      ?? null,
-                'personID'    => $data['ci']          ?? null,
-                'expedido'    => $data['expedido']    ?? null,
-                'secondEmail' => $data['email']       ?? null,
+                'lastName'    => $data['last_name'] ?? null,
+                'phone'       => $data['phone'] ?? null,
+                'birthday'    => $data['birthday'] ?? null,
+                'gender'      => $data['gender'] ?? null,
+                'personID'    => $data['ci'] ?? null,
+                'expedido'    => $data['expedido'] ?? null,
+                'secondEmail' => $data['email'] ?? null,
                 'nationality' => $data['nationality'] ?? 'BO',
-                'note'        => $data['notes']       ?? null,
+                'note'        => $data['notes'] ?? null,
             ], fn ($v) => $v !== null);
 
             if (! empty($data['insurance'])) {
@@ -277,7 +501,7 @@ class ShareMeDataService
                 return ['success' => true, 'data' => $response->json()];
             }
 
-            $body    = $response->json();
+            $body = $response->json();
             $message = $body['message'] ?? $response->body();
 
             $isDuplicate = str_contains((string) $message, '@error.duplicatePatient');
@@ -304,15 +528,31 @@ class ShareMeDataService
      * Obtener un paciente de SMD por su ID interno (_id).
      * Retorna el array del paciente o null si no existe o hay error.
      */
+    /**
+     * Resultado de la última getPatient()/searchPatientByName(): 'found',
+     * 'missing' (SMD respondió que no existe) o 'error' (no se pudo saber).
+     * Solo un 'missing' se puede recordar: un 'error' hay que reintentarlo.
+     */
+    public ?string $lastLookup = null;
+
     public function getPatient(string $smdId): ?array
     {
+        $this->lastLookup = 'error';
+
         try {
-            $response = $this->http()->get("{$this->patientsBaseUrl}/patients/{$smdId}", [
+            $response = $this->http()->get("{$this->patientsBaseUrl}/patients/".rawurlencode($smdId), [
                 'select' => '_id,fullName,phone,secondEmail,name,lastName,personID,birthday,extra',
             ]);
 
             if ($response->successful()) {
+                $this->lastLookup = 'found';
+
                 return $response->json();
+            }
+
+            // 404 / 400 "@error.usercantfound": la ficha no existe.
+            if (in_array($response->status(), [400, 404], true)) {
+                $this->lastLookup = 'missing';
             }
 
             Log::warning('[SMD] getPatient falló', [
@@ -329,6 +569,57 @@ class ShareMeDataService
     }
 
     /**
+     * Varias fichas de paciente a la vez.
+     *
+     * `getPatient()` de a uno era el cuello de botella de la carga masiva: ~0,9 s
+     * por llamada, en serie, una por paciente nuevo. El tiempo es latencia pura,
+     * así que pedirlas en paralelo es todo lo que hace falta.
+     *
+     * @param  array<int, string>  $ids
+     * @return array<string, array|null> id => ficha (null si no existe)
+     */
+    public function getPatientsMany(array $ids, int $concurrency = 10): array
+    {
+        $ids = array_values(array_unique(array_filter($ids)));
+
+        if (! $ids) {
+            return [];
+        }
+
+        $select = '_id,fullName,phone,secondEmail,name,lastName,personID,birthday,extra';
+        $result = [];
+
+        foreach (array_chunk($ids, max(1, $concurrency)) as $chunk) {
+            // En paralelo no pasa por http(): se cuenta acá, una por ficha.
+            try {
+                app(ApiBudget::class)->authorize('getPatientsMany', ApiBudget::callerOutside(self::class), count($chunk));
+
+                $responses = Http::pool(fn ($pool) => array_map(
+                    fn ($id) => $pool->as($id)
+                        ->withHeaders(['Accept' => 'application/json', 'apikey' => $this->apiKey])
+                        ->get("{$this->patientsBaseUrl}/patients/".rawurlencode((string) $id), ['select' => $select]),
+                    $chunk,
+                ));
+            } catch (\Exception $e) {
+                Log::error('[SMD] getPatientsMany excepción: '.$e->getMessage());
+
+                continue;
+            }
+
+            foreach ($chunk as $id) {
+                $response = $responses[$id] ?? null;
+
+                // null = no existe. Se guarda igual para no volver a preguntarlo.
+                $result[$id] = ($response instanceof \Illuminate\Http\Client\Response && $response->successful())
+                    ? $response->json()
+                    : null;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Actualizar paciente en SMD por ID. Usa PATCH (no PUT).
      */
     public function updatePatient(string $smdPatientId, array $data): array
@@ -336,12 +627,12 @@ class ShareMeDataService
         try {
             $payload = array_filter([
                 'name'        => $data['first_name'] ?? null,
-                'lastName'    => $data['last_name']  ?? null,
-                'phone'       => $data['phone']       ?? null,
-                'birthday'    => $data['birthday']    ?? null,
-                'personID'    => $data['ci']          ?? null,
-                'secondEmail' => $data['email']       ?? null,
-                'note'        => $data['notes']       ?? null,
+                'lastName'    => $data['last_name'] ?? null,
+                'phone'       => $data['phone'] ?? null,
+                'birthday'    => $data['birthday'] ?? null,
+                'personID'    => $data['ci'] ?? null,
+                'secondEmail' => $data['email'] ?? null,
+                'note'        => $data['notes'] ?? null,
             ], fn ($v) => $v !== null);
 
             if (! empty($data['insurance'])) {
@@ -350,13 +641,13 @@ class ShareMeDataService
 
             $response = $this->http()
                 ->withHeaders(['Content-Type' => 'application/json'])
-                ->patch("{$this->patientsBaseUrl}/patients/{$smdPatientId}", $payload);
+                ->patch("{$this->patientsBaseUrl}/patients/".rawurlencode($smdPatientId), $payload);
 
             if ($response->successful()) {
                 return ['success' => true, 'data' => $response->json()];
             }
 
-            $body    = $response->json() ?? [];
+            $body = $response->json() ?? [];
             // SMD usa 'error' o 'message' indistintamente según el endpoint
             $message = $body['message'] ?? $body['error'] ?? $response->body();
 
@@ -408,18 +699,79 @@ class ShareMeDataService
                 ];
             }
 
+            $message = (string) ($response->json('message') ?: $response->body());
+            $this->alertOnEventWrite('createEvent', $response->status(), $message);
+
             return [
                 'success' => false,
-                'message' => $response->json('message') ?: $response->body(),
+                'message' => $message,
                 'status'  => $response->status(),
             ];
         } catch (\Exception $e) {
             Log::error('ShareMeData: Excepción creando evento: '.$e->getMessage());
 
+            if (! $e instanceof QuotaExceeded) {
+                $this->alertOnEventWrite('createEvent', null, $e->getMessage());
+            }
+
             return [
                 'success' => false,
                 'message' => $e->getMessage(),
             ];
+        }
+    }
+
+    /**
+     * Editar un evento existente en SMD. PATCH /calendar/events/{_id}.
+     *
+     * A diferencia de createEvent (que usa /schedule/createEvent con un formato
+     * simplificado), la edición usa el formato COMPLETO del evento: attendances
+     * como array con `type`, startDate/endDate y status. Es el mismo formato que
+     * lee la sync, así que el cambio vuelve limpio en la próxima corrida.
+     *
+     * @param  string  $smdEventId  El `_id` del evento en SMD (external_id local).
+     */
+    public function updateEvent(string $smdEventId, array $data): array
+    {
+        try {
+            $this->lastResponse = null;
+
+            $response = $this->http()
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->timeout(30)
+                ->patch("{$this->baseUrl}/events/{$smdEventId}", $data);
+
+            $this->lastResponse = [
+                'status' => $response->status(),
+                'body'   => $response->json() ?: $response->body(),
+            ];
+
+            if ($response->successful()) {
+                return ['success' => true, 'data' => $response->json()];
+            }
+
+            Log::warning('[SMD] updateEvent falló', [
+                'event_id' => $smdEventId,
+                'status'   => $response->status(),
+                'body'     => $response->body(),
+            ]);
+
+            $message = (string) ($response->json('message') ?: $response->body());
+            $this->alertOnEventWrite('updateEvent', $response->status(), $message, ['evento_smd' => $smdEventId]);
+
+            return [
+                'success' => false,
+                'message' => $message,
+                'status'  => $response->status(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('[SMD] updateEvent excepción: '.$e->getMessage());
+
+            if (! $e instanceof QuotaExceeded) {
+                $this->alertOnEventWrite('updateEvent', null, $e->getMessage(), ['evento_smd' => $smdEventId]);
+            }
+
+            return ['success' => false, 'message' => $e->getMessage()];
         }
     }
 }

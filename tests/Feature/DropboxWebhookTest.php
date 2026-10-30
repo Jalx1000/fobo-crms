@@ -13,7 +13,7 @@ use function Pest\Laravel\post;
 uses(DatabaseTransactions::class);
 
 // ---------------------------------------------------------------------------
-// GET verify — handshake de Dropbox
+// GET verify - handshake de Dropbox
 // ---------------------------------------------------------------------------
 
 it('responde al challenge de verificacion de Dropbox con text/plain', function () {
@@ -33,7 +33,7 @@ it('responde con challenge vacio si no se envia parametro', function () {
 });
 
 // ---------------------------------------------------------------------------
-// POST handle — firma HMAC
+// POST handle - firma HMAC
 // ---------------------------------------------------------------------------
 
 it('acepta POST con firma HMAC valida y despacha ProcessDropboxNotification', function () {
@@ -42,7 +42,7 @@ it('acepta POST con firma HMAC valida y despacha ProcessDropboxNotification', fu
     $appSecret = 'test-app-secret-'.uniqid();
     Config::set('smd.dropbox.app_secret', $appSecret);
 
-    $body      = json_encode(['list_folder' => ['accounts' => ['abc']]]);
+    $body = json_encode(['list_folder' => ['accounts' => ['abc']]]);
     $signature = hash_hmac('sha256', $body, $appSecret);
 
     // Enviar el body raw para que la firma calculada en el test coincida con
@@ -101,7 +101,7 @@ it('rechaza POST cuando app_secret esta vacio en config con 403', function () {
 
     Config::set('smd.dropbox.app_secret', '');
 
-    $body      = json_encode(['list_folder' => ['accounts' => ['abc']]]);
+    $body = json_encode(['list_folder' => ['accounts' => ['abc']]]);
     $signature = hash_hmac('sha256', $body, 'cualquier-secret');
 
     post('/api/webhooks/dropbox', json_decode($body, true), [

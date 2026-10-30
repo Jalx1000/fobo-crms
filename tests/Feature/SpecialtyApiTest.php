@@ -1,15 +1,16 @@
 <?php
 
-use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
+
 use function Pest\Laravel\get;
 
 uses(DatabaseTransactions::class);
 
 it('retrieves all specialties', function () {
     // Generar nombres únicos
-    $s1 = 'Spec Test A ' . uniqid();
-    $s2 = 'Spec Test B ' . uniqid();
+    $s1 = 'Spec Test A '.uniqid();
+    $s2 = 'Spec Test B '.uniqid();
 
     // Create test specialties
     DB::table('specialties')->insert([
@@ -20,7 +21,7 @@ it('retrieves all specialties', function () {
     $response = get(route('api.specialties.index'));
 
     $response->assertStatus(200);
-    
+
     $json = $response->json();
     // Validamos que al menos nuestras 2 nuevas especialidades estén presentes
     $names = array_column($json['data'], 'name');

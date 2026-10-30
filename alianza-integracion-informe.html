@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Informe Técnico - Integración Alianza Seguros | Odontoking CRM</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --primary: #1a56a4;
+      --primary-light: #e8f0fb;
+      --accent: #e63946;
+      --success: #2d8653;
+      --warning: #d4820a;
+      --danger: #c0392b;
+      --gray-100: #f5f7fa;
+      --gray-200: #e4e8ef;
+      --gray-600: #4b5563;
+      --gray-900: #111827;
+      --font: 'Segoe UI', system-ui, sans-serif;
+      --mono: 'Consolas', 'Courier New', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      color: var(--gray-900);
+      background: #fff;
+      line-height: 1.65;
+    }
+
+    /* ── PORTADA ── */
+    .cover {
+      background: linear-gradient(135deg, #0d2f6e 0%, #1a56a4 60%, #2980b9 100%);
+      color: #fff;
+      padding: 80px 60px 60px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::after {
+      content: '';
+      position: absolute;
+      right: -80px; bottom: -80px;
+      width: 380px; height: 380px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+    }
+    .cover-logo { font-size: 13px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; opacity: .7; margin-bottom: 40px; }
+    .cover h1 { font-size: 38px; font-weight: 800; line-height: 1.2; margin-bottom: 16px; }
+    .cover h2 { font-size: 20px; font-weight: 400; opacity: .85; margin-bottom: 40px; }
+    .cover-meta { display: flex; gap: 40px; font-size: 14px; opacity: .8; }
+    .cover-meta b { display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; opacity: .7; margin-bottom: 2px; }
+    .cover-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    /* ── LAYOUT ── */
+    .content { max-width: 960px; margin: 0 auto; padding: 60px 40px; }
+
+    /* ── SECCIONES ── */
+    .section { margin-bottom: 64px; }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 28px;
+      padding-bottom: 14px;
+      border-bottom: 2px solid var(--gray-200);
+    }
+    .section-number {
+      background: var(--primary);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .section-header h2 { font-size: 22px; font-weight: 700; color: var(--primary); }
+
+    h3 { font-size: 16px; font-weight: 700; color: var(--gray-900); margin: 28px 0 12px; }
+    p  { margin-bottom: 14px; color: var(--gray-600); font-size: 15px; }
+
+    /* ── CALLOUT ── */
+    .callout {
+      border-left: 4px solid var(--primary);
+      background: var(--primary-light);
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0 28px;
+      font-size: 14.5px;
+      color: #1a3a6e;
+    }
+    .callout.warning { border-color: var(--warning); background: #fff8ec; color: #7a4a00; }
+    .callout.success { border-color: var(--success); background: #edfaf3; color: #1a5c38; }
+    .callout strong { font-weight: 700; }
+
+    /* ── TABLA ── */
+    .table-wrap { overflow-x: auto; margin: 16px 0 28px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead tr { background: var(--primary); color: #fff; }
+    thead th { padding: 10px 14px; text-align: left; font-weight: 600; }
+    tbody tr:nth-child(even) { background: var(--gray-100); }
+    tbody td { padding: 9px 14px; color: var(--gray-600); border-bottom: 1px solid var(--gray-200); vertical-align: top; }
+    tbody td:first-child { font-weight: 600; color: var(--gray-900); }
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+    .badge-success  { background: #d1fae5; color: #065f46; }
+    .badge-warning  { background: #fef3c7; color: #92400e; }
+    .badge-danger   { background: #fee2e2; color: #991b1b; }
+    .badge-gray     { background: #e5e7eb; color: #374151; }
+    .badge-blue     { background: #dbeafe; color: #1e40af; }
+
+    /* ── CODE BLOCK ── */
+    pre {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      padding: 18px 22px;
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 13px;
+      overflow-x: auto;
+      margin: 14px 0 24px;
+      line-height: 1.7;
+    }
+    code {
+      background: #e8f0fb;
+      color: var(--primary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+    pre code { background: none; color: inherit; padding: 0; }
+
+    /* ── DIAGRAMA ── */
+    .diagram-card {
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 24px 0 40px;
+    }
+    .diagram-title {
+      background: var(--primary);
+      color: #fff;
+      padding: 12px 20px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: .3px;
+    }
+    .diagram-body {
+      padding: 32px 24px;
+      background: #fafbfc;
+      overflow-x: auto;
+      text-align: center;
+    }
+    .diagram-body svg { max-width: 100%; height: auto; }
+
+    /* ── FLUJO STEP ── */
+    .steps { display: flex; flex-direction: column; gap: 0; margin: 20px 0 32px; }
+    .step {
+      display: flex;
+      gap: 18px;
+      position: relative;
+    }
+    .step:not(:last-child)::before {
+      content: '';
+      position: absolute;
+      left: 16px; top: 36px;
+      width: 2px;
+      height: calc(100% + 0px);
+      background: var(--gray-200);
+    }
+    .step-num {
+      background: var(--primary);
+      color: #fff;
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+    }
+    .step-body { padding: 6px 0 28px; }
+    .step-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+    .step-desc  { font-size: 14px; color: var(--gray-600); }
+
+    /* ── ENDPOINT CARD ── */
+    .endpoint-card {
+      border: 1px solid var(--gray-200);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .endpoint-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      background: var(--gray-100);
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .method { font-family: var(--mono); font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 5px; }
+    .method-post { background: #dbeafe; color: #1e40af; }
+    .method-get  { background: #d1fae5; color: #065f46; }
+    .endpoint-url { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+    .endpoint-body { padding: 16px 20px; }
+
+    /* ── SECURITY ITEMS ── */
+    .security-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0 28px; }
+    .security-item {
+      background: var(--gray-100);
+      border-radius: 8px;
+      padding: 16px 18px;
+      border-left: 3px solid var(--primary);
+    }
+    .security-item h4 { font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 6px; }
+    .security-item p  { font-size: 13px; margin: 0; }
+
+    /* ── TOC ── */
+    .toc {
+      background: var(--gray-100);
+      border-radius: 10px;
+      padding: 24px 28px;
+      margin-bottom: 48px;
+    }
+    .toc h3 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--gray-600); margin: 0 0 14px; }
+    .toc ol { padding-left: 20px; }
+    .toc li { font-size: 14.5px; margin-bottom: 8px; color: var(--primary); }
+    .toc li a { color: inherit; text-decoration: none; }
+    .toc li a:hover { text-decoration: underline; }
+
+    /* ── FOOTER ── */
+    .footer {
+      border-top: 1px solid var(--gray-200);
+      padding: 32px 40px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--gray-600);
+      background: var(--gray-100);
+    }
+
+    @media (max-width: 640px) {
+      .cover { padding: 48px 24px 40px; }
+      .cover h1 { font-size: 26px; }
+      .content { padding: 40px 20px; }
+      .security-grid { grid-template-columns: 1fr; }
+      .cover-meta { flex-direction: column; gap: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<div class="cover">
+  <div class="cover-logo">Odontoking CRM - Documento Técnico</div>
+  <div class="cover-badge">Confidencial · Para revisión de Alianza Seguros</div>
+  <h1>Integración con<br>Alianza Seguros</h1>
+  <h2>Descripción técnica del sistema de verificación de cobertura dental via API MedinetGo</h2>
+  <div class="cover-meta">
+    <div><b>Fecha</b>1 de junio de 2025</div>
+    <div><b>Versión</b>1.0 - Ambiente QA</div>
+    <div><b>Preparado para</b>Alianza Seguros - Pase a Producción</div>
+    <div><b>Sistema</b>Odontoking CRM (Laravel + Vue 3)</div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ÍNDICE -->
+  <div class="toc">
+    <h3>Contenido</h3>
+    <ol>
+      <li><a href="#s1">Resumen ejecutivo de la integración</a></li>
+      <li><a href="#s2">Arquitectura del sistema de seguros</a></li>
+      <li><a href="#s3">Endpoints consumidos en Alianza</a></li>
+      <li><a href="#s4">Diagrama de secuencia - Flujo completo</a></li>
+      <li><a href="#s5">Diagrama de actividades - Verificación de cobertura</a></li>
+      <li><a href="#s6">Diagrama de flujo - Atención al paciente con seguro Alianza</a></li>
+      <li><a href="#s7">Diagrama de estado - Ciclo de vida de la verificación</a></li>
+      <li><a href="#s8">Rutas de la API del CRM</a></li>
+      <li><a href="#s9">Seguridad y manejo de datos sensibles</a></li>
+      <li><a href="#s10">Manejo de errores y resiliencia</a></li>
+      <li><a href="#s11">Sistema de caché</a></li>
+    </ol>
+  </div>
+
+  <!-- SECCIÓN 1 -->
+  <div class="section" id="s1">
+    <div class="section-header">
+      <div class="section-number">1</div>
+      <h2>Resumen ejecutivo de la integración</h2>
+    </div>
+
+    <p>Odontoking CRM implementa un módulo de verificación de cobertura dental que se conecta directamente a la <strong>API MedinetGo de Alianza Seguros</strong> (ambiente <code>devnet.alianza.com.bo</code>) para consultar en tiempo real si un paciente cuenta con beneficios dentales activos.</p>
+
+    <p>El sistema fue diseñado con una arquitectura de <strong>drivers intercambiables</strong>, lo que permite que el CRM soporte múltiples aseguradoras bajo el mismo flujo de usuario. El driver específico para Alianza (<code>AlianzaDriver</code>) realiza <strong>exactamente 2 llamadas HTTP consecutivas</strong> por cada verificación: primero autentica al proveedor y luego consulta la cobertura odontológica.</p>
+
+    <div class="callout success">
+      <strong>Estado actual:</strong> La integración opera sobre el ambiente de desarrollo/QA de Alianza (<code>https://devnet.alianza.com.bo/ApiGateway</code>). Las pruebas funcionales están completadas. Este documento se prepara para el proceso de pase a producción.
+    </div>
+
+    <div class="callout warning">
+      <strong>Pendiente para producción:</strong> La URL base de Alianza está actualmente configurada como variable de entorno en el servidor del CRM. Una vez que Alianza proporcione la URL del ambiente productivo, se actualiza sin cambios en el código fuente.
+    </div>
+  </div>
+
+  <!-- SECCIÓN 2 -->
+  <div class="section" id="s2">
+    <div class="section-header">
+      <div class="section-number">2</div>
+      <h2>Arquitectura del sistema de seguros</h2>
+    </div>
+
+    <p>El módulo de seguros está compuesto por tres capas: el controlador HTTP, el servicio orquestador y los drivers de aseguradora.</p>
+
+    <div class="diagram-card">
+      <div class="diagram-title">Arquitectura de capas - Módulo de seguros</div>
+      <div class="diagram-body">
+        <div class="mermaid">
+graph TB
+    subgraph UI["🖥️ Capa de Presentación"]
+        A1["Perfil del paciente\n(Vue 3 + Blade)"]
+        A2["Formulario de\ncreación de paciente"]
+        A3["Agente WhatsApp\n(cliente externo)"]
+    end
+
+    subgraph CTRL["🔀 Capa de Controladores (Laravel)"]
+        B1["InsuranceController\n(Web CRM)\n/contacts/persons/{id}/verify-insurance"]
+        B2["InsuranceController\n(API REST)\nPOST /api/insurance/verify"]
+        B3["InsuranceController\n(API Agente)\nGET /api/v1/insurance/verify"]
+    end
+
+    subgraph SVC["⚙️ Capa de Servicios"]
+        C1["InsuranceService\nOrquestador + Caché"]
+        C2["Cache\nRedis / File\nTTL: 3600s"]
+    end
+
+    subgraph DRV["🔌 Capa de Drivers"]
+        D1["AlianzaDriver\n✅ API directa\nMedinetGo"]
+        D2["NacionalVidaDriver\nn8n webhook"]
+        D3["OdontokingMembershipDriver\nBD interna"]
+    end
+
+    subgraph EXT["🌐 APIs Externas"]
+        E1["Alianza Seguros\ndevnet.alianza.com.bo\n/ApiGateway"]
+        E2["n8n webhook\nn8n.sofopolis.com"]
+    end
+
+    A1 & A2 --> B1
+    A3 --> B3
+    B1 & B2 & B3 --> C1
+    C1 <--> C2
+    C1 --> D1
+    C1 --> D2
+    C1 --> D3
+    D1 --> E1
+    D2 --> E2
+
+    style D1 fill:#1a56a4,color:#fff,stroke:#0d2f6e
+    style E1 fill:#0d2f6e,color:#fff,stroke:#001040
+    style C1 fill:#e8f0fb,stroke:#1a56a4
+    style C2 fill:#f5f7fa,stroke:#ccc
+        </div>
+      </div>
+    </div>
+
+    <h3>Resolución de driver por nombre del seguro</h3>
+    <p>El <code>InsuranceService</code> determina qué driver usar mediante coincidencia parcial e insensible a mayúsculas sobre el nombre del seguro registrado en el perfil del paciente:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Nombre del seguro (contiene…)</th><th>Driver asignado</th><th>Tipo de conexión</th></tr></thead>
+        <tbody>
+          <tr><td>alianza</td><td><code>AlianzaDriver</code></td><td><span class="badge badge-blue">API directa MedinetGo</span></td></tr>
+          <tr><td>nacional</td><td><code>NacionalVidaDriver</code></td><td><span class="badge badge-gray">Webhook n8n</span></td></tr>
+          <tr><td>membresía / membresia / odontoking</td><td><code>OdontokingMembershipDriver</code></td><td><span class="badge badge-gray">Base de datos interna</span></td></tr>
+          <tr><td>cualquier otro valor</td><td><em>null → sin integración</em></td><td><span class="badge badge-warning">INDETERMINADO</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 3 -->
+  <div class="section" id="s3">
+    <div class="section-header">
+      <div class="section-number">3</div>
+      <h2>Endpoints consumidos en Alianza Seguros</h2>
+    </div>
+
+    <p>El sistema realiza exactamente <strong>2 llamadas HTTP consecutivas</strong> a la API de Alianza por cada verificación (cuando no hay resultado en caché).</p>
+
+    <!-- Endpoint 1 -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <span class="method method-post">POST</span>
+        <span class="endpoint-url">https://devnet.alianza.com.bo/ApiGateway/LoginUserProv</span>
+      </div>
+      <div class="endpoint-body">
+        <p><strong>Propósito:</strong> Autenticar al sistema CRM como proveedor autorizado. Devuelve un token de sesión (<code>accessToken</code>) y un código de proveedor (<code>nUsercode</code>) necesarios para la segunda llamada.</p>
+
+        <h3>Payload enviado (JSON)</h3>
+        <pre><code>{
+  "user":         "&lt;ALIANZA_USER&gt;",   // Variable de entorno - nunca en código fuente
+  "password":     "&lt;ALIANZA_PASS&gt;",   // Variable de entorno - nunca en código fuente
+  "module":       "string",
+  "method":       "string",
+  "nApplication": 0
+}</code></pre>
+
+        <h3>Respuesta esperada (éxito)</h3>
+        <pre><code>{
+  "success": true,
+  "data": {
+    "accessToken": "&lt;JWT_TOKEN_EFIMERO&gt;",
+    "webClientVtime": [
+      { "nUsercode": 12345 }
+    ]
+  }
+}</code></pre>
+
+        <div class="callout">
+          <strong>Uso del resultado:</strong> <code>accessToken</code> y <code>nUsercode</code> son efímeros - se usan únicamente para la segunda llamada HTTP de la misma solicitud. <strong>No se persisten en base de datos ni en caché</strong>.
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Parámetro</th><th>Valor</th></tr></thead>
+            <tbody>
+              <tr><td>Timeout</td><td>1000 ms</td></tr>
+              <tr><td>Autenticación en header</td><td>Ninguna (credenciales van en el body)</td></tr>
+              <tr><td>Protocolo</td><td>HTTPS</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Endpoint 2 -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-url">https://devnet.alianza.com.bo/ApiGateway/OdontologyCoverage</span>
+      </div>
+      <div class="endpoint-body">
+        <p><strong>Propósito:</strong> Consultar la cobertura odontológica de un paciente identificado por su cédula de identidad. Requiere el token obtenido en el paso anterior.</p>
+
+        <h3>Parámetros de query</h3>
+        <pre><code>GET /OdontologyCoverage?ci={cedula_identidad_paciente}&amp;nUsercode={nUsercode}
+Authorization: Bearer {accessToken}</code></pre>
+
+        <h3>Respuesta: paciente con cobertura activa</h3>
+        <pre><code>{
+  "success": true,
+  "data": [
+    {
+      "NRO. DOCUMENTO":                   "5856583",
+      "NOMBRE COMPLETO":                  "JUAN PÉREZ MAMANI",
+      "CONTRATANTE":                      "EMPRESA S.A.",
+      "ESTADO":                           "VIGENTE",
+      "EDAD":                             35,
+      "CODIGO DE ASEGURADO":              "ASG-001",
+      "COBERTURA ADICIONAL ODONTOLOGICA": "USD 500",
+      "COASEGURO ODONTOLOGICO":           "10%",
+      "CLINICA ODONTOLOGICA":             "Odontoking",
+      "RELACION":                         "TITULAR",
+      "FECHA DE INGRESO":                 "01/01/2024"
+    }
+  ]
+}</code></pre>
+
+        <h3>Respuesta: sin cobertura / en mora</h3>
+        <pre><code>{
+  "success": false,
+  "messageError": "pago pendiente / comuníquese con la compañía"
+}</code></pre>
+
+        <h3>Mapeo de respuesta a estados internos del CRM</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Condición de respuesta Alianza</th><th>Estado CRM</th><th>Badge</th><th>Crea nota de actividad</th></tr></thead>
+            <tbody>
+              <tr><td><code>success: true</code> + campo <code>ESTADO: "VIGENTE"</code></td><td><strong>VIGENTE</strong></td><td><span class="badge badge-success">success</span></td><td>Sí</td></tr>
+              <tr><td><code>success: true</code> + campo <code>ESTADO</code> ≠ VIGENTE</td><td><strong>VIGENTE</strong> (con advertencia)</td><td><span class="badge badge-warning">warning</span></td><td>Sí</td></tr>
+              <tr><td><code>success: false</code> + messageError contiene "pago pendiente" o "comuníquese"</td><td><strong>EN_MORA</strong></td><td><span class="badge badge-danger">danger</span></td><td>Sí</td></tr>
+              <tr><td><code>success: false</code> + cualquier otro mensaje</td><td><strong>NO_REGISTRADO</strong></td><td><span class="badge badge-warning">warning</span></td><td>No</td></tr>
+              <tr><td>Error de red / timeout / HTTP 4xx-5xx</td><td><strong>INDETERMINADO</strong></td><td>-</td><td>No</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 4 -->
+  <div class="section" id="s4">
+    <div class="section-header">
+      <div class="section-number">4</div>
+      <h2>Diagrama de secuencia - Flujo completo</h2>
+    </div>
+    <p>Muestra la interacción entre el operador del CRM, el frontend Vue 3, el backend Laravel, el sistema de caché y la API de Alianza Seguros.</p>
+
+    <div class="diagram-card">
+      <div class="diagram-title">Diagrama de Secuencia: Odontoking CRM ↔ Alianza Seguros API</div>
+      <div class="diagram-body">
+        <div class="mermaid">
+sequenceDiagram
+    actor OP as Operador
+    participant FE as Frontend CRM<br/>(Vue 3)
+    participant BE as Backend CRM<br/>(Laravel)
+    participant DB as Base de Datos<br/>(MySQL)
+    participant CA as Caché<br/>(Redis/File)
+    participant AL as Alianza API<br/>(MedinetGo)
+
+    OP->>FE: Clic botón "Verificar Seguro" en perfil del paciente
+    FE->>BE: POST /contacts/persons/{id}/verify-insurance
+
+    BE->>DB: Leer ci_paciente y seguro_paciente del perfil
+    DB-->>BE: Atributos del paciente
+
+    alt Faltan datos (CI o seguro vacíos)
+        BE-->>FE: HTTP 422 + lista de opciones de seguro
+        FE->>OP: Abre modal para completar datos
+        OP->>FE: Ingresa CI y selecciona seguro en el modal
+        FE->>BE: POST /contacts/persons/{id}/update-insurance
+        BE->>DB: Actualiza ci_paciente y seguro_paciente
+        BE->>CA: Invalida caché previa del paciente
+        Note over BE,CA: Cache::forget("insurance_verify_{id}_{hash}")
+    end
+
+    BE->>CA: Buscar clave insurance_verify_{id}_{md5(seguroId|ci)}
+
+    alt Cache HIT (resultado reciente, TTL 1h)
+        CA-->>BE: Resultado cacheado
+        Note over BE,CA: Sin llamadas a Alianza
+    else Cache MISS (sin caché o expirado)
+        CA-->>BE: null
+        BE->>AL: POST /LoginUserProv<br/>{"user":"***","password":"***","nApplication":0}
+
+        alt Login exitoso
+            AL-->>BE: {"success":true,"data":{"accessToken":"JWT...","webClientVtime":[{"nUsercode":12345}]}}
+            BE->>AL: GET /OdontologyCoverage?ci={ci}&nUsercode={nUsercode}<br/>Authorization: Bearer {accessToken}
+
+            alt Paciente con cobertura
+                AL-->>BE: {"success":true,"data":[{"ESTADO":"VIGENTE","NOMBRE COMPLETO":"..."}]}
+                BE->>CA: Guardar resultado (TTL 3600s)
+            else Sin cobertura / en mora
+                AL-->>BE: {"success":false,"messageError":"pago pendiente..."}
+                BE->>CA: Guardar resultado (TTL 3600s)
+            end
+        else Login fallido
+            AL-->>BE: {"success":false} o HTTP 4xx/5xx
+            Note over BE: Resultado = INDETERMINADO
+        end
+    end
+
+    BE->>DB: Actualizar insurance_status en persons
+    BE->>DB: Actualizar estado_seguro_paciente en attribute_values
+    BE->>DB: Actualizar estado_seguro_paciente_cita en leads relacionados
+
+    alt Estado es VIGENTE o EN_MORA
+        BE->>DB: Crear nota de actividad (type=note)<br/>Vincular a person_activities y lead_activities
+    end
+
+    BE-->>FE: JSON {status, message, badge, data}
+    FE->>OP: Muestra notificación con resultado de cobertura
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 5 -->
+  <div class="section" id="s5">
+    <div class="section-header">
+      <div class="section-number">5</div>
+      <h2>Diagrama de actividades - Verificación de cobertura</h2>
+    </div>
+    <p>Describe el proceso lógico completo desde que se inicia la verificación hasta que se obtiene un resultado final, incluyendo todas las rutas de decisión.</p>
+
+    <div class="diagram-card">
+      <div class="diagram-title">Diagrama de Actividades: Proceso de verificación de cobertura Alianza</div>
+      <div class="diagram-body">
+        <div class="mermaid">
+flowchart TD
+    START(["🔵 INICIO\nOperador solicita verificación"])
+    A["Leer atributos del paciente\nci_paciente y seguro_paciente\ndesde la base de datos"]
+    B{"¿Paciente existe\nen el CRM?"}
+    C["Devolver HTTP 404\nPaciente no encontrado"]
+    D{"¿CI y nombre de\nseguro presentes?"}
+    E["Devolver HTTP 422\ncon lista de opciones\ndisponibles"]
+    F["Operador completa datos\nen modal emergente"]
+    G["Actualizar perfil del paciente\nen base de datos\nInvalidar caché previa"]
+    H{"¿Seguro = 'No tiene'\no campo vacío?"}
+    I(["🟡 FIN: SIN_SEGURO\nNo se llama a Alianza"])
+    J["Resolución de driver\npor nombre del seguro"]
+    K{"¿Driver Alianza\ndisponible?"}
+    L(["🔴 FIN: INDETERMINADO\nSeguro sin integración"])
+    M{"¿Resultado en caché\n(TTL 1 hora vigente)?"}
+    N["Usar resultado\ncacheado\nSin llamadas HTTP"]
+    O["PASO 1\nPOST /LoginUserProv\ncredenciales desde .env"]
+    P{"¿Login exitoso?\n(success: true)"}
+    Q(["🔴 FIN: INDETERMINADO\nError de autenticación\ncon Alianza"])
+    R["PASO 2\nGET /OdontologyCoverage\n?ci=X&nUsercode=Y\nBearer: accessToken"]
+    S{"¿Respuesta exitosa?\n(success: true)"}
+    T{"¿Campo ESTADO\n== VIGENTE?"}
+    U(["🟢 FIN: VIGENTE\nbadge: success"])
+    V(["🟡 FIN: VIGENTE\n(estado distinto)\nbadge: warning"])
+    W{"¿messageError contiene\n'pago pendiente'\no 'comuníquese'?"}
+    X(["🔴 FIN: EN_MORA\nbadge: danger"])
+    Y(["🟡 FIN: NO_REGISTRADO\nbadge: warning"])
+    Z["Guardar en caché\nTTL 3600 segundos"]
+    AA["Actualizar estado_seguro_paciente\nen persons y leads (BD)"]
+    AB{"¿Estado es\nVIGENTE o EN_MORA?"}
+    AC["Crear nota de actividad\nVincular a person_activities\ny lead_activities"]
+    AD["Devolver JSON\nal frontend\n{status, message, badge, data}"]
+    END(["🔵 FIN"])
+
+    START --> A --> B
+    B -- No --> C
+    B -- Sí --> D
+    D -- Faltan datos --> E --> F --> G --> D
+    D -- Completos --> H
+    H -- Sí --> I
+    H -- No --> J --> K
+    K -- No --> L
+    K -- Sí --> M
+    M -- HIT --> N
+    M -- MISS --> O --> P
+    P -- No --> Q
+    P -- Sí --> R --> S
+    S -- Sí --> T
+    T -- VIGENTE --> U
+    T -- Otro --> V
+    S -- No --> W
+    W -- Sí --> X
+    W -- No --> Y
+    N --> Z
+    U --> Z
+    V --> Z
+    X --> Z
+    Y --> Z
+    Q --> AD
+    Z --> AA --> AB
+    AB -- Sí --> AC --> AD
+    AB -- No --> AD
+    AD --> END
+
+    style START fill:#0d2f6e,color:#fff,stroke:#001040
+    style END   fill:#0d2f6e,color:#fff,stroke:#001040
+    style I     fill:#fef3c7,color:#92400e,stroke:#d97706
+    style L     fill:#fee2e2,color:#991b1b,stroke:#dc2626
+    style Q     fill:#fee2e2,color:#991b1b,stroke:#dc2626
+    style U     fill:#d1fae5,color:#065f46,stroke:#059669
+    style V     fill:#fef3c7,color:#92400e,stroke:#d97706
+    style X     fill:#fee2e2,color:#991b1b,stroke:#dc2626
+    style Y     fill:#fef3c7,color:#92400e,stroke:#d97706
+    style O     fill:#dbeafe,color:#1e40af,stroke:#3b82f6
+    style R     fill:#dbeafe,color:#1e40af,stroke:#3b82f6
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 6 -->
+  <div class="section" id="s6">
+    <div class="section-header">
+      <div class="section-number">6</div>
+      <h2>Diagrama de flujo - Atención al paciente con seguro Alianza</h2>
+    </div>
+    <p>Vista orientada al proceso clínico: cómo el resultado de la verificación determina el flujo de atención en la clínica dental.</p>
+
+    <div class="diagram-card">
+      <div class="diagram-title">Diagrama de Flujo: Proceso de atención a paciente con seguro Alianza</div>
+      <div class="diagram-body">
+        <div class="mermaid">
+flowchart LR
+    A(["Paciente llega\na la clínica"])
+    B["Operador abre\nperfil del paciente\nen Odontoking CRM"]
+    C{"¿Tiene seguro\nAlianza registrado\nen el CRM?"}
+    D["Registrar:\n• Tipo de seguro\n• CI del paciente"]
+    E["Hacer clic en\n'Verificar Seguro'"]
+    F["Sistema consulta\nAPI Alianza\n(2 llamadas HTTP)"]
+    G{"Resultado de\ncobertura Alianza"}
+    H["✅ VIGENTE\nCobertura activa\nAlianza"]
+    I["⚠️ EN_MORA\nPagos pendientes\nen Alianza"]
+    J["❌ NO_REGISTRADO\nSin cobertura\nAlianza"]
+    K["❓ INDETERMINADO\nError de conexión\no datos incorrectos"]
+    L["Atención con\nbeneficios dentales\nAlianza\n• Coaseguro aplicado\n• Límite de cobertura\nconsultado"]
+    M["Informar al paciente\nsobre pagos pendientes\nOfrecer atención\ncomo particular\no diferir"]
+    N["Atención como\npaciente particular\nSin beneficios Alianza"]
+    O["Verificar datos del CI\nReintentar verificación\no contactar soporte\ntécnico"]
+    P["Registrar cita en CRM\n• Estado seguro guardado\n• Nota de actividad\nautomática creada\n• Historial actualizado"]
+
+    A --> B --> C
+    C -- No --> D --> E
+    C -- Sí --> E
+    E --> F --> G
+    G -- VIGENTE --> H --> L --> P
+    G -- EN_MORA --> I --> M --> P
+    G -- NO_REGISTRADO --> J --> N --> P
+    G -- INDETERMINADO --> K --> O
+
+    style H fill:#d1fae5,color:#065f46,stroke:#059669
+    style I fill:#fee2e2,color:#991b1b,stroke:#dc2626
+    style J fill:#fef3c7,color:#92400e,stroke:#d97706
+    style K fill:#e5e7eb,color:#374151,stroke:#9ca3af
+    style L fill:#d1fae5,color:#065f46,stroke:#059669
+    style F fill:#dbeafe,color:#1e40af,stroke:#3b82f6
+    style P fill:#ede9fe,color:#4c1d95,stroke:#7c3aed
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 7 -->
+  <div class="section" id="s7">
+    <div class="section-header">
+      <div class="section-number">7</div>
+      <h2>Diagrama de estado - Ciclo de vida de la verificación</h2>
+    </div>
+    <p>Muestra todos los estados posibles del seguro de un paciente en el CRM y las transiciones entre ellos.</p>
+
+    <div class="diagram-card">
+      <div class="diagram-title">Diagrama de Estado: Ciclo de vida del estado de cobertura</div>
+      <div class="diagram-body">
+        <div class="mermaid">
+stateDiagram-v2
+    [*] --> SIN_DATOS : Paciente creado sin CI ni seguro
+    [*] --> SIN_SEGURO : Paciente con seguro = "No tiene"
+
+    SIN_DATOS --> SIN_SEGURO : Operador selecciona\n"No tiene seguro"
+    SIN_DATOS --> VERIFICANDO : Operador completa\nCI + selecciona Alianza
+
+    SIN_SEGURO --> VERIFICANDO : Operador actualiza\nseguro a Alianza
+
+    VERIFICANDO --> VIGENTE : Alianza responde\nsuccess=true, ESTADO=VIGENTE
+    VERIFICANDO --> EN_MORA : Alianza responde\n"pago pendiente"
+    VERIFICANDO --> NO_REGISTRADO : Alianza responde\nsuccess=false (otro motivo)
+    VERIFICANDO --> INDETERMINADO : Error de red,\ntimeout, login fallido
+
+    VIGENTE --> VERIFICANDO : Operador fuerza\nnueva verificación\n(borra caché)
+    EN_MORA --> VERIFICANDO : Paciente regulariza pagos\ny operador reverifica
+    NO_REGISTRADO --> VERIFICANDO : Operador corrige CI\ny reverifica
+    INDETERMINADO --> VERIFICANDO : Operador reintenta\nverificación
+
+    VIGENTE --> [*] : Cita atendida\ncon beneficios Alianza
+    EN_MORA --> [*] : Cita atendida\ncomo particular
+    NO_REGISTRADO --> [*] : Cita atendida\ncomo particular
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 8 -->
+  <div class="section" id="s8">
+    <div class="section-header">
+      <div class="section-number">8</div>
+      <h2>Rutas de la API del CRM</h2>
+    </div>
+    <p>Endpoints del CRM que activan la verificación de seguros. Estas son las rutas del sistema Odontoking (no las de Alianza).</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Método</th>
+            <th>Ruta</th>
+            <th>Controlador</th>
+            <th>Descripción</th>
+            <th>Autenticación</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-blue">POST</span></td>
+            <td><code>/contacts/persons/{id}/verify-insurance</code></td>
+            <td><code>InsuranceController@verify</code></td>
+            <td>Verificación desde perfil del paciente (UI web)</td>
+            <td>Sesión CRM</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-blue">POST</span></td>
+            <td><code>/contacts/persons/{id}/update-insurance</code></td>
+            <td><code>InsuranceController@updateAndVerify</code></td>
+            <td>Actualiza datos de seguro del paciente y verifica</td>
+            <td>Sesión CRM</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-blue">POST</span></td>
+            <td><code>/contacts/persons/{id}/clear-insurance-cache</code></td>
+            <td><code>InsuranceController@clearCache</code></td>
+            <td>Invalida caché de verificación del paciente</td>
+            <td>Sesión CRM</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-blue">POST</span></td>
+            <td><code>/contacts/persons/verify-insurance-quick</code></td>
+            <td><code>InsuranceController@verifyQuick</code></td>
+            <td>Verificación rápida sin person_id (formulario de creación)</td>
+            <td>Sesión CRM</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-success">GET</span></td>
+            <td><code>/contacts/persons/insurance-options</code></td>
+            <td><code>InsuranceController@insuranceOptions</code></td>
+            <td>Lista de aseguradoras disponibles</td>
+            <td>Sesión CRM</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-success">GET</span></td>
+            <td><code>/contacts/persons/{id}/insurance-status</code></td>
+            <td><code>InsuranceController@insuranceStatus</code></td>
+            <td>Estado de cobertura guardado en BD del paciente</td>
+            <td>Sesión CRM</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-blue">POST</span></td>
+            <td><code>/api/insurance/verify</code></td>
+            <td><code>Api\InsuranceController@verify</code></td>
+            <td>Verificación vía API REST externa (person_id + CI + insurance_type)</td>
+            <td>Bearer token (Sanctum)</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-success">GET</span></td>
+            <td><code>/api/v1/insurance/verify</code></td>
+            <td><code>Api\InsuranceController@verifyForAgent</code></td>
+            <td>Verificación para agente WhatsApp - respuesta anti-enumeración</td>
+            <td>Bearer token + rate limit 10/min</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 9 -->
+  <div class="section" id="s9">
+    <div class="section-header">
+      <div class="section-number">9</div>
+      <h2>Seguridad y manejo de datos sensibles</h2>
+    </div>
+
+    <div class="security-grid">
+      <div class="security-item">
+        <h4>Credenciales de proveedor</h4>
+        <p>Las variables <code>ALIANZA_USER</code> y <code>ALIANZA_PASS</code> se almacenan exclusivamente en el archivo <code>.env</code> del servidor. Nunca en código fuente ni en el repositorio git.</p>
+      </div>
+      <div class="security-item">
+        <h4>Token de sesión efímero</h4>
+        <p>El <code>accessToken</code> obtenido del login de Alianza es de uso único por solicitud. No se persiste en base de datos ni en caché. Se descarta tras la segunda llamada HTTP.</p>
+      </div>
+      <div class="security-item">
+        <h4>Audit log con hashes</h4>
+        <p>La tabla <code>insurance_audit_logs</code> almacena únicamente hashes SHA-256 del CI, el token de API y el nombre del seguro. Nunca los valores originales en claro.</p>
+      </div>
+      <div class="security-item">
+        <h4>Respuestas anti-enumeración</h4>
+        <p>El endpoint del agente WhatsApp (<code>/api/v1/insurance/verify</code>) devuelve la misma respuesta para "paciente no encontrado" y "sin seguro activo", evitando revelar si un CI existe en el sistema.</p>
+      </div>
+      <div class="security-item">
+        <h4>Rate limiting</h4>
+        <p>El endpoint del agente externo tiene un límite de 10 verificaciones por minuto por token de API. Superado el límite devuelve HTTP 429 con el tiempo de espera.</p>
+      </div>
+      <div class="security-item">
+        <h4>Transporte HTTPS</h4>
+        <p>Todas las llamadas a la API de Alianza se realizan sobre HTTPS. El cliente HTTP de Laravel verifica el certificado SSL del servidor de Alianza.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 10 -->
+  <div class="section" id="s10">
+    <div class="section-header">
+      <div class="section-number">10</div>
+      <h2>Manejo de errores y resiliencia</h2>
+    </div>
+
+    <p>El sistema está diseñado para que <strong>ningún fallo en la API de Alianza bloquee la operación del CRM</strong>. Todos los errores son capturados y resultan en el estado <code>INDETERMINADO</code>, permitiendo que el operador tome una decisión manual.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Escenario de error</th><th>Comportamiento del sistema</th><th>Estado resultante</th><th>Impacto en atención</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Timeout en <code>/LoginUserProv</code> o <code>/OdontologyCoverage</code></td>
+            <td>Se captura <code>Exception</code>, se loguea con nivel <code>error</code></td>
+            <td><span class="badge badge-gray">INDETERMINADO</span></td>
+            <td>Operador puede reintentar manualmente</td>
+          </tr>
+          <tr>
+            <td>Alianza responde HTTP 4xx o 5xx</td>
+            <td>Se detecta con <code>$response->failed()</code>, se loguea el body</td>
+            <td><span class="badge badge-gray">INDETERMINADO</span></td>
+            <td>CRM no cae; atención puede continuar como particular</td>
+          </tr>
+          <tr>
+            <td>Alianza no disponible (DNS, red)</td>
+            <td>Excepción de conexión capturada en bloque <code>try/catch</code></td>
+            <td><span class="badge badge-gray">INDETERMINADO</span></td>
+            <td>Mismo que arriba</td>
+          </tr>
+          <tr>
+            <td>Login exitoso pero <code>success: false</code> en cobertura</td>
+            <td>Se evalúa <code>messageError</code> para clasificar EN_MORA vs NO_REGISTRADO</td>
+            <td><span class="badge badge-danger">EN_MORA</span> / <span class="badge badge-warning">NO_REGISTRADO</span></td>
+            <td>Operador ve mensaje descriptivo</td>
+          </tr>
+          <tr>
+            <td>CI vacío en el perfil del paciente</td>
+            <td>El servicio rechaza antes de llamar a Alianza</td>
+            <td><span class="badge badge-gray">INDETERMINADO</span></td>
+            <td>Se pide al operador completar el CI</td>
+          </tr>
+          <tr>
+            <td>Error al actualizar atributos en BD</td>
+            <td>Capturado en <code>updateInsuranceAttributes()</code>, loguea el error pero no interrumpe la respuesta al frontend</td>
+            <td>Sin cambio de estado en BD</td>
+            <td>Resultado se muestra igual al operador</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Log de errores</h3>
+    <p>Los errores se registran usando el sistema de logging de Laravel bajo el canal por defecto. Los identificadores de log relevantes son:</p>
+    <pre><code>[AlianzaDriver] Login fallido          → HTTP status + body de Alianza
+[AlianzaDriver] Error Crítico           → mensaje de excepción + stacktrace + CI
+[AlianzaDriver] Error actualizando atributos → mensaje de excepción
+[InsuranceService] Verificación realizada    → person_id + status + seguro_name
+[verifyForAgent] Webhook error          → mensaje de excepción (endpoint agente)</code></pre>
+  </div>
+
+  <!-- SECCIÓN 11 -->
+  <div class="section" id="s11">
+    <div class="section-header">
+      <div class="section-number">11</div>
+      <h2>Sistema de caché</h2>
+    </div>
+
+    <p>El CRM implementa caché del lado del servidor para minimizar las llamadas a la API de Alianza. Esto protege a Alianza de llamadas repetidas por el mismo paciente en un corto período.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Parámetro</th><th>Valor</th><th>Cómo configurar</th></tr></thead>
+        <tbody>
+          <tr><td>TTL por defecto</td><td>3600 segundos (1 hora)</td><td>Variable <code>services.insurance.cache_ttl</code></td></tr>
+          <tr><td>Habilitado por defecto</td><td>Sí</td><td>Variable <code>services.insurance.cache_enabled</code></td></tr>
+          <tr><td>Backend de caché</td><td>Redis o File (según configuración del servidor)</td><td>Variable de entorno <code>CACHE_DRIVER</code></td></tr>
+          <tr><td>Invalidación manual</td><td>Disponible por operador en la UI</td><td>Botón "Borrar Caché" en perfil del paciente</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Claves de caché</h3>
+    <pre><code>// Verificación desde perfil del paciente registrado
+"insurance_verify_{personId}_{md5(seguroId + '|' + ci)}"
+
+// Verificación rápida (paciente aún no registrado en BD)
+"insurance_verify_quick_{md5(seguroName + '|' + ci)}"
+
+// Verificación desde agente WhatsApp
+"insurance_verify_agent_{md5(seguroName + '|' + ci)}"</code></pre>
+
+    <div class="callout">
+      <strong>Nota para reconciliación de pruebas:</strong> Durante las pruebas QA, el cache puede deshabilitarse temporalmente configurando <code>INSURANCE_VERIFY_CACHE_ENABLED=false</code> en el servidor, lo que garantiza que cada verificación de prueba genere una llamada real a la API de Alianza.
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <p><strong>Odontoking CRM</strong> - Informe Técnico de Integración con Alianza Seguros</p>
+  <p style="margin-top:8px">Versión 1.0 · Preparado el 1 de junio de 2025 · Para uso confidencial de Alianza Seguros</p>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    themeVariables: {
+      primaryColor: '#1a56a4',
+      primaryTextColor: '#fff',
+      primaryBorderColor: '#0d2f6e',
+      lineColor: '#4b5563',
+      secondaryColor: '#e8f0fb',
+      tertiaryColor: '#f5f7fa',
+      fontSize: '14px'
+    },
+    flowchart: { curve: 'basis', padding: 20 },
+    sequence:  { actorMargin: 60, messageMargin: 30 }
+  });
+</script>
+</body>
+</html>

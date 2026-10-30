@@ -301,6 +301,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'عرض المزيد',
+                'ver-menos' => 'عرض أقل',
                 'actions'              => 'الإجراءات',
                 'no-records-available' => 'لا توجد سجلات متاحة.',
             ],
@@ -489,6 +491,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'المسجلون',
+                ],
+
                 'title'                  => 'الأشخاص',
                 'create-btn'             => 'إنشاء شخص',
                 'create-success'         => 'تم إنشاء الشخص بنجاح.',
@@ -1758,6 +1764,23 @@ return [
             'text-generation-failed' => 'فشل استخراج النص. قد يكون الملف فارغًا أو غير قابل للقراءة.',
         ],
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'عوامل التصفية',
+                'embudo'       => 'مسار المبيعات',
+                'periodo'      => 'الفترة',
+                'desde'        => 'من',
+                'hasta'        => 'إلى',
+                'vista'        => 'العرض',
+                'kanban'       => 'كانبان',
+                'lista'        => 'قائمة',
+                'por-columna'  => 'تصفية حسب العمود',
+                'limpiar'      => 'مسح التواريخ',
+                'mover'        => 'نقل',
+                'mover-a'      => 'نقل «:titulo» إلى…',
+                'etapa-actual' => 'المرحلة الحالية',
+                'cancelar'     => 'إلغاء',
+            ],
+
             'title'      => 'العملاء المحتملون',
             'create-btn' => 'إنشاء عميل محتمل',
             'datagrid'   => [
@@ -1780,6 +1803,8 @@ return [
                 'mass-update'    => 'تحديث جماعي',
             ],
             'kanban' => [
+                'error-conexion'         => 'تعذّر حفظ التغيير. تحقق من الاتصال وحاول مرة أخرى.',
+                'etapas' => 'المراحل',
                 'rotten-days'            => 'العميل الفاسد منذ :days أيام',
                 'empty-list'             => 'قائمة العملاء الخاصة بك فارغة',
                 'empty-list-description' => 'قم بإنشاء عميل لتنظيم أهدافك.',
@@ -2074,6 +2099,13 @@ return [
         ],
     ],
     'layouts' => [
+        'volver' => 'العودة إلى القائمة',
+
+        'mobile-nav' => [
+            'title' => 'التنقل الرئيسي',
+            'more'  => 'المزيد',
+        ],
+
         'app-version' => 'الإصدار: :version',
         'dashboard'   => 'لوحة القيادة',
         'leads'       => 'العملاء المحتملين',

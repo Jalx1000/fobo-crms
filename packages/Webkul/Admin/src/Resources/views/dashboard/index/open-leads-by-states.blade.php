@@ -123,7 +123,7 @@
                                 this.prepare();
                             }, 0);
                         })
-                        .catch(error => {});
+                        .catch(error => { this.isLoading = false; console.error(error); });
                 },
 
                 prepare() {

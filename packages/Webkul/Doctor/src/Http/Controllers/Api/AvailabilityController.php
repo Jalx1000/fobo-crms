@@ -169,12 +169,13 @@ class AvailabilityController extends Controller
 
             // Reusing logic from ActivityController::get logic effectively.
 
-            $bookings = DB::table('activities')
+            $bookingsQuery = DB::table('activities')
                 ->join('doctor_activities', 'activities.id', '=', 'doctor_activities.activity_id')
                 ->where('doctor_activities.doctor_id', $doctorId)
                 ->whereBetween('activities.schedule_from', [$startDate->format('Y-m-d H:i:s'), $endDate->format('Y-m-d H:i:s')])
-                ->select('activities.schedule_from', 'activities.schedule_to', 'activities.type')
-                ->get();
+                ->select('activities.schedule_from', 'activities.schedule_to', 'activities.type');
+
+            $bookings = DoctorAvailabilityService::excludeCancelledLeads($bookingsQuery)->get();
 
             // 6. Process Availability
             $result = [];

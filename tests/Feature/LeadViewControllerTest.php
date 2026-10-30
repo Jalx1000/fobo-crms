@@ -8,4 +8,3 @@ it('no retorna 500 al visualizar lead inexistente', function () {
 
     expect($response->getStatusCode())->not()->toBe(500);
 });
-

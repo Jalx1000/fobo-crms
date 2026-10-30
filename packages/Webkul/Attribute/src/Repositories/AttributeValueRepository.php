@@ -5,6 +5,9 @@ namespace Webkul\Attribute\Repositories;
 use Carbon\Carbon;
 use Illuminate\Container\Container;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Webkul\Attribute\Contracts\AttributeValue;
 use Webkul\Core\Eloquent\Repository;
@@ -71,7 +74,15 @@ class AttributeValueRepository extends Repository
             }
 
             if ($attribute->type === 'multiselect' || $attribute->type === 'checkbox') {
-                $data[$attribute->code] = implode(',', $data[$attribute->code]);
+                /**
+                 * Los formularios envían un array, pero los callers programáticos
+                 * (API, listeners de sync, servicios) suelen enviar un solo id escalar.
+                 * Normalizamos ambos casos al CSV que espera `text_value`.
+                 */
+                $data[$attribute->code] = implode(',', array_filter(
+                    Arr::wrap($data[$attribute->code]),
+                    fn ($value) => $value !== null && $value !== ''
+                ));
             }
 
             if ($attribute->type === 'email' || $attribute->type === 'phone') {
@@ -122,10 +133,27 @@ class AttributeValueRepository extends Repository
      */
     public function isValueUnique($entityId, $entityType, $attribute, $value)
     {
+        return $this->valueOwnerId($entityId, $entityType, $attribute, $value) === null;
+    }
+
+    /**
+     * Id del registro que ya tiene ese valor, o null si nadie lo tiene.
+     *
+     * Solo cuentan los registros que siguen existiendo: al borrar una persona
+     * (u otra entidad) sus attribute_values quedan, y su teléfono o email
+     * figuraba "ya tomado" para siempre al crear otro paciente.
+     */
+    public function valueOwnerId($entityId, $entityType, $attribute, $value): ?int
+    {
         $query = $this->resetScope()->model
             ->where('attribute_id', $attribute->id)
             ->where('entity_type', $entityType)
             ->where('entity_id', '!=', $entityId);
+
+        // entity_type es el nombre de la tabla (persons, leads, products, doctors).
+        if (Schema::hasTable($entityType)) {
+            $query->whereIn('entity_id', DB::table($entityType)->select('id'));
+        }
 
         /**
          * If the attribute type is email or phone, check the JSON value.
@@ -136,7 +164,9 @@ class AttributeValueRepository extends Repository
             $query->where($this->model::$attributeTypeFields[$attribute->type], $value);
         }
 
-        return $query->get()->count() ? false : true;
+        $ownerId = $query->value('entity_id');
+
+        return $ownerId === null ? null : (int) $ownerId;
     }
 
     /**

@@ -1,4 +1,4 @@
-# Odontoking CRM — Documentación Técnica
+# Odontoking CRM - Documentación Técnica
 
 > Sistema de gestión para clínica dental construido sobre **Krayin CRM** (Laravel + Vue 3).  
 > Extiende la arquitectura modular de Krayin con el módulo custom **Doctor** y la integración con **ShareMeData**.
@@ -116,10 +116,10 @@ Usuario abre /admin/activities (vista Calendario de Doctores)
                       └─► AppointmentService::process(data)
 ```
 
-### `AppointmentService::process()` — 6 pasos garantizados
+### `AppointmentService::process()` - 6 pasos garantizados
 
 ```
-PASO 1 — Validar turno / jornada laboral
+PASO 1 - Validar turno / jornada laboral
 ──────────────────────────────────────────────────────────
 SELECT * FROM doctor_shifts
 WHERE doctor_id = X
@@ -130,7 +130,7 @@ WHERE doctor_id = X
   ✗ No existe → AppointmentException: "Fuera de jornada laboral"
   ✓ Existe    → continúa
 
-PASO 2 — Validar conflicto de cita local
+PASO 2 - Validar conflicto de cita local
 ──────────────────────────────────────────────────────────
 SELECT * FROM activities
 JOIN doctor_activities ON activities.id = activity_id
@@ -144,7 +144,7 @@ AND (
   ✗ Existe → AppointmentException: "Doctor ya tiene cita en este horario"
   ✓ No     → continúa
 
-PASO 3 — Auto-descubrir unique_id en ShareMeData (si falta)
+PASO 3 - Auto-descubrir unique_id en ShareMeData (si falta)
 ──────────────────────────────────────────────────────────
 Para cada especialidad del doctor:
   GET /api/calendar/schedule/availability?specialty=X&...
@@ -154,7 +154,7 @@ Para cada especialidad del doctor:
   ✗ No encontrado → AppointmentException: "No se pudo vincular al doctor"
   ✓ Encontrado   → continúa
 
-PASO 4 — Verificar disponibilidad en ShareMeData
+PASO 4 - Verificar disponibilidad en ShareMeData
 ──────────────────────────────────────────────────────────
 Para cada especialidad del doctor:
   GET /api/calendar/schedule/availability?
@@ -169,7 +169,7 @@ Para cada especialidad del doctor:
   ✗ No disponible → AppointmentException: "Sin disponibilidad en ShareMeData"
   ✓ Disponible   → continúa
 
-PASO 5 — Crear evento en ShareMeData (PRIMERO que los registros locales)
+PASO 5 - Crear evento en ShareMeData (PRIMERO que los registros locales)
 ──────────────────────────────────────────────────────────
 POST /api/calendar/schedule/createEvent
 {
@@ -184,7 +184,7 @@ POST /api/calendar/schedule/createEvent
   ✗ Falla → AppointmentException: "Error al registrar la cita en ShareMeData"
   ✓ OK    → continúa
 
-PASO 6 — Crear registros locales en DB::transaction()
+PASO 6 - Crear registros locales en DB::transaction()
 ──────────────────────────────────────────────────────────
   ¿Paciente tiene lead abierto?
     Sí → reutiliza ese lead
@@ -426,7 +426,7 @@ Posibles status:
   Sí → insuranceService.createNoteActivity($personId, $result)
        │
        Crea Activity type='note':
-         title:   "Verificación de Seguro: Alianza — VIGENTE"
+         title:   "Verificación de Seguro: Alianza - VIGENTE"
          comment: "Seguro: Alianza\n| Estado: VIGENTE\n|
                    Paciente: Juan Pérez\n| Detalle: ACTIVO\n|
                    Vigencia hasta: 31/12/2026\n| Coaseguro: 20%\n| ..."
@@ -641,11 +641,11 @@ Base URL: `https://gamma.sharemedata.com/api/calendar`
 | Método | Endpoint | Descripción |
 |---|---|---|
 | `getSpecialties()` | `GET /specialties` | Lista nombres de especialidades del sistema externo |
-| `syncSpecialties()` | — | Sincroniza especialidades SMD con la BD local |
+| `syncSpecialties()` | - | Sincroniza especialidades SMD con la BD local |
 | `checkAvailability($extId, $specialty, $subsidiary, $from, $to)` | `GET /schedule/availability` | Retorna slots del doctor o `[]` si no hay disponibilidad |
-| `isRangeAvailable(...)` | — | Verifica que **todo** el rango esté cubierto en bloques de 15 min |
+| `isRangeAvailable(...)` | - | Verifica que **todo** el rango esté cubierto en bloques de 15 min |
 | `createEvent($data): array` | `POST /schedule/createEvent` | Retorna `{ success, data, message }` |
-| `getLastResponse(): array\|null` | — | Retorna última respuesta HTTP cruda (útil para debugging) |
+| `getLastResponse(): array\|null` | - | Retorna última respuesta HTTP cruda (útil para debugging) |
 
 > **Nota:** Todos los timestamps se envían en zona horaria UTC-4 (Bolivia).  
 > Formato: `Y-m-d\TH:i:s-04:00`
@@ -785,7 +785,7 @@ Base URL: `https://gamma.sharemedata.com/api/calendar`
 │  Blade Templates + Vue 3 (componentes inline) + Tailwind CSS    │
 │  Librerías: vue-cal, flatpickr, vee-validate, vuedraggable      │
 │  Plugins globales: $admin, $axios, $emitter (mitt)              │
-│  Build: Vite — un vite.config.js por paquete                    │
+│  Build: Vite - un vite.config.js por paquete                    │
 ├─────────────────────────────────────────────────────────────────┤
 │  CONTROLADORES HTTP                                             │
 │  Activity\ActivityController   Calendario + CRUD actividades    │
@@ -865,4 +865,4 @@ Base URL: `https://gamma.sharemedata.com/api/calendar`
 
 ---
 
-*Documentación generada: 5 de mayo de 2026 — rama `main`*
+*Documentación generada: 5 de mayo de 2026 - rama `main`*

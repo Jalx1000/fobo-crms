@@ -35,9 +35,46 @@ abstract class AbstractReporting
      */
     public function __construct()
     {
-        $this->setStartDate(request()->date('start'));
+        [$persistedStart, $persistedEnd] = $this->getPersistedDateRange();
 
-        $this->setEndDate(request()->date('end'));
+        $this->setStartDate(request()->date('start') ?? $persistedStart);
+
+        $this->setEndDate(request()->date('end') ?? $persistedEnd);
+    }
+
+    /**
+     * Rango persistido por el filtro del tablero en la cookie
+     * "global_date_range" ("Y-m-d|Y-m-d"). Es el fallback cuando el request no
+     * trae start/end, para que la fecha filtrada se mantenga entre visitas
+     * hasta que el usuario la cambie.
+     *
+     * @return array{0: ?Carbon, 1: ?Carbon}
+     */
+    protected function getPersistedDateRange(): array
+    {
+        $range = explode('|', (string) request()->cookie('global_date_range'), 2);
+
+        return [
+            $this->parsePersistedDate($range[0] ?? null),
+            $this->parsePersistedDate($range[1] ?? null),
+        ];
+    }
+
+    /**
+     * Una cookie manipulada o corrupta no debe tumbar el tablero: si la fecha
+     * no es un "Y-m-d" válido se ignora y aplican los defaults.
+     */
+    protected function parsePersistedDate(?string $date): ?Carbon
+    {
+        if (! $date) {
+            return null;
+        }
+
+        try {
+            return Carbon::createFromFormat('Y-m-d', $date);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

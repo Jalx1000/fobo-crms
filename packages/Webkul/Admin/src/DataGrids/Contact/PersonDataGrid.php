@@ -10,6 +10,15 @@ use Webkul\DataGrid\DataGrid;
 class PersonDataGrid extends DataGrid
 {
     /**
+     * Page sizes offered in the table view.
+     *
+     * Same large sizes as the leads listing: revisar o exportar el padrón de
+     * pacientes de a 50 filas obliga a paginar sin parar. Son opt-in - nada
+     * carga 1000 filas salvo que se elija ese tamaño en el desplegable.
+     */
+    protected $perPageOptions = [10, 20, 30, 40, 50, 100, 500, 1000];
+
+    /**
      * Create a new class instance.
      *
      * @return void
@@ -36,8 +45,19 @@ class PersonDataGrid extends DataGrid
             $queryBuilder->whereIn('persons.user_id', $userIds);
         }
 
+        // Filtro por rango de fechas de registro (created_at) desde la barra
+        // de filtros del listado (persistido por cookie en el front).
+        if ($startDate = request('start_date')) {
+            $queryBuilder->whereDate('persons.created_at', '>=', $startDate);
+        }
+
+        if ($endDate = request('end_date')) {
+            $queryBuilder->whereDate('persons.created_at', '<=', $endDate);
+        }
+
         $this->addFilter('id', 'persons.id');
         $this->addFilter('person_name', 'persons.name');
+        $this->addFilter('organization', 'organizations.name');
 
         return $queryBuilder;
     }
@@ -155,5 +175,21 @@ class PersonDataGrid extends DataGrid
                 'url'    => route('admin.contacts.persons.mass_delete'),
             ]);
         }
+    }
+
+    /**
+     * La búsqueda general ("all") encuentra al paciente por nombre, teléfono o
+     * CI (listado de personas). La del DataGrid base solo hacía LIKE sobre las columnas
+     * visibles: no veía la CI y el teléfono tenía que escribirse tal cual.
+     */
+    protected function processRequestedFilters(array $requestedFilters)
+    {
+        foreach ((array) ($requestedFilters['all'] ?? []) as $term) {
+            app(\Webkul\Admin\Services\PatientSearch::class)->apply($this->queryBuilder, (string) $term, 'persons.id', ['persons.emails']);
+        }
+
+        unset($requestedFilters['all']);
+
+        return parent::processRequestedFilters($requestedFilters);
     }
 }

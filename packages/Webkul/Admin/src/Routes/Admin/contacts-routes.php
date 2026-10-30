@@ -3,10 +3,9 @@
 use Illuminate\Support\Facades\Route;
 use Webkul\Admin\Http\Controllers\Contact\OrganizationController;
 use Webkul\Admin\Http\Controllers\Contact\Persons\ActivityController;
+use Webkul\Admin\Http\Controllers\Contact\Persons\InsuranceController;
 use Webkul\Admin\Http\Controllers\Contact\Persons\PersonController;
 use Webkul\Admin\Http\Controllers\Contact\Persons\TagController;
-
-use Webkul\Admin\Http\Controllers\Contact\Persons\InsuranceController;
 
 Route::prefix('contacts')->group(function () {
     /**
@@ -34,6 +33,8 @@ Route::prefix('contacts')->group(function () {
         Route::middleware('throttle:30,1')->get('search-smd', 'searchSmd')->name('admin.contacts.persons.search_smd');
 
         Route::post('verify-insurance-quick', [InsuranceController::class, 'verifyQuick'])->name('admin.contacts.persons.verify_insurance_quick');
+
+        Route::middleware('throttle:20,1')->post('verify-insurance-ci', [InsuranceController::class, 'verifyCi'])->name('admin.contacts.persons.verify_insurance_ci');
 
         Route::get('insurance-options', [InsuranceController::class, 'insuranceOptions'])->name('admin.contacts.persons.insurance_options');
 

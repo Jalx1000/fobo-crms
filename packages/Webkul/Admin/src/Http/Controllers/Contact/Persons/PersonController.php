@@ -4,8 +4,8 @@ namespace Webkul\Admin\Http\Controllers\Contact\Persons;
 
 use Exception;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Event;
 use Illuminate\View\View;
@@ -26,7 +26,7 @@ class PersonController extends Controller
      * @return void
      */
     public function __construct(
-        protected PersonRepository   $personRepository,
+        protected PersonRepository $personRepository,
         protected ShareMeDataService $shareMeDataService,
     ) {
         request()->request->add(['entity_type' => 'persons']);
@@ -76,7 +76,7 @@ class PersonController extends Controller
         session()->flash('success', trans('admin::app.contacts.persons.index.create-success'));
 
         if ($person->smd_patient_id) {
-            session()->flash('info', 'Paciente vinculado a ShareMeData ✓ (ID: ' . $person->smd_patient_id . ')');
+            session()->flash('info', 'Paciente vinculado a ShareMeData ✓ (ID: '.$person->smd_patient_id.')');
         } else {
             session()->flash('warning', 'Paciente creado, pero no se encontró en ShareMeData. Verifícalo manualmente desde su perfil.');
         }
@@ -132,11 +132,26 @@ class PersonController extends Controller
      */
     public function search(): JsonResource
     {
-        if ($query = request()->get('query')) {
-            request()->request->add([
-                'search'       => 'name:' . $query,
-                'searchFields' => 'name:like',
-            ]);
+        // Selector de paciente (ej. "Añadir cita" del calendario): por nombre,
+        // teléfono o CI, igual que los buscadores de los listados.
+        // Con tope (`limit`, hasta 200; 50 si no viene): "mar" traía 336
+        // pacientes. Las relaciones que usa PersonResource van precargadas,
+        // si no eran una consulta por paciente. `organization` (en el $with
+        // del modelo) después de `attribute_values`: con organization_id NULL,
+        // CustomAttribute lo busca entre los valores de atributos y, sin
+        // precargar, consulta.
+        if ($query = trim((string) request()->get('query'))) {
+            $persons = $this->personRepository->getModel()->newQuery()
+                ->without('organization')
+                ->with('attribute_values')
+                ->whereIn('id', app(\Webkul\Admin\Services\PatientSearch::class)->matchingPersons($query))
+                ->when(bouncer()->getAuthorizedUserIds(), fn ($q, $userIds) => $q->whereIn('user_id', $userIds))
+                ->orderBy('name')
+                ->limit(min(max((int) request()->get('limit', 50), 1), 200))
+                ->get()
+                ->load('organization');
+
+            return PersonResource::collection($persons);
         }
 
         if ($userIds = bouncer()->getAuthorizedUserIds()) {
@@ -202,37 +217,98 @@ class PersonController extends Controller
             return response()->json(['found' => false, 'message' => 'Ingresa al menos 3 caracteres.']);
         }
 
-        // 1. Por teléfono
-        $results = $this->shareMeDataService->searchPatient($term);
+        $results = $this->buscarEnSmd($term);
 
-        // 2. Por CI
-        if (empty($results)) {
-            $results = $this->shareMeDataService->searchPatientByCi($term);
-        }
-
-        // 3. Por email
-        if (empty($results)) {
-            $results = $this->shareMeDataService->searchPatientByEmail($term);
+        if ($results === null) {
+            return response()->json(['found' => false, 'error' => true, 'message' => 'ShareMeData no respondió. Probá de nuevo.']);
         }
 
         if (empty($results)) {
             return response()->json(['found' => false]);
         }
 
-        $p = $results[0];
+        /**
+         * Un teléfono puede ser de varios pacientes (una familia): se devuelven
+         * todos en `patients` para que el operador elija. Los campos de arriba
+         * son el primero, como antes.
+         */
+        $patients = $this->conFichaDelCrm(array_map(fn ($p) => $this->smdPatientSummary($p), array_slice($results, 0, 10)));
 
-        return response()->json([
-            'found'     => true,
-            'smd_id'    => $p['_id']                       ?? null,
+        return response()->json(['found' => true] + $patients[0] + ['patients' => $patients]);
+    }
+
+    /**
+     * Busca en SMD según lo escrito: con @ por correo, sin números por nombre
+     * y, con números, por teléfono y luego por CI (un CI puede llevar letras,
+     * «1234567LP»). Null = SMD no respondió
+     * (distinto de "no existe").
+     */
+    protected function buscarEnSmd(string $term): ?array
+    {
+        if (str_contains($term, '@')) {
+            return $this->shareMeDataService->searchPatientByEmail($term);
+        }
+
+        if (! preg_match('/\d/', $term)) {
+            $results = $this->shareMeDataService->searchPatientByName($term, 10);
+
+            return $this->shareMeDataService->lastLookup === 'error' && ! $results ? null : $results;
+        }
+
+        $digitos = preg_replace('/\D/', '', $term);
+
+        $results = $this->shareMeDataService->searchPatientOrNull($digitos ?: $term);
+
+        if ($results === []) {
+            $results = $this->shareMeDataService->searchPatientByCi($term);
+        }
+
+        return $results;
+    }
+
+    /**
+     * Marca los pacientes de SMD que ya tienen ficha en el CRM, para no
+     * cargarlos dos veces.
+     */
+    protected function conFichaDelCrm(array $patients): array
+    {
+        $fichas = $this->personRepository->getModel()->newQuery()
+            ->whereIn('smd_patient_id', array_filter(array_column($patients, 'smd_id')))
+            ->get(['id', 'name', 'smd_patient_id'])
+            ->keyBy('smd_patient_id');
+
+        return array_map(function ($patient) use ($fichas) {
+            $ficha = $fichas->get($patient['smd_id']);
+
+            return $patient + ['crm' => $ficha ? [
+                'id'   => $ficha->id,
+                'name' => $ficha->name,
+                'url'  => route('admin.contacts.persons.view', $ficha->id),
+            ] : null];
+        }, $patients);
+    }
+
+    /**
+     * Datos de un paciente de SMD que usa el autocompletar del formulario.
+     */
+    protected function smdPatientSummary(array $p): array
+    {
+        return [
+            'smd_id'    => $p['_id'] ?? null,
             'name'      => trim(($p['name'] ?? '').' '.($p['lastName'] ?? '')),
-            'phone'     => $p['phone']                     ?? null,
-            'ci'        => $p['personID']                  ?? null,
-            'email'     => $p['secondEmail']               ?? null,
+            'phone'     => $p['phone'] ?? null,
+            'ci'        => $p['personID'] ?? null,
+            'email'     => $p['secondEmail'] ?? null,
             'birthday'  => isset($p['birthday'])
                 ? \Carbon\Carbon::parse($p['birthday'])->format('Y-m-d')
                 : null,
-            'insurance' => $p['extra']['insurance'][0]     ?? null,
-        ]);
+            'insurance' => $p['extra']['insurance'][0] ?? null,
+            // Todas: un paciente puede tener varias y el campo Seguro es multiselect.
+            'insurances' => array_values(array_filter(
+                (array) ($p['extra']['insurance'] ?? []),
+                fn ($nombre) => is_string($nombre) && trim($nombre) !== ''
+            )),
+        ];
     }
 
     /**
@@ -266,27 +342,27 @@ class PersonController extends Controller
 
         if (! empty($smdPatients)) {
             $smdPatientId = $smdPatients[0]['_id'] ?? null;
-            $action       = 'encontrado';
+            $action = 'encontrado';
         } else {
             $nameParts = explode(' ', trim($person->name ?? ''));
-            $ciAttr    = app(\Webkul\Attribute\Repositories\AttributeRepository::class)
+            $ciAttr = app(\Webkul\Attribute\Repositories\AttributeRepository::class)
                 ->findOneByField('code', 'ci_paciente');
-            $ci        = $ciAttr ? $person->getCustomAttributeValue($ciAttr) : null;
+            $ci = $ciAttr ? $person->getCustomAttributeValue($ciAttr) : null;
 
             $result = $this->shareMeDataService->createPatient([
-                'first_name' => $nameParts[0]                                  ?? 'Paciente',
+                'first_name' => $nameParts[0] ?? 'Paciente',
                 'last_name'  => implode(' ', array_slice($nameParts, 1)) ?: 'Externo',
                 'phone'      => $phone,
                 'ci'         => $ci ?: null,
             ]);
 
             if (! $result['success'] && ($result['duplicate'] ?? false)) {
-                $retry        = $this->shareMeDataService->searchPatient($phone);
+                $retry = $this->shareMeDataService->searchPatient($phone);
                 $smdPatientId = $retry[0]['_id'] ?? null;
-                $action       = 'recuperado_duplicado';
+                $action = 'recuperado_duplicado';
             } elseif ($result['success']) {
                 $smdPatientId = $result['data']['_id'] ?? null;
-                $action       = 'creado';
+                $action = 'creado';
             } else {
                 return response()->json([
                     'message' => 'No se pudo sincronizar con ShareMeData: '.($result['message'] ?? 'Error desconocido'),
@@ -319,6 +395,12 @@ class PersonController extends Controller
      */
     public function smdData(int $id): JsonResponse
     {
+        // Devuelve la ficha clínica de SMD (CI, teléfono, seguro): mismo nivel de
+        // acceso que ver el contacto. Era el único endpoint SMD sin permiso (AUD-10).
+        if (! bouncer()->hasPermission('contacts.persons.view')) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
         $person = $this->personRepository->find($id);
 
         if (! $person) {
@@ -344,8 +426,8 @@ class PersonController extends Controller
             'smd_id'    => $person->smd_patient_id,
             'stale'     => false,
             'name'      => trim(($data['name'] ?? '').' '.($data['lastName'] ?? '')),
-            'phone'     => $data['phone']                 ?? null,
-            'ci'        => $data['personID']              ?? null,
+            'phone'     => $data['phone'] ?? null,
+            'ci'        => $data['personID'] ?? null,
             'insurance' => $data['extra']['insurance'][0] ?? null,
         ]);
     }
@@ -359,7 +441,10 @@ class PersonController extends Controller
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        $request->validate(['smd_patient_id' => 'required|string']);
+        // Un id de SMD es un ObjectId de Mongo (24 hex). Validarlo evita que
+        // "../calendar/specialties" viaje en la URL: SMD respondía otra cosa y el
+        // paciente quedaba vinculado a un id basura (AUD-10).
+        $request->validate(['smd_patient_id' => ['required', 'string', 'regex:/^[a-f0-9]{24}$/i']]);
 
         $person = $this->personRepository->find($id);
 

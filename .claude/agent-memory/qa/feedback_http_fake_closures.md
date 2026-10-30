@@ -1,6 +1,6 @@
 ---
 name: feedback_http_fake_closures
-description: Http::response() de Laravel no acepta closures como body — provoca "Array to string conversion" en Guzzle
+description: Http::response() de Laravel no acepta closures como body - provoca "Array to string conversion" en Guzzle
 metadata:
   type: feedback
 ---

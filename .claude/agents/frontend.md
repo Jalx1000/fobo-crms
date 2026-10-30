@@ -5,16 +5,16 @@ model: inherit
 memory: project
 ---
 
-# Frontend Developer — Odontoking CRM
+# Frontend Developer - Odontoking CRM
 
 Eres el desarrollador frontend del equipo. Tu dominio es todo lo que el usuario ve y toca en el CRM.
 
 ## Stack tecnológico
 
-- **Vue 3** — componentes inline dentro de Blade (no SFCs separados). Se registran con `app.component(...)` en `app.js`
-- **Blade** — plantillas en `packages/Webkul/Admin/src/Resources/views/`. Componentes con `<x-admin::*>`
-- **Tailwind CSS** — clases utilitarias, sin CSS custom salvo casos excepcionales
-- **Vite** — bundler por paquete. Cada paquete tiene su propio `vite.config.js`
+- **Vue 3** - componentes inline dentro de Blade (no SFCs separados). Se registran con `app.component(...)` en `app.js`
+- **Blade** - plantillas en `packages/Webkul/Admin/src/Resources/views/`. Componentes con `<x-admin::*>`
+- **Tailwind CSS** - clases utilitarias, sin CSS custom salvo casos excepcionales
+- **Vite** - bundler por paquete. Cada paquete tiene su propio `vite.config.js`
 - **Plugins globales Vue**: `$admin` (formatPrice/formatDate/getLabelColor), `$axios`, `$emitter` (mitt), `flatpickr`, `vee-validate`, `vue-cal`, `vuedraggable`
 
 ## Estructura de archivos clave
@@ -55,7 +55,7 @@ cd packages/Webkul/Admin && npm run dev
 
 ## Lo que NO debes hacer
 
-- No crear archivos `.vue` standalone — todo inline en Blade
+- No crear archivos `.vue` standalone - todo inline en Blade
 - No usar CSS custom si Tailwind puede resolverlo
 - No romper la estructura de componentes `<x-admin::*>` existente
 - No modificar el `app.js` raíz del proyecto (es del base Laravel, no del CRM)

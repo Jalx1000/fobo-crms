@@ -16,6 +16,41 @@ class DoctorAvailabilityService
     ) {}
 
     /**
+     * Excluye, de una query sobre `activities`, las citas cuyo(s) Lead(s) están
+     * todos cerrados/cancelados - mismo criterio que el chequeo de conflicto local
+     * de AppointmentService: cancelación se detecta por leads.status = 0 o por
+     * lead_pipeline_stage_id en stage_map.cancelled/no_show (config/smd.php).
+     * Una Activity sin Lead vinculado se sigue tratando como cita real (conservador).
+     */
+    public static function excludeCancelledLeads(\Illuminate\Database\Query\Builder $query): \Illuminate\Database\Query\Builder
+    {
+        $cancelledStageIds = array_filter([
+            (int) config('smd.stage_map.cancelled'),
+            (int) config('smd.stage_map.no_show'),
+        ]);
+
+        return $query->where(function ($query) use ($cancelledStageIds) {
+            $query->whereNotExists(function ($sub) {
+                $sub->select('lead_activities.activity_id')
+                    ->from('lead_activities')
+                    ->whereColumn('lead_activities.activity_id', 'activities.id');
+            })->orWhereExists(function ($sub) use ($cancelledStageIds) {
+                $sub->select('lead_activities.activity_id')
+                    ->from('lead_activities')
+                    ->join('leads', 'leads.id', '=', 'lead_activities.lead_id')
+                    ->whereColumn('lead_activities.activity_id', 'activities.id')
+                    ->where(function ($q) {
+                        $q->whereNull('leads.status')->orWhere('leads.status', '!=', 0);
+                    })
+                    ->where(function ($q) use ($cancelledStageIds) {
+                        $q->whereNull('leads.lead_pipeline_stage_id')
+                          ->orWhereNotIn('leads.lead_pipeline_stage_id', $cancelledStageIds);
+                    });
+            });
+        });
+    }
+
+    /**
      * Retorna disponibilidad de los próximos 7 días para múltiples doctores de una sola pasada.
      * Usado por el índice paginado de la API.
      *
@@ -29,14 +64,16 @@ class DoctorAvailabilityService
             ->get()
             ->groupBy('doctor_id');
 
-        $bookings = DB::table('activities')
+        $bookingsQuery = DB::table('activities')
             ->join('doctor_activities', 'activities.id', '=', 'doctor_activities.activity_id')
             ->whereIn('doctor_activities.doctor_id', $doctorIds)
             ->whereBetween('activities.schedule_from', [
                 $startDate->format('Y-m-d H:i:s'),
                 $endDate->format('Y-m-d H:i:s'),
             ])
-            ->select('doctor_activities.doctor_id', 'activities.schedule_from', 'activities.schedule_to')
+            ->select('doctor_activities.doctor_id', 'activities.schedule_from', 'activities.schedule_to');
+
+        $bookings = self::excludeCancelledLeads($bookingsQuery)
             ->get()
             ->groupBy('doctor_id');
 
@@ -65,15 +102,16 @@ class DoctorAvailabilityService
             ['date', '<=', $endDate->toDateString()],
         ]);
 
-        $bookings = DB::table('activities')
+        $bookingsQuery = DB::table('activities')
             ->join('doctor_activities', 'activities.id', '=', 'doctor_activities.activity_id')
             ->where('doctor_activities.doctor_id', $doctorId)
             ->whereBetween('activities.schedule_from', [
                 $startDate->format('Y-m-d H:i:s'),
                 $endDate->copy()->endOfDay()->format('Y-m-d H:i:s'),
             ])
-            ->select('activities.schedule_from', 'activities.schedule_to')
-            ->get();
+            ->select('activities.schedule_from', 'activities.schedule_to');
+
+        $bookings = self::excludeCancelledLeads($bookingsQuery)->get();
 
         $schedule = [];
         $cursor = $startDate->copy();
@@ -155,7 +193,7 @@ class DoctorAvailabilityService
 
         $tz = config('app.timezone', 'UTC');
 
-        $bookings = DB::table('activities')
+        $bookingsQuery = DB::table('activities')
             ->join('doctor_activities', 'activities.id', '=', 'doctor_activities.activity_id')
             ->where('doctor_activities.doctor_id', $doctorId)
             ->whereNotNull('activities.schedule_from')
@@ -164,7 +202,9 @@ class DoctorAvailabilityService
                 $startDate->format('Y-m-d 00:00:00'),
                 $endDate->format('Y-m-d 23:59:59'),
             ])
-            ->select('activities.schedule_from', 'activities.schedule_to')
+            ->select('activities.schedule_from', 'activities.schedule_to');
+
+        $bookings = self::excludeCancelledLeads($bookingsQuery)
             ->get()
             ->groupBy(fn ($b) => Carbon::parse($b->schedule_from)->setTimezone($tz)->toDateString());
 

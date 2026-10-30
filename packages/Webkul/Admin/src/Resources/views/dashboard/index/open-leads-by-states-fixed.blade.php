@@ -61,8 +61,24 @@
                 this.$emitter.on('reporting-filter-updated', this.getStats);
             },
 
+            beforeUnmount() {
+                // Evita que Chart.js dibuje sobre un canvas ya removido (getContext sobre null).
+                if (this.chart) {
+                    this.chart.destroy();
+                    this.chart = undefined;
+                }
+            },
+
             methods: {
                 getStats(filters) {
+                    // Destruir el chart ANTES de ocultar el canvas (isLoading = true lo
+                    // remueve del DOM). Si no, Chart.js sigue su loop de dibujado/resize
+                    // sobre un canvas ya removido -> getContext sobre null.
+                    if (this.chart) {
+                        this.chart.destroy();
+                        this.chart = undefined;
+                    }
+
                     this.isLoading = true;
                     var filters = Object.assign({}, filters);
                     filters.type = 'open-leads-by-states-fixed';
@@ -85,7 +101,17 @@
                     if (this.report.statistics.length === 0) {
                         return;
                     }
-                    const ctx = document.getElementById(this.$.uid + '_chart')?.getContext('2d');
+                    const canvas = document.getElementById(this.$.uid + '_chart');
+                    const ctx = canvas?.getContext('2d');
+
+                    if (! ctx) {
+                        return;
+                    }
+
+                    // Mata cualquier instancia "zombie" aún ligada a este canvas antes
+                    // de crear una nueva (evita getContext sobre null en el loop de dibujado).
+                    Chart.getChart(canvas)?.destroy();
+
                     const gradient = ctx.createLinearGradient(0, 0, 0, 400);
                     gradient.addColorStop(0, 'rgba(144, 247, 236, 0.8)');
                     gradient.addColorStop(1, 'rgba(50, 204, 188, 1)');
@@ -100,7 +126,13 @@
                                 borderWidth: 0,
                             }],
                         },
-                        options: { indexAxis: 'y' },
+                        options: {
+                            indexAxis: 'y',
+
+                            // Sin animación: el chart no entra al Animator de Chart.js, evitando
+                            // que su loop dibuje sobre un canvas ya destruido (getContext de null).
+                            animation: false,
+                        },
                     });
                 }
             }

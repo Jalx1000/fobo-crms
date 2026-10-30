@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -13,18 +14,16 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Activity\Repositories\FileRepository;
 use Webkul\Admin\DataGrids\Activity\ActivityDataGrid;
+use Webkul\Admin\Exceptions\AppointmentException;
 use Webkul\Admin\Http\Controllers\Controller;
 use Webkul\Admin\Http\Requests\MassDestroyRequest;
 use Webkul\Admin\Http\Requests\MassUpdateRequest;
 use Webkul\Admin\Http\Resources\ActivityResource;
+use Webkul\Admin\Services\AppointmentService;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Contact\Repositories\PersonRepository;
 use Webkul\Lead\Repositories\LeadRepository;
 use Webkul\Lead\Repositories\PipelineRepository;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
-use Webkul\Admin\Exceptions\AppointmentException;
-use Webkul\Admin\Services\AppointmentService;
 
 class ActivityController extends Controller
 {
@@ -34,13 +33,13 @@ class ActivityController extends Controller
      * @return void
      */
     public function __construct(
-        protected ActivityRepository  $activityRepository,
-        protected FileRepository      $fileRepository,
+        protected ActivityRepository $activityRepository,
+        protected FileRepository $fileRepository,
         protected AttributeRepository $attributeRepository,
-        protected LeadRepository      $leadRepository,
-        protected PipelineRepository  $pipelineRepository,
-        protected PersonRepository    $personRepository,
-        protected AppointmentService  $appointmentService,
+        protected LeadRepository $leadRepository,
+        protected PipelineRepository $pipelineRepository,
+        protected PersonRepository $personRepository,
+        protected AppointmentService $appointmentService,
     ) {}
 
     /**
@@ -57,30 +56,35 @@ class ActivityController extends Controller
     public function get(): JsonResponse
     {
         if (request()->get('view_type') === 'calendar' && request()->get('calendar_mode') === 'doctor') {
-            $view = request()->get('calendar_view', 'week'); // 'week' | 'month' | 'day'
-            if ($view === 'month') {
-                $cursor = request()->get('start')
-                    ? Carbon::parse(request()->get('start'))->startOfMonth()
-                    : Carbon::now()->startOfMonth();
-                $start = $cursor->copy()->startOfMonth();
-                $end = $cursor->copy()->endOfMonth();
-            } elseif ($view === 'day') {
-                $cursor = request()->get('start')
-                    ? Carbon::parse(request()->get('start'))->startOfDay()
-                    : Carbon::now()->startOfDay();
-                $start = $cursor->copy()->startOfDay();
-                $end = $cursor->copy()->endOfDay();
-            } else {
-                $start = request()->get('start')
-                    ? Carbon::parse(request()->get('start'))->startOfWeek()
-                    : Carbon::now()->startOfWeek();
-                $end = (clone $start)->endOfWeek();
-            }
+            [$view, $start, $end] = $this->resolveCalendarRange();
             $startDate = $start->copy()->setTime(0, 0, 1)->format('Y-m-d H:i:s');
             $endDate = $end->copy()->setTime(23, 59, 59)->format('Y-m-d H:i:s');
 
+            // Solo activos: los recursos de SMD (quirófano, recepcionista) están en
+            // `doctors` pero desactivados y no deben ofrecerse para agendar.
             $doctors = DB::table('doctors')
                 ->select(['id', 'name'])
+                ->where('is_active', 1)
+                ->orderBy('name')
+                ->get();
+
+            // Filtro por especialidad del calendario: cada doctor lleva sus
+            // specialty_ids y solo se ofrecen especialidades con algún doctor activo.
+            $doctorSpecialties = DB::table('doctor_specialty')
+                ->whereIn('doctor_id', $doctors->pluck('id'))
+                ->get(['doctor_id', 'specialty_id'])
+                ->groupBy('doctor_id');
+
+            $doctors = $doctors->map(function ($doctor) use ($doctorSpecialties) {
+                $doctor->specialty_ids = $doctorSpecialties->get($doctor->id, collect())
+                    ->pluck('specialty_id')->map(fn ($id) => (int) $id)->values()->all();
+
+                return $doctor;
+            });
+
+            $specialties = DB::table('specialties')
+                ->select(['id', 'name'])
+                ->whereIn('id', $doctorSpecialties->flatten()->pluck('specialty_id')->unique())
                 ->orderBy('name')
                 ->get();
 
@@ -99,7 +103,7 @@ class ActivityController extends Controller
                     'activities.schedule_to as end',
                     'activities.location',
                     'doctor_activities.doctor_id',
-                    DB::raw('GROUP_CONCAT(' . $prefix . 'p.name SEPARATOR ", ") as participants'),
+                    DB::raw('GROUP_CONCAT('.$prefix.'p.name SEPARATOR ", ") as participants'),
                 ])
                 ->whereBetween('activities.schedule_from', [$startDate, $endDate])
                 ->whereIn('activities.type', (function () {
@@ -107,8 +111,10 @@ class ActivityController extends Controller
                     $types = request()->get('activity_types');
                     if (is_array($types)) {
                         $filtered = array_values(array_intersect($types, $allowed));
+
                         return count($filtered) ? $filtered : $allowed;
                     }
+
                     return $allowed;
                 })())
                 ->groupBy('activities.id')
@@ -145,11 +151,19 @@ class ActivityController extends Controller
                     'doctor_activities.doctor_id',
                     'doctors.name as doctor_name',
                     'leads.id as lead_id',
+                    'leads.status as lead_status',
                     'leads.lead_pipeline_stage_id',
                     'products.id as product_id',
                     'products.name as product_name',
-                    DB::raw('MAX(' . $prefix . 'p.id) as person_id'),
-                    DB::raw('MAX(' . $prefix . 'p.name) as person_name'),
+                    // Todos los doctores de la cita (no solo el de la fila): permite
+                    // precargar el multiselect al editar una cita con varios médicos.
+                    DB::raw('(SELECT GROUP_CONCAT(dagg.doctor_id) FROM '.$prefix.'doctor_activities dagg WHERE dagg.activity_id = '.$prefix.'activities.id) as doctor_ids'),
+                    DB::raw('MAX('.$prefix.'p.id) as person_id'),
+                    DB::raw('MAX('.$prefix.'p.name) as person_name'),
+                    // Se extraen con JSON_EXTRACT porque MAX() no acepta columnas JSON.
+                    // Alimentan person_whatsapp (ver resolveWhatsappNumber).
+                    DB::raw('MAX(JSON_UNQUOTE(JSON_EXTRACT('.$prefix.'p.emails, \'$[0].value\'))) as person_email'),
+                    DB::raw('MAX(JSON_UNQUOTE(JSON_EXTRACT('.$prefix.'p.contact_numbers, \'$[0].value\'))) as person_contact_number'),
                 ])
                 ->whereBetween('activities.schedule_from', [$startDate, $endDate])
                 ->whereIn('activities.type', (function () {
@@ -157,10 +171,16 @@ class ActivityController extends Controller
                     $types = request()->get('activity_types');
                     if (is_array($types)) {
                         $filtered = array_values(array_intersect($types, $allowed));
+
                         return count($filtered) ? $filtered : $allowed;
                     }
+
                     return $allowed;
                 })())
+                // Buscador del calendario: citas del paciente por nombre, teléfono
+                // o CI (PatientSearch), o por el título de la cita.
+                ->when(trim((string) request()->get('q', '')) !== '', fn ($query) => app(\Webkul\Admin\Services\PatientSearch::class)
+                    ->apply($query, (string) request()->get('q'), 'activity_participants.person_id', ['activities.title']))
                 ->groupBy([
                     'activities.id',
                     'activities.title',
@@ -172,12 +192,57 @@ class ActivityController extends Controller
                     'doctor_activities.doctor_id',
                     'doctors.name',
                     'leads.id',
+                    'leads.status',
                     'leads.lead_pipeline_stage_id',
                     'products.id',
                     'products.name',
                 ])
                 ->orderBy('activities.schedule_from')
                 ->get();
+
+            // Cada estado visible del calendario se deriva de la etapa del lead
+            // (stage_map). "no_show" (Cita Perdida) ya NO es cancelación: tiene su
+            // propio color, igual que Cirugía y Confirmada. Se calcula aqui (no en
+            // el query) porque solo aplica a la visualizacion.
+            $cancelledStageIds = array_filter([
+                (int) config('smd.stage_map.cancelled'),
+            ]);
+            $completedStageIds = array_filter([
+                (int) config('smd.stage_map.completed'),
+            ]);
+            $confirmedStageId = (int) config('smd.stage_map.confirmed');
+            $surgeryStageId = (int) config('smd.stage_map.surgery');
+            $lostStageId = (int) config('smd.stage_map.no_show');
+
+            $appointments = $appointments->map(function ($appointment) use ($cancelledStageIds, $completedStageIds, $confirmedStageId, $surgeryStageId, $lostStageId) {
+                $stage = $appointment->lead_pipeline_stage_id !== null ? (int) $appointment->lead_pipeline_stage_id : null;
+                $hasLead = (bool) $appointment->lead_id;
+
+                // La cancelación se determina SOLO por la etapa "Cancelado" del lead
+                // (es lo que setean la sync de ShareMeData y el botón Cancelar).
+                // NO por lead_status: en odontoking status=0 aparece también en leads
+                // en "Cita confirmadas", así que usarlo marcaba citas confirmadas como
+                // canceladas (falso positivo). Cancelado tiene prioridad visual.
+                $appointment->is_cancelled = $hasLead && $stage !== null && in_array($stage, $cancelledStageIds, true);
+                $appointment->is_completed = $hasLead && $stage !== null && in_array($stage, $completedStageIds, true) && ! $appointment->is_cancelled;
+                $appointment->is_lost = $hasLead && $lostStageId > 0 && $stage === $lostStageId && ! $appointment->is_cancelled;
+                $appointment->is_surgery = $hasLead && $surgeryStageId > 0 && $stage === $surgeryStageId && ! $appointment->is_cancelled;
+                $appointment->is_confirmed = $hasLead && $confirmedStageId > 0 && $stage === $confirmedStageId && ! $appointment->is_cancelled;
+
+                // GROUP_CONCAT -> array de ids único (para el multiselect de doctores).
+                $appointment->doctor_ids = ! empty($appointment->doctor_ids)
+                    ? array_values(array_unique(array_map('intval', explode(',', $appointment->doctor_ids))))
+                    : [];
+
+                $appointment->person_whatsapp = $this->resolveWhatsappNumber(
+                    $appointment->person_email,
+                    $appointment->person_contact_number
+                );
+
+                unset($appointment->person_email, $appointment->person_contact_number);
+
+                return $appointment;
+            });
 
             $availability = DB::table('doctor_shifts')
                 ->select(['id', 'doctor_id', 'date', 'start_time', 'end_time'])
@@ -195,9 +260,12 @@ class ActivityController extends Controller
                     'start' => $start->format('Y-m-d'),
                     'end'   => $end->format('Y-m-d'),
                 ],
-                'days'         => $view === 'month'
+                'days'         => $view === 'list'
+                    ? collect([])
+                    : ($view === 'month'
                     ? collect(range(0, $start->daysInMonth - 1))->map(function ($i) use ($start) {
                         $d = $start->copy()->addDays($i);
+
                         return [
                             'date'  => $d->format('Y-m-d'),
                             'label' => $d->locale(app()->getLocale())->isoFormat('ddd D/MM'),
@@ -210,17 +278,19 @@ class ActivityController extends Controller
                         ]])
                         : collect(range(0, 6))->map(function ($i) use ($start) {
                             $d = $start->copy()->addDays($i);
+
                             return [
                                 'date'  => $d->format('Y-m-d'),
                                 'label' => $d->locale(app()->getLocale())->isoFormat('ddd D/MM'),
                             ];
                         })
-                    ),
-                'doctors'      => $doctors,
-                'appointments' => $appointments,
-                'availability' => $availability,
+                    )),
+                'doctors'       => $doctors,
+                'specialties'   => $specialties,
+                'appointments'  => $appointments,
+                'availability'  => $availability,
                 'calendar_view' => $view,
-                'stages'       => $stages,
+                'stages'        => $stages,
             ]);
         }
 
@@ -229,11 +299,11 @@ class ActivityController extends Controller
         }
 
         $startDate = request()->get('startDate')
-            ? Carbon::createFromTimeString(request()->get('startDate') . ' 00:00:01')
+            ? Carbon::createFromTimeString(request()->get('startDate').' 00:00:01')
             : Carbon::now()->startOfWeek()->format('Y-m-d H:i:s');
 
         $endDate = request()->get('endDate')
-            ? Carbon::createFromTimeString(request()->get('endDate') . ' 23:59:59')
+            ? Carbon::createFromTimeString(request()->get('endDate').' 23:59:59')
             : Carbon::now()->endOfWeek()->format('Y-m-d H:i:s');
 
         $activities = $this->activityRepository->getActivities([$startDate, $endDate])->toArray();
@@ -241,7 +311,7 @@ class ActivityController extends Controller
         return response()->json([
             'activities' => $activities,
         ]);
-    } 
+    }
 
     /**
      * Store a newly created resource in storage.
@@ -262,10 +332,13 @@ class ActivityController extends Controller
             $doctorId = ($participants['doctors'] ?? [])[0] ?? null;
             $personId = ($participants['persons'] ?? [])[0] ?? null;
 
-            if (!$doctorId || !$personId) {
-                $msg = "Debes seleccionar al menos un Doctor y un Paciente para agendar una consulta.";
-                if (request()->ajax()) return response()->json(['message' => $msg], 422);
+            if (! $doctorId || ! $personId) {
+                $msg = 'Debes seleccionar al menos un Doctor y un Paciente para agendar una consulta.';
+                if (request()->ajax()) {
+                    return response()->json(['message' => $msg], 422);
+                }
                 session()->flash('error', $msg);
+
                 return redirect()->back();
             }
 
@@ -305,6 +378,82 @@ class ActivityController extends Controller
         return redirect()->back();
     }
 
+    /**
+     * Resuelve el rango [inicio, fin] del calendario según la vista y los params
+     * de la request. Centralizado para que get() y version() midan lo mismo.
+     *
+     * @return array{0: string, 1: \Carbon\Carbon, 2: \Carbon\Carbon} [$view, $start, $end]
+     */
+    private function resolveCalendarRange(): array
+    {
+        $view = request()->get('calendar_view', 'week'); // 'week' | 'month' | 'day' | 'list'
+
+        if ($view === 'list') {
+            // Vista lista por rango arbitrario (filtro Desde/Hasta).
+            $start = request()->get('range_start')
+                ? Carbon::parse(request()->get('range_start'))->startOfDay()
+                : Carbon::now()->startOfDay();
+            $end = request()->get('range_end')
+                ? Carbon::parse(request()->get('range_end'))->endOfDay()
+                : Carbon::now()->copy()->addDays(30)->endOfDay();
+
+            // Si el usuario invierte las fechas, las normalizamos.
+            if ($end->lt($start)) {
+                [$start, $end] = [$end->copy()->startOfDay(), $start->copy()->endOfDay()];
+            }
+        } elseif ($view === 'month') {
+            $cursor = request()->get('start')
+                ? Carbon::parse(request()->get('start'))->startOfMonth()
+                : Carbon::now()->startOfMonth();
+            $start = $cursor->copy()->startOfMonth();
+            $end = $cursor->copy()->endOfMonth();
+        } elseif ($view === 'day') {
+            $cursor = request()->get('start')
+                ? Carbon::parse(request()->get('start'))->startOfDay()
+                : Carbon::now()->startOfDay();
+            $start = $cursor->copy()->startOfDay();
+            $end = $cursor->copy()->endOfDay();
+        } else {
+            $start = request()->get('start')
+                ? Carbon::parse(request()->get('start'))->startOfWeek()
+                : Carbon::now()->startOfWeek();
+            $end = (clone $start)->endOfWeek();
+        }
+
+        return [$view, $start, $end];
+    }
+
+    /**
+     * Firma barata del estado del calendario en el rango visible. El front la
+     * consulta cada pocos segundos (polling) y solo recarga la grilla completa
+     * (get()) si la firma cambió. Detecta altas/bajas (COUNT), ediciones de la
+     * cita (MAX activities.updated_at) y cambios de etapa/estado del lead
+     * (MAX leads.updated_at). Es una sola query agregada, indexada por schedule_from.
+     */
+    public function version(): JsonResponse
+    {
+        [, $start, $end] = $this->resolveCalendarRange();
+        $startDate = $start->copy()->setTime(0, 0, 1)->format('Y-m-d H:i:s');
+        $endDate = $end->copy()->setTime(23, 59, 59)->format('Y-m-d H:i:s');
+        $prefix = DB::getTablePrefix();
+
+        $row = DB::table('activities')
+            ->leftJoin('lead_activities', 'activities.id', '=', 'lead_activities.activity_id')
+            ->leftJoin('leads', 'lead_activities.lead_id', '=', 'leads.id')
+            ->whereBetween('activities.schedule_from', [$startDate, $endDate])
+            ->whereIn('activities.type', ['call', 'meeting', 'lunch', 'time_off'])
+            ->selectRaw(
+                'COUNT(DISTINCT '.$prefix.'activities.id) as n, '.
+                'MAX('.$prefix.'activities.updated_at) as a, '.
+                'MAX('.$prefix.'leads.updated_at) as l'
+            )
+            ->first();
+
+        $signature = ($row->n ?? 0).'|'.($row->a ?? '').'|'.($row->l ?? '');
+
+        return response()->json(['version' => md5($signature)]);
+    }
+
     public function storeAppointment(): JsonResponse
     {
         $this->validate(request(), [
@@ -312,8 +461,10 @@ class ActivityController extends Controller
             'person.id'              => 'nullable|exists:persons,id',
             'person.name'            => 'required|string|max:255',
             'person.phone'           => 'required_without:person.id|nullable|string|min:7|max:20',
-            'doctor_id'              => 'required|exists:doctors,id',
-            'product_id'             => 'required|exists:products,id',
+            'doctor_id'              => 'required_without:doctor_ids|nullable|exists:doctors,id',
+            'doctor_ids'             => 'nullable|array|min:1',
+            'doctor_ids.*'           => 'integer|exists:doctors,id',
+            'product_id'             => 'nullable|exists:products,id',
             'date'                   => 'required|date_format:Y-m-d',
             'start_time'             => 'required|date_format:H:i',
             'end_time'               => 'nullable|date_format:H:i',
@@ -328,12 +479,19 @@ class ActivityController extends Controller
         if (! empty(request('duration_minutes'))) {
             $scheduleTo = $scheduleFrom->copy()->addMinutes((int) request('duration_minutes'));
         } else {
-            $scheduleTo = Carbon::createFromFormat('Y-m-d H:i', "{$date} " . request('end_time'));
+            $scheduleTo = Carbon::createFromFormat('Y-m-d H:i', "{$date} ".request('end_time'));
         }
+
+        // Multi-doctor: el primero manda (valida turno/disponibilidad y crea el evento
+        // en SMD); el resto se adjunta local y se suma al evento SMD por PATCH.
+        $doctorIds = ! empty(request('doctor_ids'))
+            ? array_values(array_unique(array_map('intval', request('doctor_ids'))))
+            : array_filter([request('doctor_id')]);
 
         $appointmentData = [
             'person'        => request('person'),
-            'doctor_id'     => request('doctor_id'),
+            'doctor_id'     => $doctorIds[0] ?? null,
+            'doctor_ids'    => $doctorIds,
             'product_id'    => request('product_id'),
             'lead_id'       => request('lead_id') ?: null,
             'reason'        => request('reason'),
@@ -380,9 +538,9 @@ class ActivityController extends Controller
 
             return redirect()->back();
         } catch (\Exception $e) {
-            Log::error('AppointmentService error: ' . $e->getMessage());
+            Log::error('AppointmentService error: '.$e->getMessage());
 
-            $msg = "Error interno al crear la cita.";
+            $msg = 'Error interno al crear la cita.';
 
             if (request()->ajax()) {
                 return response()->json(['message' => $msg], 500);
@@ -429,10 +587,12 @@ class ActivityController extends Controller
             && (isset($data['schedule_from']) || isset($data['schedule_to']))
         ) {
             $scheduleFrom = Carbon::parse($data['schedule_from'] ?? $existing->schedule_from);
-            $scheduleTo   = Carbon::parse($data['schedule_to']   ?? $existing->schedule_to);
+            $scheduleTo = Carbon::parse($data['schedule_to'] ?? $existing->schedule_to);
 
-            // Obtener doctor_id actual o del request (ignorar string vacío)
-            $doctorId = (! empty($data['doctor_id']) ? $data['doctor_id'] : null)
+            // Obtener doctor_id actual o del request (ignorar string vacío).
+            // Con multi-doctor, el primero de doctor_ids valida turno/conflicto.
+            $doctorId = (! empty($data['doctor_ids']) ? (int) $data['doctor_ids'][0] : null)
+                ?? (! empty($data['doctor_id']) ? $data['doctor_id'] : null)
                 ?? $existing->doctors()->value('doctors.id');
 
             if ($doctorId) {
@@ -463,13 +623,13 @@ class ActivityController extends Controller
                     ->where(function ($query) use ($scheduleFrom, $scheduleTo) {
                         $query->where(function ($q) use ($scheduleFrom, $scheduleTo) {
                             $q->where('schedule_from', '>=', $scheduleFrom)
-                              ->where('schedule_from', '<', $scheduleTo);
+                                ->where('schedule_from', '<', $scheduleTo);
                         })->orWhere(function ($q) use ($scheduleFrom, $scheduleTo) {
                             $q->where('schedule_to', '>', $scheduleFrom)
-                              ->where('schedule_to', '<=', $scheduleTo);
+                                ->where('schedule_to', '<=', $scheduleTo);
                         })->orWhere(function ($q) use ($scheduleFrom, $scheduleTo) {
                             $q->where('schedule_from', '<=', $scheduleFrom)
-                              ->where('schedule_to', '>=', $scheduleTo);
+                                ->where('schedule_to', '>=', $scheduleTo);
                         });
                     })
                     ->exists();
@@ -515,7 +675,12 @@ class ActivityController extends Controller
             );
         }
 
-        if (isset($data['doctor_id'])) {
+        if (isset($data['doctor_ids'])) {
+            // Multi-doctor: se sincronizan todos los doctores seleccionados.
+            $activity->doctors()->sync(
+                array_values(array_unique(array_map('intval', (array) $data['doctor_ids'])))
+            );
+        } elseif (isset($data['doctor_id'])) {
             $activity->doctors()->sync(
                 ! empty($data['doctor_id'])
                     ? [$data['doctor_id']]
@@ -528,10 +693,26 @@ class ActivityController extends Controller
         // ── Registrar cambios en el historial ────────────────────────────────
         $this->logActivityChanges($activity, $original, $data);
 
+        // Una consulta vinculada a SMD empuja el cambio allá para que la próxima
+        // sync no lo revierta. Es un no-op para actividades que no son citas o no
+        // están vinculadas (pushAppointmentToSmd lo informa en `reason`).
+        $smd = $activity->type === 'meeting'
+            ? $this->pushAppointmentToSmd((int) $activity->id)
+            : ['synced' => false, 'reason' => null];
+
         if (request()->ajax()) {
+            $message = trans('admin::app.activities.update-success');
+
+            if ($activity->type === 'meeting') {
+                $message .= $smd['synced']
+                    ? ' Sincronizada con SMD.'
+                    : ($smd['reason'] ? ' (SMD: '.$smd['reason'].')' : '');
+            }
+
             return response()->json([
                 'data'    => new ActivityResource($activity),
-                'message' => trans('admin::app.activities.update-success'),
+                'message' => $message,
+                'smd'     => $smd,
             ]);
         }
 
@@ -564,7 +745,7 @@ class ActivityController extends Controller
             }
 
             $oldRaw = $original[$field] ?? null;
-            $newRaw = $newData[$field]  ?? null;
+            $newRaw = $newData[$field] ?? null;
 
             // Normalizar valores de fecha para comparación sin segundos y timezone
             if (in_array($field, ['schedule_from', 'schedule_to'])) {
@@ -585,7 +766,7 @@ class ActivityController extends Controller
         }
 
         // Obtener leads y persons asociados para adjuntar el log
-        $leads   = $activity->leads()->pluck('leads.id')->toArray();
+        $leads = $activity->leads()->pluck('leads.id')->toArray();
         $persons = $activity->persons()->pluck('persons.id')->toArray();
 
         foreach ($changed as $field => $info) {
@@ -616,12 +797,242 @@ class ActivityController extends Controller
                     ]);
                 }
             } catch (\Exception $e) {
-                Log::error('Error registrando historial de cambio en Activity: ' . $e->getMessage(), [
+                Log::error('Error registrando historial de cambio en Activity: '.$e->getMessage(), [
                     'activity_id' => $activity->id,
                     'field'       => $field,
                 ]);
             }
         }
+    }
+
+    /**
+     * Confirm / cancel / complete an appointment from the calendar. Moves the
+     * appointment's lead to the mapped pipeline stage (smd.stage_map), which is
+     * what drives is_cancelled / is_completed in the calendar events.
+     *
+     * Used after a patient replies SÍ/NO to a WhatsApp reminder.
+     */
+    public function updateAppointmentStatus(int $id): JsonResponse
+    {
+        $data = request()->validate([
+            'status' => 'required|in:confirmed,cancelled,completed,surgery,no_show',
+        ]);
+
+        $activity = $this->activityRepository->findOrFail($id);
+
+        $leadIds = $activity->leads()->pluck('leads.id');
+
+        if ($leadIds->isEmpty()) {
+            return response()->json([
+                'message' => 'La cita no tiene un lead asociado; no se puede cambiar el estado.',
+            ], 422);
+        }
+
+        $stageId = (int) config('smd.stage_map.'.$data['status']);
+
+        DB::table('leads')
+            ->whereIn('id', $leadIds)
+            ->update(['lead_pipeline_stage_id' => $stageId, 'updated_at' => now()]);
+
+        // El cambio de estado también se empuja a SMD, no solo se guarda local:
+        // si no, la próxima sync revierte la etapa. El status del PATCH sale del
+        // stage recién seteado (smdStatusForStage).
+        $smd = $this->pushAppointmentToSmd($id);
+
+        $labels = [
+            'confirmed' => 'confirmada',
+            'cancelled' => 'cancelada',
+            'completed' => 'atendida',
+            'surgery'   => 'cirugía',
+            'no_show'   => 'cita perdida',
+        ];
+
+        return response()->json([
+            'message' => 'Cita marcada como '.$labels[$data['status']].($smd['synced']
+                ? ' y sincronizada con SMD.'
+                : ' (no se sincronizó con SMD: '.$smd['reason'].').'),
+            'status'  => $data['status'],
+            'smd'     => $smd,
+        ]);
+    }
+
+    /**
+     * Edita una cita desde el CRM: cambia horario, doctores, motivo y/o estado,
+     * y EMPUJA el cambio a SMD (PATCH del evento). El push a SMD es lo que evita
+     * que la próxima sync revierta la edición: SMD es la fuente de verdad.
+     *
+     * La actualización local nunca falla por SMD: si el push falla (o la cita no
+     * está vinculada a SMD) el CRM queda actualizado igual y se informa el motivo.
+     */
+    public function updateAppointment(int $id): JsonResponse
+    {
+        $data = request()->validate([
+            'date'                   => 'nullable|date_format:Y-m-d',
+            'start_time'             => 'nullable|date_format:H:i',
+            'end_time'               => 'nullable|date_format:H:i',
+            'duration_minutes'       => 'nullable|integer|min:5|max:480',
+            'doctor_ids'             => 'nullable|array|min:1',
+            'doctor_ids.*'           => 'integer|exists:doctors,id',
+            'person_id'              => 'nullable|integer|exists:persons,id',
+            'product_id'             => 'nullable|integer|exists:products,id',
+            'status'                 => 'nullable|in:confirmed,cancelled,completed,surgery,no_show',
+            'lead_pipeline_stage_id' => 'nullable|integer|exists:lead_pipeline_stages,id',
+            'reason'                 => 'nullable|string',
+        ]);
+
+        $activity = $this->activityRepository->findOrFail($id);
+
+        // Cada campo es opcional: lo que no se envía conserva su valor actual.
+        // Así el modal puede editar solo el motivo, o solo el horario, o todo.
+        if (! empty($data['date']) && ! empty($data['start_time'])) {
+            $from = Carbon::createFromFormat('Y-m-d H:i', $data['date'].' '.$data['start_time']);
+            $to = ! empty($data['duration_minutes'])
+                ? $from->copy()->addMinutes((int) $data['duration_minutes'])
+                : (! empty($data['end_time'])
+                    ? Carbon::createFromFormat('Y-m-d H:i', $data['date'].' '.$data['end_time'])
+                    : $from->copy()->addMinutes(30));
+        } else {
+            $from = Carbon::parse($activity->schedule_from);
+            $to = Carbon::parse($activity->schedule_to);
+        }
+
+        $doctorIds = ! empty($data['doctor_ids'])
+            ? $data['doctor_ids']
+            : $activity->doctors->pluck('id')->all();
+
+        // El paciente: el enviado o el actual. Cambiarlo reasigna la cita a otra
+        // persona (y también el lead, más abajo).
+        $personIds = ! empty($data['person_id'])
+            ? [(int) $data['person_id']]
+            : $activity->participants->pluck('person_id')->filter()->values()->all();
+
+        // El motivo es el `summary` de SMD, que la sync vuelca a título y comentario.
+        // Se actualizan ambos para que quede consistente al ir y volver.
+        $update = [
+            'schedule_from' => $from->format('Y-m-d H:i:s'),
+            'schedule_to'   => $to->format('Y-m-d H:i:s'),
+            'participants'  => [
+                'doctors' => $doctorIds,
+                'persons' => $personIds,
+            ],
+        ];
+
+        if (array_key_exists('reason', $data)) {
+            $update['comment'] = (string) $data['reason'];
+            $update['title'] = (string) $data['reason'] ?: $activity->title;
+        }
+
+        if (array_key_exists('product_id', $data)) {
+            $activity->products()->sync(
+                ! empty($data['product_id'])
+                    ? [(int) $data['product_id']]
+                    : []
+            );
+        }
+
+        $this->activityRepository->update($update, $id);
+
+        $leadIds = $activity->leads()->pluck('leads.id');
+
+        // El estado mueve el lead a la etapa mapeada (igual que el botón de estado).
+        // Prioridad al `status` (5 estados del calendario); si en su lugar llega una
+        // etapa explícita (dropdown Estado de la edición), se usa esa. La sync a SMD
+        // deriva el `status` del stage vía SmdStatusMapper, así que mover el stage
+        // antes del push deja SMD consistente.
+        if (! empty($data['status'])) {
+            $stageId = (int) config('smd.stage_map.'.$data['status']);
+
+            if ($stageId && $leadIds->isNotEmpty()) {
+                DB::table('leads')->whereIn('id', $leadIds)
+                    ->update(['lead_pipeline_stage_id' => $stageId, 'updated_at' => now()]);
+            }
+        } elseif (! empty($data['lead_pipeline_stage_id']) && $leadIds->isNotEmpty()) {
+            DB::table('leads')->whereIn('id', $leadIds)
+                ->update(['lead_pipeline_stage_id' => (int) $data['lead_pipeline_stage_id'], 'updated_at' => now()]);
+        }
+
+        // Si cambió el paciente, el lead debe apuntar a la nueva persona.
+        if (! empty($data['person_id']) && $leadIds->isNotEmpty()) {
+            DB::table('leads')->whereIn('id', $leadIds)
+                ->update(['person_id' => (int) $data['person_id'], 'updated_at' => now()]);
+        }
+
+        $smd = $this->pushAppointmentToSmd($id);
+
+        return response()->json([
+            'message' => $smd['synced']
+                ? 'Cita actualizada y sincronizada con SMD.'
+                : 'Cita actualizada en el CRM (SMD: '.$smd['reason'].').',
+            'smd' => $smd,
+        ]);
+    }
+
+    /**
+     * Empuja la cita a SMD (PATCH del evento). La lógica vive en
+     * SmdAppointmentPush para que la usen también los formularios de WhatsApp
+     * (cancelar / reprogramar).
+     *
+     * @return array{synced: bool, reason: ?string}
+     */
+    private function pushAppointmentToSmd(int $activityId): array
+    {
+        return app(\Webkul\Admin\Services\SmdAppointmentPush::class)->push($activityId);
+    }
+
+    /**
+     * A patient's appointment history (meeting activities), newest first, with
+     * doctor and derived state. Shown in the appointment detail modal.
+     */
+    public function personAppointments(int $personId): JsonResponse
+    {
+        // Etapa -> estado con los mismos nombres que la barra de estado del calendario.
+        // Antes "cita perdida" salía como cancelada y "cirugía" como confirmada.
+        $stateByStage = [];
+        foreach (['cancelled', 'no_show', 'completed', 'surgery', 'confirmed'] as $state) {
+            $stageId = (int) config('smd.stage_map.'.$state);
+
+            if ($stageId > 0 && ! isset($stateByStage[$stageId])) {
+                $stateByStage[$stageId] = $state;
+            }
+        }
+
+        $rows = DB::table('activities')
+            ->join('activity_participants', 'activity_participants.activity_id', '=', 'activities.id')
+            ->leftJoin('doctor_activities', 'doctor_activities.activity_id', '=', 'activities.id')
+            ->leftJoin('doctors', 'doctors.id', '=', 'doctor_activities.doctor_id')
+            ->leftJoin('lead_activities', 'lead_activities.activity_id', '=', 'activities.id')
+            ->leftJoin('leads', 'leads.id', '=', 'lead_activities.lead_id')
+            ->where('activity_participants.person_id', $personId)
+            ->where('activities.type', 'meeting')
+            ->groupBy('activities.id')
+            ->orderByDesc('activities.schedule_from')
+            ->limit(50)
+            ->get([
+                'activities.id',
+                'activities.schedule_from as start',
+                DB::raw('MAX('.DB::getTablePrefix().'doctors.name) as doctor_name'),
+                DB::raw('MAX('.DB::getTablePrefix().'leads.lead_pipeline_stage_id) as stage_id'),
+            ]);
+
+        $appointments = $rows->map(function ($r) use ($stateByStage) {
+            $stageId = $r->stage_id !== null ? (int) $r->stage_id : null;
+
+            return [
+                'id'          => $r->id,
+                'date'        => $r->start ? Carbon::parse($r->start)->format('d/m/Y') : null,
+                'date_iso'    => $r->start ? Carbon::parse($r->start)->toDateString() : null,
+                'time'        => $r->start ? Carbon::parse($r->start)->format('H:i') : null,
+                'doctor_name' => $r->doctor_name,
+                'stage_id'    => $stageId,
+                // Sin etapa conocida (p. ej. Consulta): agendada.
+                'state'       => $stateByStage[$stageId] ?? 'scheduled',
+            ];
+        });
+
+        return response()->json([
+            'appointments' => $appointments->values(),
+            'total'        => $appointments->count(),
+        ]);
     }
 
     /**
@@ -711,6 +1122,49 @@ class ActivityController extends Controller
     }
 
     /**
+     * Devuelve el número del paciente en el formato que exige wa.me: solo
+     * dígitos y con código de país.
+     *
+     * Misma prioridad que PersonController::extractWaId(): primero el email
+     * `<wa_id>@whatsapp.*`, que IncomingAppointmentService ya guarda
+     * normalizado, y como respaldo el teléfono de contacto, que puede venir
+     * capturado a mano con espacios, guiones o sin prefijo.
+     */
+    private function resolveWhatsappNumber(?string $email, ?string $contactNumber): ?string
+    {
+        if ($email && str_contains($email, '@whatsapp.')) {
+            $waId = $this->normalizePhone(explode('@', $email)[0]);
+
+            if ($waId !== null) {
+                return $waId;
+            }
+        }
+
+        return $this->normalizePhone($contactNumber ?? '');
+    }
+
+    /**
+     * Un número local boliviano tiene 8 dígitos; con el prefijo 591 llega a 11.
+     * Por eso solo se antepone el código de país cuando el número no lo trae ya.
+     */
+    private function normalizePhone(string $value): ?string
+    {
+        $digits = ltrim(preg_replace('/[^0-9]/', '', $value), '0');
+
+        if ($digits === '') {
+            return null;
+        }
+
+        $countryCode = (string) config('smd.whatsapp_country_code', '591');
+
+        if ($countryCode !== '' && ! str_starts_with($digits, $countryCode)) {
+            $digits = $countryCode.$digits;
+        }
+
+        return $digits;
+    }
+
+    /**
      * Transforma bloques continuos de disponibilidad en slots de tiempo fijos.
      *
      * @param  \Illuminate\Support\Collection  $availability
@@ -722,8 +1176,8 @@ class ActivityController extends Controller
         $slots = collect();
 
         foreach ($availability as $block) {
-            $current = Carbon::parse($block->date . ' ' . $block->start_time);
-            $end = Carbon::parse($block->date . ' ' . $block->end_time);
+            $current = Carbon::parse($block->date.' '.$block->start_time);
+            $end = Carbon::parse($block->date.' '.$block->end_time);
 
             while ($current->copy()->addMinutes($durationMinutes)->lte($end)) {
                 $slots->push([

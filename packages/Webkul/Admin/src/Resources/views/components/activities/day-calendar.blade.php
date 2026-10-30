@@ -34,7 +34,7 @@
                     <div class="ddc-now-line" :style="{ top: nowTop + 'px' }"></div>
                     <div v-for="ev in dayDoctorEvents(dateISO, doc.id)" :key="'ev-'+ev.id" class="ddc-event" :style="{ top: ev.top + 'px', height: ev.height + 'px' }">
                         <div class="ddc-event-title">@{{ ev.title || ev.type }}</div>
-                        <div class="ddc-event-time">@{{ formatTime(ev.start) }} — @{{ formatTime(ev.end) }}</div>
+                        <div class="ddc-event-time">@{{ formatTime(ev.start) }} - @{{ formatTime(ev.end) }}</div>
                     </div>
                 </div>
             </div>

@@ -2,63 +2,31 @@
 
 namespace Webkul\Admin\Services\Insurance\Drivers;
 
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Webkul\Admin\Services\Insurance\Contracts\InsuranceDriverInterface;
+use Webkul\Admin\Services\Insurance\GoogleSheetsInsuranceSource;
 
 /**
- * Driver para Nacional Vida via webhook n8n.
- *
- * Envía { empresa_seguro, carnet_identidad } al webhook y mapea
- * la respuesta a los estados internos del CRM.
+ * Driver para Nacional Vida: busca la cédula en su padrón de Google Sheets
+ * (GoogleSheetsInsuranceSource) y mapea la fila a los estados del CRM.
  */
 class NacionalVidaDriver implements InsuranceDriverInterface
 {
-    protected string $webhookUrl;
-    protected int    $timeout = 8;
-
-    public function __construct()
-    {
-        $this->webhookUrl = env('SEGUROS_WEBHOOK_URL', 'https://n8n.sofopolis.com/webhook/seguros-verify');
-    }
+    public function __construct(protected GoogleSheetsInsuranceSource $sheets) {}
 
     public function verify(object $person, string $ci): array
     {
         try {
-            $response = Http::timeout($this->timeout)
-                ->post($this->webhookUrl, [
-                    'empresa_seguro'   => 'Nacional Vida',
-                    'carnet_identidad' => $ci,
-                ]);
-
-            if ($response->failed()) {
-                return [
-                    'status'  => 'INDETERMINADO',
-                    'message' => 'No hay conexión con la aseguradora en este momento. Inténtalo más tarde.',
-                    'badge'   => null,
-                    'success' => false,
-                    'data'    => null,
-                ];
-            }
-
-            $data = $response->json();
-
-            if (! is_array($data)) {
-                return [
-                    'status'  => 'INDETERMINADO',
-                    'message' => 'La aseguradora respondió con un formato que no conocemos. Por favor, contacta a soporte.',
-                    'badge'   => null,
-                    'success' => false,
-                    'data'    => null,
-                ];
-            }
+            // Padrón en Google Sheets (antes lo leía n8n y devolvía lo mismo).
+            $data = $this->sheets->lookup('nacional_vida', $ci);
 
             return $this->mapResponse($data, $person);
         } catch (\Exception $e) {
-            Log::error('[NacionalVidaDriver] Error: ' . $e->getMessage());
+            Log::error('[NacionalVidaDriver] No se pudo leer el padrón de Google Sheets: '.$e->getMessage());
+
             return [
                 'status'  => 'INDETERMINADO',
-                'message' => 'La consulta tardó demasiado. Por favor, revisa tu conexión e inténtalo de nuevo.',
+                'message' => 'No pudimos consultar el padrón de Nacional Vida en este momento. Inténtalo más tarde.',
                 'badge'   => null,
                 'success' => false,
                 'data'    => null,
@@ -69,7 +37,7 @@ class NacionalVidaDriver implements InsuranceDriverInterface
     protected function mapResponse(array $data, object $person): array
     {
         $success = $data['success'] ?? false;
-        $results = $data['data']    ?? [];
+        $results = $data['data'] ?? [];
         Log::info('[NacionalVidaDriver] Respuesta de la aseguradora', $data);
         if (! $success || empty($results) || (is_string($results) && trim(strtolower($results)) === 'no registrado')) {
             return [
@@ -104,17 +72,17 @@ class NacionalVidaDriver implements InsuranceDriverInterface
         $this->updateInsuranceAttributes($person, $estado);
 
         $displayData = [
-            'CI'                     => $insuranceData['NRO. DOCUMENTO']                   ?? '',
-            'NOMBRE COMPLETO'        => $insuranceData['NOMBRE COMPLETO']                  ?? '',
-            'CONTRATANTE'            => $insuranceData['CONTRATANTE']                      ?? '',
-            'ESTADO'                 => $insuranceData['ESTADO']                           ?? $estado,
-            'EDAD'                   => $insuranceData['EDAD']                             ?? null,
-            'CODIGO'                 => $insuranceData['CODIGO DE ASEGURADO']              ?? '',
+            'CI'                     => $insuranceData['NRO DOCUMENTO'] ?? ($insuranceData['NRO. DOCUMENTO'] ?? ''),
+            'NOMBRE COMPLETO'        => $insuranceData['NOMBRE COMPLETO'] ?? '',
+            'CONTRATANTE'            => $insuranceData['CONTRATANTE'] ?? '',
+            'ESTADO'                 => $insuranceData['ESTADO'] ?? $estado,
+            'EDAD'                   => $insuranceData['EDAD'] ?? null,
+            'CODIGO'                 => $insuranceData['CODIGO DE ASEGURADO'] ?? '',
             'COBERTURA ODONTOLOGICA' => $insuranceData['COBERTURA ADICIONAL ODONTOLOGICA'] ?? '',
-            'COASEGURO'              => $insuranceData['COASEGURO ODONTOLOGICO']           ?? '',
-            'CLINICA'                => $insuranceData['CLINICA ODONTOLOGICA']             ?? '',
-            'RELACION'               => $insuranceData['RELACION']                         ?? '',
-            'FECHA INGRESO'          => $insuranceData['FECHA DE INGRESO']                 ?? '',
+            'COASEGURO'              => $insuranceData['COASEGURO ODONTOLOGICO'] ?? '',
+            'CLINICA'                => $insuranceData['CLINICA ODONTOLOGICA'] ?? '',
+            'RELACION'               => $insuranceData['RELACION'] ?? '',
+            'FECHA INGRESO'          => $insuranceData['FECHA DE INGRESO'] ?? '',
         ];
 
         if ($estado === 'VIGENTE') {
@@ -141,6 +109,12 @@ class NacionalVidaDriver implements InsuranceDriverInterface
      */
     protected function updateInsuranceAttributes($person, string $estado): void
     {
+        // Consulta solo por cédula (InsuranceService::verifyCi): sin ficha no
+        // se escribe nada. Antes quedaban valores colgados de la persona 0.
+        if (empty($person->id)) {
+            return;
+        }
+
         try {
             $statusMap = [
                 'VIGENTE' => 'Vigente',
@@ -197,7 +171,7 @@ class NacionalVidaDriver implements InsuranceDriverInterface
                 }
             }
         } catch (\Exception $e) {
-            Log::error('[NacionalVidaDriver] Error actualizando atributos: ' . $e->getMessage());
+            Log::error('[NacionalVidaDriver] Error actualizando atributos: '.$e->getMessage());
         }
     }
 }

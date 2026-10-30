@@ -1,7 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Webkul\Product\Models\Product;
 
 uses(DatabaseTransactions::class);
@@ -9,8 +9,8 @@ uses(DatabaseTransactions::class);
 it('muestra el atributo una sola vez en la vista de producto', function () {
     // Crear producto mínimo
     $product = Product::create([
-        'name'        => 'Test Product ' . uniqid(),
-        'sku'         => 'TEST-SKU-' . uniqid(),
+        'name'        => 'Test Product '.uniqid(),
+        'sku'         => 'TEST-SKU-'.uniqid(),
         'description' => 'Desc',
         'quantity'    => 5,
         'price'       => 10.5,
@@ -18,7 +18,7 @@ it('muestra el atributo una sola vez en la vista de producto', function () {
 
     // Asegurar un atributo custom para products
     $attributeId = DB::table('attributes')->insertGetId([
-        'code'            => 'custom_attr_' . uniqid(),
+        'code'            => 'custom_attr_'.uniqid(),
         'name'            => 'Custom One',
         'type'            => 'text',
         'entity_type'     => 'products',
@@ -62,4 +62,3 @@ it('muestra el atributo una sola vez en la vista de producto', function () {
     expect(substr_count($html, __('installer::app.seeders.attributes.products.sku')))
         ->toBeGreaterThanOrEqual(1);
 });
-

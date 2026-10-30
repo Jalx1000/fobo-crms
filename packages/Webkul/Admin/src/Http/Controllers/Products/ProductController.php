@@ -169,7 +169,7 @@ class ProductController extends Controller
 
         if ($query = request()->get('query')) {
             request()->request->add([
-                'search'       => 'name:' . $query,
+                'search'       => 'name:'.$query,
                 'searchFields' => 'name:like',
             ]);
         }

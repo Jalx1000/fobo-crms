@@ -20,38 +20,36 @@ it('rechaza webhook con token inválido cuando el secret está configurado', fun
         ->assertJson(['message' => 'Unauthorized']);
 });
 
-it('permite webhook sin secret cuando no hay configuración de token', function () {
+it('rechaza el webhook si el secret no está configurado (fail-closed, AUD-01)', function () {
     Config::set('services.sharemedata.webhook_secret', null);
 
-    // Sin token pero con payload incompleto (falta slot) → debe fallar en lógica, no en auth
-    $response = postJson(route('admin.webhook.sharemedata'), [
+    // Antes este caso se dejaba pasar: un .env sin secret dejaba el endpoint
+    // abierto a cualquiera. Ahora se rechaza aunque el payload sea válido.
+    postJson(route('admin.webhook.sharemedata'), [
         'physician' => ['_id' => 'doc_inexistente_'.uniqid()],
         'patient'   => ['phone' => '70000001', 'name' => 'Paciente', 'lastName' => 'Test'],
-        'specialty' => 'General',
-        'summary'   => 'Test sin slot',
-        // 'slot' faltante → debe producir error 500 por Carbon::parse(null)
-    ]);
-
-    // No debe ser 401 (auth pasó)
-    expect($response->status())->not->toBe(401);
+        'slot'      => ['start' => '2026-10-12T09:00:00-04:00', 'end' => '2026-10-12T09:30:00-04:00'],
+    ])
+        ->assertStatus(401)
+        ->assertJson(['message' => 'Unauthorized']);
 });
 
 it('retorna 422 cuando el payload no tiene physician._id', function () {
-    Config::set('services.sharemedata.webhook_secret', null);
+    Config::set('services.sharemedata.webhook_secret', 'secreto-valido');
 
     postJson(route('admin.webhook.sharemedata'), [
         'patient' => ['phone' => '70000001'],
-    ])
+    ], ['X-Webhook-Secret' => 'secreto-valido'])
         ->assertStatus(422)
         ->assertJsonValidationErrors(['physician._id']);
 });
 
 it('retorna 422 cuando el payload no tiene patient.phone', function () {
-    Config::set('services.sharemedata.webhook_secret', null);
+    Config::set('services.sharemedata.webhook_secret', 'secreto-valido');
 
     postJson(route('admin.webhook.sharemedata'), [
         'physician' => ['_id' => 'doc1'],
-    ])
+    ], ['X-Webhook-Secret' => 'secreto-valido'])
         ->assertStatus(422)
         ->assertJsonValidationErrors(['patient.phone']);
 });

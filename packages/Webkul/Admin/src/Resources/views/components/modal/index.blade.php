@@ -88,7 +88,7 @@
                     class="fixed inset-0 z-[10003] transform overflow-y-auto transition"
                     v-if="isOpen"
                 >
-                    <div class="flex min-h-full items-center justify-center max-md:p-4">
+                    <div class="flex min-h-full items-center justify-center max-md:p-4" @click.self="close">
                         <div
                             class="box-shadow z-[999] w-full overflow-hidden rounded-lg bg-white dark:bg-gray-900 sm:absolute"
                             :class="[finalPositionClass, sizeClass]"
@@ -114,6 +114,17 @@
     </script>
 
     <script type="module">
+        // Pila global de modales abiertos: Esc cierra solo el de más arriba
+        // (respeta modales anidados, ej. respuestas rápidas dentro del chat).
+        if (! window.__krayinModalStack) {
+            window.__krayinModalStack = [];
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && window.__krayinModalStack.length) {
+                    window.__krayinModalStack[window.__krayinModalStack.length - 1].close();
+                }
+            });
+        }
+
         app.component('v-modal', {
             template: '#v-modal-template',
 
@@ -192,14 +203,31 @@
                     this.isMobile = window.innerWidth < 640;
                 },
                 
+                pushToStack() {
+                    const stack = window.__krayinModalStack;
+                    if (stack && ! stack.includes(this)) stack.push(this);
+                },
+
+                popFromStack() {
+                    const stack = window.__krayinModalStack;
+                    if (! stack) return;
+                    const i = stack.indexOf(this);
+                    if (i !== -1) stack.splice(i, 1);
+                },
+
+                syncBodyScroll() {
+                    document.body.style.overflow = (window.__krayinModalStack && window.__krayinModalStack.length) ? 'hidden' : 'auto';
+                },
+
                 toggle() {
                     this.isOpen = ! this.isOpen;
 
                     if (this.isOpen) {
-                        document.body.style.overflow = 'hidden';
+                        this.pushToStack();
                     } else {
-                        document.body.style.overflow ='auto';
+                        this.popFromStack();
                     }
+                    this.syncBodyScroll();
 
                     this.$emit('toggle', { isActive: this.isOpen });
                 },
@@ -207,7 +235,8 @@
                 open() {
                     this.isOpen = true;
 
-                    document.body.style.overflow = 'hidden';
+                    this.pushToStack();
+                    this.syncBodyScroll();
 
                     this.$emit('open', { isActive: this.isOpen });
                 },
@@ -215,7 +244,8 @@
                 close() {
                     this.isOpen = false;
 
-                    document.body.style.overflow = 'auto';
+                    this.popFromStack();
+                    this.syncBodyScroll();
 
                     this.$emit('close', { isActive: this.isOpen });
                 }

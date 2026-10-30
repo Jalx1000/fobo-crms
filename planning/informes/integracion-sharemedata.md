@@ -1,4 +1,4 @@
-# Informe de Integración — ShareMeData × Odontoking CRM
+# Informe de Integración - ShareMeData × Odontoking CRM
 
 **Fecha:** 2026-05-22
 **Versión:** 1.0
@@ -11,7 +11,7 @@
 1. [Resumen ejecutivo](#1-resumen-ejecutivo)
 2. [Inventario de integración](#2-inventario-de-integración)
 3. [Diagramas de flujo](#3-diagramas-de-flujo)
-4. [Diagrama de actividades — Ciclo completo](#4-diagrama-de-actividades--ciclo-completo)
+4. [Diagrama de actividades - Ciclo completo](#4-diagrama-de-actividades--ciclo-completo)
 5. [Configuración y entornos](#5-configuración-y-entornos)
 
 ***
@@ -92,7 +92,7 @@ La integración opera en dos modos complementarios:
 | `persons`           | `insurance_status` (string, nullable)        | Estado del seguro obtenido de SMD                                        |
 | `persons`           | `insurance_checked_at` (timestamp, nullable) | Última verificación de seguro                                            |
 | `smd_synced_events` | tabla completa                               | Registro de deduplicación de eventos procesados desde Dropbox            |
-| `smd_synced_events` | `external_id` (unique)                       | ID del evento en SMD — garantiza idempotencia                            |
+| `smd_synced_events` | `external_id` (unique)                       | ID del evento en SMD - garantiza idempotencia                            |
 | `smd_synced_events` | `source_file`                                | Archivo Dropbox origen                                                   |
 | `smd_synced_events` | `activity_id`, `lead_id`                     | Referencias locales creadas                                              |
 | `smd_synced_events` | `raw_payload`, `status`                      | Payload original y estado de procesamiento                               |
@@ -174,7 +174,7 @@ flowchart TD
 
 ***
 
-### Flujo C: Webhook Dropbox — notificación de cambios (tiempo real)
+### Flujo C: Webhook Dropbox - notificación de cambios (tiempo real)
 
 ```mermaid
 flowchart TD
@@ -216,7 +216,7 @@ flowchart TD
 
 ***
 
-### Flujo D: Polling Dropbox — sincronización periódica (respaldo)
+### Flujo D: Polling Dropbox - sincronización periódica (respaldo)
 
 ```mermaid
 flowchart TD
@@ -252,9 +252,9 @@ flowchart TD
     EU([Evento Krayin\ncontacts.person.update.after]) --> UL[Listener Person - updateInSmd]
 
     SL --> SC{¿Ya tiene\nsmd_patient_id?}
-    SC -- Sí --> SEnd[return — ya vinculado]
+    SC -- Sí --> SEnd[return - ya vinculado]
     SC -- No --> SP{¿Tiene teléfono?}
-    SP -- No --> SND[Log debug — sin teléfono, omitir]
+    SP -- No --> SND[Log debug - sin teléfono, omitir]
     SP -- Sí --> SF[Buscar en SMD:\n1. GET /patients?where=phone=/X/\n2. GET /patients?where=secondEmail=/X/]
     SF --> SF2{¿Encontrado?}
     SF2 -- No --> SC2[POST /patients/user\ncrear paciente en SMD]
@@ -266,7 +266,7 @@ flowchart TD
     SID --> SDBW[UPDATE persons\nsmd_patient_id = _id]
 
     UL --> UP{¿Tiene teléfono?}
-    UP -- No --> UND[Log debug — sin teléfono, omitir]
+    UP -- No --> UND[Log debug - sin teléfono, omitir]
     UP -- Sí --> UF[Buscar en SMD por teléfono/email]
     UF --> UF2{¿Encontrado?}
     UF2 -- Sí --> UU[PATCH /patients/_id\nactualizar datos]
@@ -309,7 +309,7 @@ flowchart TD
 
 ***
 
-## 4. Diagrama de actividades — Ciclo completo
+## 4. Diagrama de actividades - Ciclo completo
 
 ```mermaid
 flowchart TD

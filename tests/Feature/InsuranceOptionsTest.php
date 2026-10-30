@@ -7,6 +7,7 @@ use Webkul\Attribute\Models\Attribute;
 use Webkul\Attribute\Models\AttributeOption;
 use Webkul\Contact\Models\Person;
 use Webkul\User\Models\User;
+
 use function Pest\Laravel\actingAs;
 
 uses(DatabaseTransactions::class);
@@ -62,7 +63,7 @@ it('GET insurance-options incluye opciones del atributo seguro_paciente', functi
 
 it('search de personas incluye ci_paciente en la respuesta', function () {
     $person = Person::create([
-        'name' => 'Paciente CI Test ' . uniqid(),
+        'name' => 'Paciente CI Test '.uniqid(),
     ]);
 
     actingAs($this->adminUser, 'user')
@@ -76,7 +77,7 @@ it('POST store de persona via AJAX devuelve JSON con data y message', function (
         ->withHeaders(['X-Requested-With' => 'XMLHttpRequest'])
         ->postJson(route('admin.contacts.persons.store'), [
             'entity_type' => 'persons',
-            'name'        => 'Paciente Ajax ' . uniqid(),
+            'name'        => 'Paciente Ajax '.uniqid(),
         ])
         ->assertOk()
         ->assertJsonStructure(['data' => ['id', 'name'], 'message']);
@@ -85,7 +86,7 @@ it('POST store de persona via AJAX devuelve JSON con data y message', function (
 });
 
 it('POST store de persona via AJAX crea la persona en base de datos', function () {
-    $name = 'Paciente Ajax DB ' . uniqid();
+    $name = 'Paciente Ajax DB '.uniqid();
 
     actingAs($this->adminUser, 'user')
         ->withHeaders(['X-Requested-With' => 'XMLHttpRequest'])
@@ -103,4 +104,36 @@ it('POST verify-insurance-quick valida campos requeridos', function () {
         ->postJson(route('admin.contacts.persons.verify_insurance_quick'), [])
         ->assertStatus(422)
         ->assertJsonStructure(['errors']);
+});
+
+it('POST verify-insurance-quick devuelve el badge de severidad (contrato del formulario)', function () {
+    // El formulario de crear paciente usa `badge` como fuente única de severidad
+    // para pintar la alerta (success/warning/danger). Este test blinda ese contrato.
+    // Nacional Vida lee su padrón de Google Sheets (ya no n8n).
+    $this->mock(\Webkul\Admin\Services\Insurance\GoogleSheetsInsuranceSource::class)
+        ->shouldReceive('lookup')
+        ->andReturn([
+            'success' => true,
+            'data'    => [['ESTADO' => 'VIGENTE', 'NOMBRE COMPLETO' => 'PACIENTE QUICK']],
+        ]);
+
+    $nacionalVida = AttributeOption::where('attribute_id', $this->seguroAttr->id)
+        ->where('name', 'Nacional Vida')->first()
+        ?: AttributeOption::create([
+            'attribute_id' => $this->seguroAttr->id,
+            'name'         => 'Nacional Vida',
+            'sort_order'   => 1,
+        ]);
+
+    actingAs($this->adminUser, 'user')
+        ->postJson(route('admin.contacts.persons.verify_insurance_quick'), [
+            'ci_paciente'     => '5856583',
+            'seguro_paciente' => $nacionalVida->id,
+        ])
+        ->assertOk()
+        ->assertJsonStructure(['status', 'message', 'badge'])
+        ->assertJson([
+            'status' => 'VIGENTE',
+            'badge'  => 'success',
+        ]);
 });

@@ -3,17 +3,17 @@
   Incluir con: @include('admin::contacts.persons.partials.smd-checker', ['searchUrl' => route(...), 'mode' => 'create|edit'])
 
   Variables disponibles:
-    $searchUrl  — URL del endpoint GET search-smd
-    $mode       — 'create' (sin datos previos) | 'edit' (puede pre-cargar teléfono/CI)
-    $person     — (solo en modo edit) el modelo Person existente
+    $searchUrl  - URL del endpoint GET search-smd
+    $mode       - 'create' (sin datos previos) | 'edit' (puede pre-cargar teléfono/CI)
+    $person     - (solo en modo edit) el modelo Person existente
 --}}
 
-{{-- Botón Verificar en SMD — se incluye en el header de la sección --}}
+{{-- Botón Verificar en SMD - se incluye en el header de la sección --}}
 <button
     type="button"
     id="smd-verify-btn"
     onclick="smdVerifyManual()"
-    class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors duration-150 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+    class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border max-lg:min-h-[44px] max-lg:text-sm border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors duration-150 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
 >
     <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
         <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/>
@@ -31,20 +31,28 @@
 
     let debounceTimer = null;
     let lastQuery     = null;
-    let smdData       = null;
 
     // ── UI refs ──────────────────────────────────────────────────────────────
-    const chip         = document.getElementById('smd-status-chip');
-    const chipDot      = document.getElementById('smd-status-dot');
-    const chipText     = document.getElementById('smd-status-text');
-    const banner       = document.getElementById('smd-result-banner');
-    const bannerIcon   = document.getElementById('smd-banner-icon');
-    const bannerTitle  = document.getElementById('smd-banner-title');
-    const bannerDetail = document.getElementById('smd-banner-detail');
-    const autofillBtn  = document.getElementById('smd-autofill-btn');
+    // IMPORTANTE: este <script> es inline (no-module), así que corre durante el
+    // parseo del HTML, ANTES de que Vue monte la app (app.mount es type=module,
+    // diferido). Al montar, Vue re-renderiza y reemplaza el DOM, dejando huérfanas
+    // las referencias capturadas aquí. Por eso resolvemos los elementos de forma
+    // perezosa (al usarlos) vía resolveEls(), garantizando los nodos vivos.
+    let chip, chipDot, chipText, banner, bannerIcon, bannerTitle, bannerDetail;
+
+    function resolveEls() {
+        chip         = document.getElementById('smd-status-chip');
+        chipDot      = document.getElementById('smd-status-dot');
+        chipText     = document.getElementById('smd-status-text');
+        banner       = document.getElementById('smd-result-banner');
+        bannerIcon   = document.getElementById('smd-banner-icon');
+        bannerTitle  = document.getElementById('smd-banner-title');
+        bannerDetail = document.getElementById('smd-banner-detail');
+            }
 
     // ── Chip ─────────────────────────────────────────────────────────────────
     function showChip(state) {
+        resolveEls();
         chip.classList.remove('hidden');
         chip.classList.add('flex');
         const states = {
@@ -71,14 +79,15 @@
     }
 
     // ── Banner ────────────────────────────────────────────────────────────────
-    function showBanner(state, patient) {
+    function showBanner(state, patient, cantidad = 1) {
+        resolveEls();
         banner.classList.remove('hidden');
 
         if (state === 'found') {
             banner.className = 'rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300 transition-all duration-300';
             bannerIcon.innerHTML = svgCheck('text-green-500');
-            bannerTitle.textContent = MODE === 'edit'
-                ? 'Paciente encontrado en SMD — se actualizarán sus datos'
+            bannerTitle.textContent = cantidad > 1
+                ? cantidad + ' pacientes en ShareMeData con este dato'
                 : 'Paciente encontrado en ShareMeData';
 
             const parts = [];
@@ -86,29 +95,24 @@
             if (patient.phone)     parts.push('Tel: ' + patient.phone);
             if (patient.ci)        parts.push('CI: ' + patient.ci);
             if (patient.birthday)  parts.push('Nac: ' + patient.birthday);
-            if (patient.insurance) parts.push(patient.insurance);
-            bannerDetail.textContent = parts.join('  ·  ');
+            seguros(patient).forEach((seguro) => parts.push(seguro));
 
-            autofillBtn.classList.remove('hidden');
-            autofillBtn.classList.add('ring-green-300', 'text-green-800', 'hover:bg-green-50');
-            autofillBtn.classList.remove('hover:bg-gray-50');
-            autofillBtn.textContent = MODE === 'edit' ? 'Actualizar campos' : 'Autocompletar';
+            // Qué usar se elige en la comparación (partials/smd-comparar), debajo.
+            bannerDetail.textContent = cantidad > 1
+                ? 'Elegí abajo cuál es el paciente.'
+                : parts.join('  ·  ');
 
         } else if (state === 'notfound') {
             banner.className = 'rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 transition-all duration-300';
             bannerIcon.innerHTML = svgWarn('text-yellow-500');
             bannerTitle.textContent = 'Paciente no encontrado en ShareMeData';
             bannerDetail.textContent = 'Complete el formulario para crearlo. Se sincronizará automáticamente al guardar.';
-            autofillBtn.classList.add('hidden');
-            autofillBtn.classList.remove('ring-green-300', 'text-green-800', 'hover:bg-green-50');
 
         } else {
             banner.className = 'rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 transition-all duration-300';
             bannerIcon.innerHTML = svgInfo('text-gray-400');
             bannerTitle.textContent = 'Ingresa el teléfono o CI para buscar';
             bannerDetail.textContent = 'Escribe al menos 3 caracteres en el campo Teléfono o Carnet de Identidad.';
-            autofillBtn.classList.add('hidden');
-            autofillBtn.classList.remove('ring-green-300', 'text-green-800', 'hover:bg-green-50');
         }
     }
 
@@ -127,30 +131,24 @@
             const data = await resp.json();
 
             if (data.found) {
-                smdData = data;
-                showChip('found');
-                showBanner('found', data);
+                const pacientes = Array.isArray(data.patients) && data.patients.length ? data.patients : [data];
 
-                // Toast de éxito via emitter Vue si está disponible
-                if (window.__vueApp?._context?.app?.$emitter) {
-                    window.__vueApp._context.app.$emitter.emit('add-flash', {
-                        type:    'success',
-                        message: 'Paciente encontrado en SMD. Revisá los datos y hacé click en "' + (MODE === 'edit' ? 'Actualizar campos' : 'Autocompletar') + '".',
-                    });
-                }
+                showChip('found');
+                showBanner('found', data, pacientes.length);
+                encontrados(pacientes);
+
+                flash('success', pacientes.length > 1
+                    ? 'Hay ' + pacientes.length + ' pacientes en SMD con este dato: elegí cuál es.'
+                    : 'Paciente encontrado en SMD. Revisá «Datos de ShareMeData».');
             } else {
-                smdData = null;
                 showChip('notfound');
                 showBanner('notfound', null);
+                encontrados([]);
 
-                if (window.__vueApp?._context?.app?.$emitter) {
-                    window.__vueApp._context.app.$emitter.emit('add-flash', {
-                        type:    'warning',
-                        message: 'Paciente no encontrado en SMD. Se creará al guardar.',
-                    });
-                }
+                flash('warning', 'Paciente no encontrado en SMD. Se creará al guardar.');
             }
         } catch (e) {
+            resolveEls();
             chip.classList.add('hidden');
             chip.classList.remove('flex');
         }
@@ -186,60 +184,34 @@
         search(term);
     };
 
-    // ── Autocompletar / Actualizar campos ─────────────────────────────────────
-    window.smdAutofill = function () {
-        if (! smdData) return;
-
-        const filled = [];
-
-        if (smdData.name) {
-            setInputValue('[name="name"]', smdData.name);
-            filled.push('Nombre');
-        }
-        if (smdData.phone) {
-            setInputValue('[name="contact_numbers[0][value]"]', smdData.phone);
-            filled.push('Teléfono');
-        }
-        if (smdData.ci) {
-            setInputValue('[name="ci_paciente"]', smdData.ci);
-            filled.push('CI');
-        }
-
-        autofillBtn.textContent = '✓ ' + (MODE === 'edit' ? 'Actualizado' : 'Aplicado');
-        autofillBtn.disabled    = true;
-
-        if (filled.length && window.__vueApp?._context?.app?.$emitter) {
-            window.__vueApp._context.app.$emitter.emit('add-flash', {
-                type:    'success',
-                message: 'Campos actualizados: ' + filled.join(', ') + '.',
-            });
-        }
-
-        setTimeout(() => {
-            autofillBtn.textContent = MODE === 'edit' ? 'Actualizar campos' : 'Autocompletar';
-            autofillBtn.disabled    = false;
-        }, 2500);
-    };
-
     // ── Dismiss ───────────────────────────────────────────────────────────────
     window.smdDismiss = function () {
+        resolveEls();
         banner.classList.add('hidden');
         chip.classList.add('hidden');
         chip.classList.remove('flex');
         lastQuery = null;
-        smdData   = null;
+        encontrados([]);
     };
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-    function setInputValue(selector, value) {
-        const el = document.querySelector(selector);
-        if (! el) return;
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-        setter.call(el, value);
-        el.dispatchEvent(new Event('input',  { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        el.dispatchEvent(new Event('blur',   { bubbles: true }));
+    // Aseguradoras de SMD: la lista completa (`insurances`) o, de una respuesta vieja, la única.
+    function seguros(patient) {
+        if (Array.isArray(patient?.insurances) && patient.insurances.length) return patient.insurances;
+
+        return patient?.insurance ? [patient.insurance] : [];
     }
+
+    // Pacientes para la comparación formulario ↔ SMD (partials/smd-comparar).
+    function encontrados(pacientes) {
+        window.emitter?.emit('smd:encontrados', { pacientes });
+    }
+
+    // Aviso flotante del admin (window.emitter lo expone plugins/emitter.js).
+    function flash(type, message) {
+        window.emitter?.emit('add-flash', { type, message });
+    }
+
 
     function svgCheck(cls) {
         return `<svg class="h-5 w-5 ${cls}" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"/></svg>`;
@@ -258,13 +230,10 @@
             const phone = '{{ $person->contact_numbers[0]['value'] ?? '' }}';
             if (phone && phone !== '0' && phone.length >= 3) {
                 setTimeout(() => search(phone), 800);
-            } else {
-                showBanner('hint', null);
             }
-        @else
-            // Modo creación: mostrar banner idle para guiar al usuario
-            showBanner('hint', null);
         @endif
+        // Sin teléfono no se muestra la guía «Ingresa el teléfono o CI»: el
+        // buscador de SMD de arriba (smd-buscador) ya cumple ese papel.
     });
 })();
 </script>

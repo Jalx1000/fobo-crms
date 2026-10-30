@@ -33,7 +33,7 @@ beforeEach(function () {
 });
 
 // ===========================================================================
-// token() — lógica de caché y refresh
+// token() - lógica de caché y refresh
 // ===========================================================================
 
 it('token usa access_token del config cuando no hay credenciales de refresh', function () {
@@ -55,7 +55,7 @@ it('token usa access_token del config cuando no hay credenciales de refresh', fu
 
     Cache::forget('dropbox_access_token');
     $dropbox = freshDropboxService();
-    $files   = $dropbox->listFilesForDate('2026-05-12');
+    $files = $dropbox->listFilesForDate('2026-05-12');
 
     expect($files)->toBe([]);
 
@@ -96,7 +96,7 @@ it('token queda cacheado y no vuelve a llamar oauth2/token en la segunda invocac
     Http::fake([
         'https://api.dropboxapi.com/oauth2/token' => Http::sequence([
             Http::response(['access_token' => 'cached-token'], 200),
-            // Si se llama una segunda vez, devolvería esto — pero no debería ocurrir
+            // Si se llama una segunda vez, devolvería esto - pero no debería ocurrir
             Http::response(['access_token' => 'second-call-error'], 200),
         ]),
         'https://api.dropboxapi.com/2/files/list_folder' => Http::response([
@@ -144,7 +144,7 @@ it('token cae al fallback access_token cuando el refresh falla', function () {
 
     $dropbox = freshDropboxService();
 
-    // No debe lanzar excepción — debe usar el fallback
+    // No debe lanzar excepción - debe usar el fallback
     $files = $dropbox->listFilesForDate('2026-05-12');
 
     expect($files)->toBe([]);
@@ -169,7 +169,7 @@ it('listFilesForDate devuelve solo archivos json de la respuesta', function () {
     ]);
 
     $dropbox = freshDropboxService();
-    $files   = $dropbox->listFilesForDate('2026-05-12');
+    $files = $dropbox->listFilesForDate('2026-05-12');
 
     expect($files)->toHaveCount(2);
     expect($files[0]['name'])->toBe('evento1.json');
@@ -184,7 +184,7 @@ it('listFilesForDate devuelve array vacio cuando Dropbox responde 409 (carpeta n
     ]);
 
     $dropbox = freshDropboxService();
-    $files   = $dropbox->listFilesForDate('2099-12-31');
+    $files = $dropbox->listFilesForDate('2099-12-31');
 
     expect($files)->toBe([]);
 });
@@ -197,7 +197,7 @@ it('listFilesForDate devuelve array vacio cuando Dropbox responde error generico
     ]);
 
     $dropbox = freshDropboxService();
-    $files   = $dropbox->listFilesForDate('2026-05-12');
+    $files = $dropbox->listFilesForDate('2026-05-12');
 
     expect($files)->toBe([]);
 });
@@ -226,7 +226,7 @@ it('listFilesForDate renueva token y reintenta cuando Dropbox responde 401 y el 
     ]);
 
     $dropbox = freshDropboxService();
-    $files   = $dropbox->listFilesForDate('2026-05-12');
+    $files = $dropbox->listFilesForDate('2026-05-12');
 
     expect($files)->toHaveCount(1);
     expect($files[0]['name'])->toBe('cita.json');
@@ -239,7 +239,7 @@ it('listFilesForDate devuelve array vacio cuando ambos intentos (401 + 401) fall
         ], 200),
         'https://api.dropboxapi.com/2/files/list_folder' => Http::sequence([
             Http::response([], 401),  // primer intento
-            Http::response([], 401),  // segundo intento — también falla
+            Http::response([], 401),  // segundo intento - también falla
         ]),
     ]);
 
@@ -250,7 +250,7 @@ it('listFilesForDate devuelve array vacio cuando ambos intentos (401 + 401) fall
     ]);
 
     $dropbox = freshDropboxService();
-    $files   = $dropbox->listFilesForDate('2026-05-12');
+    $files = $dropbox->listFilesForDate('2026-05-12');
 
     expect($files)->toBe([]);
 });
@@ -275,7 +275,7 @@ it('downloadJson devuelve array parseado cuando la descarga es exitosa', functio
     ]);
 
     $dropbox = freshDropboxService();
-    $result  = $dropbox->downloadJson('/smd-events/2026-05-12/ev-dl-test-123.json');
+    $result = $dropbox->downloadJson('/smd-events/2026-05-12/ev-dl-test-123.json');
 
     expect($result)->toBeArray();
     expect($result['_id'])->toBe('ev-dl-test-123');
@@ -290,7 +290,7 @@ it('downloadJson devuelve null cuando la respuesta no es 200', function () {
     ]);
 
     $dropbox = freshDropboxService();
-    $result  = $dropbox->downloadJson('/smd-events/2026-05-12/no-existe.json');
+    $result = $dropbox->downloadJson('/smd-events/2026-05-12/no-existe.json');
 
     expect($result)->toBeNull();
 });
@@ -333,7 +333,7 @@ it('downloadJson renueva token y reintenta cuando recibe 401', function () {
     ]);
 
     $dropbox = freshDropboxService();
-    $result  = $dropbox->downloadJson('/smd-events/test.json');
+    $result = $dropbox->downloadJson('/smd-events/test.json');
 
     expect($result)->toBeArray();
     expect($result['_id'])->toBe('ev-retry-401');
@@ -357,7 +357,7 @@ it('downloadJson devuelve null cuando ambos intentos de descarga fallan con 401'
     ]);
 
     $dropbox = freshDropboxService();
-    $result  = $dropbox->downloadJson('/smd-events/test.json');
+    $result = $dropbox->downloadJson('/smd-events/test.json');
 
     expect($result)->toBeNull();
 });
@@ -368,7 +368,7 @@ it('downloadJson devuelve null cuando el body no es JSON valido', function () {
     ]);
 
     $dropbox = freshDropboxService();
-    $result  = $dropbox->downloadJson('/smd-events/corrupted.json');
+    $result = $dropbox->downloadJson('/smd-events/corrupted.json');
 
     expect($result)->toBeNull();
 });
@@ -393,7 +393,7 @@ it('listChanges devuelve entries cursor y has_more correctamente', function () {
     ]);
 
     $dropbox = freshDropboxService();
-    $result  = $dropbox->listChanges($cursor);
+    $result = $dropbox->listChanges($cursor);
 
     // Solo archivos .json con .tag === 'file'
     expect($result['entries'])->toHaveCount(1);
@@ -412,9 +412,79 @@ it('listChanges devuelve entries vacio y cursor original cuando Dropbox responde
     ]);
 
     $dropbox = freshDropboxService();
-    $result  = $dropbox->listChanges($cursor);
+    $result = $dropbox->listChanges($cursor);
 
     expect($result['entries'])->toBe([]);
     expect($result['cursor'])->toBe($cursor);
     expect($result['has_more'])->toBeFalse();
+});
+
+// ===========================================================================
+// Regresiones: token y listChanges (ver planning/10-actualizacion-eventstatus-dropbox)
+// ===========================================================================
+
+it('un refresh fallido no queda cacheado y el siguiente intento vuelve a pedir el token', function () {
+    config([
+        'smd.dropbox.refresh_token' => 'rt',
+        'smd.dropbox.app_key'       => 'ak',
+        'smd.dropbox.app_secret'    => 'as',
+        'smd.dropbox.access_token'  => null,
+    ]);
+
+    // Primer intento: Dropbox caido. Segundo: ya recuperado.
+    Http::fake([
+        'api.dropboxapi.com/oauth2/token' => Http::sequence()
+            ->push(['error' => 'server_error'], 500)
+            ->push(['access_token' => 'token-bueno'], 200),
+    ]);
+
+    $service = freshDropboxService();
+    $token = new \ReflectionMethod($service, 'token');
+    $token->setAccessible(true);
+
+    // Fallo transitorio: sin token y, sobre todo, sin cachear el fallo.
+    expect($token->invoke($service))->toBe('');
+    expect(Cache::get('dropbox_access_token'))->toBeNull();
+
+    // Dropbox se recupera: el sync debe volver a funcionar de inmediato,
+    // no esperar el TTL de 3h30m.
+    expect($token->invoke($service))->toBe('token-bueno')
+        ->and(Cache::get('dropbox_access_token'))->toBe('token-bueno');
+});
+
+it('un refresh sin access_token en la respuesta no se cachea', function () {
+    config([
+        'smd.dropbox.refresh_token' => 'rt',
+        'smd.dropbox.app_key'       => 'ak',
+        'smd.dropbox.app_secret'    => 'as',
+        'smd.dropbox.access_token'  => 'static-fallback-token',
+    ]);
+
+    Http::fake(['api.dropboxapi.com/oauth2/token' => Http::response(['scope' => 'files.read'], 200)]);
+
+    $service = freshDropboxService();
+    $token = new \ReflectionMethod($service, 'token');
+    $token->setAccessible(true);
+
+    expect($token->invoke($service))->toBe('static-fallback-token')
+        ->and(Cache::get('dropbox_access_token'))->toBeNull();
+});
+
+it('listChanges devuelve la estructura por defecto en vez de reventar cuando el 401 persiste', function () {
+    config([
+        'smd.dropbox.refresh_token' => 'rt',
+        'smd.dropbox.app_key'       => 'ak',
+        'smd.dropbox.app_secret'    => 'as',
+    ]);
+
+    Http::fake([
+        'api.dropboxapi.com/oauth2/token'                 => Http::response(['access_token' => 'tok'], 200),
+        'api.dropboxapi.com/2/files/list_folder/continue' => Http::response(['error' => 'expired_access_token'], 401),
+    ]);
+
+    $result = freshDropboxService()->listChanges('cursor-abc');
+
+    // Antes lanzaba TypeError (declara `: array` y devolvia null), lo que tumbaba
+    // el job del webhook antes de guardar el cursor y perdia la notificacion.
+    expect($result)->toBe(['entries' => [], 'cursor' => 'cursor-abc', 'has_more' => false]);
 });

@@ -2,38 +2,34 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Support\Facades\DB;
-use Webkul\User\Models\User;
 use Webkul\Doctor\Models\Doctor;
 use Webkul\Doctor\Models\Specialty;
+use Webkul\User\Models\User;
+
 use function Pest\Laravel\actingAs;
-use function Pest\Laravel\post;
-use function Pest\Laravel\put;
-use function Pest\Laravel\delete;
 
 /**
  * Este test cubre el flujo completo de administración de Doctores.
  * Valida la creación, edición, asignación de especialidades y atributos personalizados (rango de edad).
  */
-
 beforeEach(function () {
     $this->adminUser = User::find(1);
-    
+
     // Aseguramos tener al menos una especialidad
     $this->specialty = Specialty::first() ?: Specialty::create([
         'name' => 'Especialidad Test',
-        'slug' => 'especialidad-test'
+        'slug' => 'especialidad-test',
     ]);
 });
 
 it('permite al administrador crear un nuevo doctor con varias especialidades y rango de edad', function () {
     // Creamos especialidades adicionales para la prueba
-    $spec1 = Specialty::create(['name' => 'Especialidad A ' . uniqid(), 'slug' => 'spec-a-' . uniqid()]);
-    $spec2 = Specialty::create(['name' => 'Especialidad B ' . uniqid(), 'slug' => 'spec-b-' . uniqid()]);
+    $spec1 = Specialty::create(['name' => 'Especialidad A '.uniqid(), 'slug' => 'spec-a-'.uniqid()]);
+    $spec2 = Specialty::create(['name' => 'Especialidad B '.uniqid(), 'slug' => 'spec-b-'.uniqid()]);
 
     $doctorData = [
-        'name'            => 'Doctor Multiespecialidad ' . uniqid(),
-        'email'           => 'multi.' . uniqid() . '@odontoking.com',
+        'name'            => 'Doctor Multiespecialidad '.uniqid(),
+        'email'           => 'multi.'.uniqid().'@odontoking.com',
         'specialties'     => [$spec1->id, $spec2->id],
         'is_active'       => 1,
         'age_range_min'   => 18,
@@ -46,7 +42,7 @@ it('permite al administrador crear un nuevo doctor con varias especialidades y r
         ->assertRedirect(route('admin.doctor.index'));
 
     $doctor = Doctor::where('email', $doctorData['email'])->first();
-    
+
     // Validar que tenga AMBAS especialidades vinculadas
     expect($doctor->specialties)->toHaveCount(2);
     $specialtyIds = $doctor->specialties->pluck('id')->toArray();
@@ -69,12 +65,12 @@ it('valida que el nombre del doctor sea único', function () {
 
 it('permite editar un doctor y su rango de edad', function () {
     $doctor = Doctor::create([
-        'name'  => 'Doctor para Editar ' . uniqid(),
-        'email' => 'edit.' . uniqid() . '@test.com',
+        'name'  => 'Doctor para Editar '.uniqid(),
+        'email' => 'edit.'.uniqid().'@test.com',
     ]);
 
     $updatedData = [
-        'name'            => 'Nombre Editado ' . $doctor->id,
+        'name'            => 'Nombre Editado '.$doctor->id,
         'email'           => $doctor->email,
         'age_range_min'   => 0,
         'age_range_max'   => 99,
@@ -87,14 +83,14 @@ it('permite editar un doctor y su rango de edad', function () {
 
     $doctor->refresh();
     expect($doctor->name)->toBe($updatedData['name']);
-    expect((int)$doctor->age_range_min)->toBe(0);
-    expect((int)$doctor->age_range_max)->toBe(99);
+    expect((int) $doctor->age_range_min)->toBe(0);
+    expect((int) $doctor->age_range_max)->toBe(99);
 });
 
 it('permite eliminar un doctor', function () {
     $doctor = Doctor::create([
-        'name'  => 'Doctor para Eliminar ' . uniqid(),
-        'email' => 'delete.' . uniqid() . '@test.com',
+        'name'  => 'Doctor para Eliminar '.uniqid(),
+        'email' => 'delete.'.uniqid().'@test.com',
     ]);
 
     actingAs($this->adminUser, 'user')

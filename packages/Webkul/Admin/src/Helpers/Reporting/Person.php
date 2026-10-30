@@ -57,7 +57,7 @@ class Person extends AbstractReporting
             ->resetModel()
             ->when(request('user_id'), function ($q) {
                 $q->leftJoin('leads', 'persons.id', '=', 'leads.person_id')
-                  ->where('leads.user_id', request('user_id'));
+                    ->where('leads.user_id', request('user_id'));
             })
             ->when(request('organization_id'), function ($q) {
                 $q->where('persons.organization_id', request('organization_id'));

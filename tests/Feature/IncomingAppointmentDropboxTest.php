@@ -6,7 +6,6 @@ use Carbon\Carbon;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Webkul\Admin\Services\IncomingAppointmentService;
-use Webkul\Admin\Services\SmdStatusMapper;
 use Webkul\Contact\Models\Person;
 use Webkul\Doctor\Models\Doctor;
 use Webkul\Lead\Models\Lead;
@@ -74,21 +73,26 @@ it('normalizeDropbox extrae physician del attendance de type physician', functio
     $service = makeService();
 
     // Accedemos al método protegido vía reflexión
-    $ref    = new \ReflectionClass($service);
+    $ref = new \ReflectionClass($service);
     $method = $ref->getMethod('normalizeDropbox');
     $method->setAccessible(true);
 
     $payload = smdPayload();
-    $result  = $method->invoke($service, $payload);
+    $result = $method->invoke($service, $payload);
 
     expect($result['doctor_name'])->toBe('David Sensano');
     expect($result['doctor_external_id'])->toStartWith('69d90258');
 });
 
-it('normalizeDropbox usa owner como fallback cuando no hay physician en attendances', function () {
+/**
+ * El `owner` de SMD es quien CREÓ el evento (la recepcionista), no el profesional.
+ * Usarlo como fallback colgaba las citas de un doctor basura ("Recepcionista
+ * Odontoking"). Sin médico identificable el payload no debe proponer ninguno.
+ */
+it('normalizeDropbox NO usa owner como doctor cuando no hay physician', function () {
     $service = makeService();
-    $ref     = new \ReflectionClass($service);
-    $method  = $ref->getMethod('normalizeDropbox');
+    $ref = new \ReflectionClass($service);
+    $method = $ref->getMethod('normalizeDropbox');
     $method->setAccessible(true);
 
     // Evento cancelado real: attendances solo tiene paciente, owner es string
@@ -107,35 +111,77 @@ it('normalizeDropbox usa owner como fallback cuando no hay physician en attendan
 
     $result = $method->invoke($service, $payload);
 
-    // Sin physician en attendances, el doctor_external_id debe ser el owner string
-    expect($result['doctor_external_id'])->toBe('69bd9a6a7549b10008e0ac6b');
+    expect($result['doctor_external_id'])->toBeNull();
+    expect($result['doctor_identified'])->toBeFalse();
+});
+
+/**
+ * Los payloads UPDATED vienen deshidratados (sin `type`), pero el `_id` del
+ * asistente coincide con doctors.unique_id. El médico se identifica por ese
+ * cruce, no por `type`.
+ */
+it('normalizeDropbox identifica al medico por unique_id aunque no venga type', function () {
+    $doctor = \Webkul\Doctor\Models\Doctor::create([
+        'name'      => 'Doctora Test '.uniqid(),
+        'unique_id' => $uid = 'uid-'.uniqid(),
+        'is_active' => true,
+    ]);
+
+    $service = makeService();
+    $ref = new \ReflectionClass($service);
+    $method = $ref->getMethod('normalizeDropbox');
+    $method->setAccessible(true);
+
+    $payload = [
+        '_id'         => 'test-'.uniqid(),
+        'archived'    => false,
+        'status'      => '',
+        'startDate'   => '2026-05-20T15:30:00.000Z',
+        'endDate'     => '2026-05-20T16:00:00.000Z',
+        'summary'     => 'Test',
+        'owner'       => '69bd9a6a7549b10008e0ac6b',
+        // Ningún attendance trae `type` (payload UPDATED deshidratado).
+        'attendances' => [
+            ['_id' => 'pac-'.uniqid(), 'name' => 'Juan', 'lastName' => 'Perez'],
+            ['_id' => $uid, 'name' => 'Doctora', 'lastName' => 'Test'],
+        ],
+    ];
+
+    $result = $method->invoke($service, $payload);
+
+    expect($result['doctor_identified'])->toBeTrue();
+    expect($result['doctor_external_id'])->toBe($uid);
+    // El paciente es el otro asistente, no el doctor.
+    expect($result['patient_name'])->toBe('Juan Perez');
+
+    $doctor->delete();
 });
 
 it('normalizeDropbox convierte startDate UTC a la timezone de la app', function () {
     $service = makeService();
-    $ref     = new \ReflectionClass($service);
-    $method  = $ref->getMethod('normalizeDropbox');
+    $ref = new \ReflectionClass($service);
+    $method = $ref->getMethod('normalizeDropbox');
     $method->setAccessible(true);
 
     $payload = smdPayload(['startDate' => '2026-05-12T15:45:00.000Z']);
-    $result  = $method->invoke($service, $payload);
+    $result = $method->invoke($service, $payload);
 
-    // La timezone de testing es America/La_Paz (UTC-4)
-    // 15:45 UTC → 11:45 La_Paz
-    $parsed = Carbon::parse($result['schedule_from']);
-    expect($parsed->format('H:i'))->toBe('15:45'); // normalizeDropbox no convierte, solo pasa el string — conversión es en process()
-    expect($result['schedule_from'])->toBe('2026-05-12T15:45:00.000Z');
+    // La conversión a hora boliviana se hace acá, en el borde: de este punto
+    // para adentro las horas ya son locales (antes el string UTC viajaba crudo
+    // hasta process(), y cada consumidor tenía que acordarse de convertirlo).
+    // 15:45 UTC → 11:45 en La Paz (UTC-4).
+    expect($result['schedule_from'])->toBe('2026-05-12 11:45:00');
 });
 
 // ---------------------------------------------------------------------------
-// processDropbox — creación de entidades
+// processDropbox - creación de entidades
 // ---------------------------------------------------------------------------
 
 it('processDropbox crea Lead Activity Person y Doctor para un evento nuevo', function () {
     $service = makeService();
 
     $phoneUnique = '7'.rand(1000000, 9999999);
-    $payload     = smdPayload([
+    $payload = smdPayload([
         'attendances' => [
             [
                 '_id'      => 'pat-'.uniqid(),
@@ -235,15 +281,15 @@ it('processDropbox con dos pacientes sin telefono no choca en unique_id de Perso
 
 it('resolveDoctor encuentra doctor existente por unique_id exacto', function () {
     $uniqueId = 'smd-doc-'.uniqid();
-    $doctor   = Doctor::create([
+    $doctor = Doctor::create([
         'name'      => 'Doctor Existente '.uniqid(),
         'unique_id' => $uniqueId,
         'is_active' => true,
     ]);
 
     $service = makeService();
-    $ref     = new \ReflectionClass($service);
-    $method  = $ref->getMethod('resolveDoctor');
+    $ref = new \ReflectionClass($service);
+    $method = $ref->getMethod('resolveDoctor');
     $method->setAccessible(true);
 
     $resolved = $method->invoke($service, [
@@ -262,8 +308,8 @@ it('resolveDoctor encuentra doctor existente por nombre parcial', function () {
     ]);
 
     $service = makeService();
-    $ref     = new \ReflectionClass($service);
-    $method  = $ref->getMethod('resolveDoctor');
+    $ref = new \ReflectionClass($service);
+    $method = $ref->getMethod('resolveDoctor');
     $method->setAccessible(true);
 
     $resolved = $method->invoke($service, [
@@ -276,11 +322,11 @@ it('resolveDoctor encuentra doctor existente por nombre parcial', function () {
 
 it('resolveDoctor crea doctor nuevo si no existe en BD y guarda unique_id', function () {
     $externalId = 'new-doc-'.uniqid();
-    $name       = 'Doctor Nuevo '.uniqid();
+    $name = 'Doctor Nuevo '.uniqid();
 
     $service = makeService();
-    $ref     = new \ReflectionClass($service);
-    $method  = $ref->getMethod('resolveDoctor');
+    $ref = new \ReflectionClass($service);
+    $method = $ref->getMethod('resolveDoctor');
     $method->setAccessible(true);
 
     $countBefore = Doctor::count();
@@ -300,7 +346,7 @@ it('resolveDoctor crea doctor nuevo si no existe en BD y guarda unique_id', func
 // ---------------------------------------------------------------------------
 
 it('resolvePerson encuentra paciente existente por telefono', function () {
-    $phone  = '7'.rand(1000000, 9999999);
+    $phone = '7'.rand(1000000, 9999999);
     $person = Person::create([
         'name'            => 'Paciente Existente '.uniqid(),
         'contact_numbers' => [['value' => $phone, 'label' => 'work']],
@@ -308,8 +354,8 @@ it('resolvePerson encuentra paciente existente por telefono', function () {
     ]);
 
     $service = makeService();
-    $ref     = new \ReflectionClass($service);
-    $method  = $ref->getMethod('resolvePerson');
+    $ref = new \ReflectionClass($service);
+    $method = $ref->getMethod('resolvePerson');
     $method->setAccessible(true);
 
     $resolved = $method->invoke($service, $phone, null, 'Otro Nombre');
@@ -318,7 +364,7 @@ it('resolvePerson encuentra paciente existente por telefono', function () {
 });
 
 it('resolvePerson encuentra paciente existente por smd_patient_id', function () {
-    $smdId  = 'smd-pat-'.uniqid();
+    $smdId = 'smd-pat-'.uniqid();
     $person = Person::create([
         'name'           => 'Paciente SMD '.uniqid(),
         'smd_patient_id' => $smdId,
@@ -326,8 +372,8 @@ it('resolvePerson encuentra paciente existente por smd_patient_id', function () 
     ]);
 
     $service = makeService();
-    $ref     = new \ReflectionClass($service);
-    $method  = $ref->getMethod('resolvePerson');
+    $ref = new \ReflectionClass($service);
+    $method = $ref->getMethod('resolvePerson');
     $method->setAccessible(true);
 
     $resolved = $method->invoke($service, null, $smdId, 'Nombre Diferente');
@@ -339,18 +385,18 @@ it('resolvePerson crea paciente nuevo con telefono y asigna email kommo correcto
     $phone = '70'.rand(100000, 999999);
 
     $service = makeService();
-    $ref     = new \ReflectionClass($service);
-    $method  = $ref->getMethod('resolvePerson');
+    $ref = new \ReflectionClass($service);
+    $method = $ref->getMethod('resolvePerson');
     $method->setAccessible(true);
 
     $countBefore = Person::count();
-    $person      = $method->invoke($service, $phone, 'smd-'.uniqid(), 'Nuevo Paciente');
+    $person = $method->invoke($service, $phone, 'smd-'.uniqid(), 'Nuevo Paciente');
 
     expect(Person::count())->toBe($countBefore + 1);
 
     // Email kommo: teléfono limpio (sin ceros iniciales) + @whatsapp.sofopolis.net
-    $cleanPhone  = ltrim(preg_replace('/[^0-9]/', '', $phone), '0');
-    $kommoEmail  = $cleanPhone.'@whatsapp.sofopolis.net';
+    $cleanPhone = ltrim(preg_replace('/[^0-9]/', '', $phone), '0');
+    $kommoEmail = $cleanPhone.'@whatsapp.sofopolis.net';
     $emailValues = collect($person->emails ?? [])->pluck('value')->toArray();
 
     expect($emailValues)->toContain($kommoEmail);
@@ -358,12 +404,12 @@ it('resolvePerson crea paciente nuevo con telefono y asigna email kommo correcto
 
 it('resolvePerson crea paciente nuevo sin telefono y sin crash', function () {
     $service = makeService();
-    $ref     = new \ReflectionClass($service);
-    $method  = $ref->getMethod('resolvePerson');
+    $ref = new \ReflectionClass($service);
+    $method = $ref->getMethod('resolvePerson');
     $method->setAccessible(true);
 
     $countBefore = Person::count();
-    $person      = $method->invoke($service, null, null, 'Paciente Sin Tel');
+    $person = $method->invoke($service, null, null, 'Paciente Sin Tel');
 
     expect(Person::count())->toBe($countBefore + 1);
     expect($person->name)->toBe('Paciente Sin Tel');

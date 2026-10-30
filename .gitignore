@@ -33,3 +33,10 @@ node_modules/
 /test-results/
 /blob-report/
 /playwright/.cache/
+
+# Build de Vite del admin: artefacto generado, se compila en cada servidor
+/public/admin/build
+
+# Reportes de citas con telefonos de pacientes: no van al repo
+/citas-*.csv
+/citas-*.xlsx

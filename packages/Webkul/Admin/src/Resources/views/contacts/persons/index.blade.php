@@ -3,8 +3,9 @@
         @lang('admin::app.contacts.persons.index.title')
     </x-slot>
 
-    <div class="flex flex-col gap-4">
-        <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+    <div class="flex flex-col gap-4 max-lg:gap-0">
+        {{-- Celular: de borde a borde, sin el gris de alrededor (como Citas). --}}
+        <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
             <div class="flex flex-col gap-2">
                 <x-admin::breadcrumbs name="contacts.persons" />
 
@@ -13,12 +14,12 @@
                 </div>
             </div>
 
-            <div class="flex items-center gap-x-2.5">
+            <div class="flex items-center gap-x-2.5 max-lg:flex-wrap max-lg:gap-y-2">
                 <!-- Export Modal -->
                 <x-admin::datagrid.export :src="route('admin.contacts.persons.index')" />
 
                 <!-- Create button for person -->
-                <div class="flex items-center gap-x-2.5">
+                <div class="flex items-center gap-x-2.5 max-lg:flex-wrap max-lg:gap-y-2">
                     {!! view_render_event('admin.persons.index.create_button.before') !!}
 
                     @if (bouncer()->hasPermission('contacts.persons.create'))
@@ -37,24 +38,109 @@
 
         {!! view_render_event('admin.persons.index.datagrid.before') !!}
 
-        <v-persons>
-            <!-- Datagrid shimmer -->
-            <x-admin::shimmer.datagrid :is-multi-row="true"/>
-        </v-persons>
+        {{-- Celular: buscador y «Filtros» en una banda blanca compacta, de borde a borde. --}}
+        <div class="max-lg:-mx-3 max-lg:[&_.datagrid-toolbar]:gap-2 max-lg:[&_.datagrid-toolbar]:border-t-0 max-lg:[&_.datagrid-toolbar]:px-3 max-lg:[&_.datagrid-toolbar]:py-2 max-lg:[&_.toolbarLeft]:w-full max-lg:[&_.toolbarLeft]:gap-x-2 max-lg:[&_.rounded-t-lg]:rounded-none max-lg:[&_.rounded-t-lg]:border-x-0 max-lg:[&_.table-responsive]:rounded-none max-lg:[&_.table-responsive]:border-x-0 max-lg:[&_.datagrid-filtro-toggle]:hidden">
+            <v-persons>
+                <!-- Datagrid shimmer -->
+                <x-admin::shimmer.datagrid :is-multi-row="true"/>
+            </v-persons>
+        </div>
 
         {!! view_render_event('admin.persons.index.datagrid.after') !!}
     </div>
+
+    {{-- Helper compartido para sincronizar el rango de fechas con Tablero y Leads --}}
+    @include('admin::components.global-date-range')
+
+    @include('admin::contacts.persons.filtros-movil')
 
     @pushOnce('scripts')
         <script
             type="text/x-template"
             id="v-persons-template"
         >
+          <div>
+            <!-- Filtro por rango de fechas de registro (persistente por cookie) -->
+            {{-- Celular: estos controles están en el panel «Filtros» (persons.filtros-movil). --}}
+            <div class="mb-4 flex flex-wrap max-lg:hidden items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 dark:border-gray-800 dark:bg-gray-900">
+                <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Registrados:</span>
+
+                <button
+                    type="button"
+                    class="rounded-md border px-3 py-1.5 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:text-gray-300"
+                    :style="quickRangeStyle(7)"
+                    @click="setQuickRange(7)"
+                >
+                    7 días
+                </button>
+
+                <button
+                    type="button"
+                    class="rounded-md border px-3 py-1.5 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:text-gray-300"
+                    :style="quickRangeStyle(30)"
+                    @click="setQuickRange(30)"
+                >
+                    30 días
+                </button>
+
+                <button
+                    type="button"
+                    class="rounded-md border px-3 py-1.5 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:text-gray-300"
+                    :style="quickRangeStyle(90)"
+                    @click="setQuickRange(90)"
+                >
+                    90 días
+                </button>
+
+                <button
+                    type="button"
+                    class="rounded-md border px-3 py-1.5 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:text-gray-300"
+                    :style="quickRangeStyle('month')"
+                    @click="setCurrentMonth"
+                >
+                    Este mes
+                </button>
+
+                <label class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-300">
+                    Desde
+                    <input
+                        type="date"
+                        v-model="dateStart"
+                        @change="onManualDate"
+                        class="rounded-md border px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                    >
+                </label>
+
+                <label class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-300">
+                    Hasta
+                    <input
+                        type="date"
+                        v-model="dateEnd"
+                        @change="onManualDate"
+                        class="rounded-md border px-2.5 py-1.5 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                    >
+                </label>
+
+                <button
+                    type="button"
+                    v-if="dateStart || dateEnd"
+                    @click="clear"
+                    class="text-sm text-gray-500 underline dark:text-gray-400"
+                >
+                    Limpiar
+                </button>
+            </div>
+
             <x-admin::datagrid
                 src="{{ route('admin.contacts.persons.index') }}"
                 :isMultiRow="true"
                 ref="datagrid"
             >
+                <x-slot:toolbar-left-after>
+                    <!-- Celular: el rango de fechas, en el panel lateral -->
+                    <v-persons-filtros-movil></v-persons-filtros-movil>
+                </x-slot>
+
                 <template #header="{
                     isLoading,
                     available,
@@ -68,7 +154,7 @@
                     </template>
 
                     <template v-else>
-                        <div class="row grid grid-cols-[.1fr_.2fr_.2fr_.2fr_.2fr_.2fr] grid-rows-1 items-center border-b px-4 py-2.5 dark:border-gray-800 max-lg:hidden">
+                        <div class="row grid grid-rows-1 items-center border-b px-4 py-2.5 dark:border-gray-800 max-lg:hidden" style="grid-template-columns: .1fr .25fr .25fr .25fr .15fr;">
                             <div
                                 class="flex select-none items-center gap-2.5"
                                 v-for="(columnGroup, index) in [['id'], ['person_name'], ['emails'], ['contact_numbers']]"
@@ -209,7 +295,8 @@
 
                     <template v-else>
                         <div
-                            class="row grid grid-cols-[.1fr_.2fr_.2fr_.2fr_.2fr_.2fr] grid-rows-1 border-b px-4 py-2.5 transition-all hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-950 max-lg:hidden"
+                            class="row grid grid-rows-1 border-b px-4 py-2.5 transition-all hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-950 max-lg:hidden"
+                            style="grid-template-columns: .1fr .25fr .25fr .25fr .15fr;"
                             v-for="record in available.records"
                         >
                             <!-- Mass Action and Person ID. -->
@@ -274,65 +361,146 @@
                             </div>
                         </div>
 
-                        <!-- Mobile Card View -->
-                        <div
-                            class="hidden border-b px-4 py-4 text-black dark:border-gray-800 dark:text-gray-300 max-lg:block"
+                        <!-- Mobile Card View: componente compartido (datagrid/mobile-card). -->
+                        <v-datagrid-mobile-card
                             v-for="record in available.records"
-                        >
-                            <div class="mb-2 flex items-center justify-between">
-                                <!-- Mass Actions for Mobile Cards -->
-                                <div class="flex w-full items-center justify-between gap-2">
-                                    <p v-if="available.massActions.length">
-                                        <label :for="`mass_action_select_record_${record[available.meta.primary_column]}`">
-                                            <input
-                                                type="checkbox"
-                                                :name="`mass_action_select_record_${record[available.meta.primary_column]}`"
-                                                :value="record[available.meta.primary_column]"
-                                                :id="`mass_action_select_record_${record[available.meta.primary_column]}`"
-                                                class="peer hidden"
-                                                v-model="applied.massActions.indices"
-                                            >
-    
-                                            <span class="icon-checkbox-outline peer-checked:icon-checkbox-select cursor-pointer rounded-md text-2xl text-gray-500 peer-checked:text-brandColor">
-                                            </span>
-                                        </label>
-                                    </p>
-
-                                    <!-- Actions for Mobile -->
-                                    <div
-                                        class="flex w-full items-center justify-end"
-                                        v-if="available.actions.length"
-                                    >
-                                        <span
-                                            class="dark:hover:bg-gray-80 cursor-pointer rounded-md p-1.5 text-2xl transition-all hover:bg-gray-200"
-                                            :class="action.icon"
-                                            v-text="! action.icon ? action.title : ''"
-                                            v-for="action in record.actions"
-                                            @click="performAction(action)"
-                                        >
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Card Content -->
-                            <div class="grid gap-2">
-                                <template v-for="column in available.columns">
-                                    <div class="flex flex-wrap items-baseline gap-x-2">
-                                        <span class="text-slate-600 dark:text-gray-300" v-html="column.label + ':'"></span>
-                                        <span class="break-words font-medium text-slate-900 dark:text-white" v-html="record[column.index]"></span>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
+                            :key="record[available.meta.primary_column]"
+                            :record="record"
+                            :available="available"
+                            :applied="applied"
+                            @action="performAction"
+                        ></v-datagrid-mobile-card>
                     </template>
                 </template>
             </x-admin::datagrid>
+          </div>
         </script>
 
         <script type="module">
             app.component('v-persons', {
                 template: '#v-persons-template',
+
+                data() {
+                    // Rango sincronizado (cookie compartida global_date_range) para que
+                    // coincida con Tablero y Leads. 'quick' evita ambigüedad cuando dos
+                    // botones producen el mismo rango (p. ej. "Este mes" y "7 días" el día 7).
+                    const saved = window.OdontoDateRange.read();
+
+                    return {
+                        dateStart: saved.from,
+                        dateEnd: saved.to,
+                        // Botón rápido activo: 7 | 30 | 90 | 'month' | '' (custom).
+                        activeQuick: window.OdontoDateRange.normalizeQuick(saved.quick),
+                    };
+                },
+
+                mounted() {
+                    this.$emitter.on('persons:rango-movil', this.aplicarRangoMovil);
+                },
+
+                beforeUnmount() {
+                    this.$emitter.off('persons:rango-movil', this.aplicarRangoMovil);
+                },
+
+                created() {
+                    // Reflejar el rango restaurado en la URL ANTES de que el datagrid
+                    // haga su primer fetch (su mounted lee window.location).
+                    if (this.dateStart || this.dateEnd) {
+                        this.syncUrl();
+                    }
+                },
+
+                methods: {
+                    formatDate(date) {
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+
+                        return `${year}-${month}-${day}`;
+                    },
+
+                    quickRangeStyle(key) {
+                        if (this.activeQuick !== key) {
+                            return {};
+                        }
+
+                        return {
+                            borderColor: '#2AA8B3',
+                            backgroundColor: 'rgba(42, 168, 179, 0.12)',
+                            color: '#2AA8B3',
+                            fontWeight: '600',
+                        };
+                    },
+
+                    setCookie() {
+                        window.OdontoDateRange.write(this.dateStart, this.dateEnd, this.activeQuick);
+                    },
+
+                    syncUrl() {
+                        const url = new URL(window.location);
+
+                        this.dateStart
+                            ? url.searchParams.set('start_date', this.dateStart)
+                            : url.searchParams.delete('start_date');
+
+                        this.dateEnd
+                            ? url.searchParams.set('end_date', this.dateEnd)
+                            : url.searchParams.delete('end_date');
+
+                        window.history.replaceState({}, '', url);
+                    },
+
+                    apply() {
+                        this.setCookie();
+                        this.syncUrl();
+                        this.$refs.datagrid.get();
+
+                        this.$emitter.emit('persons:rango-aplicado', this.rango());
+                    },
+
+                    rango() {
+                        return { from: this.dateStart, to: this.dateEnd, quick: this.activeQuick };
+                    },
+
+                    // Lo que elige el panel «Filtros» del celular (persons.filtros-movil).
+                    aplicarRangoMovil({ from, to, quick }) {
+                        this.dateStart = from;
+                        this.dateEnd = to;
+                        this.activeQuick = quick;
+                        this.apply();
+                    },
+
+                    setQuickRange(days) {
+                        const r = window.OdontoDateRange.resolve(days);
+
+                        this.dateStart = r.from;
+                        this.dateEnd = r.to;
+                        this.activeQuick = days;
+                        this.apply();
+                    },
+
+                    setCurrentMonth() {
+                        const r = window.OdontoDateRange.resolve('month');
+
+                        this.dateStart = r.from;
+                        this.dateEnd = r.to;
+                        this.activeQuick = 'month';
+                        this.apply();
+                    },
+
+                    // Edición manual de los date pickers: rango personalizado.
+                    onManualDate() {
+                        this.activeQuick = '';
+                        this.apply();
+                    },
+
+                    clear() {
+                        this.dateStart = '';
+                        this.dateEnd = '';
+                        this.activeQuick = '';
+                        this.apply();
+                    },
+                },
             });
         </script>
     @endPushOnce

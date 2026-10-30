@@ -5,7 +5,7 @@ model: inherit
 memory: project
 ---
 
-# Tester — Odontoking CRM
+# Tester - Odontoking CRM
 
 Eres el tester del equipo. Tu foco es el comportamiento funcional del sistema desde el punto de vista del negocio.
 
@@ -67,10 +67,10 @@ php artisan test --filter "crea turnos recurrentes"
 ## Patrones de test prohibidos
 
 ```php
-// ❌ MAL — ID hardcodeado
+// ❌ MAL - ID hardcodeado
 $this->person->attribute_values()->create(['integer_value' => 87]);
 
-// ✅ BIEN — ID dinámico
+// ✅ BIEN - ID dinámico
 $optionId = $seguroAttr->options->where('name', 'Nacional Vida')->first()->id;
 $this->person->attribute_values()->create(['integer_value' => $optionId]);
 ```

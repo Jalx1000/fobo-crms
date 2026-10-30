@@ -2,58 +2,95 @@
 
 namespace Webkul\Admin\Services\Insurance\Drivers;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Webkul\Admin\Services\Insurance\Contracts\InsuranceDriverInterface;
 
 /**
- * Driver para Alianza Seguros via MedinetGo API.
+ * Driver para Alianza Seguros via MedinetGo API (ApiGateway).
  *
- * Flujo por request (sin caché):
- *  1. POST /LoginUserProv → accessToken + nUsercode frescos
+ * Flujo por request:
+ *  1. POST /LoginUserProv      → accessToken + nUsercode frescos
  *  2. GET  /OdontologyCoverage?ci={ci}&nUsercode={nUsercode}
+ *
+ * URLs, credenciales y timeout se leen de config('services.alianza.*'),
+ * configurables vía .env. success=true en la cobertura ya significa que el
+ * cliente tiene cobertura odontológica vigente.
  */
 class AlianzaDriver implements InsuranceDriverInterface
 {
     protected string $loginUrl;
-    protected string $microserviceUrl;
-    protected string $user;
-    protected string $password;
-    protected int    $timeout = 1000;
 
-    const OPTION_ID_EN_MORA  = 91;
+    protected string $microserviceUrl;
+
+    protected string $user;
+
+    protected string $password;
+
+    protected int $timeout;
+
+    protected bool $logRawToken;
+
+    const OPTION_ID_EN_MORA = 91;
+
     const OPTION_ID_PROBLEMA = 92;
+
+    const REJECTED_MESSAGE = 'Alianza rechaza el usuario y contraseña de la clínica. Hay que pedirle a Alianza que restablezca la contraseña y actualizarla en el sistema.';
+
+    /** Marca de "credenciales rechazadas", atada a la clave: cambiarla la anula. */
+    protected function rejectedKey(): string
+    {
+        return 'alianza:credentials_rejected:'.md5($this->user.'|'.$this->password);
+    }
 
     public function __construct()
     {
-        $this->loginUrl        = "https://devnet.alianza.com.bo/ApiGateway";
-        $this->microserviceUrl = "https://devnet.alianza.com.bo/ApiGateway";
-        $this->user            = env('ALIANZA_USER', '');
-        $this->password        = env('ALIANZA_PASS', '');
+        $this->loginUrl = rtrim((string) config('services.alianza.login_url'), '/');
+        $this->microserviceUrl = rtrim((string) config('services.alianza.microservice_url'), '/');
+        $this->user = (string) config('services.alianza.user', '');
+        $this->password = (string) config('services.alianza.password', '');
+        $this->timeout = (int) config('services.alianza.timeout', 15);
+        $this->logRawToken = (bool) config('services.alianza.log_raw_token', false);
     }
 
     public function verify(object $person, string $ci): array
     {
+        // Alianza ya rechazó el usuario de la clínica: cada intento con la
+        // clave mala puede renovar su bloqueo, así que no se insiste hasta que
+        // pase el plazo o se cambie la clave en el .env (la marca es por clave).
+        if (Cache::has($this->rejectedKey())) {
+            $this->updateInsuranceAttributes($person, 'INDETERMINADO');
+
+            return $this->indeterminate(self::REJECTED_MESSAGE);
+        }
+
         try {
             [$token, $nUsercode] = $this->login();
-            Log::info('[AlianzaDriver] Login exitoso', [
-                'token'     => $token,
-                'nUsercode' => $nUsercode,
-            ]);
+
             if (! $token || ! $nUsercode) {
                 $this->updateInsuranceAttributes($person, 'INDETERMINADO');
-                return $this->indeterminate('No se pudo autenticar con el sistema de Alianza. Intenta nuevamente.');
+
+                return $this->indeterminate(Cache::has($this->rejectedKey())
+                    ? self::REJECTED_MESSAGE
+                    : 'No se pudo autenticar con el sistema de Alianza. Intenta nuevamente.');
             }
+
+            Log::info('[AlianzaDriver] Login exitoso', [
+                'token'     => $this->maskToken($token),
+                'nUsercode' => $nUsercode,
+            ]);
 
             return $this->checkCoverage($ci, $token, $nUsercode, $person);
         } catch (\Exception $e) {
-            Log::error('[AlianzaDriver] Error Crítico: ' . $e->getMessage(), [
+            Log::error('[AlianzaDriver] Error Crítico: '.$e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
                 'ci'    => $ci,
             ]);
 
             $this->updateInsuranceAttributes($person, 'INDETERMINADO');
+
             return $this->indeterminate('La consulta con Alianza no pudo completarse. Por favor, verifica la conexión o contacta a soporte técnico.');
         }
     }
@@ -69,17 +106,36 @@ class AlianzaDriver implements InsuranceDriverInterface
                 'nApplication' => 0,
             ]);
 
+        $data = $response->json('data');
+        $token = $data['accessToken'] ?? null;
+        $nUsercode = $data['webClientVtime'][0]['nUsercode'] ?? null;
+
+        // Credenciales rechazadas: 401 "Usuario o Contraseña incorrectos", o el
+        // 200 con success=true pero sin token y la clave marcada como inválida
+        // (sIndBlockedPass 1 = bloqueo temporal, 2 = clave inválida/vencida).
+        $blockedPass = (string) ($data['webClientVtime'][0]['sIndBlockedPass'] ?? '');
+
+        if ($response->status() === 401 || (! $token && in_array($blockedPass, ['1', '2'], true))) {
+            $minutes = max(1, (int) config('services.alianza.rejected_backoff_minutes', 30));
+            Cache::put($this->rejectedKey(), now()->toIso8601String(), now()->addMinutes($minutes));
+
+            Log::error('[AlianzaDriver] Alianza rechazó el usuario de la clínica: hay que renovar la clave (ALIANZA_PASS). No se reintenta por '.$minutes.' min.', [
+                'status'          => $response->status(),
+                'mensaje'         => $response->json('messageError') ?? ($data['webClientVtime'][0]['sMessage'] ?? null),
+                'sIndBlockedPass' => $blockedPass ?: null,
+            ]);
+
+            return [null, null];
+        }
+
         if ($response->failed() || ! $response->json('success')) {
             Log::error('[AlianzaDriver] Login fallido', [
                 'status' => $response->status(),
                 'body'   => $response->json(),
             ]);
+
             return [null, null];
         }
-
-        $data      = $response->json('data');
-        $token     = $data['accessToken'] ?? null;
-        $nUsercode = $data['webClientVtime'][0]['nUsercode'] ?? null;
 
         return [$token, (int) $nUsercode];
     }
@@ -93,53 +149,27 @@ class AlianzaDriver implements InsuranceDriverInterface
                 'nUsercode' => $nUsercode,
             ]);
 
-        if ($response->failed()) {
-            $this->updateInsuranceAttributes($person, 'INDETERMINADO');
-            return $this->indeterminate('La consulta con Alianza no pudo completarse. Por favor, verifica la conexión o contacta a soporte técnico.');
-        }
-
         $body = $response->json();
 
-        $rows = $body['data'] ?? [];
+        // En MedinetGo, success=true significa que el cliente tiene cobertura
+        // odontológica vigente. La respuesta trae: ci, clientCode, clientName, age.
+        if ($response->successful() && ($body['success'] ?? false)) {
+            $rows = $body['data'] ?? [];
+            $record = (array) (is_array($rows) && isset($rows[0]) ? $rows[0] : $rows);
 
-        if (($body['success'] ?? false) && is_array($rows) && ! empty($rows)) {
-            $record = isset($rows[0]) ? $rows[0] : $rows;
-
-            $estado = strtoupper($record['ESTADO'] ?? '');
-
-            // Si el registro existe pero no tiene campo ESTADO reconocido, tratar como no registrado
-            if (empty($estado)) {
-                $this->updateInsuranceAttributes($person, 'NO_REGISTRADO');
-                return [
-                    'status'  => 'NO_REGISTRADO',
-                    'message' => 'El paciente no figura con cobertura dental en Alianza: Sin cobertura',
-                    'badge'   => 'warning',
-                    'success' => false,
-                    'data'    => null,
-                ];
-            }
-
-            $badge  = $estado === 'VIGENTE' ? 'success' : 'warning';
-
-            $this->updateInsuranceAttributes($person, $estado);
+            $this->updateInsuranceAttributes($person, 'VIGENTE');
 
             return [
-                'status'  => $estado,
+                'status'  => 'VIGENTE',
                 'message' => '¡Todo en orden! El paciente tiene cobertura dental activa en Alianza.',
-                'badge'   => $badge,
+                'badge'   => 'success',
                 'success' => true,
                 'data'    => [
-                    'CI'                     => $record['NRO. DOCUMENTO']                   ?? $ci,
-                    'CONTRATANTE'            => $record['CONTRATANTE']                      ?? '',
-                    'NOMBRE COMPLETO'        => $record['NOMBRE COMPLETO']                  ?? '',
-                    'ESTADO'                 => $record['ESTADO']                           ?? $estado,
-                    'EDAD'                   => $record['EDAD']                             ?? null,
-                    'CODIGO'                 => $record['CODIGO DE ASEGURADO']              ?? '',
-                    'COBERTURA ODONTOLOGICA' => $record['COBERTURA ADICIONAL ODONTOLOGICA'] ?? '',
-                    'COASEGURO'              => $record['COASEGURO ODONTOLOGICO']           ?? '',
-                    'CLINICA'                => $record['CLINICA ODONTOLOGICA']             ?? '',
-                    'RELACION'               => $record['RELACION']                         ?? '',
-                    'FECHA INGRESO'          => $record['FECHA DE INGRESO']                 ?? '',
+                    'CI'              => $record['ci'] ?? $ci,
+                    'CODIGO'          => $record['clientCode'] ?? '',
+                    'NOMBRE COMPLETO' => $record['clientName'] ?? '',
+                    'ESTADO'          => 'VIGENTE',
+                    'EDAD'            => $record['age'] ?? null,
                 ],
             ];
         }
@@ -148,27 +178,35 @@ class AlianzaDriver implements InsuranceDriverInterface
 
         if (str_contains($errorMsg, 'pago pendiente') || str_contains($errorMsg, 'comuníquese')) {
             $this->updateInsuranceAttributes($person, 'EN_MORA');
+
             return [
                 'status'  => 'EN_MORA',
                 'message' => 'Atención: El paciente tiene pagos pendientes en Alianza. Debe comunicarse con la compañía.',
                 'badge'   => 'danger',
-                'success' => false,
+                'success' => true,
                 'data'    => null,
             ];
         }
 
         $this->updateInsuranceAttributes($person, 'NO_REGISTRADO');
+
         return [
             'status'  => 'NO_REGISTRADO',
-            'message' => 'El paciente no figura con cobertura dental en Alianza: ' . ($body['messageError'] ?? 'Sin cobertura'),
+            'message' => 'El paciente no figura con cobertura dental en Alianza: '.($body['messageError'] ?? 'Sin cobertura'),
             'badge'   => 'warning',
-            'success' => false,
+            'success' => true,
             'data'    => null,
         ];
     }
 
     protected function updateInsuranceAttributes(object $person, string $status): void
     {
+        // Consulta solo por cédula (InsuranceService::verifyCi): sin ficha no
+        // se escribe nada. Antes quedaban valores colgados de la persona 0.
+        if (empty($person->id)) {
+            return;
+        }
+
         try {
             $optionId = $this->resolveOptionId($status);
 
@@ -204,7 +242,7 @@ class AlianzaDriver implements InsuranceDriverInterface
                 }
             }
         } catch (\Exception $e) {
-            Log::error('[AlianzaDriver] Error actualizando atributos: ' . $e->getMessage());
+            Log::error('[AlianzaDriver] Error actualizando atributos: '.$e->getMessage());
         }
     }
 
@@ -247,5 +285,22 @@ class AlianzaDriver implements InsuranceDriverInterface
             'success' => false,
             'data'    => null,
         ];
+    }
+
+    /**
+     * Devuelve el token para logging. Por defecto un hash truncado (no reversible);
+     * solo en claro si ALIANZA_LOG_RAW_TOKEN=true (depuración puntual).
+     */
+    protected function maskToken(?string $token): ?string
+    {
+        if (! $token) {
+            return null;
+        }
+
+        if ($this->logRawToken) {
+            return $token;
+        }
+
+        return 'sha256:'.substr(hash('sha256', $token), 0, 12);
     }
 }

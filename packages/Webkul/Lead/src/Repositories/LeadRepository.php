@@ -149,11 +149,18 @@ class LeadRepository extends Repository
             }
 
             if (! $assignedId) {
+                // Sin usuario en contexto (p.ej. la sync SMD/Dropbox por cron): el lead
+                // queda en la cuenta "Sin asignar" (no-admin), para que el tablero
+                // por-vendedor no lo oculte. Antes caía en el primer usuario activo
+                // (= admin id 1), lo que invisibilizaba estos leads en los reportes.
                 $userRepo = app(\Webkul\User\Repositories\UserRepository::class);
-                $fallbackUser = $userRepo->resetModel()->where('status', 1)->orderBy('id')->first();
-                if ($fallbackUser) {
-                    $assignedId = $fallbackUser->id;
-                }
+                $unassigned = $userRepo->resetModel()
+                    ->where('email', config('dashboard.unassigned_user.email'))
+                    ->first();
+
+                // Si la cuenta no existe en este entorno, se deja user_id nulo a
+                // propósito (no se cae al admin).
+                $assignedId = $unassigned?->id;
             }
 
             if ($assignedId) {
@@ -182,6 +189,8 @@ class LeadRepository extends Repository
                 ]));
             }
         }
+
+        $this->applyLeadValueRule($lead, $data);
 
         return $lead;
     }
@@ -231,7 +240,11 @@ class LeadRepository extends Repository
             if ($isWon || $isLost) {
                 $data['closed_at'] = $data['closed_at'] ?? Carbon::now();
             } else {
-                $data['closed_at'] = null;
+                // Respeta un closed_at explícito: las etapas propias de la clínica
+                // ("Cita Cancelada") no se llaman won/lost, y forzar null borraba el
+                // cierre que manda el sync de SMD (741 cancelaciones sin closed_at,
+                // AUD-05). Sin closed_at explícito, mover a otra etapa reabre.
+                $data['closed_at'] = $data['closed_at'] ?? null;
             }
         }
 
@@ -296,6 +309,56 @@ class LeadRepository extends Repository
             $this->productRepository->delete($productId);
         }
 
+        $this->applyLeadValueRule($lead->refresh(), $data);
+
         return $lead;
+    }
+
+    /**
+     * Keeps lead_value consistent with the lead's products.
+     *
+     * Rule (requested by the business):
+     *   - lead_value mirrors the sum of the lead's product amounts by default.
+     *   - Only an Administrator may set a manual value that differs from that sum
+     *     (override). The override is flagged via lead_value_is_manual so a later
+     *     edit by a non-admin won't silently wipe it.
+     */
+    protected function applyLeadValueRule(\Webkul\Lead\Contracts\Lead $lead, array $data): void
+    {
+        $productsSum = (float) $lead->products()->sum('amount');
+
+        $submitted = array_key_exists('lead_value', $data) && $data['lead_value'] !== ''
+            ? (float) $data['lead_value']
+            : null;
+
+        $isAdmin = $this->currentUserIsAdministrator();
+
+        if ($isAdmin && $submitted !== null && $submitted != $productsSum) {
+            // Administrator deliberately set a value different from the products sum.
+            $lead->lead_value = $submitted;
+            $lead->lead_value_is_manual = true;
+        } elseif ($lead->lead_value_is_manual && ! $isAdmin) {
+            // A non-admin must not override an existing manual value set by an admin.
+            return;
+        } else {
+            // Default: the value reflects the sum of the lead's products.
+            $lead->lead_value = $productsSum;
+            $lead->lead_value_is_manual = false;
+        }
+
+        $lead->save();
+    }
+
+    /**
+     * Whether the currently authenticated user has an Administrator role.
+     * Covers both "Administrator" and "Administrador". No auth (imports, CLI) => false.
+     */
+    protected function currentUserIsAdministrator(): bool
+    {
+        $user = auth()->guard('user')->user();
+
+        $roleName = $user?->role?->name;
+
+        return $roleName ? str_starts_with(strtolower($roleName), 'admin') : false;
     }
 }

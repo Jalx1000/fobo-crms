@@ -2,15 +2,30 @@
 
 use Illuminate\Support\Facades\Route;
 use Webkul\Admin\Http\Controllers\Activity\ActivityController;
+use Webkul\Admin\Http\Controllers\Activity\SmdSyncController;
+
+Route::controller(SmdSyncController::class)->prefix('activities/smd')->group(function () {
+    Route::post('sync', 'sync')->name('admin.activities.smd.sync');
+    Route::get('sync/status', 'status')->name('admin.activities.smd.sync.status');
+    Route::post('pause', 'pause')->name('admin.activities.smd.pause');
+});
 
 Route::controller(ActivityController::class)->prefix('activities')->group(function () {
     Route::get('', 'index')->name('admin.activities.index');
 
     Route::get('get', 'get')->name('admin.activities.get');
 
+    Route::get('version', 'version')->name('admin.activities.version');
+
     Route::post('create', 'store')->name('admin.activities.store');
 
     Route::post('appointments/create', 'storeAppointment')->name('admin.activities.appointments.store');
+
+    Route::post('appointments/{id}/status', 'updateAppointmentStatus')->name('admin.activities.appointments.status');
+
+    Route::post('appointments/{id}/update', 'updateAppointment')->name('admin.activities.appointments.update');
+
+    Route::get('persons/{id}/appointments', 'personAppointments')->name('admin.activities.persons.appointments');
 
     Route::get('edit/{id}', 'edit')->name('admin.activities.edit');
 

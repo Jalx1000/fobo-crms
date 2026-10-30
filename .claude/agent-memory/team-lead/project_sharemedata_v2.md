@@ -1,6 +1,6 @@
 ---
 name: sharemedata-v2-integration-plan
-description: Plan de integración ShareMeData API v2 — brechas identificadas, endpoints nuevos de patients, riesgos críticos de base URL y schema Dropbox
+description: Plan de integración ShareMeData API v2 - brechas identificadas, endpoints nuevos de patients, riesgos críticos de base URL y schema Dropbox
 metadata:
   type: project
 ---
@@ -8,13 +8,13 @@ metadata:
 El plan de integración ShareMeData API v2 fue creado el 2026-05-19 en `planning/00-sharemedata-api-v2/00.agent-task.md`.
 
 **TODO YA IMPLEMENTADO (verificado 2026-05-26):**
-- `GET /api/patients` — `ShareMeDataService::findPatientByPhone/Email/Name()` con `$patientsBaseUrl`
-- `POST /api/patients/user` — `ShareMeDataService::createPatient()`
-- `PATCH /api/patients/{id}` — `ShareMeDataService::updatePatient()`
-- `GET /api/patients/{id}` — `ShareMeDataService::getPatient()`
-- `$patientsBaseUrl` = `config('services.sharemedata.patients_url', 'https://gamma.sharemedata.com/api')` — variable separada ya resuelta
+- `GET /api/patients` - `ShareMeDataService::findPatientByPhone/Email/Name()` con `$patientsBaseUrl`
+- `POST /api/patients/user` - `ShareMeDataService::createPatient()`
+- `PATCH /api/patients/{id}` - `ShareMeDataService::updatePatient()`
+- `GET /api/patients/{id}` - `ShareMeDataService::getPatient()`
+- `$patientsBaseUrl` = `config('services.sharemedata.patients_url', 'https://gamma.sharemedata.com/api')` - variable separada ya resuelta
 - Sincronización Dropbox: `DropboxService`, `DropboxWebhookController`, `ProcessDropboxNotification`, `SyncDropboxAppointments`, `InitDropboxCursor`
-- `IncomingAppointmentService` — procesa citas entrantes desde Dropbox
+- `IncomingAppointmentService` - procesa citas entrantes desde Dropbox
 
 **Lo que ya estaba integrado antes:**
 - `GET /api/calendar/specialties` → `getSpecialties()` / `syncSpecialties()`

@@ -13,5 +13,8 @@ class EncryptCookies extends Middleware
      */
     protected $except = [
         'dark_mode',
+        // La escribe el JS del tablero (filtro de fechas); si se encriptara,
+        // el backend la vería como null y no podría usarla de fallback.
+        'global_date_range',
     ];
 }

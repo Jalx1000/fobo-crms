@@ -12,8 +12,9 @@
         method="PUT"
         enctype="multipart/form-data"
     >
-        <div class="flex flex-col gap-4">
-            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+        {{-- Celular: de borde a borde, sin el gris entre bloques (como la cita). --}}
+        <div class="flex flex-col gap-4 max-lg:gap-0">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                 <div class="flex flex-col gap-2">
                     {!! view_render_event('admin.persons.edit.breadcrumbs.before') !!}
 
@@ -24,14 +25,18 @@
 
                     {!! view_render_event('admin.persons.edit.breadcrumbs.after') !!}
 
-                    <div class="text-xl font-bold dark:text-white">
-                        @lang('admin::app.contacts.persons.edit.title')
+                    <div class="flex items-center gap-1">
+                        <x-admin::layouts.volver listado="admin.contacts.persons.index" />
+
+                        <div class="text-xl font-bold dark:text-white">
+                            @lang('admin::app.contacts.persons.edit.title')
+                        </div>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-x-2.5">
+                <div class="flex items-center gap-x-2.5 max-lg:flex-wrap max-lg:gap-y-2">
                     <!--  Save button for Person -->
-                    <div class="flex items-center gap-x-2.5">
+                    <div class="flex items-center gap-x-2.5 max-lg:flex-wrap max-lg:gap-y-2">
                         {!! view_render_event('admin.persons.edit.save_button.before') !!}
 
                         <button
@@ -46,11 +51,18 @@
                 </div>
             </div>
 
-            <div class="flex flex-col gap-4">
+            {{-- El aviso de SMD también de borde a borde; sus clases las reescribe smd-checker, por eso desde acá. --}}
+            <div class="flex flex-col gap-4 max-lg:gap-0 max-lg:[&>#smd-result-banner]:-mx-3 max-lg:[&>#smd-result-banner]:rounded-none max-lg:[&>#smd-result-banner]:border-x-0 max-lg:[&>#smd-result-banner]:px-3">
                 {!! view_render_event('admin.contacts.persons.edit.form_controls.before') !!}
 
+                <!-- Buscador de SMD: antes de cargar, ver si la persona ya existe -->
+                @include('admin::contacts.persons.partials.smd-buscador', ['mode' => 'edit', 'personId' => $person->id])
+
+                <!-- Comparación formulario ↔ SMD: el operador elige qué datos usar, debajo del buscador -->
+                @include('admin::contacts.persons.partials.smd-comparar')
+
                 <!-- Sección 1: Datos del Paciente -->
-                <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
                     <div class="mb-4 flex items-center justify-between">
                         <h4 class="text-base font-bold dark:text-white">Datos del Paciente</h4>
                         {{-- Chip de estado SMD --}}
@@ -91,8 +103,7 @@
                             </div>
                         </div>
                         <div class="flex shrink-0 items-center gap-2">
-                            <button id="smd-autofill-btn" type="button" class="hidden rounded-md bg-white px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-inset transition hover:bg-gray-50 focus:outline-none" onclick="smdAutofill()">Actualizar campos</button>
-                            <button type="button" class="text-xs opacity-60 hover:opacity-100 focus:outline-none" onclick="smdDismiss()" aria-label="Cerrar">
+                            <button type="button" class="text-xs opacity-60 hover:opacity-100 focus:outline-none max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center" onclick="smdDismiss()" aria-label="Cerrar">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
                             </button>
                         </div>
@@ -100,7 +111,7 @@
                 </div>
 
                 <!-- Sección 2: Datos del Seguro -->
-                <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
                     <div class="flex items-center justify-between mb-4">
                         <h4 class="text-base font-bold dark:text-white">Datos del Seguro</h4>
                         
@@ -113,17 +124,27 @@
                         @include ('admin::contacts.persons.view.insurance-verify', ['currentInsurance' => $seguroLabel])
                     </div>
                     
-                    <x-admin::attributes
-                        :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
-                            ['code', 'IN', ['ci_paciente', 'seguro_paciente', 'estado_seguro_paciente']],
+                    @php
+                        // Orden: CI y Seguro primero; Estado de seguro al final (lo auto-rellena
+                        // el botón de verificación, aunque queda editable).
+                        $insuranceFieldOrder = ['ci_paciente', 'seguro_paciente', 'estado_seguro_paciente'];
+
+                        $insuranceAttributes = app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
+                            ['code', 'IN', $insuranceFieldOrder],
                             'entity_type' => 'persons',
-                        ])"
+                        ])->sortBy(fn ($attribute) => array_search($attribute->code, $insuranceFieldOrder))->values();
+                    @endphp
+
+                    <x-admin::attributes
+                        :custom-attributes="$insuranceAttributes"
                         :entity="$person"
                     />
+
+                    @include('admin::contacts.persons.partials.seguros-detectados')
                 </div>
 
                 <!-- Sección 3: Equipo de Atención -->
-                <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
                     <h4 class="mb-4 text-base font-bold dark:text-white">Equipo de Atención</h4>
                     
                     <x-admin::attributes

@@ -7,9 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Webkul\Admin\Jobs\ProcessDropboxNotification;
-use Webkul\Admin\Services\DropboxService;
 use Webkul\Admin\Services\IncomingAppointmentService;
-use Webkul\Admin\Services\SmdStatusMapper;
 
 uses(DatabaseTransactions::class);
 
@@ -107,7 +105,7 @@ it('ProcessDropboxNotification retorna sin error cuando cursor es null en settin
 // ===========================================================================
 
 it('ProcessDropboxNotification procesa archivo nuevo e inserta en smd_synced_events', function () {
-    $cursor  = 'cursor-job-'.uniqid();
+    $cursor = 'cursor-job-'.uniqid();
     $payload = makeJobPayload();
 
     DB::table('settings')->updateOrInsert(
@@ -137,7 +135,7 @@ it('ProcessDropboxNotification procesa archivo nuevo e inserta en smd_synced_eve
 });
 
 it('ProcessDropboxNotification actualiza el cursor en settings despues de procesar', function () {
-    $cursor    = 'cursor-initial-'.uniqid();
+    $cursor = 'cursor-initial-'.uniqid();
     $newCursor = 'cursor-updated-'.uniqid();
 
     DB::table('settings')->updateOrInsert(
@@ -164,7 +162,7 @@ it('ProcessDropboxNotification actualiza el cursor en settings despues de proces
 });
 
 it('ProcessDropboxNotification hace skip de evento sin cambios (mismo hash)', function () {
-    $cursor  = 'cursor-skip-'.uniqid();
+    $cursor = 'cursor-skip-'.uniqid();
     $payload = makeJobPayload();
 
     DB::table('settings')->updateOrInsert(
@@ -215,7 +213,7 @@ it('ProcessDropboxNotification hace skip de evento sin cambios (mismo hash)', fu
 });
 
 it('ProcessDropboxNotification cancela evento con status CANCELED y marca archived_at', function () {
-    $cursor  = 'cursor-cancel-'.uniqid();
+    $cursor = 'cursor-cancel-'.uniqid();
     $payload = makeJobPayload(['status' => 'CANCELED', 'archived' => false]);
 
     DB::table('settings')->updateOrInsert(
@@ -227,7 +225,7 @@ it('ProcessDropboxNotification cancela evento con status CANCELED y marca archiv
     DB::table('smd_synced_events')->insert([
         'external_id'  => $payload['_id'],
         'source_file'  => '/smd-events/2026-05-12/'.$payload['_id'].'.json',
-        'raw_payload'  => json_encode($payload),
+        'raw_payload'  => json_encode(array_merge($payload, ['status' => '', 'archived' => false])),
         'status'       => '',
         'activity_id'  => null,
         'lead_id'      => null,
@@ -262,7 +260,7 @@ it('ProcessDropboxNotification cancela evento con status CANCELED y marca archiv
 });
 
 it('ProcessDropboxNotification cancela evento con archived true aunque status este vacio', function () {
-    $cursor  = 'cursor-arch-'.uniqid();
+    $cursor = 'cursor-arch-'.uniqid();
     $payload = makeJobPayload(['archived' => true, 'status' => '']);
 
     DB::table('settings')->updateOrInsert(
@@ -273,7 +271,7 @@ it('ProcessDropboxNotification cancela evento con archived true aunque status es
     DB::table('smd_synced_events')->insert([
         'external_id'  => $payload['_id'],
         'source_file'  => '/smd-events/2026-05-12/'.$payload['_id'].'.json',
-        'raw_payload'  => json_encode($payload),
+        'raw_payload'  => json_encode(array_merge($payload, ['status' => '', 'archived' => false])),
         'status'       => '',
         'activity_id'  => null,
         'lead_id'      => null,
@@ -357,9 +355,9 @@ it('ProcessDropboxNotification itera correctamente cuando has_more es true', fun
 });
 
 it('ProcessDropboxNotification no cancela evento CANCELED sin registro previo en smd_synced_events', function () {
-    $cursor  = 'cursor-noexist-'.uniqid();
+    $cursor = 'cursor-noexist-'.uniqid();
     $payload = makeJobPayload(['status' => 'CANCELED']);
-    $extId   = $payload['_id'];
+    $extId = $payload['_id'];
 
     // Asegurarse de que NO existe
     DB::table('smd_synced_events')->where('external_id', $extId)->delete();
@@ -401,7 +399,7 @@ it('ProcessDropboxNotification no cancela evento CANCELED sin registro previo en
 });
 
 it('ProcessDropboxNotification continua con el siguiente archivo cuando JSON descargado es invalido', function () {
-    $cursor       = 'cursor-err-'.uniqid();
+    $cursor = 'cursor-err-'.uniqid();
     $validPayload = makeJobPayload();
 
     DB::table('settings')->updateOrInsert(

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is **Odontoking CRM**, a dental clinic CRM built on top of [Krayin CRM](https://krayincrm.com) — an open-source Laravel + Vue 3 CRM framework. The project extends Krayin's modular package architecture with a custom `Doctor` module for managing dental doctors, specialties, and schedules.
+This is **Odontoking CRM**, a dental clinic CRM built on top of [Krayin CRM](https://krayincrm.com) - an open-source Laravel + Vue 3 CRM framework. The project extends Krayin's modular package architecture with a custom `Doctor` module for managing dental doctors, specialties, and schedules.
 
 ## Commands
 
@@ -75,14 +75,14 @@ packages/Webkul/<Module>/
 │   └── Routes/          # web.php, api.php
 ```
 
-**Model Proxies**: Every model has a companion `*Proxy.php` (e.g., `DoctorProxy`) that resolves the concrete class at runtime. Always use `DoctorProxy::modelClass()` in relationships rather than referencing `Doctor::class` directly — this is the Concord extensibility pattern used throughout.
+**Model Proxies**: Every model has a companion `*Proxy.php` (e.g., `DoctorProxy`) that resolves the concrete class at runtime. Always use `DoctorProxy::modelClass()` in relationships rather than referencing `Doctor::class` directly - this is the Concord extensibility pattern used throughout.
 
 ### Custom Doctor Module (`packages/Webkul/Doctor`)
 
 This is the primary custom extension. It provides:
-- **Doctors** — dental practitioners with specialties and shifts
-- **Specialties** — dental specialties (`Orthodontics`, etc.)
-- **Shifts** — doctor availability slots
+- **Doctors** - dental practitioners with specialties and shifts
+- **Specialties** - dental specialties (`Orthodontics`, etc.)
+- **Shifts** - doctor availability slots
 - Doctor availability API endpoints (`/api/doctor/availability`)
 
 The Doctor module hooks into the Activity model: `Activity` has a `doctors()` belongsToMany relationship via `doctor_activities`.
@@ -90,7 +90,7 @@ The Doctor module hooks into the Activity model: `Activity` has a `doctors()` be
 ### Admin Package
 
 `packages/Webkul/Admin` is the main UI package:
-- **Blade** views in `src/Resources/views/` — use `<x-admin::*>` Blade components
+- **Blade** views in `src/Resources/views/` - use `<x-admin::*>` Blade components
 - **Vue 3** inline components embedded directly in Blade files (no separate `.vue` SFC files in the Admin package). Components are defined as `<template>` / `<script>` inside `<x-admin::...>` components or as inline `app.component(...)` registered in `app.js`.
 - **Tailwind CSS** for styling
 - Vue plugins registered globally: `$admin` (formatPrice/formatDate/getLabelColor), `$axios`, `$emitter` (mitt), `flatpickr`, `vee-validate`, `vue-cal`, `vuedraggable`

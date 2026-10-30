@@ -58,6 +58,38 @@ class SpecialtyRepository extends Repository
         return $result;
     }
 
+    /**
+     * Resuelve una especialidad a partir de un identificador flexible:
+     * ID numérico, slug exacto o nombre (coincidencia parcial).
+     *
+     * @param  int|string  $identifier
+     * @return \Webkul\Doctor\Contracts\Specialty|null
+     */
+    public function resolveByIdentifier($identifier)
+    {
+        if (is_string($identifier)) {
+            $identifier = trim($identifier);
+        }
+
+        if ($identifier === '' || $identifier === null) {
+            return null;
+        }
+
+        if (is_numeric($identifier)) {
+            return $this->find((int) $identifier);
+        }
+
+        $slug = Str::slug($identifier);
+
+        if ($bySlug = $this->findOneWhere(['slug' => $slug])) {
+            return $bySlug;
+        }
+
+        return $this->getModel()->newQuery()
+            ->where('name', 'like', '%'.$identifier.'%')
+            ->first();
+    }
+
     public function fetchOrCreateByName(string $name)
     {
         $name = trim($name);

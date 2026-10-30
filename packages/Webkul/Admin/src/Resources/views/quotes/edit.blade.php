@@ -13,7 +13,7 @@
         method="PUT"
     >
         <div class="flex flex-col gap-4">
-            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                 <div class="flex flex-col gap-2">
                     <x-admin::breadcrumbs
                         name="quotes.edit"
@@ -25,8 +25,8 @@
                     </div>
                 </div>
 
-                <div class="flex items-center gap-x-2.5">
-                    <div class="flex items-center gap-x-2.5">
+                <div class="flex items-center gap-x-2.5 max-lg:flex-wrap max-lg:gap-y-2">
+                    <div class="flex items-center gap-x-2.5 max-lg:flex-wrap max-lg:gap-y-2">
                         {!! view_render_event('admin.contacts.quotes.edit.save_button.before', ['quote' => $quote]) !!}
 
                         <!-- Save button for person -->

@@ -24,9 +24,9 @@ class Person
     ];
 
     public function __construct(
-        protected EmailRepository     $emailRepository,
-        protected ShareMeDataService  $shareMeDataService,
-        protected PersonRepository    $personRepository,
+        protected EmailRepository $emailRepository,
+        protected ShareMeDataService $shareMeDataService,
+        protected PersonRepository $personRepository,
         protected AttributeRepository $attributeRepository,
     ) {}
 
@@ -55,6 +55,7 @@ class Person
 
             if (! $phone) {
                 Log::debug('[SMD] syncToSmd: paciente sin teléfono, omitiendo', ['person_id' => $person->id]);
+
                 return;
             }
 
@@ -75,6 +76,7 @@ class Person
                         'person_id' => $person->id,
                         'message'   => $result['message'] ?? '',
                     ]);
+
                     return;
                 }
             }
@@ -100,11 +102,12 @@ class Person
     {
         try {
             $person = $person->fresh(); // garantiza atributos post-save cargados
-            $phone  = $this->extractPhone($person);
+            $phone = $this->extractPhone($person);
 
-            // C-1: guard temprano — sin teléfono no hay nada útil que hacer
+            // C-1: guard temprano - sin teléfono no hay nada útil que hacer
             if (! $phone) {
                 Log::debug('[SMD] updateInSmd: paciente sin teléfono, omitiendo', ['person_id' => $person->id]);
+
                 return;
             }
 
@@ -168,6 +171,7 @@ class Person
                         'person_id' => $person->id,
                         'smd_id'    => $smdId,
                     ]);
+
                     return;
                 }
 
@@ -183,6 +187,7 @@ class Person
                         'person_id' => $person->id,
                         'message'   => $result['message'] ?? '',
                     ]);
+
                     return;
                 }
 
@@ -274,24 +279,33 @@ class Person
     {
         $nameParts = explode(' ', trim($person->name ?? 'Paciente'));
 
-        // CI — usa caché estático (M-1)
+        // CI - usa caché estático (M-1)
         $ciAttr = $this->getAttribute('ci_paciente');
-        $ci     = $ciAttr ? $person->getCustomAttributeValue($ciAttr) : null;
+        $ci = $ciAttr ? $person->getCustomAttributeValue($ciAttr) : null;
 
         // Fecha de nacimiento aproximada desde edad (job_title = "Edad")
         // Aproximación: primer día del año de nacimiento. Margen ±1 año. (B-3)
-        $age      = is_numeric($person->job_title) ? (int) $person->job_title : null;
+        $age = is_numeric($person->job_title) ? (int) $person->job_title : null;
         $birthday = $age ? Carbon::now()->subYears($age)->startOfYear()->format('Y-m-d') : null;
 
         // Seguro → mapear nombre CRM al valor que espera SMD
-        $insurance  = null;
+        $insurance = null;
         $seguroAttr = $this->getAttribute('seguro_paciente');
 
         if ($seguroAttr) {
-            $seguroOptionId = $person->getCustomAttributeValue($seguroAttr);
+            /**
+             * `seguro_paciente` es multiselect y se guarda como CSV de ids.
+             * SMD solo acepta un seguro por paciente, así que mandamos el primero.
+             */
+            $seguroOptionIds = array_filter(array_map(
+                'intval',
+                explode(',', (string) $person->getCustomAttributeValue($seguroAttr))
+            ));
 
-            if ($seguroOptionId) {
-                $option = DB::table('attribute_options')->where('id', $seguroOptionId)->first();
+            if (! empty($seguroOptionIds)) {
+                $option = DB::table('attribute_options')
+                    ->where('id', reset($seguroOptionIds))
+                    ->first();
 
                 if ($option) {
                     $insurance = self::INSURANCE_MAP[$option->name] ?? $option->name;
@@ -303,7 +317,7 @@ class Person
         $notes = $this->buildNotes($person);
 
         $payload = [
-            'first_name' => $nameParts[0]                                  ?? 'Paciente',
+            'first_name' => $nameParts[0] ?? 'Paciente',
             'last_name'  => implode(' ', array_slice($nameParts, 1)) ?: 'Externo',
             'phone'      => $phone,
             'ci'         => $ci ?: null,
@@ -330,7 +344,7 @@ class Person
             if ($estadoId) {
                 $estadoOpt = DB::table('attribute_options')->where('id', $estadoId)->first();
                 if ($estadoOpt) {
-                    $lines[] = 'Estado seguro: ' . $estadoOpt->name;
+                    $lines[] = 'Estado seguro: '.$estadoOpt->name;
                 }
             }
         }
@@ -342,7 +356,7 @@ class Person
             if ($doctorId) {
                 $doctor = DB::table('doctors')->where('id', $doctorId)->value('name');
                 if ($doctor) {
-                    $lines[] = 'Doctor: ' . $doctor;
+                    $lines[] = 'Doctor: '.$doctor;
                 }
             }
         }
@@ -351,7 +365,7 @@ class Person
         if ($person->organization_id) {
             $org = DB::table('organizations')->where('id', $person->organization_id)->value('name');
             if ($org) {
-                $lines[] = 'Organización: ' . $org;
+                $lines[] = 'Organización: '.$org;
             }
         }
 

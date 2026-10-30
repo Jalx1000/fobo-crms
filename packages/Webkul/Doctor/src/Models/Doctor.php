@@ -20,6 +20,7 @@ class Doctor extends Model implements DoctorContract
         'number',
         'name',
         'email',
+        'phone',
         'title',
         'unique_id',
         'is_active',

@@ -63,7 +63,11 @@ return [
             'driver'      => 'redis',
             'connection'  => 'default',
             'queue'       => env('REDIS_QUEUE', 'default'),
-            'retry_after' => 90,
+            // Debe superar al `timeout` del job más largo (SyncSmdAppointmentsJob,
+            // 600s): con 90s Redis devolvía el job a la cola mientras seguía
+            // corriendo, el worker lo re-reservaba y saltaba MaxAttemptsExceeded,
+            // así que la sincronización de SMD nunca llegaba a terminar.
+            'retry_after' => 900,
             'block_for'   => null,
         ],
 

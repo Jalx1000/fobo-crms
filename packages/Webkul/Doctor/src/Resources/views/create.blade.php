@@ -8,22 +8,27 @@
         method="{{ isset($doctor) ? 'PUT' : 'POST' }}"
         encType="multipart/form-data"
     >
-        <div class="flex flex-col gap-4">
-            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+        {{-- Celular: de borde a borde, sin el gris de alrededor (como Servicios y Pacientes). --}}
+        <div class="flex flex-col gap-4 max-lg:gap-0">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:-mx-3 max-lg:-mt-3 max-lg:flex-wrap max-lg:gap-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                 <div class="flex flex-col gap-2">
-                    <div class="text-xl font-bold dark:text-white">
-                        {{ isset($doctor) ? 'Editar Doctor' : 'Registrar Doctor' }}
+                    <div class="flex items-center gap-1">
+                        <x-admin::layouts.volver listado="admin.doctor.index" />
+
+                        <div class="text-xl font-bold dark:text-white">
+                            {{ isset($doctor) ? 'Editar Doctor' : 'Registrar Doctor' }}
+                        </div>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-x-2.5">
+                <div class="flex items-center gap-x-2.5 max-lg:flex-wrap max-lg:gap-y-2">
                     <button type="submit" class="primary-button">
                         Guardar
                     </button>
                 </div>
             </div>
 
-            <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 max-lg:-mx-3 max-lg:rounded-none max-lg:border-x-0 max-lg:border-t-0 max-lg:px-3 max-lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
                 <div class="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
                     <x-admin::form.control-group>
                         <x-admin::form.control-group.label>
@@ -41,6 +46,26 @@
                         />
 
                         <x-admin::form.control-group.error control-name="email" />
+                    </x-admin::form.control-group>
+
+                    {{-- WhatsApp number. ShareMeData never sends it, so it is
+                         loaded here by hand; it is what lets the WhatsApp module
+                         open a conversation with the doctor. --}}
+                    <x-admin::form.control-group>
+                        <x-admin::form.control-group.label>
+                            WhatsApp
+                        </x-admin::form.control-group.label>
+
+                        <x-admin::form.control-group.control
+                            type="text"
+                            id="phone"
+                            name="phone"
+                            :label="trans('WhatsApp')"
+                            :placeholder="trans('Ej.: 78960835 o 59178960835')"
+                            :value="old('phone', isset($doctor) ? $doctor->phone : '')"
+                        />
+
+                        <x-admin::form.control-group.error control-name="phone" />
                     </x-admin::form.control-group>
 
                     <x-admin::form.control-group>
@@ -108,6 +133,16 @@
                         </select>
 
                         <x-admin::form.control-group.error control-name="specialties" />
+
+                        {{-- Sin especialidad no aparece en el formulario de WhatsApp ni en el agente (planning/16, RF-9). --}}
+                        @if (isset($doctor) && $doctor->specialties->isEmpty())
+                            <p
+                                id="doctor-sin-especialidad"
+                                style="margin-top:8px;padding:8px 12px;border-left:4px solid #B45309;background:#FEF3C7;color:#78350F;font-size:13px;border-radius:4px;"
+                            >
+                                Este doctor no tiene especialidades: los pacientes no lo van a ver al agendar por WhatsApp. Asignale al menos una.
+                            </p>
+                        @endif
                     </x-admin::form.control-group>
 
                     <x-admin::form.control-group>

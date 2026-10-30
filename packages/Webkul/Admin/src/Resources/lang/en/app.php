@@ -335,6 +335,8 @@ return [
             ],
 
             'table' => [
+                'ver-mas'   => 'See more',
+                'ver-menos' => 'See less',
                 'actions'              => 'Actions',
                 'no-records-available' => 'No Records Available.',
             ],
@@ -541,6 +543,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'Registered',
+                ],
+
                 'title'                    => 'Persons',
                 'create-btn'               => 'Create Person',
                 'create-success'           => 'Person created successfully.',
@@ -1729,6 +1735,14 @@ return [
     'activities' => [
         'index' => [
             'title'      => 'Activities',
+            'smd-sync'   => [
+                'sync-now'    => 'Sync now',
+                'syncing'     => 'Syncing…',
+                'pause'       => 'Pause sync',
+                'resume'      => 'Resume sync',
+                'pause-hint'  => 'Automatic sync is active. Click to pause it.',
+                'resume-hint' => 'Automatic sync is paused. Click to resume it.',
+            ],
 
             'datagrid' => [
                 'comment'       => 'Comment',
@@ -1918,6 +1932,23 @@ return [
         ],
 
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'Filters',
+                'embudo'       => 'Pipeline',
+                'periodo'      => 'Period',
+                'desde'        => 'From',
+                'hasta'        => 'To',
+                'vista'        => 'View',
+                'kanban'       => 'Kanban',
+                'lista'        => 'List',
+                'por-columna'  => 'Column filters',
+                'limpiar'      => 'Clear dates',
+                'mover'        => 'Move',
+                'mover-a'      => 'Move “:titulo” to…',
+                'etapa-actual' => 'Current stage',
+                'cancelar'     => 'Cancel',
+            ],
+
             'title'      => 'Leads',
             'create-btn' => 'Create Lead',
 
@@ -1942,6 +1973,8 @@ return [
             ],
 
             'kanban' => [
+                'error-conexion'         => 'The change could not be saved. Check your connection and try again.',
+                'etapas' => 'Stages',
                 'rotten-days'            => 'Lead is rotten for :days days',
                 'empty-list'             => 'Your Leads List is Empty',
                 'empty-list-description' => 'Create a lead to organize your goals.',
@@ -1973,6 +2006,12 @@ return [
                         'from'          => 'From',
                         'select'        => 'Select',
                         'to'            => 'To',
+                    ],
+                    'date-range' => [
+                        'last-7-days'  => '7 days',
+                        'last-30-days' => '30 days',
+                        'last-90-days' => '90 days',
+                        'this-month'   => 'This month',
                     ],
                 ],
             ],
@@ -2231,19 +2270,20 @@ return [
             'over-all' => [
                 'average-lead-value'    => 'Average Lead Value',
                 'total-leads'           => 'Total Leads',
+                'total-citas'           => 'Total Appointments',
+                'total-consultas'       => 'Total Consultations',
                 'average-leads-per-day' => 'Average Leads Per Day',
                 'total-quotations'      => 'Total Quotations',
                 'total-persons'         => 'Total Persons',
                 'total-organizations'   => 'Total Organizations',
             ],
 
-            'total-leads' => [
-                'title' => 'Leads',
-                'total' => 'Total Leads',
-                'won'   => 'Won Leads',
-                'lost'  => 'Lost Leads',
+            'evolution' => [
+                'title'    => 'Evolution',
+                'vs'       => 'vs',
+                'current'  => 'Current period',
+                'previous' => 'Previous period',
             ],
-
             'revenue-by-sources' => [
                 'title'       => 'Revenue By Sources',
                 'empty-title' => 'No Data Available',
@@ -2256,10 +2296,11 @@ return [
                 'empty-info'  => 'No data available for selected interval',
             ],
 
-            'quantity-products' => [
-                'title'       => 'Best Selling Products',
-                'empty-title' => 'No Products Found',
-                'empty-info'  => 'No products available for selected interval',
+            'services-requested' => [
+                'title'       => 'Requested Services',
+                'leads'       => 'appointments',
+                'empty-title' => 'No Services Found',
+                'empty-info'  => 'No service has been requested yet',
             ],
 
             'top-selling-products' => [
@@ -2290,6 +2331,13 @@ return [
     ],
 
     'layouts' => [
+        'volver' => 'Back to list',
+
+        'mobile-nav' => [
+            'title' => 'Main navigation',
+            'more'  => 'More',
+        ],
+
         'app-version'          => 'Version: :version',
         'dashboard'            => 'Dashboard',
         'leads'                => 'Leads',

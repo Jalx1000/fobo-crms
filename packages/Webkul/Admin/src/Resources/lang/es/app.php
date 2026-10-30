@@ -2,7 +2,7 @@
 
 return [
     'acl' => [
-        'leads'           => 'Clientes potenciales',
+        'leads'           => 'Citas',
         'lead'            => 'Cliente potencial',
         'quotes'          => 'Cotizaciones',
         'mail'            => 'Correo',
@@ -136,12 +136,12 @@ return [
                     'lunch'         => 'Almuerzo',
                     'save-btn'      => 'Guardar actividad',
                     'participants'  => [
-                        'title'       => 'Participantes',
-                        'placeholder' => 'Escribe para buscar participantes',
+                        'title'             => 'Participantes',
+                        'placeholder'       => 'Escribe para buscar participantes',
                         'users'             => 'Usuarios',
-            'persons'           => 'Pacientes',
-            'doctors'           => 'Doctores',
-                        'no-results'  => 'No se encontraron resultados...',
+                        'persons'           => 'Pacientes',
+                        'doctors'           => 'Doctores',
+                        'no-results'        => 'No se encontraron resultados...',
                     ],
                 ],
             ],
@@ -161,7 +161,7 @@ return [
                 'location'           => 'Ubicación',
                 'lunches'            => 'Almuerzos',
                 'mark-as-done'       => 'Marcar como hecho',
-                'meetings'           => 'Reuniones',
+                'meetings'           => 'Consultas',
                 'notes'              => 'Notas',
                 'participants'       => 'Participantes',
                 'planned'            => 'Planificado',
@@ -189,8 +189,8 @@ return [
                         'description' => 'No se encontraron llamadas para esto. Puedes agregarlas haciendo clic en el botón Actividad en el panel izquierdo y seleccionando el tipo Llamada.',
                     ],
                     'meetings' => [
-                        'title'       => 'No se encontraron reuniones',
-                        'description' => 'No se encontraron reuniones para esto. Puedes agregarlas haciendo clic en el botón Actividad en el panel izquierdo y seleccionando el tipo Consulta.',
+                        'title'       => 'No se encontraron consultas',
+                        'description' => 'No se encontraron consultas para esto. Puedes agregarlas haciendo clic en el botón Actividad en el panel izquierdo y seleccionando el tipo Consulta.',
                     ],
                     'lunches' => [
                         'title'       => 'No se encontraron almuerzos',
@@ -302,6 +302,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'Ver más',
+                'ver-menos' => 'Ver menos',
                 'actions'              => 'Acciones',
                 'no-records-available' => 'No hay Registros Disponibles.',
             ],
@@ -490,6 +492,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'Registrados',
+                ],
+
                 'title'                  => 'Pacientes',
                 'create-btn'             => 'Crear Paciente',
                 'create-success'         => 'Paciente creada con éxito.',
@@ -519,7 +525,7 @@ return [
                     'index' => [
                         'all'          => 'Todos',
                         'calls'        => 'Llamadas',
-                        'meetings'     => 'Reuniones',
+                        'meetings'     => 'Consultas',
                         'lunches'      => 'Almuerzos',
                         'files'        => 'Archivos',
                         'quotes'       => 'Cotizaciones',
@@ -1585,6 +1591,14 @@ return [
     'activities' => [
         'index' => [
             'title'    => 'Calendario',
+            'smd-sync' => [
+                'sync-now'     => 'Sincronizar ahora',
+                'syncing'      => 'Sincronizando…',
+                'pause'        => 'Pausar sincronización',
+                'resume'       => 'Reanudar sincronización',
+                'pause-hint'   => 'La sincronización automática está activa. Clic para pausarla.',
+                'resume-hint'  => 'La sincronización automática está en pausa. Clic para reanudarla.',
+            ],
             'datagrid' => [
                 'comment'       => 'Comentario',
                 'created_at'    => 'Creado En',
@@ -1783,7 +1797,26 @@ return [
                 'mass-delete'    => 'Eliminar en Masa',
                 'mass-update'    => 'Actualizar en Masa',
             ],
+            'filtros-movil' => [
+                'titulo'       => 'Filtros',
+                'embudo'       => 'Embudo',
+                'periodo'      => 'Período',
+                'desde'        => 'Desde',
+                'hasta'        => 'Hasta',
+                'vista'        => 'Vista',
+                'kanban'       => 'Kanban',
+                'lista'        => 'Lista',
+                'por-columna'  => 'Filtros por columna',
+                'limpiar'      => 'Limpiar fechas',
+                'mover'        => 'Mover',
+                'mover-a'      => 'Mover «:titulo» a…',
+                'etapa-actual' => 'Etapa actual',
+                'cancelar'     => 'Cancelar',
+            ],
+
             'kanban' => [
+                'error-conexion'         => 'No se pudo guardar el cambio. Revisá la conexión y volvé a intentar.',
+                'etapas'                 => 'Etapas',
                 'rotten-days'            => 'El lead está podrido desde hace :days días',
                 'empty-list'             => 'Tu lista de leads está vacía',
                 'empty-list-description' => 'Crea un lead para organizar tus objetivos.',
@@ -1813,14 +1846,20 @@ return [
                         'select'        => 'Seleccionar',
                         'to'            => 'A',
                     ],
+                    'date-range' => [
+                        'last-7-days'  => '7 días',
+                        'last-30-days' => '30 días',
+                        'last-90-days' => '90 días',
+                        'this-month'   => 'Este mes',
+                    ],
                 ],
                 'stages' => [
                     'need-more-info' => 'Necesita Más Información',
-                    'won-value' => 'Monto ganado',
-                    'closed-at' => 'Fecha de cierre',
-                    'save-btn' => 'Guardar',
-                    'lost-reason' => 'Motivo de pérdida',
-                ]
+                    'won-value'      => 'Monto ganado',
+                    'closed-at'      => 'Fecha de cierre',
+                    'save-btn'       => 'Guardar',
+                    'lost-reason'    => 'Motivo de pérdida',
+                ],
             ],
             'view-switcher' => [
                 'all-pipelines'       => 'Todos los Canales',
@@ -1836,18 +1875,18 @@ return [
             ],
         ],
         'create' => [
-            'title'          => 'Crear Cita',
-            'save-btn'       => 'Guardar',
-            'details'        => 'Información de la Cita',
-            'details-info'   => 'Registra los datos principales de la cita del paciente',
-            'contact-person' => 'Paciente',
-            'contact-info'   => 'Información Sobre el Paciente',
-            'products'       => 'Servicios',
-            'products-info'  => 'Servicios a Realizar',
-            'appointment-info' => 'Programación de Cita',
+            'title'                 => 'Crear Cita',
+            'save-btn'              => 'Guardar',
+            'details'               => 'Información de la Cita',
+            'details-info'          => 'Registra los datos principales de la cita del paciente',
+            'contact-person'        => 'Paciente',
+            'contact-info'          => 'Información Sobre el Paciente',
+            'products'              => 'Servicios',
+            'products-info'         => 'Servicios a Realizar',
+            'appointment-info'      => 'Programación de Cita',
             'appointment-info-help' => 'Define el horario si deseas agendar una cita confirmada automáticamente',
-            'start-datetime' => 'Fecha y Hora de Inicio',
-            'end-datetime' => 'Fecha y Hora de Fin',
+            'start-datetime'        => 'Fecha y Hora de Inicio',
+            'end-datetime'          => 'Fecha y Hora de Fin',
         ],
         'edit' => [
             'title'          => 'Editar Lead',
@@ -2050,16 +2089,18 @@ return [
             'over-all' => [
                 'average-lead-value'    => 'Valor Promedio de Paciente',
                 'total-leads'           => 'Total de Pacientes',
+                'total-citas'           => 'Total de Citas',
+                'total-consultas'       => 'Total de Consultas',
                 'average-leads-per-day' => 'Pacientes Promedio por Día',
                 'total-quotations'      => 'Total de Cotizaciones',
                 'total-persons'         => 'Total de Pacientes',
                 'total-organizations'   => 'Total de Organizaciones',
             ],
-            'total-leads' => [
-                'title' => 'Pacientes',
-                'total' => 'Total de Pacientes',
-                'won'   => 'Pacientes Ganados',
-                'lost'  => 'Pacientes Perdidos',
+            'evolution' => [
+                'title'    => 'Evolución',
+                'vs'       => 'vs',
+                'current'  => 'Periodo actual',
+                'previous' => 'Periodo anterior',
             ],
             'revenue-by-sources' => [
                 'title'       => 'Ingresos por Fuentes',
@@ -2072,10 +2113,11 @@ return [
                 'empty-info'  => 'No hay datos disponibles para el intervalo seleccionado',
             ],
 
-            'quantity-products' => [
-                'title'       => 'Servicios Más Vendidos',
+            'services-requested' => [
+                'title'       => 'Servicios Solicitados',
+                'leads'       => 'citas',
                 'empty-title' => 'No Se Encontraron Servicios',
-                'empty-info'  => 'No hay servicios disponibles para el intervalo seleccionado',
+                'empty-info'  => 'Aún no se ha solicitado ningún servicio',
             ],
             'top-selling-products' => [
                 'title'       => 'Servicios Más Vendidos',
@@ -2102,6 +2144,13 @@ return [
         ],
     ],
     'layouts' => [
+        'volver' => 'Volver al listado',
+
+        'mobile-nav' => [
+            'title' => 'Navegación principal',
+            'more'  => 'Más',
+        ],
+
         'app-version' => 'Versión: :version',
         'dashboard'   => 'Tablero',
         'leads'       => 'Citas',

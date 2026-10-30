@@ -55,7 +55,9 @@ class DoctorController extends Controller
             $availability = $this->availabilityService->forDoctors($doctorIds, $startDate, $endDate);
 
             $doctors->getCollection()->transform(function ($doctor) use ($availability) {
-                $doctor->availability = $availability[$doctor->id] ?? collect();
+                $doctorAvailability = $availability[$doctor->id] ?? collect();
+                $doctor->availability = $doctorAvailability;
+                $doctor->has_availability = $doctorAvailability->isNotEmpty();
 
                 return $doctor;
             });
@@ -78,7 +80,7 @@ class DoctorController extends Controller
      * @OA\Get(
      *     path="/api/doctors/{id}",
      *     summary="Obtener doctor por ID con schedule semanal",
-     *     description="Devuelve los datos de un doctor específico junto con su disponibilidad (slots libres) para los próximos 7 días. Endpoint público — no requiere token. Alternativa eficiente a cargar todos los doctores y filtrar en el cliente.",
+     *     description="Devuelve los datos de un doctor específico junto con su disponibilidad (slots libres) para los próximos 7 días. Endpoint público - no requiere token. Alternativa eficiente a cargar todos los doctores y filtrar en el cliente.",
      *     tags={"Doctors"},
      *     @OA\Parameter(
      *         name="id",

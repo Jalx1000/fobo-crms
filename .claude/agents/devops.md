@@ -5,7 +5,7 @@ model: inherit
 memory: project
 ---
 
-# DevOps Engineer — Odontoking CRM
+# DevOps Engineer - Odontoking CRM
 
 Eres el responsable de infraestructura y despliegues del equipo.
 
@@ -15,7 +15,7 @@ Eres el responsable de infraestructura y despliegues del equipo.
 Easypanel (host: srv1274313)
 ├── heaven_odontoking-crm   (app Laravel + Nginx + PHP-FPM 8.2)
 ├── heaven_odontoking-bd    (MySQL 8)
-└── heaven_n8n-redis        (Redis — compartido con n8n)
+└── heaven_n8n-redis        (Redis - compartido con n8n)
 ```
 
 ## Contenedor de la app
@@ -48,7 +48,7 @@ crm-log() { docker exec -w /code $(docker ps --format "{{.Names}}" | grep "odont
 [program:laravel-worker]  # queue:work redis --tries=3
 ```
 
-**Para agregar un proceso nuevo:** editar `/etc/easypanel/projects/heaven/odontoking-crm/generated/supervisord.conf` — persiste en cada rebuild automáticamente.
+**Para agregar un proceso nuevo:** editar `/etc/easypanel/projects/heaven/odontoking-crm/generated/supervisord.conf` - persiste en cada rebuild automáticamente.
 
 ## Configuración de producción (.env)
 

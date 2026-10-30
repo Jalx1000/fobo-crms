@@ -9,5 +9,6 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
     protected $models = [
         \Webkul\Contact\Models\Person::class,
         \Webkul\Contact\Models\Organization::class,
+        \Webkul\Contact\Models\PersonInsuranceStatus::class,
     ];
 }

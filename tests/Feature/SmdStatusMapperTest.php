@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use Webkul\Admin\Services\SmdStatusMapper;
 
-// Sin DatabaseTransactions — este test es puramente lógico, sin BD
+// Sin DatabaseTransactions - este test es puramente lógico, sin BD
 
 beforeEach(function () {
     $this->mapper = new SmdStatusMapper;
@@ -14,7 +14,9 @@ beforeEach(function () {
         'smd.stage_map.confirmed' => 7,
         'smd.stage_map.completed' => 5,
         'smd.stage_map.cancelled' => 6,
-        'smd.stage_map.no_show'   => 6,
+        'smd.stage_map.no_show'   => 8,
+        'smd.stage_map.surgery'   => 10,
+        'smd.stage_map.default'   => 1,
     ]);
 });
 
@@ -22,12 +24,16 @@ beforeEach(function () {
 // normalize()
 // ---------------------------------------------------------------------------
 
-it('normalize convierte string vacio a confirmed', function () {
-    expect($this->mapper->normalize(''))->toBe('confirmed');
+// normalize() NO inventa un status: vacío se deja vacío. Es el valor más
+// frecuente que manda SMD y por decisión de negocio va a Consultas, no a Cita
+// confirmada - asumirlo "confirmed" daba por confirmadas citas que nadie
+// confirmó.
+it('normalize deja el string vacio como vacio', function () {
+    expect($this->mapper->normalize(''))->toBe('');
 });
 
-it('normalize convierte null a confirmed', function () {
-    expect($this->mapper->normalize(null))->toBe('confirmed');
+it('normalize convierte null en string vacio', function () {
+    expect($this->mapper->normalize(null))->toBe('');
 });
 
 it('normalize convierte CANCELED a canceled (lowercase)', function () {
@@ -54,12 +60,20 @@ it('normalize recorta espacios antes de normalizar', function () {
 // toLeadStageId()
 // ---------------------------------------------------------------------------
 
-it('toLeadStageId devuelve stage ID de confirmed para string vacio', function () {
-    expect($this->mapper->toLeadStageId(''))->toBe(7);
+it('toLeadStageId manda el status vacio a la etapa default (Consultas)', function () {
+    expect($this->mapper->toLeadStageId(''))->toBe(1);
 });
 
-it('toLeadStageId devuelve stage ID de confirmed para null', function () {
-    expect($this->mapper->toLeadStageId(null))->toBe(7);
+it('toLeadStageId manda null a la etapa default (Consultas)', function () {
+    expect($this->mapper->toLeadStageId(null))->toBe(1);
+});
+
+it('toLeadStageId devuelve stage ID de surgery para SURGERY', function () {
+    expect($this->mapper->toLeadStageId('SURGERY'))->toBe(10);
+});
+
+it('toLeadStageId devuelve stage ID de no_show para MISSED', function () {
+    expect($this->mapper->toLeadStageId('MISSED'))->toBe(8);
 });
 
 it('toLeadStageId devuelve stage ID de cancelled para CANCELED', function () {
@@ -79,7 +93,7 @@ it('toLeadStageId devuelve null para status desconocido', function () {
 });
 
 it('toLeadStageId devuelve stage ID de no_show para no-show', function () {
-    expect($this->mapper->toLeadStageId('no-show'))->toBe(6);
+    expect($this->mapper->toLeadStageId('no-show'))->toBe(8);
 });
 
 // ---------------------------------------------------------------------------
@@ -94,8 +108,20 @@ it('isCancelled devuelve true para CANCELLED', function () {
     expect($this->mapper->isCancelled('CANCELLED'))->toBeTrue();
 });
 
-it('isCancelled devuelve true para no-show', function () {
-    expect($this->mapper->isCancelled('no-show'))->toBeTrue();
+// "missed"/"no-show" NO son cancelaciones: la cita existió y el paciente faltó,
+// así que debe crearse el lead en "Cita Perdida". Cuando caían en el mismo grupo
+// que las canceladas, un sync desde cero las archivaba sin lead y la cita perdida
+// nunca aparecía en el CRM.
+it('isCancelled devuelve false para no-show', function () {
+    expect($this->mapper->isCancelled('no-show'))->toBeFalse();
+});
+
+it('isCancelled devuelve false para MISSED', function () {
+    expect($this->mapper->isCancelled('MISSED'))->toBeFalse();
+});
+
+it('isCancelled devuelve false para SURGERY', function () {
+    expect($this->mapper->isCancelled('SURGERY'))->toBeFalse();
 });
 
 it('isCancelled devuelve false para confirmed', function () {
@@ -122,8 +148,37 @@ it('getTag devuelve Cancelado para CANCELLED', function () {
     expect($this->mapper->getTag('CANCELLED'))->toBe('Cancelado');
 });
 
-it('getTag devuelve No-show para no-show', function () {
-    expect($this->mapper->getTag('no-show'))->toBe('No-show');
+it('getTag devuelve Cita perdida para no-show', function () {
+    expect($this->mapper->getTag('no-show'))->toBe('Cita perdida');
+});
+
+it('getTag devuelve Cita perdida para MISSED', function () {
+    expect($this->mapper->getTag('MISSED'))->toBe('Cita perdida');
+});
+
+it('getTag devuelve Cirugía para SURGERY', function () {
+    expect($this->mapper->getTag('SURGERY'))->toBe('Cirugía');
+});
+
+// managedTags() tiene que cubrir TODO lo que getTag() puede devolver: es la
+// lista que usa la sincronización para sacar el tag anterior cuando cambia el
+// status. Si se agrega un tag nuevo y no se lo suma acá, queda pegado al lead.
+it('managedTags cubre todos los tags que getTag puede devolver', function () {
+    $emitidos = collect(['CANCELED', 'CANCELLED', 'no-show', 'MISSED', 'SURGERY', 'confirmed', 'completed', ''])
+        ->map(fn ($status) => $this->mapper->getTag($status))
+        ->filter()
+        ->unique()
+        ->values()
+        ->all();
+
+    expect($emitidos)->not->toBeEmpty()
+        ->and(array_diff($emitidos, $this->mapper->managedTags()))->toBeEmpty();
+});
+
+it('getTagColor devuelve un hex para cada status con tag', function () {
+    expect($this->mapper->getTagColor('CANCELED'))->toBe('#ef4444')
+        ->and($this->mapper->getTagColor('MISSED'))->toBe('#f97316')
+        ->and($this->mapper->getTagColor('SURGERY'))->toBe('#8b5cf6');
 });
 
 it('getTag devuelve null para confirmed', function () {

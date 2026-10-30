@@ -15,7 +15,7 @@ class ScheduleController extends Controller
 {
     public function getHorarios(Request $request)
     {
-        Log::warning('[DEPRECATED] GET /api/horarios — use GET /api/doctors/{id}/slots instead.', [
+        Log::warning('[DEPRECATED] GET /api/horarios - use GET /api/doctors/{id}/slots instead.', [
             'caller_ip' => $request->ip(),
         ]);
 
@@ -50,7 +50,7 @@ class ScheduleController extends Controller
      * @OA\Get(
      *     path="/api/disponibilidad",
      *     summary="Slots de disponibilidad de un doctor para una fecha",
-     *     description="Devuelve los bloques de tiempo disponibles de un doctor en una fecha específica, descontando las citas ya reservadas. Una llamada por fecha — para consultar 7 días hacer 7 requests. Requiere token Sanctum (Bearer).",
+     *     description="Devuelve los bloques de tiempo disponibles de un doctor en una fecha específica, descontando las citas ya reservadas. Una llamada por fecha - para consultar 7 días hacer 7 requests. Requiere token Sanctum (Bearer).",
      *     tags={"Doctors"},
      *     security={{"bearerAuth": {}}},
      *     @OA\Parameter(
@@ -93,7 +93,7 @@ class ScheduleController extends Controller
      */
     public function getDisponibilidad(Request $request)
     {
-        Log::warning('[DEPRECATED] GET /api/disponibilidad — use GET /api/doctors/{id}/slots instead.', [
+        Log::warning('[DEPRECATED] GET /api/disponibilidad - use GET /api/doctors/{id}/slots instead.', [
             'caller_ip' => $request->ip(),
             'doctorId'  => $request->input('doctorId'),
         ]);

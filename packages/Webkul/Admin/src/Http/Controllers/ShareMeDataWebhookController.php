@@ -15,16 +15,23 @@ class ShareMeDataWebhookController extends Controller
 
     public function receive(Request $request): JsonResponse
     {
-        $secret = config('services.sharemedata.webhook_secret');
+        $secret = (string) config('services.sharemedata.webhook_secret');
 
-        if ($secret) {
-            $token = $request->header('X-Webhook-Secret') ?? $request->query('secret', '');
+        // Sin secreto configurado se RECHAZA, no se deja pasar: este endpoint
+        // crea pacientes, leads, citas y doctores. Antes, un .env sin
+        // SHAREMEDATA_WEBHOOK_SECRET lo dejaba abierto a cualquiera (AUD-01).
+        if ($secret === '') {
+            Log::warning('ShareMeData Webhook: rechazado, SHAREMEDATA_WEBHOOK_SECRET no está configurado', ['ip' => $request->ip()]);
 
-            if (! hash_equals($secret, (string) $token)) {
-                Log::warning('ShareMeData Webhook: token inválido', ['ip' => $request->ip()]);
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
 
-                return response()->json(['message' => 'Unauthorized'], 401);
-            }
+        $token = $request->header('X-Webhook-Secret') ?? $request->query('secret', '');
+
+        if (! hash_equals($secret, (string) $token)) {
+            Log::warning('ShareMeData Webhook: token inválido', ['ip' => $request->ip()]);
+
+            return response()->json(['message' => 'Unauthorized'], 401);
         }
 
         $data = $request->validate([
@@ -34,7 +41,7 @@ class ShareMeDataWebhookController extends Controller
             'slot.end'        => 'required|string',
         ]);
 
-        // validate() returns only validated keys — merge back full payload for service
+        // validate() returns only validated keys - merge back full payload for service
         $data = $request->all();
 
         Log::info('ShareMeData Webhook: payload recibido', ['ip' => $request->ip(), '_id' => $data['_id'] ?? null]);
@@ -42,7 +49,8 @@ class ShareMeDataWebhookController extends Controller
         try {
             $result = $this->incomingAppointmentService->processWebhook($data);
 
-            return response()->json(['success' => true, ...$result], 201);
+            // 200 si el evento ya estaba registrado (reintento), 201 si se creó.
+            return response()->json(['success' => true, ...$result], empty($result['duplicate']) ? 201 : 200);
         } catch (\Exception $e) {
             Log::error('ShareMeData Webhook: Error procesando cita', ['error' => $e->getMessage()]);
 

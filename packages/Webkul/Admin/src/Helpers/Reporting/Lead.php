@@ -6,8 +6,8 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Lead\Repositories\LeadRepository;
-use Webkul\Lead\Repositories\StageRepository;
 use Webkul\Lead\Repositories\PipelineRepository;
+use Webkul\Lead\Repositories\StageRepository;
 use Webkul\User\Repositories\UserRepository;
 
 class Lead extends AbstractReporting
@@ -33,6 +33,16 @@ class Lead extends AbstractReporting
     protected array $lostStageIds;
 
     /**
+     * The consulta stage ids.
+     */
+    protected array $consultaStageIds;
+
+    /**
+     * Ids de usuarios con rol Administrador, excluidos de todo el tablero.
+     */
+    protected array $excludedUserIds;
+
+    /**
      * Create a helper instance.
      *
      * @return void
@@ -46,65 +56,87 @@ class Lead extends AbstractReporting
     ) {
         $this->allStageIds = $this->stageRepository->pluck('id')->toArray();
 
+        // "Ganado" en esta clínica = etapa "Paciente (concretado)" (code paciente-concretado).
         $this->wonStageIds = $this->stageRepository
             ->resetModel()
             ->where('code', 'won')
+            ->orWhere('code', 'paciente-concretado')
             ->orWhereRaw("LOWER(name) LIKE '%won%'")
             ->orWhereRaw("LOWER(name) LIKE '%ganado%'")
+            ->orWhereRaw("LOWER(name) LIKE '%concretad%'")
             ->pluck('id')
             ->toArray();
 
+        // "Perdido" en esta clínica = etapa "Cancelado" (code cancelado).
         $this->lostStageIds = $this->stageRepository
             ->resetModel()
             ->where('code', 'lost')
+            ->orWhere('code', 'cancelado')
             ->orWhereRaw("LOWER(name) LIKE '%lost%'")
             ->orWhereRaw("LOWER(name) LIKE '%perdido%'")
+            ->orWhereRaw("LOWER(name) LIKE '%cancelad%'")
             ->pluck('id')
+            ->toArray();
+
+        // "Consultas" = primera etapa del pipeline (code consultas).
+        $this->consultaStageIds = $this->stageRepository
+            ->resetModel()
+            ->where('code', 'consultas')
+            ->orWhereRaw("LOWER(name) LIKE '%consulta%'")
+            ->pluck('id')
+            ->toArray();
+
+        // Excluir del tablero a TODOS los usuarios con rol Administrador
+        // (cubre "Administrator"/"Administrador"). Antes solo se excluía un email fijo.
+        $this->excludedUserIds = $this->userRepository
+            ->resetModel()
+            ->leftJoin('roles', 'users.role_id', '=', 'roles.id')
+            ->where('roles.name', 'like', 'Admin%')
+            ->pluck('users.id')
             ->toArray();
 
         parent::__construct();
     }
 
     /**
-     * Returns current customers over time
+     * Builds the data for the "Evolución" card: the current period vs the real
+     * previous period, point-to-point comparable.
+     *
+     * Reuses getOverTimeStats() (same counting rule as the bar chart) for both
+     * ranges and aligns the previous series to the current one by index, so the
+     * frontend can draw two overlapping lines (solid = actual, dotted = anterior).
      *
      * @param  string  $period
      */
-    public function getTotalLeadsOverTime($period = 'auto'): array
+    public function getLeadsEvolution($period = 'auto'): array
     {
+        // Same universe as "Total de Pacientes": every stage except the lost/cancelled ones.
         $this->stageIds = array_values(array_diff($this->allStageIds, $this->lostStageIds));
 
         $period = $this->determinePeriod($period);
 
-        return $this->getOverTimeStats($this->startDate, $this->endDate, 'leads.id', 'created_at', $period);
-    }
+        $current = $this->getOverTimeStats($this->startDate, $this->endDate, 'leads.id', 'created_at', $period);
+        $previous = $this->getOverTimeStats($this->lastStartDate, $this->lastEndDate, 'leads.id', 'created_at', $period);
 
-    /**
-     * Returns current customers over time
-     *
-     * @param  string  $period
-     */
-    public function getTotalWonLeadsOverTime($period = 'auto'): array
-    {
-        $this->stageIds = $this->wonStageIds;
+        $currentCounts = array_column($current, 'count');
+        $previousCounts = array_column($previous, 'count');
 
-        $period = $this->determinePeriod($period);
+        // Align the previous series to the current length (by index) so both lines
+        // share the same X axis; pad with 0 / truncate the surplus.
+        $size = count($currentCounts);
+        $previousCounts = array_slice(array_pad($previousCounts, $size, 0), 0, $size);
 
-        return $this->getOverTimeStats($this->startDate, $this->endDate, 'leads.id', 'closed_at', $period);
-    }
-
-    /**
-     * Returns current customers over time
-     *
-     * @param  string  $period
-     */
-    public function getTotalLostLeadsOverTime($period = 'auto'): array
-    {
-        $this->stageIds = $this->lostStageIds;
-
-        $period = $this->determinePeriod($period);
-
-        return $this->getOverTimeStats($this->startDate, $this->endDate, 'leads.id', 'closed_at', $period);
+        return [
+            'labels'         => array_column($current, 'label'),
+            'current'        => $currentCounts,
+            'previous'       => $previousCounts,
+            'total'          => array_sum($currentCounts),
+            'previous_total' => array_sum($previousCounts),
+            'current_range'  => $this->startDate->format('d M Y').' - '.$this->endDate->format('d M Y'),
+            'previous_range' => $this->lastStartDate->format('d M Y').' - '.$this->lastEndDate->format('d M Y'),
+            'period'         => $period,
+            'progress'       => $this->getPercentageChange(array_sum($previousCounts), array_sum($currentCounts)),
+        ];
     }
 
     public function getVendedoresStats($limit = null)
@@ -118,10 +150,10 @@ class Lead extends AbstractReporting
             })
             ->when(request('organization_id'), function ($q) {
                 $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
-                  ->where('persons.organization_id', request('organization_id'));
+                    ->where('persons.organization_id', request('organization_id'));
             })
             ->leftJoin('users', 'leads.user_id', '=', 'users.id')
-            ->where('users.email', '!=', 'jmogro@sofopolis.com')
+            ->whereNotIn('users.id', $this->excludedUserIds)
             ->leftJoin('lead_activities', 'leads.id', '=', 'lead_activities.lead_id')
             ->leftJoin('activities', 'lead_activities.activity_id', '=', 'activities.id')
             ->select(
@@ -129,8 +161,8 @@ class Lead extends AbstractReporting
                 'users.name as vendedor_name'
             )
             ->addSelect(DB::raw('COUNT(DISTINCT '.$tablePrefix.'leads.id) as total_leads'))
-            ->addSelect(DB::raw('SUM(CASE WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.implode(',', $this->wonStageIds).') THEN 1 ELSE 0 END) as sales_count'))
-            ->addSelect(DB::raw('SUM(CASE WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.implode(',', $this->wonStageIds).') THEN '.$tablePrefix.'leads.lead_value ELSE 0 END) as total_sales_amount'))
+            ->addSelect(DB::raw('SUM(CASE WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.(implode(',', $this->wonStageIds) ?: '0').') THEN 1 ELSE 0 END) as sales_count'))
+            ->addSelect(DB::raw('SUM(CASE WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.(implode(',', $this->wonStageIds) ?: '0').') THEN '.$tablePrefix.'leads.lead_value ELSE 0 END) as total_sales_amount'))
             ->addSelect(DB::raw('AVG(CASE WHEN '.$tablePrefix.'activities.created_at IS NOT NULL THEN TIMESTAMPDIFF(SECOND, '.$tablePrefix.'leads.created_at, '.$tablePrefix.'activities.created_at) END) as average_response_time_seconds'))
             ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
             ->groupBy('users.id', 'users.name')
@@ -153,73 +185,6 @@ class Lead extends AbstractReporting
         return $items;
     }
 
-    public function getVentasOverTimeByUser($period = 'auto'): array
-    {
-        $period = $this->determinePeriod($period);
-
-        $intervals = $this->generateTimeIntervals($this->startDate, $this->endDate, $period);
-
-        $groupColumn = $this->getGroupColumn('closed_at', $period);
-
-        $tablePrefix = DB::getTablePrefix();
-
-        $query = $this->leadRepository
-            ->resetModel()
-            ->leftJoin('users', 'leads.user_id', '=', 'users.id')
-            ->select(
-                DB::raw("$groupColumn AS date"),
-                'users.name as user_name',
-                DB::raw('COUNT(DISTINCT CASE WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.implode(',', $this->wonStageIds).') THEN '.$tablePrefix.'leads.id END) AS count')
-            )
-            ->whereIn('leads.lead_pipeline_stage_id', $this->wonStageIds)
-            ->where('users.email', '!=', 'jmogro@sofopolis.com')
-            ->whereBetween('closed_at', [$this->startDate, $this->endDate])
-            ->groupBy(DB::raw($groupColumn), 'users.id', 'users.name')
-            ->orderBy(DB::raw($groupColumn));
-
-        $results = $query->get();
-
-        $byDate = [];
-
-        foreach ($results as $row) {
-            $key = $row->date;
-            $user = $row->user_name ?? '—';
-            $byDate[$key] ??= [];
-            $byDate[$key][$user] = (int) $row->count;
-        }
-
-        $usersQuery = $this->userRepository->resetModel()->select('name')->where('email', '!=', 'jmogro@sofopolis.com');
-
-        if (function_exists('bouncer') && ($userIds = bouncer()->getAuthorizedUserIds())) {
-            $usersQuery->whereIn('id', $userIds);
-        }
-
-        $users = $usersQuery->pluck('name')->toArray();
-
-        $stats = [];
-
-        foreach ($intervals as $interval) {
-            $dateKey = $interval['key'];
-            $usersCounts = [];
-            foreach ($users as $u) {
-                $usersCounts[] = [
-                    'name'  => $u,
-                    'count' => (int) ($byDate[$dateKey][$u] ?? 0),
-                ];
-            }
-
-            $stats[] = [
-                'label' => $interval['label'],
-                'users' => $usersCounts,
-            ];
-        }
-
-        return [
-            'over_time' => $stats,
-            'users'     => $users,
-        ];
-    }
-
     public function getLeadsCountByUsers(): array
     {
         $tablePrefix = DB::getTablePrefix();
@@ -234,7 +199,7 @@ class Lead extends AbstractReporting
             )
             ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
             ->whereNotIn('leads.lead_pipeline_stage_id', $this->lostStageIds)
-            ->where('users.email', '!=', 'jmogro@sofopolis.com')
+            ->whereNotIn('users.id', $this->excludedUserIds)
             ->groupBy('users.id', 'users.name')
             ->orderBy('user_name');
 
@@ -243,10 +208,10 @@ class Lead extends AbstractReporting
         $countsByUser = [];
 
         foreach ($results as $row) {
-            $countsByUser[$row->user_name ?? '—'] = (int) $row->count;
+            $countsByUser[$row->user_name ?? '-'] = (int) $row->count;
         }
 
-        $usersQuery = $this->userRepository->resetModel()->select('name')->where('email', '!=', 'jmogro@sofopolis.com');
+        $usersQuery = $this->userRepository->resetModel()->select('name')->whereNotIn('id', $this->excludedUserIds);
 
         if (function_exists('bouncer') && ($userIds = bouncer()->getAuthorizedUserIds())) {
             $usersQuery->whereIn('id', $userIds);
@@ -280,10 +245,10 @@ class Lead extends AbstractReporting
             ->resetModel()
             ->leftJoin('users', 'leads.user_id', '=', 'users.id')
             ->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
-            ->leftJoin('attribute_values as av', function ($join) use ($attribute, $tablePrefix) {
+            ->leftJoin('attribute_values as av', function ($join) use ($attribute) {
                 $join->on('persons.id', '=', 'av.entity_id')
-                     ->where('av.entity_type', '=', 'persons')
-                     ->when($attribute, fn ($j) => $j->where('av.attribute_id', '=', $attribute->id));
+                    ->where('av.entity_type', '=', 'persons')
+                    ->when($attribute, fn ($j) => $j->where('av.attribute_id', '=', $attribute->id));
             })
             ->select(
                 DB::raw($tablePrefix.'av.integer_value as branch_id'),
@@ -329,52 +294,6 @@ class Lead extends AbstractReporting
         ];
     }
 
-    public function getVentasCountByUsers(): array
-    {
-        $tablePrefix = DB::getTablePrefix();
-
-        $query = $this->leadRepository
-            ->resetModel()
-            ->leftJoin('users', 'leads.user_id', '=', 'users.id')
-            ->select(
-                'users.id as user_id',
-                'users.name as user_name',
-                DB::raw('COUNT(DISTINCT CASE WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.implode(',', $this->wonStageIds).') THEN '.$tablePrefix.'leads.id END) AS count')
-            )
-            ->whereBetween('leads.closed_at', [$this->startDate, $this->endDate])
-            ->where('users.email', '!=', 'jmogro@sofopolis.com')
-            ->groupBy('users.id', 'users.name')
-            ->orderBy('user_name');
-
-        $results = $query->get();
-
-        $countsByUser = [];
-
-        foreach ($results as $row) {
-            $countsByUser[$row->user_name ?? '—'] = (int) $row->count;
-        }
-
-        $usersQuery = $this->userRepository->resetModel()->select('name')->where('email', '!=', 'jmogro@sofopolis.com');
-
-        if (function_exists('bouncer') && ($userIds = bouncer()->getAuthorizedUserIds())) {
-            $usersQuery->whereIn('id', $userIds);
-        }
-
-        $users = $usersQuery->pluck('name')->toArray();
-
-        $labels = $users;
-        $data = [];
-        foreach ($users as $u) {
-            $data[] = $countsByUser[$u] ?? 0;
-        }
-
-        return [
-            'labels' => $labels,
-            'data'   => $data,
-            'users'  => $users,
-        ];
-    }
-
     public function getAverageResponseTimeByUsers(): array
     {
         $tablePrefix = DB::getTablePrefix();
@@ -390,7 +309,7 @@ class Lead extends AbstractReporting
                 DB::raw('AVG(CASE WHEN '.$tablePrefix.'activities.created_at IS NOT NULL THEN TIMESTAMPDIFF(SECOND, '.$tablePrefix.'leads.created_at, '.$tablePrefix.'activities.created_at) END) as avg_response_seconds')
             )
             ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
-            ->where('users.email', '!=', 'jmogro@sofopolis.com')
+            ->whereNotIn('users.id', $this->excludedUserIds)
             ->groupBy('users.id', 'users.name')
             ->orderBy('user_name');
 
@@ -399,10 +318,10 @@ class Lead extends AbstractReporting
         $avgByUser = [];
 
         foreach ($results as $row) {
-            $avgByUser[$row->user_name ?? '—'] = $row->avg_response_seconds ? (int) $row->avg_response_seconds : 0;
+            $avgByUser[$row->user_name ?? '-'] = $row->avg_response_seconds ? (int) $row->avg_response_seconds : 0;
         }
 
-        $usersQuery = $this->userRepository->resetModel()->select('name')->where('email', '!=', 'jmogro@sofopolis.com');
+        $usersQuery = $this->userRepository->resetModel()->select('name')->whereNotIn('id', $this->excludedUserIds);
 
         if (function_exists('bouncer') && ($userIds = bouncer()->getAuthorizedUserIds())) {
             $usersQuery->whereIn('id', $userIds);
@@ -436,17 +355,19 @@ class Lead extends AbstractReporting
             ->resetModel()
             ->leftJoin('users', 'leads.user_id', '=', 'users.id')
             ->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
-            ->leftJoin('attribute_values as av', function ($join) use ($attribute, $tablePrefix) {
+            ->leftJoin('attribute_values as av', function ($join) use ($attribute) {
                 $join->on('persons.id', '=', 'av.entity_id')
-                     ->where('av.entity_type', '=', 'persons')
-                     ->when($attribute, fn ($j) => $j->where('av.attribute_id', '=', $attribute->id));
+                    ->where('av.entity_type', '=', 'persons')
+                    ->when($attribute, fn ($j) => $j->where('av.attribute_id', '=', $attribute->id));
             })
             ->select(
                 DB::raw($tablePrefix.'av.integer_value as branch_id'),
                 DB::raw($tablePrefix.'av.text_value as branch_text'),
-                DB::raw('COUNT(DISTINCT CASE WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.implode(',', $this->wonStageIds).') THEN '.$tablePrefix.'leads.id END) AS count')
+                DB::raw('COUNT(DISTINCT CASE WHEN '.$tablePrefix.'leads.lead_pipeline_stage_id IN ('.(implode(',', $this->wonStageIds) ?: '0').') THEN '.$tablePrefix.'leads.id END) AS count')
             )
-            ->whereBetween('leads.closed_at', [$this->startDate, $this->endDate])
+            // Se cuenta por created_at (no closed_at): los leads concretados no
+            // siempre tienen closed_at poblado.
+            ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
             ->groupBy('branch_id', 'branch_text');
 
         if (function_exists('bouncer') && ($userIds = bouncer()->getAuthorizedUserIds())) {
@@ -511,6 +432,30 @@ class Lead extends AbstractReporting
     }
 
     /**
+     * Bucket rule specific to "Comportamiento de etapas": with 4 barras por punto
+     * el chart se satura rápido, así que agrupa más agresivo que determinePeriod()
+     * (30 días → semana en vez de día; 2 años → trimestre en vez de año).
+     */
+    protected function determineStagesPeriod(): string
+    {
+        $days = $this->startDate->diffInDays($this->endDate);
+
+        if ($days <= 14) {
+            return 'day';
+        }
+
+        if ($days <= 180) {
+            return 'week';
+        }
+
+        if ($days <= 540) {
+            return 'month';
+        }
+
+        return 'quarter';
+    }
+
+    /**
      * Retrieves total leads and their progress.
      */
     public function getTotalLeadsProgress(): array
@@ -532,6 +477,33 @@ class Lead extends AbstractReporting
     {
         return $this->leadRepository
             ->resetModel()
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->count();
+    }
+
+    /**
+     * Retrieves total consultas (leads en etapa Consultas) and their progress.
+     */
+    public function getTotalConsultasProgress(): array
+    {
+        return [
+            'previous' => $previous = $this->getTotalConsultas($this->lastStartDate, $this->lastEndDate),
+            'current'  => $current = $this->getTotalConsultas($this->startDate, $this->endDate),
+            'progress' => $this->getPercentageChange($previous, $current),
+        ];
+    }
+
+    /**
+     * Retrieves total consultas by date
+     *
+     * @param  \Carbon\Carbon  $startDate
+     * @param  \Carbon\Carbon  $endDate
+     */
+    public function getTotalConsultas($startDate, $endDate): int
+    {
+        return $this->leadRepository
+            ->resetModel()
+            ->whereIn('lead_pipeline_stage_id', $this->consultaStageIds ?: [0])
             ->whereBetween('created_at', [$startDate, $endDate])
             ->count();
     }
@@ -707,7 +679,7 @@ class Lead extends AbstractReporting
             })
             ->when(request('organization_id'), function ($q) {
                 $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
-                  ->where('persons.organization_id', request('organization_id'));
+                    ->where('persons.organization_id', request('organization_id'));
             })
             ->select(
                 'lead_sources.name',
@@ -732,7 +704,7 @@ class Lead extends AbstractReporting
             })
             ->when(request('organization_id'), function ($q) {
                 $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
-                  ->where('persons.organization_id', request('organization_id'));
+                    ->where('persons.organization_id', request('organization_id'));
             })
             ->select(
                 'lead_types.name',
@@ -757,7 +729,7 @@ class Lead extends AbstractReporting
             })
             ->when(request('organization_id'), function ($q) {
                 $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
-                  ->where('persons.organization_id', request('organization_id'));
+                    ->where('persons.organization_id', request('organization_id'));
             })
             ->select(
                 'lead_pipeline_stages.name',
@@ -808,7 +780,7 @@ class Lead extends AbstractReporting
             })
             ->when(request('organization_id'), function ($q) {
                 $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
-                  ->where('persons.organization_id', request('organization_id'));
+                    ->where('persons.organization_id', request('organization_id'));
             })
             ->select(
                 'lead_pipeline_stages.id',
@@ -851,7 +823,9 @@ class Lead extends AbstractReporting
         $lostStage = $stages->first(fn ($s) => in_array($s->code, $lostCodes));
 
         $orderedStages = $normalStages;
-        if ($wonStage) { $orderedStages = $orderedStages->push($wonStage); }
+        if ($wonStage) {
+            $orderedStages = $orderedStages->push($wonStage);
+        }
         // Excluir la etapa Perdido de la vista "Etapas por fecha"
 
         $counts = $this->leadRepository
@@ -861,7 +835,7 @@ class Lead extends AbstractReporting
             })
             ->when(request('organization_id'), function ($q) {
                 $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
-                  ->where('persons.organization_id', request('organization_id'));
+                    ->where('persons.organization_id', request('organization_id'));
             })
             ->select(
                 'lead_pipeline_stages.id',
@@ -878,6 +852,7 @@ class Lead extends AbstractReporting
 
         return $orderedStages->map(function ($stage) use ($counts) {
             $stat = $counts->get($stage->id);
+
             return [
                 'name'  => $stage->name,
                 'total' => $stat ? (int) $stat->total : 0,
@@ -886,42 +861,54 @@ class Lead extends AbstractReporting
     }
 
     /**
-     * Returns leads counts by stages over time for default pipeline.
+     * "Comportamiento de etapas": leads por etapa a lo largo del tiempo para el
+     * pipeline por defecto, más los totales del período anterior (misma duración,
+     * inmediatamente antes) alineados punto a punto para dibujar el versus.
+     *
+     * Excluye las etapas perdidas/canceladas y agrupa con determineStagesPeriod().
      */
     public function getTotalLeadsByStagesOverTime(): array
     {
-        $period = $this->determinePeriod('auto');
+        $period = $this->determineStagesPeriod();
         $tablePrefix = DB::getTablePrefix();
 
         $pipeline = $this->pipelineRepository->getDefaultPipeline();
 
-        $stages = $pipeline->stages()->get();
+        // Este chart de "Comportamiento de etapas" oculta "En proceso" y
+        // "Paciente (Atendido)" pero, a diferencia del resto del tablero, SÍ
+        // incluye "Cancelado" para visualizar la fuga de leads por etapa.
+        $hiddenStageIds = $this->stageRepository
+            ->resetModel()
+            ->whereIn('code', ['en-proceso', 'paciente-atendido'])
+            ->orWhereRaw("LOWER(name) LIKE '%en proceso%'")
+            ->orWhereRaw("LOWER(name) LIKE '%atendido%'")
+            ->pluck('id')
+            ->toArray();
 
-        $wonCodes = ['won'];
-        $lostCodes = ['lost'];
-
-        $normalStages = $stages->filter(fn ($s) => ! in_array($s->code, array_merge($wonCodes, $lostCodes)))->values();
-        $wonStage = $stages->first(fn ($s) => in_array($s->code, $wonCodes));
-        $lostStage = $stages->first(fn ($s) => in_array($s->code, $lostCodes));
-
-        $orderedStages = $normalStages;
-        if ($wonStage) { $orderedStages = $orderedStages->push($wonStage); }
-        if ($lostStage) { $orderedStages = $orderedStages->push($lostStage); }
+        $orderedStages = $pipeline->stages()
+            ->get()
+            ->reject(fn ($stage) => in_array($stage->id, $hiddenStageIds))
+            ->values();
 
         $intervals = $this->generateTimeIntervals($this->startDate, $this->endDate, $period);
-        $groupColumn = $this->getGroupColumn('leads.created_at', $period);
+        // Raw expression: NOT auto-prefixed by the query builder, so qualify with the
+        // table prefix to avoid "Unknown column 'leads.created_at'" (real table is od_leads).
+        $groupColumn = $this->getGroupColumn($tablePrefix.'leads.created_at', $period);
 
-        $results = $this->leadRepository
+        $baseQuery = fn () => $this->leadRepository
             ->resetModel()
             ->when(request('user_id'), function ($q) {
                 $q->where('leads.user_id', request('user_id'));
             })
             ->when(request('organization_id'), function ($q) {
                 $q->leftJoin('persons', 'leads.person_id', '=', 'persons.id')
-                  ->where('persons.organization_id', request('organization_id'));
+                    ->where('persons.organization_id', request('organization_id'));
             })
-            ->leftJoin('lead_pipeline_stages', 'leads.lead_pipeline_stage_id', '=', 'lead_pipeline_stages.id')
             ->where('leads.lead_pipeline_id', $pipeline->id)
+            ->whereNotIn('leads.lead_pipeline_stage_id', $hiddenStageIds ?: [0]);
+
+        $results = $baseQuery()
+            ->leftJoin('lead_pipeline_stages', 'leads.lead_pipeline_stage_id', '=', 'lead_pipeline_stages.id')
             ->whereBetween('leads.created_at', [$this->startDate, $this->endDate])
             ->select(
                 DB::raw("$groupColumn AS date"),
@@ -934,9 +921,7 @@ class Lead extends AbstractReporting
 
         $byDateStage = [];
         foreach ($results as $row) {
-            $dateKey = $row->date;
-            $stageId = (int) $row->stage_id;
-            $byDateStage[$dateKey][$stageId] = (int) $row->count;
+            $byDateStage[$row->date][(int) $row->stage_id] = (int) $row->count;
         }
 
         $labels = array_map(fn ($i) => $i['label'], $intervals);
@@ -945,8 +930,7 @@ class Lead extends AbstractReporting
         foreach ($orderedStages as $stage) {
             $data = [];
             foreach ($intervals as $interval) {
-                $dateKey = $interval['key'];
-                $data[] = (int) ($byDateStage[$dateKey][$stage->id] ?? 0);
+                $data[] = (int) ($byDateStage[$interval['key']][$stage->id] ?? 0);
             }
 
             $datasets[] = [
@@ -955,15 +939,44 @@ class Lead extends AbstractReporting
             ];
         }
 
-        $total = 0;
-        foreach ($datasets as $ds) {
-            foreach ($ds['data'] as $v) { $total += $v; }
+        $totals = [];
+        foreach ($intervals as $index => $interval) {
+            $totals[] = array_sum(array_column(array_column($datasets, 'data'), $index));
         }
 
+        // Período anterior: mismos buckets sobre el rango previo, alineados por índice
+        // con la serie actual (índice 0 actual vs índice 0 anterior).
+        $previousIntervals = $this->generateTimeIntervals($this->lastStartDate, $this->lastEndDate, $period);
+
+        $previousResults = $baseQuery()
+            ->whereBetween('leads.created_at', [$this->lastStartDate, $this->lastEndDate])
+            ->select(
+                DB::raw("$groupColumn AS date"),
+                DB::raw('COUNT('.$tablePrefix.'leads.id) as count')
+            )
+            ->groupBy(DB::raw($groupColumn))
+            ->get()
+            ->pluck('count', 'date');
+
+        $previousTotals = [];
+        foreach ($intervals as $index => $interval) {
+            $previousKey = $previousIntervals[$index]['key'] ?? null;
+            $previousTotals[] = $previousKey !== null ? (int) ($previousResults[$previousKey] ?? 0) : 0;
+        }
+
+        $total = array_sum($totals);
+        $previousTotal = array_sum($previousTotals);
+
         return [
-            'labels'   => $labels,
-            'datasets' => $datasets,
-            'total'    => $total,
+            'labels'          => $labels,
+            'datasets'        => $datasets,
+            'totals'          => $totals,
+            'previous_totals' => $previousTotals,
+            'total'           => $total,
+            'previous_total'  => $previousTotal,
+            'current_range'   => $this->startDate->format('d M Y').' - '.$this->endDate->format('d M Y'),
+            'previous_range'  => $this->lastStartDate->format('d M Y').' - '.$this->lastEndDate->format('d M Y'),
+            'progress'        => $this->getPercentageChange($previousTotal, $total),
         ];
     }
 
@@ -1043,6 +1056,10 @@ class Lead extends AbstractReporting
                     $current->addMonth();
 
                     break;
+                case 'quarter':
+                    $current->addQuarter();
+
+                    break;
                 case 'year':
                     $current->addYear();
 
@@ -1065,6 +1082,8 @@ class Lead extends AbstractReporting
                 return "DATE_FORMAT($dateColumn, '%Y-%u')";
             case 'month':
                 return "DATE_FORMAT($dateColumn, '%Y-%m')";
+            case 'quarter':
+                return "CONCAT(YEAR($dateColumn), '-Q', QUARTER($dateColumn))";
             case 'year':
                 return "YEAR($dateColumn)";
             default:
@@ -1084,6 +1103,8 @@ class Lead extends AbstractReporting
                 return $date->format('Y-W');
             case 'month':
                 return $date->format('Y-m');
+            case 'quarter':
+                return $date->year.'-Q'.$date->quarter;
             case 'year':
                 return $date->format('Y');
             default:
@@ -1100,9 +1121,11 @@ class Lead extends AbstractReporting
             case 'day':
                 return $date->format('M d');
             case 'week':
-                return 'Week '.$date->format('W, Y');
+                return 'Sem '.$date->format('W, Y');
             case 'month':
                 return $date->format('M Y');
+            case 'quarter':
+                return 'T'.$date->quarter.' '.$date->year;
             case 'year':
                 return $date->format('Y');
             default:
@@ -1113,14 +1136,15 @@ class Lead extends AbstractReporting
     /**
      * Calculates the average time it takes for a receptionist to move a patient between Kanban workflow stages.
      *
-     * @param array $filters Optional filters for the calculation.
-     *   - `start_date` (string): Start date for the analysis (YYYY-MM-DD HH:II:SS).
-     *   - `end_date` (string): End date for the analysis (YYYY-MM-DD HH:II:SS).
-     *   - `user_id` (int): ID of a specific receptionist to filter by.
-     *   - `stage_id` (int): ID of a specific stage to filter by.
+     * @param  array  $filters  Optional filters for the calculation.
+     *                          - `start_date` (string): Start date for the analysis (YYYY-MM-DD HH:II:SS).
+     *                          - `end_date` (string): End date for the analysis (YYYY-MM-DD HH:II:SS).
+     *                          - `user_id` (int): ID of a specific receptionist to filter by.
+     *                          - `stage_id` (int): ID of a specific stage to filter by.
      * @return array An array containing the average time in seconds and a formatted time string (HH:MM).
-     *   - `average_time` (float): The average time in seconds.
-     *   - `formatted_time` (string): The average time formatted as HH:MM.
+     *               - `average_time` (float): The average time in seconds.
+     *               - `formatted_time` (string): The average time formatted as HH:MM.
+     *
      * @throws \Exception If there is an error during the calculation.
      *
      * @example
@@ -1177,7 +1201,7 @@ class Lead extends AbstractReporting
 
         if (empty($timeDifferences)) {
             return [
-                'average_time' => 0,
+                'average_time'   => 0,
                 'formatted_time' => '00:00',
             ];
         }
@@ -1185,7 +1209,7 @@ class Lead extends AbstractReporting
         $averageTimeInSeconds = array_sum($timeDifferences) / count($timeDifferences);
 
         return [
-            'average_time' => $averageTimeInSeconds,
+            'average_time'   => $averageTimeInSeconds,
             'formatted_time' => $this->formatTime($averageTimeInSeconds),
         ];
     }

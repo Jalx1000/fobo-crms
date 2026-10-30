@@ -106,12 +106,15 @@ export default {
             return true;
         });
 
-        defineRule("decimal", (value) => {
+        defineRule("decimal", (value, [decimales] = []) => {
             if (value === null || value === undefined || value === '') {
                 return true;
             }
 
-            return /^\d*(\.\d{1})?$/.test(value);
+            // «decimal:4» acepta hasta 4 decimales; sin parámetro, uno (como antes).
+            const hasta = parseInt(decimales) > 0 ? parseInt(decimales) : 1;
+
+            return new RegExp(`^\\d*(\\.\\d{1,${hasta}})?$`).test(String(value));
         });
 
         defineRule("required_if", (value, { condition = true } = {}) => {

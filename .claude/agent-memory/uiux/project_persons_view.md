@@ -1,6 +1,6 @@
 ---
 name: project-persons-view-structure
-description: Layout real de la vista de detalle del paciente en contacts/persons/{id}/view.blade.php — sidebar izquierdo + panel derecho con sistema de tabs via x-admin::activities
+description: Layout real de la vista de detalle del paciente en contacts/persons/{id}/view.blade.php - sidebar izquierdo + panel derecho con sistema de tabs via x-admin::activities
 metadata:
   type: project
 ---
@@ -38,7 +38,7 @@ La tab custom se renderiza dentro de `<div v-show="selectedType == type.name"><s
 5. Reuniones (meeting)
 6. Archivos (file)
 7. Registro de cambios (system)
-8. Historial IA (extra — slot `historial`)
+8. Historial IA (extra - slot `historial`)
 
 **Why:** El sistema de tabs ya está operativo mediante extraTypes. Agregar una tab nueva solo requiere pasar un elemento más en el array extraTypes y agregar un x-slot con el partial correspondiente.
 

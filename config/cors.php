@@ -23,10 +23,6 @@ return [
      */
     'paths' => [
         'admin/web-forms/forms/*',
-        'api/doctors/*/slots',
-        'api/doctors/*/availability/*',
-        'api/doctors',
-        'api/specialties',
     ],
 
     /*

@@ -35,7 +35,7 @@ class DropboxWebhookController extends Controller
     {
         $appSecret = config('smd.dropbox.app_secret', '');
         $signature = $request->header('X-Dropbox-Signature', '');
-        $body      = $request->getContent();
+        $body = $request->getContent();
 
         Log::info('[DropboxWebhook] POST recibido', [
             'ip'             => $request->ip(),
@@ -45,16 +45,18 @@ class DropboxWebhookController extends Controller
         ]);
 
         if (! $appSecret || ! hash_equals(hash_hmac('sha256', $body, $appSecret), $signature)) {
+            // Nunca loguear la firma esperada: con acceso a los logs alcanzaba
+            // para forjar requests válidos para ese body (AUD-03).
             Log::warning('[DropboxWebhook] Firma invalida', [
-                'ip'               => $request->ip(),
-                'signature_recv'   => $signature,
-                'signature_expect' => hash_hmac('sha256', $body, $appSecret),
+                'ip'                => $request->ip(),
+                'has_signature'     => $signature !== '',
+                'secret_configured' => (bool) $appSecret,
             ]);
 
             return response()->json(['error' => 'Invalid signature'], 403);
         }
 
-        Log::info('[DropboxWebhook] Firma valida — despachando job', [
+        Log::info('[DropboxWebhook] Firma valida - despachando job', [
             'ip' => $request->ip(),
         ]);
 
