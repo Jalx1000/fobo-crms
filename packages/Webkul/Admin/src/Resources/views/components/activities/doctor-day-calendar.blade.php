@@ -4069,8 +4069,15 @@
                         }
                     })
                     .catch(err => {
+                        // Sin respuesta (se cortó la conexión): el servidor pudo haberla
+                        // reprogramado igual. No se afirma que falló; se recarga el calendario.
+                        if (!err?.response) {
+                            this.reschedule.error = 'Se perdió la conexión y no sabemos si se reprogramó. Revisá el calendario antes de reintentar.';
+                            this.fetch();
+                            return;
+                        }
                         // El horario se ocupó (o SMD lo rechazó): la cita no cambió y se recarga la lista.
-                        this.reschedule.error = err?.response?.data?.message || 'No se pudo reprogramar la cita.';
+                        this.reschedule.error = err.response.data?.message || 'No se pudo reprogramar la cita.';
                         this.loadRescheduleSlots(this.reschedule.from);
                     })
                     .finally(() => { this.reschedule.saving = false; });

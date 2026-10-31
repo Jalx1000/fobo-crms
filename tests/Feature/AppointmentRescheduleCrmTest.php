@@ -291,7 +291,9 @@ it('el detalle tiene el botón Reprogramar solo para citas futuras no canceladas
         ->and($html)->toContain('No pudimos consultar la agenda de SMD')
         // Horarios como radiogroup accesible; días sin horarios con texto, no solo gris.
         ->and($html)->toContain('role="radiogroup"')
-        ->and($html)->toContain('sin horarios');
+        ->and($html)->toContain('sin horarios')
+        // Si se corta la conexión no se afirma que falló: pudo haberse reprogramado.
+        ->and($html)->toContain('Se perdió la conexión y no sabemos si se reprogramó');
 });
 
 it('el detalle muestra el vínculo con la otra cita como botón', function () {
