@@ -124,7 +124,7 @@ it('cancelar: sin citas próximas cierra sin hacer nada', function () {
 | Reprogramar
 */
 
-it('reprogramar: de punta a punta mueve la cita, avisa a SMD y responde por el chat', function () {
+it('reprogramar: de punta a punta cancela la cita, crea una nueva, avisa a SMD y responde por el chat', function () {
     $token = FlowToken::issue($this->conv->id, 'reprogramar_cita');
     $antes = count(auditSent('/schedule/availability'));
 
@@ -147,12 +147,22 @@ it('reprogramar: de punta a punta mueve la cita, avisa a SMD y responde por el c
         'flow' => 'reprogramar_cita', 'status' => 'pending', 'previous_time' => '09:00', 'time' => '09:30',
     ]);
 
-    $activity = DB::table('activities')->find($this->cita['activity_id']);
-    expect(Carbon::parse($activity->schedule_from)->format('H:i'))->toBe('09:30')
-        ->and(Carbon::parse($activity->schedule_to)->format('H:i'))->toBe('10:30');
+    // La original queda cancelada en su horario (y SMD lo sabe)…
+    $vieja = DB::table('activities')->find($this->cita['activity_id']);
+    $leadViejo = DB::table('leads')->find($this->cita['lead_id']);
+    expect(Carbon::parse($vieja->schedule_from)->format('H:i'))->toBe('09:00')
+        ->and((int) $leadViejo->lead_pipeline_stage_id)->toBe((int) config('smd.stage_map.cancelled'))
+        ->and($leadViejo->lost_reason)->toBe('Reprogramada')
+        ->and(auditSent('/events/'.$this->eventId)[0]->data()['status'])->toBe(config('smd.smd_status.cancelled'));
 
-    $patch = auditSent('/events/'.$this->eventId)[0];
-    expect($patch->data()['startDate'])->toBe($this->day->copy()->setTime(9, 30)->utc()->format('Y-m-d\TH:i:s.000\Z'))
+    // …y hay una nueva a las 09:30, con su propio evento en SMD, vinculada.
+    $nuevaId = json_decode((string) $vieja->additional, true)['rescheduled_to'];
+    $nueva = DB::table('activities')->find($nuevaId);
+    expect(Carbon::parse($nueva->schedule_from)->format('H:i'))->toBe('09:30')
+        ->and(Carbon::parse($nueva->schedule_to)->format('H:i'))->toBe('10:30')
+        ->and(DB::table('activity_participants')->where('activity_id', $nuevaId)->value('person_id'))->toBe($this->hijo->id)
+        ->and(json_decode((string) $nueva->additional, true)['rescheduled_from'])->toBe($this->cita['activity_id'])
+        ->and(auditSent('/schedule/createEvent'))->toHaveCount(1)
         ->and(lastMessage($this->conv->id))->toContain('✅ Cita reprogramada');
 });
 
@@ -168,6 +178,8 @@ it('reprogramar: si el horario se ocupó antes de moverla, la deja como estaba y
     step($this->publicPem, $token, 'SUMMARY', ['confirm' => 'si']);
 
     expect(Carbon::parse(DB::table('activities')->find($this->cita['activity_id'])->schedule_from)->format('H:i'))->toBe('09:00')
+        ->and((int) DB::table('leads')->where('id', $this->cita['lead_id'])->value('lead_pipeline_stage_id'))->toBe((int) config('smd.stage_map.confirmed'))
+        ->and(auditSent('/schedule/createEvent'))->toBe([])
         ->and(lastMessage($this->conv->id))->toContain('ya no está disponible');
 });
 

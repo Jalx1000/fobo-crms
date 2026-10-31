@@ -155,6 +155,18 @@ class SendAppointmentReminders extends Command
             ->where('activities.type', 'meeting')
             ->where('activities.is_done', 0)
             ->when($personId, fn ($q) => $q->where('activity_participants.person_id', $personId))
+            // Una cita cancelada (o reprogramada, que cancela la original) o en
+            // la que el paciente no se presentó no lleva recordatorio.
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('lead_activities as la')
+                    ->join('leads as l', 'l.id', '=', 'la.lead_id')
+                    ->whereColumn('la.activity_id', 'activities.id')
+                    ->where(fn ($w) => $w->where('l.status', 0)->orWhereIn('l.lead_pipeline_stage_id', array_filter([
+                        (int) config('smd.stage_map.cancelled'),
+                        (int) config('smd.stage_map.no_show'),
+                    ])));
+            })
             // "Already reminded" = a reminder row whose message did NOT fail.
             // A failed send (or a legacy row with no message) leaves the
             // appointment eligible again, so the next run retries it.

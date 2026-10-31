@@ -37,7 +37,7 @@ class AppointmentService
      *
      * @param  array  $data  {
      *                       doctor_id, person.id, schedule_from, schedule_to,
-     *                       title?, reason?, product_id?, lead_id?
+     *                       title?, reason?, product_id?, lead_id?, replaces_activity_id?
      *                       }
      * @return array { lead_id, activity_id, message }
      *
@@ -63,6 +63,9 @@ class AppointmentService
         // (Antes se auto-reusaba el lead abierto más reciente del paciente, lo que
         // dejaba varios appointments colgando de un mismo lead.)
         $existingLeadId = $data['lead_id'] ?? null;
+        // Reprogramación (AppointmentRescheduler): la cita que se reemplaza sigue
+        // activa mientras se crea la nueva, y no debe bloquearla.
+        $replacesActivityId = (int) ($data['replaces_activity_id'] ?? 0) ?: null;
 
         // Si no viene product_id pero sí lead_id, intentar tomarlo del primer producto del lead
         if (! $productId && $existingLeadId) {
@@ -114,6 +117,7 @@ class AppointmentService
         $localConflict = DB::table('activities')
             ->join('doctor_activities', 'activities.id', '=', 'doctor_activities.activity_id')
             ->where('doctor_activities.doctor_id', $doctorId)
+            ->when($replacesActivityId, fn ($q) => $q->where('activities.id', '!=', $replacesActivityId))
             ->where(function ($query) use ($scheduleFrom, $scheduleTo) {
                 $query->where(function ($q) use ($scheduleFrom, $scheduleTo) {
                     $q->where('schedule_from', '>=', $scheduleFrom)
@@ -166,7 +170,7 @@ class AppointmentService
         // ── 2.b Mismo paciente, mismo doctor, mismo día ───────────────────────
         // Va antes de SMD: un formulario enviado dos veces no debe crear un
         // segundo evento allá para después rechazarlo acá.
-        $this->assertPatientNotBookedThatDay($person, $allDoctorIds, $scheduleFrom, $cancelledStageIds);
+        $this->assertPatientNotBookedThatDay($person, $allDoctorIds, $scheduleFrom, $cancelledStageIds, $replacesActivityId);
 
         $product = $productId ? DB::table('products')->where('id', $productId)->first() : null;
 
@@ -633,12 +637,12 @@ class AppointmentService
      * día (antes solo se rechazaba si el doctor estaba ocupado a esa hora, y el
      * formulario de WhatsApp enviado dos veces creaba dos citas). "Activa" usa el
      * mismo criterio que el conflicto local: una cita cuyo lead está cancelado o
-     * perdido no cuenta. Para cambiar el horario está la reprogramación, que
-     * mueve la cita existente y no pasa por acá.
+     * perdido no cuenta. La reprogramación sí pasa por acá: la cita que
+     * reemplaza ($exceptActivityId) no cuenta.
      *
      * @throws AppointmentException
      */
-    private function assertPatientNotBookedThatDay(object $person, array $doctorIds, Carbon $day, array $cancelledStageIds): void
+    private function assertPatientNotBookedThatDay(object $person, array $doctorIds, Carbon $day, array $cancelledStageIds, ?int $exceptActivityId = null): void
     {
         $existing = DB::table('activities')
             ->join('doctor_activities', 'activities.id', '=', 'doctor_activities.activity_id')
@@ -647,6 +651,7 @@ class AppointmentService
             ->where('activities.type', 'meeting')
             ->where('activity_participants.person_id', $person->id)
             ->whereIn('doctor_activities.doctor_id', $doctorIds)
+            ->when($exceptActivityId, fn ($q) => $q->where('activities.id', '!=', $exceptActivityId))
             ->whereBetween('activities.schedule_from', [
                 $day->copy()->startOfDay()->format('Y-m-d H:i:s'),
                 $day->copy()->endOfDay()->format('Y-m-d H:i:s'),

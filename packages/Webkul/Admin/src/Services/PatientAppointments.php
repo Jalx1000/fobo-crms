@@ -8,9 +8,10 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Las próximas citas de una persona y de los pacientes que tiene a cargo, y
- * las dos acciones que se pueden hacer sobre ellas desde WhatsApp: cancelar y
- * reprogramar. Ambas empujan el cambio a SMD (SmdAppointmentPush), que es la
- * fuente de verdad: sin eso, la próxima sincronización lo revertiría.
+ * las acciones que se hacen sobre ellas desde WhatsApp. Cancelar empuja el
+ * cambio a SMD (SmdAppointmentPush), que es la fuente de verdad: sin eso, la
+ * próxima sincronización lo revertiría. Reprogramar es AppointmentRescheduler
+ * (cancela y crea una nueva).
  */
 class PatientAppointments
 {
@@ -127,10 +128,11 @@ class PatientAppointments
 
     /**
      * Cancela: el lead pasa a "Cita Cancelada" y el cambio se empuja a SMD.
+     * $lostReason reemplaza el motivo por defecto (p. ej. "Reprogramada").
      *
      * @return array{synced: bool, reason: ?string}
      */
-    public function cancel(int $activityId, ?string $reason = null): array
+    public function cancel(int $activityId, ?string $reason = null, ?string $lostReason = null): array
     {
         $leadIds = DB::table('lead_activities')->where('activity_id', $activityId)->pluck('lead_id');
 
@@ -138,7 +140,7 @@ class PatientAppointments
             DB::table('leads')->whereIn('id', $leadIds)->update([
                 'lead_pipeline_stage_id' => (int) config('smd.stage_map.cancelled'),
                 'status'                 => 0,
-                'lost_reason'            => 'Cancelada por el paciente (WhatsApp)'.($reason ? ': '.$reason : ''),
+                'lost_reason'            => $lostReason ?? 'Cancelada por el paciente (WhatsApp)'.($reason ? ': '.$reason : ''),
                 'closed_at'              => now(),
                 'updated_at'             => now(),
             ]);
@@ -146,7 +148,7 @@ class PatientAppointments
 
         $result = $this->push->push($activityId);
 
-        Log::info('[Citas] Cita cancelada desde WhatsApp', ['activity_id' => $activityId, 'smd' => $result]);
+        Log::info('[Citas] Cita cancelada', ['activity_id' => $activityId, 'motivo' => $lostReason ?? 'WhatsApp', 'smd' => $result]);
 
         return $result;
     }
@@ -245,28 +247,6 @@ class PatientAppointments
         }
 
         Log::info('[Citas] Respuesta del paciente al recordatorio', ['activity_id' => $activityId, 'respuesta' => $response, 'smd' => $result]);
-
-        return $result;
-    }
-
-    /**
-     * Reprograma: mueve el horario (mismo doctor y paciente) y lo empuja a SMD.
-     *
-     * @return array{synced: bool, reason: ?string}
-     */
-    public function reschedule(int $activityId, Carbon $from, int $minutes): array
-    {
-        DB::table('activities')->where('id', $activityId)->update([
-            'schedule_from' => $from->format('Y-m-d H:i:s'),
-            'schedule_to'   => $from->copy()->addMinutes($minutes)->format('Y-m-d H:i:s'),
-            'updated_at'    => now(),
-        ]);
-
-        $result = $this->push->push($activityId);
-
-        Log::info('[Citas] Cita reprogramada desde WhatsApp', [
-            'activity_id' => $activityId, 'nuevo_horario' => $from->toDateTimeString(), 'smd' => $result,
-        ]);
 
         return $result;
     }

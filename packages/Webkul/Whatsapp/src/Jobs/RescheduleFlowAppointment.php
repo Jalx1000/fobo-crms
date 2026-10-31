@@ -11,13 +11,15 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
+use Webkul\Admin\Exceptions\AppointmentException;
+use Webkul\Admin\Services\AppointmentRescheduler;
 use Webkul\Admin\Services\BookingOptions;
-use Webkul\Admin\Services\PatientAppointments;
 use Webkul\Whatsapp\Jobs\Concerns\RepliesToConversation;
 
 /**
- * Mueve la cita al horario pedido en el formulario "Reprogramar cita", tras
- * revalidar en vivo con SMD que siga libre, y avisa por el chat.
+ * Reprograma la cita al horario pedido en el formulario "Reprogramar cita":
+ * tras revalidar en vivo con SMD que siga libre, cancela la original y crea
+ * una nueva (AppointmentRescheduler), y avisa por el chat.
  */
 class RescheduleFlowAppointment implements ShouldQueue
 {
@@ -37,7 +39,7 @@ class RescheduleFlowAppointment implements ShouldQueue
         $this->requestedAt = time();
     }
 
-    public function handle(PatientAppointments $appointments, BookingOptions $booking): void
+    public function handle(AppointmentRescheduler $rescheduler, BookingOptions $booking): void
     {
         $doctorId = (int) DB::table('doctor_activities')->where('activity_id', $this->activityId)->value('doctor_id');
         $from = Carbon::parse($this->date.' '.$this->time, config('app.timezone'));
@@ -53,7 +55,13 @@ class RescheduleFlowAppointment implements ShouldQueue
                 return;
             }
 
-            $result = $appointments->reschedule($this->activityId, $from, $this->duration);
+            $result = $rescheduler->reschedule($this->activityId, $from, $from->copy()->addMinutes($this->duration), [], 'whatsapp');
+        } catch (AppointmentException $e) {
+            Log::info('[WhatsAppFlow] No se pudo reprogramar la cita del formulario', ['activity_id' => $this->activityId, 'motivo' => $e->getMessage()]);
+            $this->replyAfterAgent($this->conversationId, "No pudimos cambiar tu cita al {$when}: ese horario ya no está disponible. "
+                .'Tu cita sigue en el horario anterior. Escribinos y te ayudamos a elegir otro. 🙏');
+
+            return;
         } catch (Throwable $e) {
             Log::error('[WhatsAppFlow] Error reprogramando la cita del formulario', ['activity_id' => $this->activityId, 'error' => $e->getMessage()]);
             $this->replyAfterAgent($this->conversationId, 'Tuvimos un problema al cambiar tu cita. Escribinos y te ayudamos. 🙏');
@@ -61,8 +69,8 @@ class RescheduleFlowAppointment implements ShouldQueue
             return;
         }
 
-        if (! $result['synced']) {
-            Log::warning('[WhatsAppFlow] Cita reprogramada en el CRM pero no en SMD', ['activity_id' => $this->activityId, 'motivo' => $result['reason']]);
+        if (! $result['smd']['synced']) {
+            Log::warning('[WhatsAppFlow] Cita nueva creada pero la original no se canceló en SMD', ['activity_id' => $this->activityId, 'motivo' => $result['smd']['reason']]);
         }
 
         $this->replyAfterAgent($this->conversationId, "✅ Cita reprogramada\nDoctor/a: {$doctor}\nNueva fecha: {$when}");
