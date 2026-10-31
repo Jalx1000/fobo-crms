@@ -476,7 +476,7 @@
                                 <span class="text-gray-400"> - @{{ formatTime(ev.end) }}</span>
                             </div>
                             <div class="dwc-list-main">
-                                <div class="text-sm font-semibold dark:text-white">@{{ ev.person_name || ev.title || 'Cita' }}</div>
+                                <div class="flex items-center gap-1 text-sm font-semibold dark:text-white">@{{ ev.person_name || ev.title || 'Cita' }} <span v-if="reminderInfo(ev)" class="ddc-reminder-indicator" role="img" :style="{ color: reminderInfo(ev).color }" :title="reminderInfo(ev).label" :aria-label="reminderInfo(ev).label"><span class="icon-notification" aria-hidden="true"></span>@{{ reminderInfo(ev).glyph }}</span></div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
                                     <span v-if="ev.doctor_name">@{{ ev.doctor_name }}</span>
                                     <span v-if="ev.product_name"> · @{{ ev.product_name }}</span>
@@ -528,6 +528,7 @@
                             <div class="dwc-week-event-main">
                                 <span class="font-bold">@{{ formatTime(ev.start) }}</span>
                                 <span class="truncate">@{{ ev.person_name ? formatPatientName(ev.person_name) : (ev.title || ev.type) }}</span>
+                                <span v-if="reminderInfo(ev)" class="ddc-reminder-indicator" role="img" :style="{ color: reminderInfo(ev).color }" :title="reminderInfo(ev).label" :aria-label="reminderInfo(ev).label"><span class="icon-notification" aria-hidden="true"></span>@{{ reminderInfo(ev).glyph }}</span>
                             </div>
                             <!-- El estado también en texto: no depender solo del color. -->
                             <span v-if="getStageName(ev.lead_pipeline_stage_id)" class="dwc-week-event-status truncate">@{{ getStageName(ev.lead_pipeline_stage_id) }}</span>
@@ -581,6 +582,7 @@
                                 <div class="dwc-event-info">
                                     <div class="dwc-event-row-primary">
                                         <span class="dwc-event-patient" :title="ev.person_name">@{{ formatPatientName(ev.person_name) }}</span>
+                                        <span v-if="reminderInfo(ev)" class="ddc-reminder-indicator" role="img" :style="{ color: reminderInfo(ev).color }" :title="reminderInfo(ev).label" :aria-label="reminderInfo(ev).label"><span class="icon-notification" aria-hidden="true"></span>@{{ reminderInfo(ev).glyph }}</span>
                                     </div>
 
                                     <div class="dwc-event-row-secondary">
@@ -653,6 +655,7 @@
                                     <div class="dwc-event-info">
                                         <div class="dwc-event-row-primary">
                                             <span class="dwc-event-patient" :title="ev.person_name">@{{ formatPatientName(ev.person_name) }}</span>
+                                        <span v-if="reminderInfo(ev)" class="ddc-reminder-indicator" role="img" :style="{ color: reminderInfo(ev).color }" :title="reminderInfo(ev).label" :aria-label="reminderInfo(ev).label"><span class="icon-notification" aria-hidden="true"></span>@{{ reminderInfo(ev).glyph }}</span>
                                         </div>
 
                                         <div class="dwc-event-row-secondary">
@@ -1123,6 +1126,11 @@
                                    :aria-label="'Llamar al ' + viewAppointment.data.person_whatsapp">
                                     <span class="icon-call text-sm"></span> @{{ viewAppointment.data.person_whatsapp }}
                                 </a>
+                                <!-- Indicador de recordatorio (planning/17, D10): texto + ícono, no solo color. -->
+                                <p v-if="reminderInfo(viewAppointment.data)" class="ddc-reminder-detail flex items-start gap-1 text-xs" :style="{ color: reminderInfo(viewAppointment.data).color }">
+                                    <span class="icon-notification text-sm" aria-hidden="true"></span>
+                                    <span>@{{ reminderInfo(viewAppointment.data).label }}</span>
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -1822,6 +1830,9 @@
                 <div class="text-gray-500 dark:text-gray-400 mb-1">@{{ formatTime(hoveredEvent.start) }} – @{{ formatTime(hoveredEvent.end) }}</div>
                 <div class="text-gray-500 dark:text-gray-400 mb-1" v-if="getStageName(hoveredEvent.lead_pipeline_stage_id)">
                     Estado: @{{ getStageName(hoveredEvent.lead_pipeline_stage_id) }}
+                </div>
+                <div class="mb-1 flex items-center gap-1" v-if="reminderInfo(hoveredEvent)" :style="{ color: reminderInfo(hoveredEvent).color }">
+                    <span class="icon-notification" aria-hidden="true"></span> @{{ reminderInfo(hoveredEvent).label }}
                 </div>
                 <div class="text-gray-600 dark:text-gray-300 italic truncate" v-if="hoveredEvent.comment">@{{ hoveredEvent.comment }}</div>
                 <div class="mt-2 text-blue-600 dark:text-blue-400 font-medium" v-if="hoveredEvent.lead_id">→ Ver lead</div>
@@ -3186,6 +3197,7 @@
                         this.appointments = r.data.appointments;
                         this.availability = r.data.availability || [];
                         this.stages = r.data.stages || [];
+                        this.refreshOpenAppointment();
 
                         if (!this.doctorFilterInitialized) {
                             this.restoreFilters();
@@ -3789,6 +3801,18 @@
                 this.$refs.viewModal.open();
                 this.revealApptState();
             },
+            // El detalle abierto guarda la cita como estaba al abrirlo. Cuando la
+            // grilla se recarga (p. ej. Meta marcó el recordatorio como leído), toma
+            // los datos nuevos. Se busca por id: el objeto de data() es un proxy
+            // reactivo y nunca es === al recién llegado. En edición no se pisa nada.
+            refreshOpenAppointment() {
+                if (!this.viewAppointment.visible || this.editMode || !this.viewAppointment.data) return;
+
+                const fresh = (this.appointments || []).find(a => a.id === this.viewAppointment.data.id);
+                if (fresh) {
+                    this.viewAppointment.data = { ...this.viewAppointment.data, ...fresh };
+                }
+            },
             openViewModal(ev) {
                 this.viewAppointment.data = ev;
                 this.viewAppointment.visible = true;
@@ -4033,11 +4057,17 @@
                         phone: ev.person_whatsapp,
                         name: ev.person_name || null,
                         person_id: ev.person_id || null,
+                        // Queda como el recordatorio de esta cita (indicador + sin duplicar el automático).
+                        activity_id: ev.id,
                         text: this.buildWhatsappMessage(tpl, ev),
                     })
                     .then(res => {
                         this.$emitter.emit('add-flash', { type: 'success', message: res.data.message });
                         this.closeWhatsappMenu();
+                        // El indicador pasa a "en cola" ya; el calendario trae después el estado que reporte Meta.
+                        ev.reminder_status = 'queued';
+                        ev.reminder_sent_at = new Date().toISOString();
+                        this.fetch();
                     })
                     .catch(err => {
                         this.$emitter.emit('add-flash', {
@@ -4412,6 +4442,38 @@
             getStageName(id) {
                 const s = this.stages.find(x => x.id == id);
                 return s ? s.name : '';
+            },
+            // Recordatorio de WhatsApp de la cita (planning/17, D10). Mismos ticks que
+            // el inbox (◷ ✓ ✓✓ ⚠︎). Color inline: las clases calculadas en runtime no
+            // llegan al CSS de producción. Null = no se muestra (bloqueos, o una
+            // cancelada que nunca tuvo recordatorio).
+            reminderInfo(ev) {
+                if (!ev || ev.type !== 'meeting' || !ev.reminder_status) return null;
+                if (ev.reminder_status === 'none' && ev.is_cancelled) return null;
+
+                const states = {
+                    none:      { glyph: '–',    text: 'Sin recordatorio',        color: '#9ca3af' },
+                    queued:    { glyph: '◷',    text: 'Recordatorio en cola',    color: '#6b7280' },
+                    sent:      { glyph: '✓',    text: 'Recordatorio enviado',    color: '#6b7280' },
+                    delivered: { glyph: '✓✓',   text: 'Recordatorio entregado',  color: '#6b7280' },
+                    read:      { glyph: '✓✓',   text: 'Recordatorio leído',      color: '#2563eb' },
+                    failed:    { glyph: '⚠︎',    text: 'Recordatorio falló',      color: '#dc2626' },
+                    confirmed: { glyph: '✓ Sí', text: 'Confirmó por WhatsApp',   color: '#059669' },
+                    declined:  { glyph: '✕ No', text: 'Avisó que no asiste',     color: '#dc2626' },
+                };
+                const st = states[ev.reminder_status] || states.sent;
+
+                let label = st.text;
+                if (ev.reminder_sent_at) {
+                    label += ' · ' + new Date(ev.reminder_sent_at).toLocaleString('es', {
+                        weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit',
+                    });
+                }
+                if (ev.reminder_status === 'failed' && ev.reminder_error) {
+                    label += ' — ' + ev.reminder_error;
+                }
+
+                return { glyph: st.glyph, label, color: st.color };
             },
             formatPatientName(name) {
                 if (!name) return 'Sin Paciente';
@@ -4939,6 +5001,8 @@
     }
     .ddc-state-badge.is-small { padding: 1px 6px; font-size: 11px; line-height: 16px; font-weight: 500; }
     .ddc-history-row { width: 100%; text-align: left; cursor: pointer; }
+    .ddc-reminder-indicator { display: inline-flex; align-items: center; gap: 1px; flex-shrink: 0; margin-left: 4px; font-size: 11px; font-weight: 600; line-height: 1; white-space: nowrap; }
+    .ddc-reminder-indicator .icon-notification { font-size: 12px; }
     .ddc-history-row:hover { background: #f9fafb; }
     .ddc-history-row:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
     .ddc-history-row.is-current { background: #f3f4f6; cursor: default; }

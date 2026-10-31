@@ -628,10 +628,11 @@ class InboxController extends Controller
     public function sendReminder(Request $request, ConversationResolver $resolver): JsonResponse
     {
         $data = $request->validate([
-            'phone'     => 'required|string',
-            'name'      => 'nullable|string',
-            'text'      => 'required|string',
-            'person_id' => 'nullable|integer',
+            'phone'       => 'required|string',
+            'name'        => 'nullable|string',
+            'text'        => 'required|string',
+            'person_id'   => 'nullable|integer',
+            'activity_id' => 'nullable|integer|exists:activities,id',
         ]);
 
         $message = DB::transaction(function () use ($request, $data, $resolver) {
@@ -648,6 +649,24 @@ class InboxController extends Controller
             ]);
 
             $conversation->forceFill(['last_message_at' => now()])->save();
+
+            // Enviado desde una cita del calendario: queda como su recordatorio,
+            // igual que el automático. Así el indicador lo muestra y la corrida
+            // horaria no le manda otro; si este falla, la corrida lo reintenta
+            // (solo cuenta un recordatorio cuyo mensaje no falló).
+            if (! empty($data['activity_id'])) {
+                DB::table('whatsapp_appointment_reminders')->updateOrInsert(
+                    ['activity_id' => (int) $data['activity_id']],
+                    [
+                        'external_id'     => DB::table('smd_synced_events')->where('activity_id', $data['activity_id'])->value('external_id'),
+                        'conversation_id' => $conversation->id,
+                        'message_id'      => $message->id,
+                        'sent_at'         => now(),
+                        'created_at'      => now(),
+                        'updated_at'      => now(),
+                    ],
+                );
+            }
 
             return $message;
         });

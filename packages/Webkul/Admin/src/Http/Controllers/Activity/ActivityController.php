@@ -244,6 +244,18 @@ class ActivityController extends Controller
                 return $appointment;
             });
 
+            // Indicador de recordatorio: 2 consultas para todas las citas (no una por cita).
+            $reminders = app(\Webkul\Admin\Services\AppointmentReminderStatus::class)
+                ->forActivities($appointments->pluck('id')->all());
+
+            $appointments = $appointments->map(function ($appointment) use ($reminders) {
+                foreach ($reminders[$appointment->id] ?? [] as $key => $value) {
+                    $appointment->{$key} = $value;
+                }
+
+                return $appointment;
+            });
+
             $availability = DB::table('doctor_shifts')
                 ->select(['id', 'doctor_id', 'date', 'start_time', 'end_time'])
                 ->whereBetween('date', [$start->format('Y-m-d'), $end->format('Y-m-d')])
@@ -437,19 +449,26 @@ class ActivityController extends Controller
         $endDate = $end->copy()->setTime(23, 59, 59)->format('Y-m-d H:i:s');
         $prefix = DB::getTablePrefix();
 
+        // También el recordatorio de WhatsApp (indicador, planning/17 D10): cuando
+        // Meta lo pasa a entregado/leído cambia el mensaje, no la cita, y sin esto
+        // la grilla nunca se recargaba.
         $row = DB::table('activities')
             ->leftJoin('lead_activities', 'activities.id', '=', 'lead_activities.activity_id')
             ->leftJoin('leads', 'lead_activities.lead_id', '=', 'leads.id')
+            ->leftJoin('whatsapp_appointment_reminders as wr', 'wr.activity_id', '=', 'activities.id')
+            ->leftJoin('whatsapp_messages as wm', 'wm.id', '=', 'wr.message_id')
             ->whereBetween('activities.schedule_from', [$startDate, $endDate])
             ->whereIn('activities.type', ['call', 'meeting', 'lunch', 'time_off'])
             ->selectRaw(
                 'COUNT(DISTINCT '.$prefix.'activities.id) as n, '.
                 'MAX('.$prefix.'activities.updated_at) as a, '.
-                'MAX('.$prefix.'leads.updated_at) as l'
+                'MAX('.$prefix.'leads.updated_at) as l, '.
+                'MAX('.$prefix.'wr.updated_at) as r, '.
+                'MAX('.$prefix.'wm.updated_at) as m'
             )
             ->first();
 
-        $signature = ($row->n ?? 0).'|'.($row->a ?? '').'|'.($row->l ?? '');
+        $signature = ($row->n ?? 0).'|'.($row->a ?? '').'|'.($row->l ?? '').'|'.($row->r ?? '').'|'.($row->m ?? '');
 
         return response()->json(['version' => md5($signature)]);
     }
