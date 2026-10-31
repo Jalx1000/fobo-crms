@@ -57,10 +57,10 @@ return new class extends Migration
 
     protected function hasIndex(string $table, string $index): bool
     {
-        $conn    = Schema::getConnection();
-        $prefix  = $conn->getTablePrefix();
+        $conn = Schema::getConnection();
+        $prefix = $conn->getTablePrefix();
         $indexes = $conn->getSchemaBuilder()->getIndexListing($table);
 
-        return in_array($prefix . $index, $indexes) || in_array($index, $indexes);
+        return in_array($prefix.$index, $indexes) || in_array($index, $indexes);
     }
 };

@@ -2,6 +2,4 @@
 
 namespace Webkul\Doctor\Contracts;
 
-interface Shift
-{
-}
+interface Shift {}

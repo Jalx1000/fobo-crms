@@ -24,4 +24,3 @@ class Specialty extends Model implements SpecialtyContract
         return $this->belongsToMany(DoctorProxy::modelClass(), 'doctor_specialty', 'specialty_id', 'doctor_id');
     }
 }
-

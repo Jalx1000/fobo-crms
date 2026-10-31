@@ -14,5 +14,5 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
     protected $models = [
         \Webkul\Doctor\Models\Doctor::class,
         \Webkul\Doctor\Models\Specialty::class,
-        ];
+    ];
 }

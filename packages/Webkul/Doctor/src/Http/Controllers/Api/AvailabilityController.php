@@ -25,38 +25,49 @@ class AvailabilityController extends Controller
      *     summary="Slots de disponibilidad de un doctor para un rango de días",
      *     description="Retorna los slots de todos los turnos de un doctor desde la fecha indicada hasta N días después, marcando cada uno como 'available' o 'booked'. Por defecto devuelve 7 días. Fuente de verdad: tabla doctor_shifts (turnos) y doctor_activities (citas). No requiere autenticación.",
      *     tags={"Doctors"},
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
      *         description="ID del doctor",
+     *
      *         @OA\Schema(type="integer", example=3)
      *     ),
+     *
      *     @OA\Parameter(
      *         name="date",
      *         in="query",
      *         required=true,
      *         description="Fecha de inicio del rango en formato YYYY-MM-DD",
+     *
      *         @OA\Schema(type="string", format="date", example="2026-05-26")
      *     ),
+     *
      *     @OA\Parameter(
      *         name="days",
      *         in="query",
      *         required=false,
      *         description="Cantidad de días a consultar desde la fecha indicada. Mínimo 1, máximo 30. Por defecto 7.",
+     *
      *         @OA\Schema(type="integer", minimum=1, maximum=30, default=7, example=14)
      *     ),
+     *
      *     @OA\Parameter(
      *         name="duration_minutes",
      *         in="query",
      *         required=false,
      *         description="Duración de cada slot en minutos. Mínimo 15, máximo 480. Por defecto 60.",
+     *
      *         @OA\Schema(type="integer", minimum=15, maximum=480, default=60, example=30)
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Disponibilidad agrupada por día",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="doctor_id", type="integer", example=3),
      *             @OA\Property(property="from", type="string", format="date", example="2026-05-26"),
      *             @OA\Property(property="days", type="integer", example=7),
@@ -64,12 +75,16 @@ class AvailabilityController extends Controller
      *             @OA\Property(
      *                 property="schedule",
      *                 type="array",
+     *
      *                 @OA\Items(
+     *
      *                     @OA\Property(property="date", type="string", format="date", example="2026-05-26"),
      *                     @OA\Property(
      *                         property="slots",
      *                         type="array",
+     *
      *                         @OA\Items(
+     *
      *                             @OA\Property(property="start_time", type="string", example="09:00"),
      *                             @OA\Property(property="end_time", type="string", example="10:00"),
      *                             @OA\Property(property="status", type="string", enum={"available","booked"}, example="available")
@@ -79,14 +94,18 @@ class AvailabilityController extends Controller
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=404,
      *         description="Doctor no encontrado",
+     *
      *         @OA\JsonContent(@OA\Property(property="message", type="string", example="Doctor not found."))
      *     ),
+     *
      *     @OA\Response(
      *         response=422,
      *         description="Parámetros inválidos",
+     *
      *         @OA\JsonContent(@OA\Property(property="message", type="string"), @OA\Property(property="errors", type="object"))
      *     )
      * )
@@ -98,7 +117,7 @@ class AvailabilityController extends Controller
         }
 
         $data = $request->validate([
-            'date'             => ['required', 'date', 'date_format:Y-m-d', 'after_or_equal:today', 'before:' . now()->addMonths(6)->toDateString()],
+            'date'             => ['required', 'date', 'date_format:Y-m-d', 'after_or_equal:today', 'before:'.now()->addMonths(6)->toDateString()],
             'days'             => ['sometimes', 'integer', 'min:1', 'max:30'],
             'duration_minutes' => ['sometimes', 'integer', 'min:15', 'max:480'],
         ]);
@@ -113,8 +132,8 @@ class AvailabilityController extends Controller
         }
 
         $startDate = Carbon::createFromFormat('Y-m-d', $data['date'])->startOfDay();
-        $days      = (int) ($data['days'] ?? 7);
-        $duration  = (int) ($data['duration_minutes'] ?? DoctorAvailabilityService::SLOT_DURATION_MINUTES);
+        $days = (int) ($data['days'] ?? 7);
+        $duration = (int) ($data['duration_minutes'] ?? DoctorAvailabilityService::SLOT_DURATION_MINUTES);
 
         $schedule = $this->availabilityService->slotsForRange($id, $startDate, $days, $duration);
 
@@ -130,8 +149,8 @@ class AvailabilityController extends Controller
     public function getForMonth(Request $request, $doctorId, $year, $month): JsonResponse
     {
         // 1. Validation
-        $year        = (int) $year;
-        $month       = (int) $month;
+        $year = (int) $year;
+        $month = (int) $month;
         $currentYear = (int) now()->format('Y');
 
         if ($year < $currentYear - 1 || $year > $currentYear + 2 || $month < 1 || $month > 12) {

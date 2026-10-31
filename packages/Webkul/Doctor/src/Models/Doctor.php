@@ -12,7 +12,7 @@ use Webkul\Doctor\Contracts\Doctor as DoctorContract;
 
 class Doctor extends Model implements DoctorContract
 {
-    use HasFactory, LogsActivity, CustomAttribute;
+    use CustomAttribute, HasFactory, LogsActivity;
 
     protected $table = 'doctors';
 

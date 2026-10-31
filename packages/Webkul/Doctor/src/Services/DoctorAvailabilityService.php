@@ -44,7 +44,7 @@ class DoctorAvailabilityService
                     })
                     ->where(function ($q) use ($cancelledStageIds) {
                         $q->whereNull('leads.lead_pipeline_stage_id')
-                          ->orWhereNotIn('leads.lead_pipeline_stage_id', $cancelledStageIds);
+                            ->orWhereNotIn('leads.lead_pipeline_stage_id', $cancelledStageIds);
                     });
             });
         });
@@ -212,8 +212,8 @@ class DoctorAvailabilityService
         $cursor = $startDate->copy();
 
         for ($i = 0; $i < $days; $i++) {
-            $dateStr     = $cursor->toDateString();
-            $dayShifts   = $shifts->get($dateStr, collect());
+            $dateStr = $cursor->toDateString();
+            $dayShifts = $shifts->get($dateStr, collect());
             $dayBookings = $bookings->get($dateStr, collect());
 
             $slots = $this->buildSlotsForDay($dateStr, $dayShifts, $dayBookings, $durationMinutes);
@@ -234,8 +234,8 @@ class DoctorAvailabilityService
         $slots = [];
 
         foreach ($dayShifts as $shift) {
-            $cursor   = Carbon::parse($dateStr . ' ' . $shift->start_time);
-            $shiftEnd = Carbon::parse($dateStr . ' ' . $shift->end_time);
+            $cursor = Carbon::parse($dateStr.' '.$shift->start_time);
+            $shiftEnd = Carbon::parse($dateStr.' '.$shift->end_time);
 
             // Turno corrupto o que cruza medianoche: ignorar con log
             if (! $cursor->lt($shiftEnd)) {
@@ -245,6 +245,7 @@ class DoctorAvailabilityService
                     'start_time' => $shift->start_time,
                     'end_time'   => $shift->end_time,
                 ]);
+
                 continue;
             }
 
@@ -263,7 +264,7 @@ class DoctorAvailabilityService
                     }
 
                     $bStart = Carbon::parse($booking->schedule_from);
-                    $bEnd   = Carbon::parse($booking->schedule_to);
+                    $bEnd = Carbon::parse($booking->schedule_to);
 
                     if ($cursor->lt($bEnd) && $slotEnd->gt($bStart)) {
                         $status = 'booked';
@@ -286,7 +287,7 @@ class DoctorAvailabilityService
         // Deduplicar en caso de turnos solapados del mismo doctor
         $unique = [];
         foreach ($slots as $slot) {
-            $key = $slot['start_time'] . '-' . $slot['end_time'];
+            $key = $slot['start_time'].'-'.$slot['end_time'];
             $unique[$key] = $slot;
         }
 
