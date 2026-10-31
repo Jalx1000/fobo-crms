@@ -1,6 +1,6 @@
 # 17 · Reprogramar = cancelar la cita y crear una nueva
 
-Fecha: 2026-10-30 · Estado: **plan, sin código**
+Fecha: 2026-10-30 · Estado: **implementado** (2026-10-31; falta verificación en navegador y alta de la plantilla en Meta)
 
 ## Objetivo
 

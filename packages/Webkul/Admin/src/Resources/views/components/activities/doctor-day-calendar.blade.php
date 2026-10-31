@@ -1106,7 +1106,7 @@
                   <!-- Columna izquierda: detalle / edición de la cita -->
                   <div class="ddc-view-col flex flex-col gap-4 lg:w-1/2 lg:min-w-0 lg:overflow-y-auto lg:pr-1"
                        :class="{ 'is-tab-hidden': viewTab !== 'cita' }">
-                    <template v-if="!editMode">
+                    <template v-if="!editMode && !reschedule.open">
                     <!-- Cabecera: paciente + estado -->
                     <div class="flex items-start justify-between gap-3 border-b border-gray-200 pb-3 dark:border-gray-800">
                         <div class="flex items-center gap-3 min-w-0">
@@ -1131,6 +1131,15 @@
                                     <span class="icon-notification text-sm" aria-hidden="true"></span>
                                     <span>@{{ reminderInfo(viewAppointment.data).label }}</span>
                                 </p>
+                                <!-- Vínculo de reprogramación (planning/17, D6): abre la otra cita. -->
+                                <button v-if="viewAppointment.data.rescheduled_from" type="button" class="ddc-resched-link"
+                                        @click="openHistoryAppointment(viewAppointment.data.rescheduled_from)">
+                                    ↻ Reprogramada desde <strong>@{{ rescheduleLinkLabel(viewAppointment.data.rescheduled_from) }}</strong>
+                                </button>
+                                <button v-if="viewAppointment.data.rescheduled_to" type="button" class="ddc-resched-link"
+                                        @click="openHistoryAppointment(viewAppointment.data.rescheduled_to)">
+                                    ↻ Reprogramada al <strong>@{{ rescheduleLinkLabel(viewAppointment.data.rescheduled_to) }}</strong>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1298,7 +1307,11 @@
                                     :disabled="isCurrentHistoryRow(a)"
                                     :aria-current="isCurrentHistoryRow(a) ? 'true' : null"
                                     @click="openHistoryAppointment(a)">
-                                <span class="text-gray-700 dark:text-gray-300">@{{ a.date }} · @{{ a.time }}</span>
+                                <span class="text-gray-700 dark:text-gray-300">
+                                    @{{ a.date }} · @{{ a.time }}
+                                    <span v-if="a.rescheduled_to" class="text-gray-400">↻ al @{{ a.rescheduled_to.date.slice(0, 5) }}</span>
+                                    <span v-else-if="a.rescheduled_from" class="text-gray-400">↻ desde @{{ a.rescheduled_from.date.slice(0, 5) }}</span>
+                                </span>
                                 <span class="truncate text-gray-500 dark:text-gray-400">
                                     @{{ a.doctor_name || '-' }}<span v-if="isCurrentHistoryRow(a)" class="ml-1 font-medium text-gray-700 dark:text-gray-200">· esta</span>
                                 </span>
@@ -1310,6 +1323,81 @@
                         </p>
                     </div>
                     </template>
+
+                    <!-- Reprogramar (planning/17, D7): se elige día y hora de los horarios
+                         libres reales del doctor; la cita actual queda cancelada y se crea
+                         una nueva. Dentro del mismo modal, como "Editar". -->
+                    <div v-else-if="reschedule.open" class="flex flex-col gap-4" aria-labelledby="ddc-resched-title">
+                        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-gray-200 pb-3 dark:border-gray-800">
+                            <h3 id="ddc-resched-title" class="text-base font-semibold dark:text-white">Reprogramar cita</h3>
+                            <span class="truncate text-sm text-gray-500 dark:text-gray-400">
+                                @{{ viewAppointment.data.person_name || 'Paciente' }} · @{{ appointmentDoctorNames(viewAppointment.data) }}
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-300">Ahora: <strong>@{{ apptWhenLabel(viewAppointment.data) }}</strong></p>
+
+                        <div>
+                            <div class="mb-1.5 flex items-center justify-between gap-2">
+                                <p class="text-xs font-medium uppercase text-gray-400">Día</p>
+                                <div class="flex items-center gap-1">
+                                    <button type="button" class="ddc-resched-nav" aria-label="Semana anterior"
+                                            :disabled="reschedule.loading || reschedule.saving || !rescheduleCanGoBack()"
+                                            @click="rescheduleWeek(-1)">‹</button>
+                                    <button type="button" class="ddc-resched-nav" aria-label="Semana siguiente"
+                                            :disabled="reschedule.loading || reschedule.saving"
+                                            @click="rescheduleWeek(1)">›</button>
+                                </div>
+                            </div>
+
+                            <div v-if="reschedule.loading" class="ddc-resched-days" aria-busy="true" aria-label="Cargando horarios">
+                                <span v-for="i in 7" :key="'rsk-'+i" class="ddc-resched-skeleton"></span>
+                            </div>
+                            <div v-else class="ddc-resched-days" role="group" aria-label="Día">
+                                <button v-for="d in reschedule.days" :key="'rd-'+d.date" type="button"
+                                        class="ddc-resched-day"
+                                        :class="{ 'is-active': d.date === reschedule.date }"
+                                        :aria-pressed="d.date === reschedule.date"
+                                        :disabled="!d.times.length || reschedule.saving"
+                                        @click="pickRescheduleDay(d.date)">
+                                    <span class="font-medium">@{{ d.label }}</span>
+                                    <span class="text-xs">@{{ d.times.length ? d.times.length + (d.times.length === 1 ? ' horario' : ' horarios') : 'sin horarios' }}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="!reschedule.loading && reschedule.failed" role="alert" class="ddc-appt-issue">
+                            No pudimos consultar la agenda de SMD. Probá de nuevo.
+                            <button type="button" class="ml-1 font-medium underline" @click="loadRescheduleSlots(reschedule.from)">Reintentar</button>
+                        </div>
+                        <p v-else-if="!reschedule.loading && !rescheduleTimesOf(null).length" role="status" class="text-sm text-gray-500 dark:text-gray-400">
+                            Sin horarios libres con @{{ appointmentDoctorNames(viewAppointment.data) }} esta semana.
+                            <button type="button" class="ml-1 text-blue-600 hover:underline dark:text-blue-400" @click="rescheduleWeek(1)">Semana siguiente ›</button>
+                        </p>
+
+                        <div v-if="!reschedule.loading && rescheduleTimesOf(reschedule.date).length">
+                            <p class="mb-1.5 text-xs font-medium uppercase text-gray-400">Hora</p>
+                            <div class="ddc-appt-slots ddc-resched-times" role="radiogroup" aria-label="Hora" @keydown="onRescheduleTimeKey">
+                                <button v-for="(t, i) in rescheduleTimesOf(reschedule.date)" :key="'rt-'+t" type="button" role="radio"
+                                        class="ddc-appt-slot"
+                                        :class="{ 'is-active': t === reschedule.time }"
+                                        :aria-checked="t === reschedule.time ? 'true' : 'false'"
+                                        :tabindex="t === reschedule.time || (!reschedule.time && i === 0) ? 0 : -1"
+                                        :disabled="reschedule.saving"
+                                        @click="reschedule.time = t">
+                                    <span v-if="t === reschedule.time" aria-hidden="true">✓ </span>@{{ t }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="reschedule.time" role="status" class="rounded-lg bg-gray-50 p-3 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                            ↻ La cita del <strong>@{{ apptWhenLabel(viewAppointment.data) }}</strong> queda cancelada y se crea una nueva el
+                            <strong>@{{ rescheduleDayLabel(reschedule.date) }} · @{{ reschedule.time }}</strong>.
+                        </div>
+                        <p v-if="!reschedule.loading && !reschedule.failed && rescheduleNotice()" class="text-xs" :style="{ color: rescheduleNotice().color }">
+                            @{{ rescheduleNotice().text }}
+                        </p>
+                        <div v-if="reschedule.error" role="alert" class="ddc-appt-issue">@{{ reschedule.error }}</div>
+                    </div>
 
                     <!-- Modo edición inline: mismos controles de turno que "Nueva cita". -->
                     <div v-else class="flex flex-col gap-4" @keydown.ctrl.enter="saveAppointment" @keydown.meta.enter="saveAppointment">
@@ -1346,18 +1434,16 @@
                                     ::value="{ id: appointmentForm.product_id, name: appointmentForm.product_name }"
                                 />
                             </div>
-                            <div class="flex flex-col gap-1">
-                                <x-admin::form.control-group.label class="required">Fecha</x-admin::form.control-group.label>
-                                <input
-                                    type="date"
-                                    class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
-                                    v-model="modalContext.dayISO"
-                                    aria-label="Fecha de la cita"
-                                />
-                            </div>
-                            <div class="flex flex-col gap-1">
-                                <x-admin::form.control-group.label class="required">Hora de inicio</x-admin::form.control-group.label>
-                                <v-time-picker v-model="appointmentForm.startTime" :step="slotMinutes" @update:modelValue="syncAppointmentEndTime"></v-time-picker>
+                            <!-- Fecha y hora no se editan acá: eso es Reprogramar, que cancela
+                                 la cita y crea una nueva (planning/17, P2). -->
+                            <div class="ddc-appt-wide flex flex-col gap-1">
+                                <x-admin::form.control-group.label>Fecha y hora</x-admin::form.control-group.label>
+                                <p class="text-sm text-gray-800 dark:text-gray-200">@{{ apptWhenLabel(viewAppointment.data) }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                    Para cambiar la fecha o la hora usá «Reprogramar».
+                                    <button v-if="canReschedule()" type="button" class="ml-1 text-blue-600 hover:underline dark:text-blue-400"
+                                            @click="cancelInlineEdit(); openReschedule()">Reprogramar</button>
+                                </p>
                             </div>
                             <div class="flex flex-col gap-1">
                                 <x-admin::form.control-group.label>Duración</x-admin::form.control-group.label>
@@ -1385,25 +1471,6 @@
                                 <p v-else-if="!appointmentAgendaKnown && appointmentPrincipalDoctorId" class="text-xs text-gray-500 dark:text-gray-400">
                                     Ese día no está cargado en el calendario: el turno y los choques se revisan al guardar.
                                 </p>
-
-                                <div v-if="appointmentAgendaKnown && appointmentPrincipalDoctorId">
-                                    <p class="mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-300">
-                                        Horarios libres de @{{ appointmentForm.duration }} min
-                                        <span class="font-normal text-gray-400">· @{{ appointmentPrincipalDoctorName }}</span>
-                                    </p>
-                                    <div v-if="appointmentFreeSlots.length" class="ddc-appt-slots" role="group" aria-label="Horarios libres">
-                                        <button
-                                            v-for="m in appointmentFreeSlots"
-                                            :key="'ed-free-'+m"
-                                            type="button"
-                                            class="ddc-appt-slot"
-                                            :class="{ 'is-active': minutesToTime(m) === appointmentForm.startTime }"
-                                            :aria-pressed="minutesToTime(m) === appointmentForm.startTime"
-                                            @click="pickAppointmentSlot(m)"
-                                        >@{{ minutesToTime(m) }}</button>
-                                    </div>
-                                    <p v-else class="text-xs text-gray-500 dark:text-gray-400">No quedan horarios libres de esa duración este día.</p>
-                                </div>
                             </div>
 
                             <!-- Seguro médico del paciente (editable; persiste en la ficha del paciente) -->
@@ -1497,8 +1564,17 @@
             </x-slot>
 
             <x-slot:footer>
+                <!-- Footer en modo reprogramar -->
+                <div v-if="viewAppointment.data && reschedule.open" class="flex w-full items-center justify-end gap-2">
+                    <button type="button" class="secondary-button" :disabled="reschedule.saving" @click="closeReschedule">Cancelar</button>
+                    <button type="button" class="primary-button" :disabled="reschedule.saving || !reschedule.time" @click="confirmReschedule">
+                        <span v-if="!reschedule.saving">Reprogramar</span>
+                        <span v-else class="flex items-center gap-2"><x-admin::spinner /> Reprogramando…</span>
+                    </button>
+                </div>
+
                 <!-- Footer en modo edición -->
-                <div v-if="viewAppointment.data && editMode" class="flex w-full items-center justify-end gap-2">
+                <div v-else-if="viewAppointment.data && editMode" class="flex w-full items-center justify-end gap-2">
                     <button type="button" class="secondary-button" :disabled="modalSaving" @click="cancelInlineEdit">Cancelar</button>
                     <button type="button" class="primary-button" :disabled="modalSaving || !!appointmentSlotIssue" @click="saveAppointment">
                         <span v-if="!modalSaving">Guardar cambios</span>
@@ -1536,8 +1612,11 @@
                         </button>
                     </div>
 
-                    <!-- Grupo 2: la acción principal. Cerrar ya está en la × del modal. -->
-                    <button type="button" class="primary-button" @click="editFromView">Editar</button>
+                    <!-- Grupo 2: las acciones principales. Cerrar ya está en la × del modal. -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" class="secondary-button" v-if="canReschedule()" @click="openReschedule">Reprogramar</button>
+                        <button type="button" class="primary-button" @click="editFromView">Editar</button>
+                    </div>
                 </div>
             </x-slot>
         </x-admin::modal>
@@ -2333,6 +2412,15 @@
                 apptHistory: [],
                 apptHistoryLoading: false,
                 editMode: false,
+                // Reprogramar = cancelar + crear (planning/17). `days` viene del
+                // endpoint con los horarios libres reales; `notify` dice si se le
+                // avisará al paciente ('text' | 'template' | false).
+                rescheduleSlotsUrlTemplate: "{{ route('admin.activities.appointments.reschedule_slots', 'replaceId') }}",
+                rescheduleUrlTemplate: "{{ route('admin.activities.appointments.reschedule', 'replaceId') }}",
+                reschedule: {
+                    open: false, loading: false, failed: false, saving: false, error: '',
+                    from: null, days: [], date: null, time: null, notify: false, requestId: 0,
+                },
                 editUrlTemplate: "{{ route('admin.activities.edit', 'replaceId') }}",
                 deleteUrlTemplate: "{{ route('admin.activities.delete', 'replaceId') }}",
                 leadUrlTemplate: "{{ route('admin.leads.view', 'replaceId') }}",
@@ -3818,6 +3906,7 @@
                 this.viewAppointment.visible = true;
                 this.whatsappMenuOpen = false;
                 this.editMode = false;
+                this.reschedule.open = false;
                 this.viewTab = 'cita';
                 this.loadApptHistory(ev.person_id);
                 this.loadApptInsurance(ev.person_id);
@@ -3853,6 +3942,7 @@
             editFromView() {
                 const ev = this.viewAppointment.data;
                 if (!ev) return;
+                this.reschedule.open = false;
                 this.populateAppointmentForm(ev);
                 this.editMode = true;
             },
@@ -3860,6 +3950,130 @@
                 this.editMode = false;
                 this.modalError = '';
                 this.modalErrorDetails = [];
+            },
+
+            // ── Reprogramar (planning/17) ──────────────────────────────────
+            // Solo citas futuras y vigentes: una cancelada, atendida o perdida
+            // no se reprograma (se agenda una nueva).
+            canReschedule() {
+                const d = this.viewAppointment.data;
+                if (!d || !d.start || d.is_cancelled || d.is_lost || d.is_completed) return false;
+                return new Date(String(d.start).replace(' ', 'T')) > new Date();
+            },
+            openReschedule() {
+                if (!this.canReschedule()) return;
+                this.editMode = false;
+                this.viewTab = 'cita';
+                Object.assign(this.reschedule, { open: true, error: '', date: null, time: null, days: [] });
+                this.loadRescheduleSlots(this.toISO(new Date()));
+            },
+            closeReschedule() {
+                this.reschedule.open = false;
+                this.reschedule.error = '';
+            },
+            loadRescheduleSlots(fromISO) {
+                const id = this.viewAppointment.data?.id;
+                if (!id) return;
+                // Si el usuario cambia de semana rápido, solo vale la última respuesta.
+                const requestId = ++this.reschedule.requestId;
+                Object.assign(this.reschedule, { loading: true, failed: false, from: fromISO, time: null });
+
+                this.$axios.get(this.rescheduleSlotsUrlTemplate.replace('replaceId', id), { params: { from: fromISO } })
+                    .then(res => {
+                        if (requestId !== this.reschedule.requestId) return;
+                        const data = res.data || {};
+                        this.reschedule.days = data.days || [];
+                        this.reschedule.failed = !!data.failed;
+                        this.reschedule.notify = data.notify ?? false;
+                        this.reschedule.from = data.from || fromISO;
+                        const keep = this.reschedule.days.find(d => d.date === this.reschedule.date && d.times.length);
+                        this.reschedule.date = keep ? keep.date : (this.reschedule.days.find(d => d.times.length)?.date ?? null);
+                    })
+                    .catch(() => {
+                        if (requestId !== this.reschedule.requestId) return;
+                        Object.assign(this.reschedule, { days: [], failed: true, date: null });
+                    })
+                    .finally(() => {
+                        if (requestId === this.reschedule.requestId) this.reschedule.loading = false;
+                    });
+            },
+            rescheduleCanGoBack() {
+                return !!this.reschedule.from && this.reschedule.from > this.toISO(new Date());
+            },
+            rescheduleWeek(delta) {
+                const d = this.parseISODate(this.reschedule.from || this.toISO(new Date()));
+                d.setDate(d.getDate() + 7 * delta);
+                const today = this.toISO(new Date());
+                this.loadRescheduleSlots(this.toISO(d) < today ? today : this.toISO(d));
+            },
+            pickRescheduleDay(date) {
+                if (this.reschedule.date === date) return;
+                this.reschedule.date = date;
+                this.reschedule.time = null;
+            },
+            // null = todos los horarios de la semana (para el estado "sin horarios").
+            rescheduleTimesOf(date) {
+                if (date === null) return this.reschedule.days.flatMap(d => d.times);
+                return this.reschedule.days.find(d => d.date === date)?.times ?? [];
+            },
+            rescheduleDayLabel(date) {
+                return this.reschedule.days.find(d => d.date === date)?.label ?? date;
+            },
+            // Radiogroup: las flechas mueven la selección y el foco, como un grupo nativo.
+            onRescheduleTimeKey(e) {
+                const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+                if (!step) return;
+                e.preventDefault();
+                const times = this.rescheduleTimesOf(this.reschedule.date);
+                const current = Math.max(0, times.indexOf(this.reschedule.time));
+                const next = (current + step + times.length) % times.length;
+                this.reschedule.time = times[next];
+                this.$nextTick(() => e.currentTarget?.querySelectorAll('[role="radio"]')[next]?.focus());
+            },
+            rescheduleNotice() {
+                if (this.reschedule.notify === 'text') {
+                    return { text: '📱 Se le avisará por WhatsApp.', color: '#15803d' };
+                }
+                if (this.reschedule.notify === 'template') {
+                    return { text: '📱 Fuera de las 24 h de WhatsApp: se le avisará con una plantilla.', color: '#15803d' };
+                }
+                return { text: '⚠ Fuera de las 24 h de WhatsApp: no se le avisará. Avisale vos.', color: '#b45309' };
+            },
+            rescheduleLinkLabel(link) {
+                return link ? `${String(link.date).slice(0, 5)} · ${link.time}` : '';
+            },
+            confirmReschedule() {
+                const id = this.viewAppointment.data?.id;
+                if (!id || !this.reschedule.date || !this.reschedule.time || this.reschedule.saving) return;
+                this.reschedule.saving = true;
+                this.reschedule.error = '';
+
+                this.$axios.post(this.rescheduleUrlTemplate.replace('replaceId', id), {
+                        date: this.reschedule.date,
+                        time: this.reschedule.time,
+                    })
+                    .then(res => {
+                        const date = this.reschedule.date;
+                        this.reschedule.open = false;
+                        this.$emitter.emit('add-flash', {
+                            type: res.data?.notified ? 'success' : 'warning',
+                            message: res.data?.message || 'Cita reprogramada.',
+                        });
+                        // El detalle pasa a la cita nueva: se abre al recargar (o al ir a su día).
+                        this.pendingOpenAppointmentId = res.data?.new_activity_id ?? null;
+                        this.$refs.viewModal.close();
+                        if (this.viewType === 'list' || (this.days || []).some(d => d.date === date)) {
+                            this.fetch();
+                        } else {
+                            this.goToDay(date);
+                        }
+                    })
+                    .catch(err => {
+                        // El horario se ocupó (o SMD lo rechazó): la cita no cambió y se recarga la lista.
+                        this.reschedule.error = err?.response?.data?.message || 'No se pudo reprogramar la cita.';
+                        this.loadRescheduleSlots(this.reschedule.from);
+                    })
+                    .finally(() => { this.reschedule.saving = false; });
             },
             // "Cambiar" paciente: abre la edición con el foco en el buscador de paciente.
             changePatientFromView() {
@@ -5034,6 +5248,26 @@
     .ddc-appt-slot:hover { border-color: #93c5fd; background: #eff6ff; }
     .ddc-appt-slot.is-active { border-color: #2563eb; background: #2563eb; color: #fff; }
     .ddc-appt-slot:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+    /* Reprogramar (planning/17) */
+    .ddc-resched-days { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+    .ddc-resched-day { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; color: #1f2937; font-size: 13px; text-align: left; }
+    .ddc-resched-day:hover:not(:disabled) { border-color: #93c5fd; background: #eff6ff; }
+    .ddc-resched-day.is-active { border-color: #2563eb; box-shadow: inset 0 0 0 1px #2563eb; background: #eff6ff; }
+    .ddc-resched-day:disabled { cursor: not-allowed; color: #9ca3af; background: #f9fafb; }
+    .ddc-resched-day:focus-visible, .ddc-resched-nav:focus-visible, .ddc-resched-link:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+    .ddc-resched-nav { width: 28px; height: 28px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 16px; line-height: 1; color: #374151; }
+    .ddc-resched-nav:disabled { opacity: .4; cursor: not-allowed; }
+    .ddc-resched-skeleton { height: 44px; border-radius: 6px; background: #f3f4f6; animation: ddc-pulse 1.2s ease-in-out infinite; }
+    .ddc-resched-times { max-height: 160px; }
+    .ddc-resched-link { display: block; margin-top: 2px; font-size: 12px; color: #2563eb; text-align: left; }
+    .ddc-resched-link:hover { text-decoration: underline; }
+    @keyframes ddc-pulse { 50% { opacity: .5; } }
+    .dark .ddc-resched-day { border-color: #1f2937; background: #111827; color: #e5e7eb; }
+    .dark .ddc-resched-day.is-active { border-color: #3b82f6; box-shadow: inset 0 0 0 1px #3b82f6; background: #172554; }
+    .dark .ddc-resched-day:disabled { background: #0b1220; color: #6b7280; }
+    .dark .ddc-resched-nav { border-color: #1f2937; color: #e5e7eb; }
+    .dark .ddc-resched-skeleton { background: #1f2937; }
+    .dark .ddc-resched-link { color: #60a5fa; }
     .ddc-appt-issue { padding: 8px 10px; border-radius: 6px; background: #fef2f2; color: #b91c1c; font-size: 13px; }
     .ddc-appt-draft {
         display: flex; align-items: center; justify-content: space-between; gap: 12px;

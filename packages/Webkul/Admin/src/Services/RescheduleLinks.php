@@ -41,7 +41,8 @@ class RescheduleLinks
 
             $from = Carbon::parse($starts[$id]);
 
-            return ['id' => (int) $id, 'date' => $from->format('d/m/Y'), 'time' => $from->format('H:i')];
+            // date_iso: el calendario abre esa cita yendo a su día si no está cargada.
+            return ['id' => (int) $id, 'date' => $from->format('d/m/Y'), 'date_iso' => $from->toDateString(), 'time' => $from->format('H:i')];
         };
 
         $out = [];

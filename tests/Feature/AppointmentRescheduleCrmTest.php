@@ -63,7 +63,7 @@ function rescheduleTo(int $activityId, Carbon $day, string $time)
 }
 
 /** Conversación de WhatsApp de la persona con su último mensaje entrante. */
-function conversationOf(int $personId, ?Carbon $lastInbound): Conversation
+function rescheduleConversationOf(int $personId, ?Carbon $lastInbound): Conversation
 {
     return Conversation::create([
         'gateway'         => 'cloud_api',
@@ -74,7 +74,7 @@ function conversationOf(int $personId, ?Carbon $lastInbound): Conversation
     ]);
 }
 
-function outboundOf(int $conversationId)
+function rescheduleOutboundOf(int $conversationId)
 {
     return DB::table('whatsapp_messages')->where('conversation_id', $conversationId)->where('direction', 'outbound')->get();
 }
@@ -107,7 +107,7 @@ it('con SMD caído no ofrece horarios sin validar', function () {
 
 it('dice de antemano cómo se avisará al paciente', function (?int $hoursAgo, bool $flag, $expected) {
     config(['whatsapp.reschedule.template_enabled' => $flag]);
-    conversationOf($this->patient->id, $hoursAgo === null ? null : now()->subHours($hoursAgo));
+    rescheduleConversationOf($this->patient->id, $hoursAgo === null ? null : now()->subHours($hoursAgo));
 
     expect(slotsFor($this->old['activity_id'], $this->day)['notify'])->toBe($expected);
 })->with([
@@ -137,7 +137,7 @@ it('un horario que ya no está libre da 422 y la vieja queda intacta', function 
     rescheduleTo($this->old['activity_id'], $this->day, '10:30')->assertStatus(422);
 
     expect((int) DB::table('leads')->where('id', $this->old['lead_id'])->value('lead_pipeline_stage_id'))->toBe((int) config('smd.stage_map.confirmed'))
-        ->and(additionalOf2($this->old['activity_id']))->not->toHaveKey('rescheduled_to');
+        ->and(rescheduleAdditionalOf($this->old['activity_id']))->not->toHaveKey('rescheduled_to');
 });
 
 it('valida fecha y hora', function () {
@@ -145,7 +145,7 @@ it('valida fecha y hora', function () {
         ->assertStatus(422)->assertJsonValidationErrors(['date', 'time']);
 });
 
-function additionalOf2(int $activityId): array
+function rescheduleAdditionalOf(int $activityId): array
 {
     return json_decode((string) DB::table('activities')->where('id', $activityId)->value('additional'), true) ?: [];
 }
@@ -155,10 +155,10 @@ function additionalOf2(int $activityId): array
 */
 
 it('dentro de la ventana de 24 h avisa con un texto con la fecha nueva', function () {
-    $conv = conversationOf($this->patient->id, now()->subHours(2));
+    $conv = rescheduleConversationOf($this->patient->id, now()->subHours(2));
 
     $res = rescheduleTo($this->old['activity_id'], $this->day, '10:30')->assertOk()->json();
-    $sent = outboundOf($conv->id);
+    $sent = rescheduleOutboundOf($conv->id);
 
     expect($res['notified'])->toBe('text')
         ->and($sent)->toHaveCount(1)
@@ -169,12 +169,12 @@ it('dentro de la ventana de 24 h avisa con un texto con la fecha nueva', functio
 });
 
 it('fuera de la ventana y con la bandera apagada no avisa', function (?int $hoursAgo) {
-    $conv = conversationOf($this->patient->id, $hoursAgo === null ? null : now()->subHours($hoursAgo));
+    $conv = rescheduleConversationOf($this->patient->id, $hoursAgo === null ? null : now()->subHours($hoursAgo));
 
     $res = rescheduleTo($this->old['activity_id'], $this->day, '10:30')->assertOk()->json();
 
     expect($res['notified'])->toBeFalse()
-        ->and(outboundOf($conv->id))->toHaveCount(0)
+        ->and(rescheduleOutboundOf($conv->id))->toHaveCount(0)
         ->and($res['message'])->toContain('No se avisó');
     Queue::assertNotPushed(SendMessage::class);
 })->with(['hace 30 h' => [30], 'nunca escribió' => [null]]);
@@ -188,10 +188,10 @@ it('sin conversación y con la bandera apagada no avisa ni crea conversación', 
 
 it('con la bandera encendida, fuera de la ventana avisa con la plantilla por la Cloud API', function () {
     config(['whatsapp.reschedule.template_enabled' => true]);
-    $conv = conversationOf($this->patient->id, now()->subHours(30));
+    $conv = rescheduleConversationOf($this->patient->id, now()->subHours(30));
 
     $res = rescheduleTo($this->old['activity_id'], $this->day, '10:30')->assertOk()->json();
-    $sent = outboundOf($conv->id);
+    $sent = rescheduleOutboundOf($conv->id);
     $payload = json_decode($sent[0]->payload, true);
 
     expect($res['notified'])->toBe('template')
@@ -207,10 +207,10 @@ it('con la bandera encendida, fuera de la ventana avisa con la plantilla por la 
 
 it('con la bandera encendida y la ventana abierta sigue saliendo texto', function () {
     config(['whatsapp.reschedule.template_enabled' => true]);
-    $conv = conversationOf($this->patient->id, now()->subHours(1));
+    $conv = rescheduleConversationOf($this->patient->id, now()->subHours(1));
 
     expect(rescheduleTo($this->old['activity_id'], $this->day, '10:30')->assertOk()->json('notified'))->toBe('text')
-        ->and(outboundOf($conv->id)[0]->type)->toBe('text');
+        ->and(rescheduleOutboundOf($conv->id)[0]->type)->toBe('text');
 });
 
 it('con la bandera encendida y sin conversación, la crea y manda la plantilla', function () {
@@ -223,14 +223,14 @@ it('con la bandera encendida y sin conversación, la crea y manda la plantilla',
 it('una cita agendada por un tercero avisa a quien agendó', function () {
     $mama = auditPerson(['name' => 'Mama Aviso '.uniqid()]);
     DB::table('activities')->where('id', $this->old['activity_id'])->update(['additional' => json_encode(['booked_by_person_id' => $mama->id])]);
-    $convMama = conversationOf($mama->id, now()->subHours(1));
-    $convPaciente = conversationOf($this->patient->id, now()->subHours(1));
+    $convMama = rescheduleConversationOf($mama->id, now()->subHours(1));
+    $convPaciente = rescheduleConversationOf($this->patient->id, now()->subHours(1));
 
     rescheduleTo($this->old['activity_id'], $this->day, '10:30')->assertOk();
 
-    expect(outboundOf($convMama->id))->toHaveCount(1)
-        ->and(outboundOf($convMama->id)[0]->body)->toContain(trim($this->patient->name))
-        ->and(outboundOf($convPaciente->id))->toHaveCount(0);
+    expect(rescheduleOutboundOf($convMama->id))->toHaveCount(1)
+        ->and(rescheduleOutboundOf($convMama->id)[0]->body)->toContain(trim($this->patient->name))
+        ->and(rescheduleOutboundOf($convPaciente->id))->toHaveCount(0);
 });
 
 it('la plantilla cita_reprogramada está definida como UTILITY con 3 variables', function () {
@@ -253,8 +253,8 @@ it('el historial del paciente vincula la vieja y la nueva con su fecha y hora', 
     $rows = collect(test()->getJson(route('admin.activities.persons.appointments', $this->patient->id))->assertOk()->json('appointments'))->keyBy('id');
 
     expect($rows[$this->old['activity_id']]['state'])->toBe('cancelled')
-        ->and($rows[$this->old['activity_id']]['rescheduled_to'])->toBe(['id' => $newId, 'date' => $this->day->format('d/m/Y'), 'time' => '10:30'])
-        ->and($rows[$newId]['rescheduled_from'])->toBe(['id' => $this->old['activity_id'], 'date' => $this->day->format('d/m/Y'), 'time' => '09:00'])
+        ->and($rows[$this->old['activity_id']]['rescheduled_to'])->toBe(['id' => $newId, 'date' => $this->day->format('d/m/Y'), 'date_iso' => $this->day->toDateString(), 'time' => '10:30'])
+        ->and($rows[$newId]['rescheduled_from'])->toBe(['id' => $this->old['activity_id'], 'date' => $this->day->format('d/m/Y'), 'date_iso' => $this->day->toDateString(), 'time' => '09:00'])
         ->and($rows[$newId]['rescheduled_to'])->toBeNull();
 });
 
@@ -267,4 +267,46 @@ it('el calendario trae el vínculo en cada cita', function () {
 
     expect($appointments[$newId]['rescheduled_from']['time'] ?? null)->toBe('09:00')
         ->and($appointments[$this->old['activity_id']]['rescheduled_to']['time'] ?? null)->toBe('10:30');
+});
+
+/*
+| UI del calendario (render del Blade, como el resto de la suite)
+*/
+
+function rescheduleCalendarHtml(): string
+{
+    return test()->get(route('admin.activities.index'))->assertOk()->getContent();
+}
+
+it('el detalle tiene el botón Reprogramar solo para citas futuras no canceladas, y la sección con sus estados', function () {
+    $html = rescheduleCalendarHtml();
+
+    expect($html)->toContain('v-if="canReschedule()"')
+        ->and($html)->toContain('@click="openReschedule"')
+        ->and($html)->toContain(route('admin.activities.appointments.reschedule_slots', 'replaceId'))
+        ->and($html)->toContain(route('admin.activities.appointments.reschedule', 'replaceId'))
+        // Estados: cargando, sin horarios, SMD sin respuesta.
+        ->and($html)->toContain('aria-busy="true"')
+        ->and($html)->toContain('Sin horarios libres con')
+        ->and($html)->toContain('No pudimos consultar la agenda de SMD')
+        // Horarios como radiogroup accesible; días sin horarios con texto, no solo gris.
+        ->and($html)->toContain('role="radiogroup"')
+        ->and($html)->toContain('sin horarios');
+});
+
+it('el detalle muestra el vínculo con la otra cita como botón', function () {
+    $html = rescheduleCalendarHtml();
+
+    expect($html)->toContain('Reprogramada desde')
+        ->and($html)->toContain('Reprogramada al')
+        ->and($html)->toContain('openHistoryAppointment(viewAppointment.data.rescheduled_from)')
+        ->and($html)->toContain('openHistoryAppointment(viewAppointment.data.rescheduled_to)');
+});
+
+it('en Editar la fecha y la hora quedan bloqueadas y remiten a Reprogramar', function () {
+    $html = rescheduleCalendarHtml();
+
+    expect($html)->toContain('Para cambiar la fecha o la hora usá «Reprogramar»')
+        // El campo de fecha queda solo en "Nueva cita", no en "Editar".
+        ->and(substr_count($html, 'aria-label="Fecha de la cita"'))->toBe(1);
 });
