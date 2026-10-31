@@ -361,9 +361,21 @@ class BookingOptions
      */
     protected function hourly(array $schedule): array
     {
+        return $this->startTimes($schedule, $this->duration());
+    }
+
+    /**
+     * Horarios de inicio dentro de las ventanas libres de `resolve()`, en pasos
+     * de $duration minutos. Lo usan el formulario (duración del formulario) y la
+     * reprogramación del calendario (duración de la cita).
+     *
+     * @return array<string, array<int, string>>
+     */
+    public function startTimes(array $schedule, int $duration): array
+    {
         $tz = config('app.timezone');
         $now = now($tz);
-        $duration = $this->duration();
+        $duration = max(15, $duration);
         $out = [];
 
         foreach ($schedule as $day) {

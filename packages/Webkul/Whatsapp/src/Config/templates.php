@@ -54,4 +54,15 @@ return [
         'examples'  => ['María', 'Ana'],
         'buttons'   => ['Continuar'],
     ],
+
+    // Cita reprogramada desde el CRM cuando el paciente no escribió en las
+    // últimas 24 h (planning/17, D9). {{2}} con el formato del recordatorio:
+    // "Martes 3 de Noviembre a horas 09:30".
+    'cita_reprogramada' => [
+        'category'  => 'UTILITY',
+        'language'  => 'es',
+        'body'      => 'Hola {{1}}, le informamos que su cita en la Clínica Odontoking fue reprogramada para el {{2}} con el Dr(a). {{3}}.'
+            .' Si necesita otro horario, responda a este mensaje.',
+        'examples'  => ['María', 'Martes 3 de Noviembre a horas 09:30', 'Carolina Rojas'],
+    ],
 ];

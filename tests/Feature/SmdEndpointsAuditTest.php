@@ -617,19 +617,21 @@ describe('editar cita (empuja PATCH a SMD)', function () {
             ->toBe((int) config('smd.stage_map.cancelled'));
     });
 
-    it('reprogramar manda el horario nuevo a SMD en UTC', function () {
+    // Cambiar fecha u hora ya no pasa por "Editar" (es Reprogramar, planning/17);
+    // la duración sí, y el horario viaja a SMD en UTC.
+    it('editar la duración manda el horario a SMD en UTC', function () {
         $eventId = 'evt-up-'.uniqid();
         $ids = auditAppointment($this->doctorId, $this->person->id, $this->from, $eventId);
 
         $this->postJson(route('admin.activities.appointments.update', $ids['activity_id']), [
             'date'             => $this->day->toDateString(),
-            'start_time'       => '15:00',
+            'start_time'       => '11:00',
             'duration_minutes' => 45,
         ])->assertOk();
 
         $body = auditSent('/events/'.$eventId)[0]->data();
-        expect($body['startDate'])->toBe($this->day->toDateString().'T19:00:00.000Z')
-            ->and($body['endDate'])->toBe($this->day->toDateString().'T19:45:00.000Z');
+        expect($body['startDate'])->toBe($this->day->toDateString().'T15:00:00.000Z')
+            ->and($body['endDate'])->toBe($this->day->toDateString().'T15:45:00.000Z');
     });
 
     it('una cita no vinculada a SMD se edita local sin llamar a SMD', function () {

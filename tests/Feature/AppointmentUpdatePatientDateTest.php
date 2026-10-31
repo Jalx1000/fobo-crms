@@ -95,14 +95,15 @@ function makePatientWithSmd(string $label): Person
     ]);
 }
 
-it('reasigna el paciente y cambia la fecha, y empuja a SMD el paciente nuevo en attendances', function () {
+it('reasigna el paciente y empuja a SMD el paciente nuevo en attendances', function () {
     $patientA = makePatientWithSmd('Paciente A');
     $patientB = makePatientWithSmd('Paciente B');
 
     $stageId = (int) DB::table('lead_pipeline_stages')->orderBy('id')->value('id');
     $ids = makeEditableAppointment($this->doctor->id, $patientA->id, $this->from, $this->to, $stageId, 'smd-evt-'.uniqid());
 
-    $newDate = $this->from->copy()->addDay()->toDateString();
+    // La fecha y la hora no cambian (eso es Reprogramar): llegan las mismas.
+    $newDate = $this->from->toDateString();
 
     // El push a SMD debe recibir al paciente B (su smd_patient_id) en attendances.
     $mock = \Mockery::mock(ShareMeDataService::class);
@@ -122,7 +123,7 @@ it('reasigna el paciente y cambia la fecha, y empuja a SMD el paciente nuevo en 
 
     $response = test()->postJson(route('admin.activities.appointments.update', $ids['activity_id']), [
         'date'             => $newDate,
-        'start_time'       => '11:00',
+        'start_time'       => '09:00',
         'duration_minutes' => 30,
         'person_id'        => $patientB->id,
         'reason'           => 'motivo editado',
@@ -138,9 +139,8 @@ it('reasigna el paciente y cambia la fecha, y empuja a SMD el paciente nuevo en 
     // El lead también apunta al paciente nuevo.
     expect((int) DB::table('leads')->where('id', $ids['lead_id'])->value('person_id'))->toBe($patientB->id);
 
-    // La fecha/hora local se movió al día siguiente 11:00.
     $activity = DB::table('activities')->find($ids['activity_id']);
-    expect(Carbon::parse($activity->schedule_from)->format('Y-m-d H:i'))->toBe($newDate.' 11:00');
+    expect(Carbon::parse($activity->schedule_from)->format('Y-m-d H:i'))->toBe($newDate.' 09:00');
     expect($activity->comment)->toBe('motivo editado');
 });
 
@@ -199,17 +199,35 @@ it('actualiza en local aunque la cita no esté vinculada a SMD (synced=false, si
     $mock->shouldNotReceive('updateEvent');
     app()->bind(ShareMeDataService::class, fn () => $mock);
 
-    $newDate = $this->from->copy()->addDays(2)->toDateString();
-
     $response = test()->postJson(route('admin.activities.appointments.update', $ids['activity_id']), [
-        'date'             => $newDate,
-        'start_time'       => '14:00',
-        'duration_minutes' => 30,
+        'reason' => 'motivo local',
     ]);
 
     $response->assertStatus(200);
-    expect($response->json('smd.synced'))->toBeFalse();
+    expect($response->json('smd.synced'))->toBeFalse()
+        ->and(DB::table('activities')->where('id', $ids['activity_id'])->value('comment'))->toBe('motivo local');
+});
+
+/*
+| Fecha y hora bloqueadas en "Editar" (planning/17, P2): para cambiarlas está
+| Reprogramar, que cancela la cita y crea una nueva.
+*/
+
+it('cambiar la fecha o la hora por Editar da 422 y no toca la cita', function (string $date, string $time) {
+    $patient = makePatientWithSmd('Paciente Bloqueo');
+    $stageId = (int) DB::table('lead_pipeline_stages')->orderBy('id')->value('id');
+    $ids = makeEditableAppointment($this->doctor->id, $patient->id, $this->from, $this->to, $stageId, null);
+
+    $date = $date === 'misma' ? $this->from->toDateString() : $this->from->copy()->addDay()->toDateString();
+
+    test()->postJson(route('admin.activities.appointments.update', $ids['activity_id']), [
+        'date' => $date, 'start_time' => $time, 'duration_minutes' => 30, 'reason' => 'no debería guardarse',
+    ])->assertStatus(422)->assertJsonFragment(['code' => 'use_reschedule']);
 
     $activity = DB::table('activities')->find($ids['activity_id']);
-    expect(Carbon::parse($activity->schedule_from)->format('Y-m-d H:i'))->toBe($newDate.' 14:00');
-});
+    expect(Carbon::parse($activity->schedule_from)->format('Y-m-d H:i'))->toBe($this->from->format('Y-m-d H:i'))
+        ->and($activity->comment)->toBe('motivo original');
+})->with([
+    'otra hora'  => ['misma', '11:00'],
+    'otro día'   => ['otro', '09:00'],
+]);

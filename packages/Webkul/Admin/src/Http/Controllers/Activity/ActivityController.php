@@ -248,8 +248,12 @@ class ActivityController extends Controller
             $reminders = app(\Webkul\Admin\Services\AppointmentReminderStatus::class)
                 ->forActivities($appointments->pluck('id')->all());
 
-            $appointments = $appointments->map(function ($appointment) use ($reminders) {
-                foreach ($reminders[$appointment->id] ?? [] as $key => $value) {
+            // Vínculo de reprogramación (planning/17): igual, sin consulta por cita.
+            $rescheduleLinks = app(\Webkul\Admin\Services\RescheduleLinks::class)
+                ->forActivities($appointments->pluck('id')->all());
+
+            $appointments = $appointments->map(function ($appointment) use ($reminders, $rescheduleLinks) {
+                foreach (($reminders[$appointment->id] ?? []) + ($rescheduleLinks[$appointment->id] ?? []) as $key => $value) {
                     $appointment->{$key} = $value;
                 }
 
@@ -901,8 +905,19 @@ class ActivityController extends Controller
 
         $activity = $this->activityRepository->findOrFail($id);
 
+        // Fecha y hora no se cambian desde "Editar": eso es Reprogramar, que
+        // cancela la cita y crea una nueva (planning/17). La duración sí. La sync
+        // con SMD/Dropbox no pasa por acá y sigue moviendo la cita en su lugar.
+        if (! empty($data['date']) && ! empty($data['start_time'])
+            && Carbon::parse($activity->schedule_from)->format('Y-m-d H:i') !== $data['date'].' '.$data['start_time']) {
+            return response()->json([
+                'message' => 'Para cambiar la fecha o la hora usá «Reprogramar».',
+                'code'    => 'use_reschedule',
+            ], 422);
+        }
+
         // Cada campo es opcional: lo que no se envía conserva su valor actual.
-        // Así el modal puede editar solo el motivo, o solo el horario, o todo.
+        // Así el modal puede editar solo el motivo, o solo la duración, o todo.
         if (! empty($data['date']) && ! empty($data['start_time'])) {
             $from = Carbon::createFromFormat('Y-m-d H:i', $data['date'].' '.$data['start_time']);
             $to = ! empty($data['duration_minutes'])
@@ -1033,7 +1048,9 @@ class ActivityController extends Controller
                 DB::raw('MAX('.DB::getTablePrefix().'leads.lead_pipeline_stage_id) as stage_id'),
             ]);
 
-        $appointments = $rows->map(function ($r) use ($stateByStage) {
+        $links = app(\Webkul\Admin\Services\RescheduleLinks::class)->forActivities($rows->pluck('id')->all());
+
+        $appointments = $rows->map(function ($r) use ($stateByStage, $links) {
             $stageId = $r->stage_id !== null ? (int) $r->stage_id : null;
 
             return [
@@ -1045,6 +1062,9 @@ class ActivityController extends Controller
                 'stage_id'    => $stageId,
                 // Sin etapa conocida (p. ej. Consulta): agendada.
                 'state'       => $stateByStage[$stageId] ?? 'scheduled',
+                // Reprogramación: la otra cita del par, con su fecha y hora.
+                'rescheduled_from' => $links[$r->id]['rescheduled_from'] ?? null,
+                'rescheduled_to'   => $links[$r->id]['rescheduled_to'] ?? null,
             ];
         });
 

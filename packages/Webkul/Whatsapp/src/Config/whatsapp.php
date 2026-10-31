@@ -75,6 +75,13 @@ return [
                     'language' => env('WHATSAPP_REMINDER_TEMPLATE_LANG', 'es'),
                 ],
 
+                // Aviso de cita reprogramada desde el CRM fuera de la ventana de
+                // 24 h (planning/17, D9). {{1}} nombre, {{2}} fecha y hora, {{3}} doctor.
+                'appointment_rescheduled' => [
+                    'name'     => env('WHATSAPP_RESCHEDULE_TEMPLATE_NAME', 'cita_reprogramada'),
+                    'language' => env('WHATSAPP_RESCHEDULE_TEMPLATE_LANG', 'es'),
+                ],
+
                 // Aviso de inicio de turno al doctor. {{1}} = nombre, {{2}} = hora.
                 'doctor_shift_reminder' => [
                     'name'     => env('WHATSAPP_DOCTOR_SHIFT_TEMPLATE', 'recordatorio_doctores'),
@@ -500,6 +507,26 @@ return [
     | (whatsapp_doctor_shift_reminders). El comando corre desde el scheduler.
     |
     */
+    /*
+    |--------------------------------------------------------------------------
+    | Aviso de cita reprogramada desde el CRM (planning/17, D8–D9)
+    |--------------------------------------------------------------------------
+    |
+    | Dentro de la ventana de 24 h de Meta se avisa con un texto libre. Fuera de
+    | ella solo con la plantilla aprobada, y solo si `template_enabled` está
+    | encendido: encenderlo DESPUÉS de que Meta apruebe `cita_reprogramada`
+    | (`php artisan whatsapp:templates-create cita_reprogramada`).
+    |
+    */
+    'reschedule' => [
+        'template_enabled' => (bool) env('WHATSAPP_RESCHEDULE_TEMPLATE_ENABLED', false),
+
+        // Kommo no puede iniciar una conversación: la plantilla sale por la Cloud API.
+        'gateway'          => env('WHATSAPP_RESCHEDULE_GATEWAY', 'cloud_api'),
+
+        'template_key'     => 'appointment_rescheduled',
+    ],
+
     'doctor_shift' => [
         'enabled'      => env('WHATSAPP_DOCTOR_SHIFT_ENABLED', false),
 

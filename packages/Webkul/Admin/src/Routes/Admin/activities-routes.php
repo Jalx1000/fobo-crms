@@ -2,12 +2,20 @@
 
 use Illuminate\Support\Facades\Route;
 use Webkul\Admin\Http\Controllers\Activity\ActivityController;
+use Webkul\Admin\Http\Controllers\Activity\AppointmentRescheduleController;
 use Webkul\Admin\Http\Controllers\Activity\SmdSyncController;
 
 Route::controller(SmdSyncController::class)->prefix('activities/smd')->group(function () {
     Route::post('sync', 'sync')->name('admin.activities.smd.sync');
     Route::get('sync/status', 'status')->name('admin.activities.smd.sync.status');
     Route::post('pause', 'pause')->name('admin.activities.smd.pause');
+});
+
+// Reprogramar = cancelar la cita y crear una nueva (planning/17).
+Route::controller(AppointmentRescheduleController::class)->prefix('activities/appointments/{id}')->group(function () {
+    Route::get('reschedule-slots', 'slots')->name('admin.activities.appointments.reschedule_slots');
+
+    Route::post('reschedule', 'store')->name('admin.activities.appointments.reschedule');
 });
 
 Route::controller(ActivityController::class)->prefix('activities')->group(function () {
