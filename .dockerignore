@@ -80,3 +80,19 @@ pnpm-lock.yaml
 # Compilados de Vite en /public/build los copiamos desde el node stage
 # pero el directorio puede existir sucio en local, lo dejamos pasar
 # para que el COPY --from=node_builder sobreescriba correctamente
+
+# Scripts de prueba y copias de configuración dentro de public/: se servirían
+# por HTTP tal cual (a.php lleva una API key escrita en el código)
+/public/a.php
+/public/test_slots.php
+/public/docker
+/public/.config
+/public/.configs
+
+# Material de trabajo que no forma parte de la aplicación
+/.claude
+/.playwright-mcp
+/metricas
+/planning
+/tasks
+/*.png
