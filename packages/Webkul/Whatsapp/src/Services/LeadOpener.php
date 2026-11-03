@@ -40,8 +40,13 @@ class LeadOpener
     public function __construct(protected CityRouter $cities) {}
 
     /**
-     * El pedido al que apunta una conversación: el último del contacto, o uno
-     * nuevo si no tiene ninguno.
+     * El pedido al que apunta una conversación: el último ABIERTO del contacto,
+     * o uno nuevo si no tiene ninguno abierto.
+     *
+     * Un pedido cerrado no se enlaza. El #72 (entregado el 19/06) quedó
+     * enlazado a la conversación que el cliente abrió el 30/10 con el número
+     * nuevo, y el agente lo reabrió y le pisó el pedido de junio con el de
+     * octubre. Pasó en 9 entregados y 6 cancelados.
      *
      * Devuelve null si está apagado por config o si algo falla — un pedido que
      * no se pudo abrir NUNCA puede costar el mensaje del cliente.
@@ -52,8 +57,15 @@ class LeadOpener
             return null;
         }
 
-        // Ya tiene pedidos: se enlaza el más reciente en vez de abrir otro.
-        if ($existing = $person->leads()->latest()->first()) {
+        // Ya tiene un pedido abierto: se enlaza ese en vez de abrir otro.
+        $existing = $person->leads()
+            ->whereNotIn('lead_pipeline_stage_id', DB::table('lead_pipeline_stages')
+                ->whereIn('code', CitySyncService::CLOSED_STAGE_CODES)
+                ->select('id'))
+            ->latest()
+            ->first();
+
+        if ($existing) {
             return $existing->id;
         }
 

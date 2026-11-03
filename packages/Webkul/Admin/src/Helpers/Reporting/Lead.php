@@ -98,7 +98,7 @@ class Lead extends AbstractReporting
     /**
      * Role names excluded from vendor/sales statistics. Must match `roles.name` in the database exactly.
      */
-    protected array $ignoredRoleNames = ['Supervisores', 'Administrador'];
+    protected array $ignoredRoleNames = ['Supervisores', 'Administrador', 'Sistema'];
 
     /**
      * User names excluded from vendor/sales statistics (e.g. the catch-all
@@ -148,10 +148,15 @@ class Lead extends AbstractReporting
             ->pluck('id')
             ->toArray();
 
+        /**
+         * "Prospecto" = pedido abierto antes de confirmarse. La etapa se renombró a
+         * "No atendido" y después se sumó "Cliente contactado"; buscarla por el
+         * nombre viejo dejaba la lista vacía. Va por code, sin el guion inicial
+         * (el id 11 quedó grabado como `-no-atendido`).
+         */
         $this->prospectoStageIds = $this->stageRepository
             ->resetModel()
-            ->where('code', 'prospectos')
-            ->orWhereRaw("LOWER(name) LIKE '%prospecto%'")
+            ->whereIn(DB::raw("TRIM(LEADING '-' FROM code)"), ['no-atendido', 'cliente-contactado'])
             ->pluck('id')
             ->toArray();
 

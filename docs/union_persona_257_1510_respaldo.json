@@ -1,0 +1,168 @@
+{
+    "persons": [
+        {
+            "id": 257,
+            "name": "Gastimen -",
+            "emails": "[{\"label\": \"work\", \"value\": \"15057027563@whatsapp.sofopolis.com\"}]",
+            "contact_numbers": "[{\"label\": \"work\", \"value\": \"150570275630\"}]",
+            "organization_id": null,
+            "created_at": "2026-07-03 19:43:16",
+            "updated_at": "2026-07-09 08:12:44",
+            "job_title": null,
+            "user_id": null,
+            "unique_id": ""
+        },
+        {
+            "id": 1510,
+            "name": "Gastimen",
+            "emails": "[]",
+            "contact_numbers": "[{\"label\": \"work\", \"value\": \"15057027563\"}]",
+            "organization_id": null,
+            "created_at": "2026-09-11 14:49:36",
+            "updated_at": "2026-09-11 14:49:36",
+            "job_title": null,
+            "user_id": null,
+            "unique_id": "15057027563"
+        }
+    ],
+    "attribute_values": [
+        {
+            "id": 5007,
+            "entity_type": "persons",
+            "text_value": "Gastimen -",
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 257,
+            "attribute_id": 29,
+            "unique_id": null
+        },
+        {
+            "id": 5008,
+            "entity_type": "persons",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": "[{\"label\": \"work\", \"value\": \"15057027563@whatsapp.sofopolis.com\"}]",
+            "entity_id": 257,
+            "attribute_id": 30,
+            "unique_id": null
+        },
+        {
+            "id": 5009,
+            "entity_type": "persons",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": "[{\"label\": \"work\", \"value\": \"150570275630\"}]",
+            "entity_id": 257,
+            "attribute_id": 31,
+            "unique_id": null
+        },
+        {
+            "id": 6672,
+            "entity_type": "persons",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 257,
+            "attribute_id": 33,
+            "unique_id": null
+        },
+        {
+            "id": 6673,
+            "entity_type": "persons",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 1,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 257,
+            "attribute_id": 70,
+            "unique_id": null
+        },
+        {
+            "id": 16651,
+            "entity_type": "persons",
+            "text_value": "Gastimen",
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1510,
+            "attribute_id": 29,
+            "unique_id": null
+        },
+        {
+            "id": 16652,
+            "entity_type": "persons",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": "[]",
+            "entity_id": 1510,
+            "attribute_id": 30,
+            "unique_id": null
+        },
+        {
+            "id": 16653,
+            "entity_type": "persons",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": "[{\"label\": \"work\", \"value\": \"15057027563\"}]",
+            "entity_id": 1510,
+            "attribute_id": 31,
+            "unique_id": null
+        },
+        {
+            "id": 19024,
+            "entity_type": "persons",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 10,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1510,
+            "attribute_id": 70,
+            "unique_id": null
+        }
+    ],
+    "leads": [
+        284
+    ],
+    "activities": [
+        8128,
+        8129,
+        8130,
+        8131,
+        10610,
+        10611,
+        11931
+    ]
+}

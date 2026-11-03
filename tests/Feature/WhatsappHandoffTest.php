@@ -347,7 +347,24 @@ it('una derivación también deja la marca', function () {
     expect($conv->fresh()->ai_disabled_at)->not->toBeNull();
 });
 
-it('reactiva el agente apagado a mano hace más de 6 h', function () {
+/** Mensaje con hora explícita en la conversación. */
+function mensajeHace(Conversation $conv, string $direction, float $horas): void
+{
+    $at = now()->subMinutes((int) round($horas * 60));
+
+    DB::table('whatsapp_messages')->insert([
+        'conversation_id' => $conv->id,
+        'direction'       => $direction,
+        'type'            => 'text',
+        'body'            => 'hola',
+        'status'          => $direction === 'inbound' ? 'delivered' : 'sent',
+        'sender'          => $direction === 'inbound' ? 'contact' : 'human',
+        'created_at'      => $at,
+        'updated_at'      => $at,
+    ]);
+}
+
+it('reactiva el agente apagado a mano hace más de 4 h', function () {
     $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
 
     // Apagado desde el interruptor del inbox, sin ninguna derivación.
@@ -384,22 +401,55 @@ it('no toca la que se apagó recién', function () {
     expect($conv->fresh()->ai_enabled)->toBeFalse();
 });
 
-it('el plazo NO se corre porque el asesor siga escribiendo', function () {
+it('el plazo se corre mientras el asesor siga escribiendo', function () {
     $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
 
     app(Handoff::class)->request($conv, 'motivo');
-
-    $conv->fresh()->forceFill([
-        'ai_disabled_at'  => now()->subHours(7),
-        'last_message_at' => now(),
-        'last_inbound_at' => now(),
-    ])->save();
+    $conv->fresh()->forceFill(['ai_disabled_at' => now()->subHours(7)])->save();
+    mensajeHace($conv, 'inbound', 5);
+    mensajeHace($conv, 'outbound', 3);
 
     test()->artisan('whatsapp:reactivar-agente');
 
-    // Es un tope a cuánto puede estar callado el bot, no una medida de
-    // inactividad: por eso cuenta desde el apagado y no desde el último mensaje.
+    expect($conv->fresh()->aiEffective())->toBeFalse();
+});
+
+it('reactiva a las 4 h del último mensaje del asesor si el cliente no respondió', function () {
+    $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
+
+    app(Handoff::class)->request($conv, 'motivo');
+    $conv->fresh()->forceFill(['ai_disabled_at' => now()->subHours(7)])->save();
+    mensajeHace($conv, 'inbound', 6);
+    mensajeHace($conv, 'outbound', 4.1);
+
+    test()->artisan('whatsapp:reactivar-agente');
+
     expect($conv->fresh()->aiEffective())->toBeTrue();
+});
+
+it('reactiva si el cliente escribió y el asesor no le contestó en 4 h', function () {
+    $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
+
+    app(Handoff::class)->request($conv, 'motivo');
+    $conv->fresh()->forceFill(['ai_disabled_at' => now()->subHours(7)])->save();
+    mensajeHace($conv, 'outbound', 6);
+    mensajeHace($conv, 'inbound', 4.1);
+
+    test()->artisan('whatsapp:reactivar-agente');
+
+    expect($conv->fresh()->aiEffective())->toBeTrue();
+});
+
+it('no deshace un apagado recién hecho en una conversación que ya estaba quieta', function () {
+    $conv = convHandoff(['person_id' => personaCon(ciudadId('Tarija'))]);
+
+    mensajeHace($conv, 'outbound', 10);
+    $conv->update(['ai_enabled' => false]);
+    $conv->fresh()->forceFill(['ai_disabled_at' => now()->subMinutes(30)])->save();
+
+    test()->artisan('whatsapp:reactivar-agente');
+
+    expect($conv->fresh()->ai_enabled)->toBeFalse();
 });
 
 it('deja en paz las que se apagaron antes de que existiera la marca', function () {

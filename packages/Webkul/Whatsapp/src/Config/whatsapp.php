@@ -159,10 +159,12 @@ return [
     | Reactivación automática del agente
     |--------------------------------------------------------------------------
     |
-    | Horas que el agente puede quedarse apagado en una conversación antes de
-    | volver solo. Cuenta desde que se apagó —por el interruptor del inbox o por
-    | una derivación—, no desde el último mensaje: el plazo no se corre porque
-    | el asesor siga escribiendo.
+    | Horas sin mensajes tras las cuales el agente apagado vuelve solo. Cuenta
+    | desde el último mensaje de la conversación: el nuestro (asesor o agente)
+    | si el cliente no respondió, o el del cliente si el asesor no le contestó
+    | (decidido el 28/10/2026). Mientras el asesor siga escribiendo, el plazo
+    | se corre. También tiene que haber pasado ese tiempo desde que se apagó,
+    | para no deshacer en la próxima corrida un apagado recién hecho.
     |
     | Al medirlo había 100 conversaciones con el bot apagado, 98 de ellas sin
     | ninguna derivación abierta: alguien lo apagó y nadie se acordó de
@@ -173,7 +175,7 @@ return [
     |
     | En 0 queda desactivado y ninguna conversación se reactiva sola.
     */
-    'reactivate_after_hours' => (int) env('WHATSAPP_AI_REACTIVATE_HOURS', 6),
+    'reactivate_after_hours' => (int) env('WHATSAPP_AI_REACTIVATE_HOURS', 4),
 
     /*
     | Quién queda como dueño de esos pedidos sin ciudad. Vacío = sin dueño.
@@ -241,17 +243,23 @@ return [
 
         // El label del botón que abre una lista (máx. 20 caracteres).
         'list_button' => env('WHATSAPP_INTERACTIVE_LIST_BUTTON', 'Ver opciones'),
+
+        // Pie fijo de TODA lista (máx. 60 caracteres). Si el agente manda su
+        // propio pie, pasa al final del body: no se pierde ninguno. Vacío = sin
+        // pie fijo. Ej.: "Cada pedido tiene vigencia hasta fin de mes."
+        'list_footer' => env('WHATSAPP_INTERACTIVE_LIST_FOOTER'),
     ],
 
     /*
     |--------------------------------------------------------------------------
     | Seguimiento y cierre por falta de respuesta
     |--------------------------------------------------------------------------
-    | Si le escribimos al cliente y no contesta: a las 16 h de su último
-    | mensaje (con 8 h de ventana todavía abierta) Sofía le manda un
-    | recordatorio de texto, y a las 72 h de nuestro último mensaje el pedido
-    | pasa a "Cliente sin interés" en su propio pipeline. Si vuelve a escribir,
-    | se reabre. Spec: tasks/spec-sin-respuesta-3-dias.md.
+    | Si le escribimos al cliente y no contesta: a las 4 h de nuestro último
+    | mensaje, si la ventana sigue abierta, Sofía le manda UN recordatorio de
+    | texto. El pedido pasa a "Cliente sin interés" en su propio pipeline: en
+    | "No atendido" apenas se cierra la ventana de 24 h, en el resto a las 72 h
+    | de nuestro último mensaje. Si vuelve a escribir, se reabre.
+    | Spec: tasks/spec-sin-respuesta-3-dias.md.
     |
     | Texto y no plantilla a propósito: las plantillas de reapertura tuvieron
     | 0 respuestas de 36 en 30 días (medido el 15/10/2026).
@@ -262,12 +270,14 @@ return [
     */
     'auto_close' => [
         'since'          => env('WHATSAPP_AUTO_CLOSE_SINCE'),
-        'followup_after' => (int) env('WHATSAPP_FOLLOWUP_HOURS', 16),
+        'followup_after' => (int) env('WHATSAPP_FOLLOWUP_HOURS', 4),
         'close_after'    => (int) env('WHATSAPP_AUTO_CLOSE_HOURS', 72),
         'user_id'        => (int) env('WHATSAPP_AUTO_CLOSE_USER_ID', 13), // usuario Sistema ("Agente")
         'stages'         => ['no-atendido', 'cliente-contactado'],
-        'closed_stage'   => 'cliente-sin-inters',
-        'reopen_stage'   => 'cliente-contactado',
+        // Se cierra apenas se le cierra la ventana, sin esperar las 72 h.
+        'unattended_stage' => 'no-atendido',
+        'closed_stage'     => 'cliente-sin-inters',
+        'reopen_stage'     => 'cliente-contactado',
         // Neutro a propósito: no supone de qué se habló. Nunca en mayúsculas.
         'followup_text'  => 'Hola{nombre} 👋 ¿Te puedo ayudar en algo más? Cuando quieras, seguimos por aquí 🍷',
     ],

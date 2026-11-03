@@ -1,0 +1,388 @@
+{
+    "lead": {
+        "id": 1338,
+        "title": "Omar",
+        "description": null,
+        "lead_value": "0.0000",
+        "lead_value_is_manual": 0,
+        "status": 1,
+        "lost_reason": null,
+        "closed_at": "2026-09-21 16:20:33",
+        "confirmed_at": null,
+        "first_stage_change_at": null,
+        "user_id": 14,
+        "person_id": 1497,
+        "lead_source_id": 6,
+        "lead_type_id": 1,
+        "lead_pipeline_id": 3,
+        "lead_pipeline_stage_id": 45,
+        "created_at": "2026-09-15 17:20:33",
+        "updated_at": "2026-09-21 16:20:33",
+        "expected_close_date": null
+    },
+    "attribute_values": [
+        {
+            "id": 19045,
+            "entity_type": "leads",
+            "text_value": "Omar",
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1338,
+            "attribute_id": 20,
+            "unique_id": null
+        },
+        {
+            "id": 19046,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": 0,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1338,
+            "attribute_id": 22,
+            "unique_id": null
+        },
+        {
+            "id": 19047,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 6,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1338,
+            "attribute_id": 23,
+            "unique_id": null
+        },
+        {
+            "id": 19048,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 1,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1338,
+            "attribute_id": 24,
+            "unique_id": null
+        },
+        {
+            "id": 19049,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 14,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1338,
+            "attribute_id": 25,
+            "unique_id": null
+        },
+        {
+            "id": 19050,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1338,
+            "attribute_id": 26,
+            "unique_id": null
+        },
+        {
+            "id": 19051,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 1,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1338,
+            "attribute_id": 27,
+            "unique_id": null
+        },
+        {
+            "id": 19052,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 39,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1338,
+            "attribute_id": 28,
+            "unique_id": null
+        },
+        {
+            "id": 65482,
+            "entity_type": "leads",
+            "text_value": "49",
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1338,
+            "attribute_id": 68,
+            "unique_id": null
+        },
+        {
+            "id": 19053,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 3,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1338,
+            "attribute_id": 69,
+            "unique_id": null
+        }
+    ],
+    "lead_products": [],
+    "lead_tags": [],
+    "lead_activities": [
+        {
+            "activity_id": 28407,
+            "lead_id": 1338
+        },
+        {
+            "activity_id": 28408,
+            "lead_id": 1338
+        },
+        {
+            "activity_id": 28409,
+            "lead_id": 1338
+        },
+        {
+            "activity_id": 28410,
+            "lead_id": 1338
+        },
+        {
+            "activity_id": 28411,
+            "lead_id": 1338
+        },
+        {
+            "activity_id": 28412,
+            "lead_id": 1338
+        },
+        {
+            "activity_id": 28413,
+            "lead_id": 1338
+        },
+        {
+            "activity_id": 28414,
+            "lead_id": 1338
+        },
+        {
+            "activity_id": 30901,
+            "lead_id": 1338
+        },
+        {
+            "activity_id": 31322,
+            "lead_id": 1338
+        },
+        {
+            "activity_id": 32688,
+            "lead_id": 1338
+        },
+        {
+            "activity_id": 90417,
+            "lead_id": 1338
+        }
+    ],
+    "activities": [
+        {
+            "id": 28407,
+            "title": "Creado",
+            "type": "system",
+            "comment": null,
+            "additional": null,
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 1,
+            "created_at": "2026-09-15 17:20:33",
+            "updated_at": "2026-09-15 17:20:33",
+            "location": null
+        },
+        {
+            "id": 28408,
+            "title": "Actualizado Nombre de cliente",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Omar\", \"value\": \"Omar\"}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Nombre de cliente\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 1,
+            "created_at": "2026-09-15 17:20:33",
+            "updated_at": "2026-09-15 17:20:33",
+            "location": null
+        },
+        {
+            "id": 28409,
+            "title": "Actualizado Canal",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Whatsapp\", \"value\": 6}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Canal\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 1,
+            "created_at": "2026-09-15 17:20:33",
+            "updated_at": "2026-09-15 17:20:33",
+            "location": null
+        },
+        {
+            "id": 28410,
+            "title": "Actualizado Tipo de cliente",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Nuevo Cliente\", \"value\": 1}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Tipo de cliente\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 1,
+            "created_at": "2026-09-15 17:20:33",
+            "updated_at": "2026-09-15 17:20:33",
+            "location": null
+        },
+        {
+            "id": 28411,
+            "title": "Actualizado Asesor Asignado",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Daniel Escalante\", \"value\": 14}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Asesor Asignado\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 1,
+            "created_at": "2026-09-15 17:20:33",
+            "updated_at": "2026-09-15 17:20:33",
+            "location": null
+        },
+        {
+            "id": 28412,
+            "title": "Actualizado Pipeline",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Tarija\", \"value\": 1}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Pipeline\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 1,
+            "created_at": "2026-09-15 17:20:33",
+            "updated_at": "2026-09-15 17:20:33",
+            "location": null
+        },
+        {
+            "id": 28413,
+            "title": "Actualizado Etapa",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"No atendido\", \"value\": 1}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Etapa\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 1,
+            "created_at": "2026-09-15 17:20:33",
+            "updated_at": "2026-09-15 17:20:33",
+            "location": null
+        },
+        {
+            "id": 28414,
+            "title": "Actualizado Ciudad",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Tarija\", \"value\": 1}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Ciudad\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 1,
+            "created_at": "2026-09-15 17:20:33",
+            "updated_at": "2026-09-15 17:20:33",
+            "location": null
+        },
+        {
+            "id": 30901,
+            "title": "Actualizado Etapa",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Cliente sin interés\", \"value\": 39}, \"old\": {\"label\": \"No atendido\", \"value\": 1}, \"attribute\": \"Etapa\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 14,
+            "created_at": "2026-09-17 09:31:30",
+            "updated_at": "2026-09-17 09:31:30",
+            "location": null
+        },
+        {
+            "id": 31322,
+            "title": "Actualizado Ciudad",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Sin ciudad\", \"value\": 10}, \"old\": {\"label\": \"Tarija\", \"value\": 1}, \"attribute\": \"Ciudad\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 14,
+            "created_at": "2026-09-18 10:05:11",
+            "updated_at": "2026-09-18 10:05:11",
+            "location": null
+        },
+        {
+            "id": 32688,
+            "title": "Actualizado Ciudad",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Santa Cruz\", \"value\": 3}, \"old\": {\"label\": \"Sin ciudad\", \"value\": 10}, \"attribute\": \"Ciudad\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 14,
+            "created_at": "2026-09-21 16:20:33",
+            "updated_at": "2026-09-21 16:20:33",
+            "location": null
+        },
+        {
+            "id": 90417,
+            "title": "Actualizado Edad del Cliente",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": 49, \"value\": 49}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Edad del Cliente\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 1,
+            "created_at": "2026-10-31 16:22:58",
+            "updated_at": "2026-10-31 16:22:58",
+            "location": null
+        }
+    ],
+    "conversations": []
+}

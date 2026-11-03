@@ -20,7 +20,9 @@ use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Models\MessageProxy;
 
 /**
- * Seguimiento a las 16 h y cierre a las 72 h cuando el cliente no contesta.
+ * Recordatorio a las 4 h de nuestro último mensaje y cierre cuando el cliente
+ * no contesta: a las 24 h en "No atendido" (se le cerró la ventana) y a las
+ * 72 h en el resto de las etapas.
  *
  * Todo se mide sobre el "último mensaje efectivo" de la conversación: el
  * último que no es plantilla y no falló. Las plantillas no cuentan porque
@@ -37,6 +39,12 @@ class SilenceTracker
     /** Título de la actividad que marca un cierre hecho por esta regla. */
     public const MARKER_TITLE = 'Cerrado automáticamente: sin respuesta del cliente en 3 días';
 
+    /** Marca del cierre de "No atendido" con la ventana de 24 h cerrada. */
+    public const UNATTENDED_MARKER_TITLE = 'Cerrado automáticamente: sin respuesta del cliente en 24 h (No atendido)';
+
+    /** La ventana de servicio de WhatsApp: pasado esto solo salen plantillas. */
+    public const WINDOW_HOURS = 24;
+
     public function __construct(protected ActivityRepository $activities) {}
 
     /**
@@ -50,7 +58,13 @@ class SilenceTracker
     }
 
     /**
-     * Conversaciones a las que les toca el recordatorio de las 16 h.
+     * Conversaciones a las que les toca el recordatorio: nuestro último
+     * mensaje (agente o asesor) tiene 4 h y el cliente no contestó.
+     *
+     * Se cuenta desde nuestro mensaje y no desde el del cliente: si no, el
+     * recordatorio podía salir minutos después de que un asesor escribiera.
+     * Uno solo por silencio: el recordatorio también es mensaje nuestro, pero
+     * no dispara otro (decidido el 28/10/2026).
      *
      * @return Collection<int, Conversation>
      */
@@ -62,25 +76,29 @@ class SilenceTracker
             return collect();
         }
 
-        $after = (int) config('whatsapp.auto_close.followup_after');
+        $limit = now()->subHours((int) config('whatsapp.auto_close.followup_after'));
 
         return ConversationProxy::modelClass()::query()
             ->whereIn('lead_id', $this->leadsInStages())
-            // Ventana: pasaron las 16 h pero no las 24 h. Sin el tope de 24 h
-            // la primera corrida le escribiría a conversaciones de hace meses.
-            ->where('last_inbound_at', '<=', now()->subHours($after))
-            ->where('last_inbound_at', '>', now()->subHours(24))
+            // Con la ventana cerrada el texto no sale. Sin este tope la
+            // primera corrida le escribiría a conversaciones de hace meses.
+            ->where('last_inbound_at', '>', now()->subHours(self::WINDOW_HOURS))
             // Derivada a un asesor: el seguimiento lo hace él. Con el agente
             // apagado sí se manda (decidido el 15/10/2026).
             ->where(fn ($q) => $q->whereNull('handoff_state')
                 ->orWhereNotIn('handoff_state', [Conversation::HANDOFF_REQUESTED, Conversation::HANDOFF_ASSIGNED]))
             ->get()
-            ->filter(function (Conversation $conv) use ($since) {
+            ->filter(function (Conversation $conv) use ($since, $limit) {
                 $last = $this->lastEffectiveMessage($conv->id);
 
-                return $last
-                    && $last->direction === 'outbound'
-                    && Carbon::parse($last->created_at)->gte($since)
+                if (! $last || $last->direction !== 'outbound') {
+                    return false;
+                }
+
+                $at = Carbon::parse($last->created_at);
+
+                return $at->gte($since)
+                    && $at->lte($limit)
                     && ! $this->followupSentSince($conv->id, $conv->last_inbound_at);
             })
             ->values();
@@ -127,6 +145,40 @@ class SilenceTracker
     }
 
     /**
+     * Pedidos en "No atendido" con la ventana de 24 h cerrada y nuestro
+     * mensaje como último: pasan a "sin interés" sin esperar los 3 días.
+     *
+     * No mira `since` a propósito: el 28/10/2026 se decidió mover también lo
+     * acumulado. Si el último mensaje es del cliente no se toca: el
+     * pendiente es del equipo, no falta de interés.
+     *
+     * @return Collection<int, Conversation>
+     */
+    public function unattendedClosuresDue(): Collection
+    {
+        if (! $this->since()) {
+            return collect();
+        }
+
+        $windowStart = now()->subHours(self::WINDOW_HOURS);
+        $conversations = ConversationProxy::modelClass();
+
+        return $conversations::query()
+            ->whereIn('lead_id', $this->leadsInStages([(string) config('whatsapp.auto_close.unattended_stage')]))
+            ->where(fn ($q) => $q->whereNull('last_inbound_at')->orWhere('last_inbound_at', '<=', $windowStart))
+            // Si el pedido tiene otra conversación con la ventana abierta,
+            // todavía se puede hablar con el cliente.
+            ->whereNotIn('lead_id', $conversations::query()
+                ->select('lead_id')
+                ->whereNotNull('lead_id')
+                ->where('last_inbound_at', '>', $windowStart))
+            ->get()
+            ->filter(fn (Conversation $conv) => $this->lastEffectiveMessage($conv->id)?->direction === 'outbound')
+            ->unique('lead_id')
+            ->values();
+    }
+
+    /**
      * Manda el recordatorio por el mismo camino que los mensajes del agente.
      */
     public function sendFollowup(Conversation $conv): Model
@@ -154,7 +206,7 @@ class SilenceTracker
     /**
      * Pasa el pedido a "Cliente sin interés" de SU pipeline y deja la marca.
      */
-    public function close(Conversation $conv): bool
+    public function close(Conversation $conv, string $title = self::MARKER_TITLE): bool
     {
         $lead = $conv->lead_id ? LeadProxy::modelClass()::find($conv->lead_id) : null;
 
@@ -168,14 +220,14 @@ class SilenceTracker
             return false;
         }
 
-        return $this->asSystemUser(function () use ($lead, $stageId) {
+        return $this->asSystemUser(function () use ($lead, $stageId, $title) {
             $this->moveTo($lead, $stageId);
 
             Event::dispatch('activity.create.before');
 
             $activity = $this->activities->create([
                 'type'       => 'system',
-                'title'      => self::MARKER_TITLE,
+                'title'      => $title,
                 'is_done'    => 1,
                 'user_id'    => (int) config('whatsapp.auto_close.user_id'),
                 'additional' => json_encode(['auto_close' => true]),
@@ -240,7 +292,7 @@ class SilenceTracker
         }
 
         $marker = $lead->activities()
-            ->where('activities.title', self::MARKER_TITLE)
+            ->whereIn('activities.title', [self::MARKER_TITLE, self::UNATTENDED_MARKER_TITLE])
             ->max('activities.id');
 
         if (! $marker) {
@@ -296,12 +348,14 @@ class SilenceTracker
     /**
      * Ids de pedidos en las etapas donde aplica la regla, en cualquier pipeline.
      */
-    protected function leadsInStages(): Closure
+    protected function leadsInStages(?array $codes = null): Closure
     {
+        $codes ??= config('whatsapp.auto_close.stages');
+
         $stageIds = DB::table('lead_pipeline_stages')
             ->get(['id', 'code'])
             // ltrim: la etapa 11 tiene code "-no-atendido".
-            ->filter(fn ($s) => in_array(ltrim((string) $s->code, '-'), config('whatsapp.auto_close.stages'), true))
+            ->filter(fn ($s) => in_array(ltrim((string) $s->code, '-'), $codes, true))
             ->pluck('id')
             ->all();
 

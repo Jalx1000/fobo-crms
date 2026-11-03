@@ -1,0 +1,51 @@
+{
+    "lead": {
+        "id": 683,
+        "title": "Promo Vinos Iconos",
+        "description": "Promo Vinos Iconos",
+        "lead_value": "599.0000",
+        "lead_value_is_manual": 0,
+        "status": 1,
+        "lost_reason": null,
+        "closed_at": "2026-08-20 11:58:41",
+        "confirmed_at": "2026-08-19 14:04:02",
+        "first_stage_change_at": "2026-08-19 14:04:02",
+        "user_id": 9,
+        "person_id": 616,
+        "lead_source_id": 6,
+        "lead_type_id": 1,
+        "lead_pipeline_id": 3,
+        "lead_pipeline_stage_id": 13,
+        "created_at": "2026-08-19 08:49:38",
+        "updated_at": "2026-08-20 11:58:41",
+        "expected_close_date": null
+    },
+    "lead_products": [
+        {
+            "id": 978,
+            "quantity": 2,
+            "price": "599.0000",
+            "amount": "0.0000",
+            "lead_id": 683,
+            "product_id": 42,
+            "created_at": "2026-08-19 08:56:10",
+            "updated_at": "2026-08-20 11:57:44"
+        }
+    ],
+    "attribute_values": [
+        {
+            "id": 11250,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": 599,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 683,
+            "attribute_id": 22,
+            "unique_id": null
+        }
+    ]
+}

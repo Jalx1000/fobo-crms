@@ -1,0 +1,22 @@
+<?php
+use Illuminate\Support\Facades\DB;
+$d = '2026-09-01'; $h = '2026-10-01';
+$prod = DB::table('products')->pluck('name','id'); $st = DB::table('lead_pipeline_stages')->get()->keyBy('id'); $us = DB::table('users')->pluck('name','id'); $pl = DB::table('lead_pipelines')->pluck('name','id');
+$lin = fn($id) => DB::table('lead_products')->where('lead_id',$id)->get()->map(fn($x)=>(int)$x->quantity.'x '.($prod[$x->product_id]??$x->product_id).' @'.round($x->price))->implode(' + ');
+$row = fn($l) => "#{$l->id} ".substr($l->created_at,5,11)." | ".($us[$l->user_id]??'-')." | {$pl[$l->lead_pipeline_id]} ".$st[$l->lead_pipeline_stage_id]->name." | Bs ".round($l->lead_value)." [".$lin($l->id)."]";
+$q = fn($sql) => DB::select($sql, [$d,$h]);
+echo "== Entregados sin líneas / con Bs 0\n";
+foreach ($q("select l.* from kl_leads l join kl_lead_pipeline_stages s on s.id=l.lead_pipeline_stage_id where l.created_at>=? and l.created_at<? and s.code='pedidos-entregados' and (l.lead_value=0 or not exists(select 1 from kl_lead_products lp where lp.lead_id=l.id))") as $l) echo '  '.$row($l)."\n";
+echo "== Valor ≠ líneas\n";
+foreach ($q("select l.*, (select sum(quantity*price) from kl_lead_products lp where lp.lead_id=l.id) li from kl_leads l where l.created_at>=? and l.created_at<? and exists(select 1 from kl_lead_products lp where lp.lead_id=l.id) and abs(l.lead_value-(select sum(quantity*price) from kl_lead_products lp where lp.lead_id=l.id))>=1") as $l) echo '  '.$row($l)." ≠ líneas ".round($l->li).($l->lead_value_is_manual?' (manual)':'')."\n";
+echo "== Líneas amount ≠ qty*price\n";
+foreach ($q("select lp.lead_id, lp.quantity, lp.price, lp.amount, lp.product_id from kl_lead_products lp join kl_leads l on l.id=lp.lead_id where l.created_at>=? and l.created_at<? and abs(lp.amount-lp.quantity*lp.price)>=1") as $x) echo "  #{$x->lead_id} ".(int)$x->quantity."x {$prod[$x->product_id]} @".round($x->price)." amount ".round($x->amount)."\n";
+echo "== Atributo etapa ≠ columna\n";
+foreach ($q("select l.*, av.integer_value av from kl_leads l join kl_attribute_values av on av.entity_type='leads' and av.entity_id=l.id and av.attribute_id=28 where l.created_at>=? and l.created_at<? and av.integer_value<>l.lead_pipeline_stage_id") as $l) echo "  #{$l->id} columna ".$st[$l->lead_pipeline_stage_id]->name." (P{$l->lead_pipeline_id}) | atributo ".($st[$l->av]->name ?? '?')." (P".($st[$l->av]->lead_pipeline_id ?? '?').") | upd {$l->updated_at}\n";
+echo "== Pipeline ≠ ciudad (resumen)\n";
+foreach ($q("select l.lead_pipeline_id p, av.integer_value c, count(*) n, group_concat(l.id order by l.id) ids from kl_leads l join kl_attribute_values av on av.entity_type='leads' and av.entity_id=l.id and av.attribute_id=69 where l.created_at>=? and l.created_at<? and av.integer_value<>l.lead_pipeline_id group by p, c order by n desc") as $x) echo "  pipeline {$pl[$x->p]} / ciudad ".($pl[$x->c] ?? $x->c).": {$x->n} → ".mb_substr($x->ids,0,150)."\n";
+echo "== Sin ciudad\n"; foreach ($q("select * from kl_leads where created_at>=? and created_at<? and lead_pipeline_id=10") as $l) echo '  '.$row($l)."\n";
+echo "== Contactos sin teléfono (muestra)\n";
+foreach ($q("select id, name, emails, created_at, (select count(*) from kl_leads where person_id=p.id) nl, (select count(*) from kl_whatsapp_conversations where person_id=p.id) nc from kl_persons p where created_at>=? and created_at<? and (contact_numbers is null or json_length(contact_numbers)=0) limit 12") as $p) echo "  #{$p->id} {$p->name} | {$p->emails} | leads {$p->nl} conv {$p->nc} | {$p->created_at}\n";
+$r = DB::selectOne("select sum(nl>0) cl, sum(nc>0) cc, count(*) n from (select (select count(*) from kl_leads where person_id=p.id) nl, (select count(*) from kl_whatsapp_conversations where person_id=p.id) nc from kl_persons p where created_at>=? and created_at<? and (contact_numbers is null or json_length(contact_numbers)=0)) t", [$d,$h]); echo "  total {$r->n}: con lead {$r->cl}, con conversación {$r->cc}\n";
+echo "== Duplicado 75601919\n"; foreach (DB::table('persons')->whereIn('id',[477,1159])->get() as $p) echo "  #{$p->id} {$p->name} {$p->contact_numbers} {$p->created_at} | leads ".DB::table('leads')->where('person_id',$p->id)->pluck('id')->implode(',')." | conv ".DB::table('whatsapp_conversations')->where('person_id',$p->id)->pluck('id')->implode(',')."\n";

@@ -2,11 +2,13 @@
 
 namespace Webkul\Whatsapp\Console\Commands;
 
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Throwable;
 use Webkul\Whatsapp\Models\Conversation;
 use Webkul\Whatsapp\Models\ConversationProxy;
 use Webkul\Whatsapp\Services\Handoff;
+use Webkul\Whatsapp\Services\SilenceTracker;
 
 /**
  * Devuelve el agente a las conversaciones donde quedó apagado.
@@ -18,9 +20,10 @@ use Webkul\Whatsapp\Services\Handoff;
  * volver a prenderlo; entre ellas, una clienta que había pedido una promo el
  * día anterior y nunca recibió respuesta.
  *
- * El plazo corre desde que se apagó (ai_disabled_at), no desde el último
- * mensaje: es un tope a cuánto puede estar callado el bot, no una medida de
- * inactividad.
+ * El plazo corre desde el último mensaje de la conversación (el nuestro si el
+ * cliente no respondió, el del cliente si el asesor no le contestó), y además
+ * desde que se apagó (ai_disabled_at), para no deshacer un apagado recién
+ * hecho en una conversación que ya estaba quieta. Decidido el 28/10/2026.
  *
  * Reactivar CIERRA la derivación abierta si la hay. Sin eso el agente seguiría
  * mudo por handoffOpen() aunque el flag dijera que sí.
@@ -33,7 +36,7 @@ class ReactivateAgent extends Command
 
     protected $description = 'Vuelve a activar el agente en las conversaciones que llevan demasiado tiempo apagadas';
 
-    public function handle(Handoff $handoff): int
+    public function handle(Handoff $handoff, SilenceTracker $tracker): int
     {
         $seco = (bool) $this->option('dry-run');
         $horas = (int) ($this->option('horas') ?: config('whatsapp.reactivate_after_hours'));
@@ -56,10 +59,17 @@ class ReactivateAgent extends Command
             ->whereNotNull('ai_disabled_at')
             ->where('ai_disabled_at', '<=', $corte)
             ->orderBy('ai_disabled_at')
-            ->get();
+            ->get()
+            // Mientras haya mensajes recientes, de quien sea, la conversación sigue en manos del asesor.
+            ->filter(function (Conversation $conv) use ($tracker, $corte) {
+                $ultimo = $tracker->lastEffectiveMessage($conv->id);
+
+                return ! $ultimo || Carbon::parse($ultimo->created_at)->lte($corte);
+            })
+            ->values();
 
         if ($apagadas->isEmpty()) {
-            $this->info('Ninguna conversación lleva más de '.$horas.' h con el agente apagado.');
+            $this->info('Ninguna conversación lleva más de '.$horas.' h con el agente apagado y sin mensajes.');
 
             return self::SUCCESS;
         }

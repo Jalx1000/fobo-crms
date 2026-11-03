@@ -103,6 +103,16 @@ class CloudApiGateway extends BaseGateway
 
                 $profileName = $value['contacts'][0]['profile']['name'] ?? null;
 
+                /*
+                 * Which of our numbers received it. Since the switch on 27/10 the
+                 * old number's WABA still delivers here; trusting its messages
+                 * opened a window that Meta then refused with 131047. Without
+                 * either id there is nothing to compare, so it counts as ours.
+                 */
+                $receivedBy = $value['metadata']['phone_number_id'] ?? null;
+                $ownNumber = $this->config['phone_number_id'] ?? null;
+                $opensWindow = ! $receivedBy || ! $ownNumber || (string) $receivedBy === (string) $ownNumber;
+
                 foreach ($value['messages'] ?? [] as $message) {
                     if (empty($message['id']) || empty($message['from'])) {
                         continue;
@@ -128,7 +138,8 @@ class CloudApiGateway extends BaseGateway
                          */
                         replyToProviderId: $message['context']['id']
                             ?? ($message['reaction']['message_id'] ?? null),
-                        raw: $message,
+                        raw: $receivedBy ? $message + ['received_by' => (string) $receivedBy] : $message,
+                        opensWindow: $opensWindow,
                     );
                 }
 

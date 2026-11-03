@@ -138,10 +138,19 @@ class AgentPayload
             return null;
         }
 
+        $isOpen = ! in_array(optional($lead->stage)->code, CitySyncService::CLOSED_STAGE_CODES, true);
+
         return [
             'id'         => (int) $lead->id,
-            'is_empty'   => $lead->products->isEmpty(),
-            'is_open'    => ! in_array(optional($lead->stage)->code, CitySyncService::CLOSED_STAGE_CODES, true),
+            /*
+             * Vacío es "el que abrió el CRM y nadie llenó": sin productos, sin
+             * monto y abierto. Mirar sólo los productos no alcanza: los pedidos
+             * cargados a mano antes de junio tienen monto pero ninguna fila en
+             * lead_products, y el agente hacía PUT sobre ellos (el #72 era una
+             * entrega de Bs 600 y quedó como un pedido nuevo de Bs 540).
+             */
+            'is_empty'   => $isOpen && (float) $lead->lead_value <= 0 && $lead->products->isEmpty(),
+            'is_open'    => $isOpen,
             'stage'      => optional($lead->stage)->name,
             'lead_value' => (float) $lead->lead_value,
             'products'   => $lead->products->map(fn ($p) => [

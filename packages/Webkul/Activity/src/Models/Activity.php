@@ -4,6 +4,7 @@ namespace Webkul\Activity\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Webkul\Activity\Contracts\Activity as ActivityContract;
+use Webkul\Activity\Models\Scopes\AdminOnlyScope;
 use Webkul\Contact\Models\PersonProxy;
 use Webkul\Lead\Models\LeadProxy;
 use Webkul\Product\Models\ProductProxy;
@@ -35,7 +36,19 @@ class Activity extends Model implements ActivityContract
     protected $casts = [
         'schedule_from' => 'datetime',
         'schedule_to'   => 'datetime',
+        'admin_only'    => 'boolean',
     ];
+
+    /**
+     * Las actividades `admin_only` (notas de la auditoría de datos) sólo las
+     * ve un rol con acceso total.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::addGlobalScope(new AdminOnlyScope);
+    }
 
     /**
      * The attributes that are mass assignable.

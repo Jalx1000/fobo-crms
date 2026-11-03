@@ -163,15 +163,6 @@ it('usa la mediana y el p90, no el promedio, porque la cola manda', function () 
         ->and($d['p90'])->toBe(600.0);
 });
 
-it('el endpoint del tablero lo devuelve con las dos ramas', function () {
-    $r = test()->getJson(route('admin.dashboard.stats', ['type' => 'tiempo-respuesta-whatsapp']))
-        ->assertSuccessful()
-        ->json('statistics');
-
-    expect($r)->toHaveKeys(['agente', 'asesor', 'por_asesor'])
-        ->and($r['agente'])->toHaveKeys(['respuestas', 'mediana', 'p90', 'promedio']);
-});
-
 // ---------------------------------------------------------------------------
 // Filtro por ciudad, como el resto del tablero
 // ---------------------------------------------------------------------------
@@ -191,19 +182,6 @@ it('sin ciudad devuelve todo, como antes', function () {
     $b = (new ResponseTimeReport(now()->subDays(30), now()))->enPipeline(null)->build();
 
     expect($b['agente']['respuestas'])->toBe($a['agente']['respuestas']);
-});
-
-it('el endpoint del tablero respeta pipeline_id', function () {
-    $tarija = (int) DB::table('lead_pipelines')->where('name', 'Tarija')->value('id');
-
-    $todas = test()->getJson(route('admin.dashboard.stats', ['type' => 'tiempo-respuesta-whatsapp']))
-        ->json('statistics.agente.respuestas');
-
-    $sola = test()->getJson(route('admin.dashboard.stats', [
-        'type' => 'tiempo-respuesta-whatsapp', 'pipeline_id' => $tarija,
-    ]))->json('statistics.agente.respuestas');
-
-    expect($sola)->toBeLessThan($todas);
 });
 
 // ---------------------------------------------------------------------------

@@ -37,7 +37,9 @@
 
     @php
         $user = auth()->guard('user')->user();
-        $isAdminRole = strtolower(optional($user->role)->name) === 'admin';
+        // Por id y no por nombre: el rol se llama "Administrador" y la
+        // comparación con 'admin' nunca se cumplía.
+        $isAdminRole = (int) optional($user)->role_id === 1;
     @endphp
 
     <div class="mt-3.5 flex gap-4 max-xl:flex-wrap">
@@ -48,31 +50,11 @@
              contenido y las tarjetas con tabla ancha desbordan el viewport. --}}
         <div class="flex min-w-0 flex-1 flex-col gap-4 max-xl:flex-auto">
             {{-- @include('admin::dashboard.index.revenue') --}}
-            @include('admin::dashboard.index.over-all')
+            @include('admin::dashboard.index.over-all') 
             @include('admin::dashboard.index.leads-by-users')
             @include('admin::dashboard.index.evolution')
-
-            @if ($isAdminRole)
-                <div class="grid grid-cols-3 gap-4 w-full">
-                    <div class="col-span-1 flex flex-col gap-4">
-                        @include('admin::dashboard.index.ventas')
-                    </div>
-                    <div class="col-span-1 flex flex-col gap-4">
-                        @include('admin::dashboard.index.leads-by-users')
-                    </div>
-                    <div class="col-span-1 flex flex-col gap-4">
-                        @include('admin::dashboard.index.leads-por-ciudad')
-                    </div>
-                    <div class="col-span-1 flex flex-col gap-4">
-                        @include('admin::dashboard.index.ventas-por-ciudad')
-                    </div>
-                </div>
-            @else
-                @include('admin::dashboard.index.tiempo-por-vendedor')
-
-                @include('admin::dashboard.index.distribucion-tiempo-respuesta')
-            @endif
-
+            @include('admin::dashboard.index.tiempo-por-vendedor')
+            @include('admin::dashboard.index.distribucion-tiempo-respuesta')
             @include('admin::dashboard.index.tiempo-por-etapa')
         </div>
         {!! view_render_event('admin.dashboard.index.content.left.after') !!}

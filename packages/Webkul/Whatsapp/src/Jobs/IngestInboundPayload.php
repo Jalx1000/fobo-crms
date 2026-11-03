@@ -94,11 +94,12 @@ class IngestInboundPayload implements ShouldQueue
             'payload'         => $inbound->raw,
         ]);
 
-        $conversation->forceFill([
+        $conversation->forceFill(array_filter([
             'last_message_at' => now(),
-            'last_inbound_at' => now(), // reopens the 24h messaging window
+            // Reopens the 24h window, but only on the number we reply from.
+            'last_inbound_at' => $inbound->opensWindow ? now() : null,
             'unread_count'    => $conversation->unread_count + 1,
-        ])->save();
+        ], fn ($value) => $value !== null))->save();
 
         // Volvió a escribir: si su pedido se cerró por falta de respuesta, se
         // reabre. Nunca lanza: el mensaje del cliente ya quedó guardado.
@@ -124,7 +125,8 @@ class IngestInboundPayload implements ShouldQueue
          * reacción tiene texto (el emoji), sin este filtro empezaría a
          * responderlas.
          */
-        if ($conversation->aiEffective() && ! in_array($created->type, self::TIPOS_QUE_NO_DESPIERTAN_AL_AGENTE, true)) {
+        // Through a closed window the agent's reply would be refused anyway.
+        if ($inbound->opensWindow && $conversation->aiEffective() && ! in_array($created->type, self::TIPOS_QUE_NO_DESPIERTAN_AL_AGENTE, true)) {
             NotifyAgent::dispatch($created->id)->onQueue(config('whatsapp.queue'));
         }
     }

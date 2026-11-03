@@ -11,7 +11,8 @@ use Webkul\Whatsapp\Services\ConversationResolver;
 use Webkul\Whatsapp\Services\SilenceTracker;
 
 /*
- * Seguimiento a las 16 h y cierre a las 72 h sin respuesta del cliente.
+ * Recordatorio a las 4 h de nuestro último mensaje y cierre sin respuesta del
+ * cliente: "No atendido" al cerrarse la ventana de 24 h, el resto a las 72 h.
  * Spec: tasks/spec-sin-respuesta-3-dias.md.
  *
  * Las plantillas de reapertura tuvieron 0 respuestas de 36 en 30 días: por eso
@@ -23,7 +24,12 @@ beforeEach(function () {
     Queue::fake();
     DB::beginTransaction();
 
-    config(['whatsapp.auto_close.since' => now()->subDays(10)->toDateTimeString()]);
+    // Fijos acá: el .env de producción no puede cambiar lo que se prueba.
+    config([
+        'whatsapp.auto_close.since'          => now()->subDays(10)->toDateTimeString(),
+        'whatsapp.auto_close.followup_after' => 4,
+        'whatsapp.auto_close.close_after'    => 72,
+    ]);
 });
 
 afterEach(fn () => DB::rollBack());
@@ -108,26 +114,27 @@ function sycDue(string $method, Conversation $conv): bool
 // Seguimiento a las 16 h
 // ---------------------------------------------------------------------------
 
-it('manda el seguimiento a las 16 h si el último mensaje es nuestro', function () {
+it('manda el seguimiento a las 4 h de nuestro último mensaje', function () {
     $conv = sycConv(sycLead());
-    sycMsg($conv, 'inbound', 17);
-    sycMsg($conv, 'outbound', 16.9);
+    sycMsg($conv, 'inbound', 10);
+    sycMsg($conv, 'outbound', 4.1);
 
     expect(sycDue('followupsDue', $conv))->toBeTrue();
 });
 
-it('no lo manda antes de las 16 h', function () {
+it('no lo manda antes de las 4 h de nuestro último mensaje, aunque el cliente lleve más', function () {
+    // El asesor acaba de escribir: el recordatorio no le sale encima.
     $conv = sycConv(sycLead());
-    sycMsg($conv, 'inbound', 15.9);
-    sycMsg($conv, 'outbound', 15.8);
+    sycMsg($conv, 'inbound', 10);
+    sycMsg($conv, 'outbound', 3.9, ['sender' => 'human']);
 
     expect(sycDue('followupsDue', $conv))->toBeFalse();
 });
 
 it('no lo manda si el último mensaje es del cliente: el pendiente es nuestro', function () {
     $conv = sycConv(sycLead());
-    sycMsg($conv, 'outbound', 18);
-    sycMsg($conv, 'inbound', 17);
+    sycMsg($conv, 'outbound', 6);
+    sycMsg($conv, 'inbound', 5);
 
     expect(sycDue('followupsDue', $conv))->toBeFalse();
 });
@@ -135,43 +142,62 @@ it('no lo manda si el último mensaje es del cliente: el pendiente es nuestro', 
 it('no lo manda con la ventana de 24 h ya cerrada', function () {
     $conv = sycConv(sycLead());
     sycMsg($conv, 'inbound', 25);
-    sycMsg($conv, 'outbound', 24.9);
+    sycMsg($conv, 'outbound', 20);
 
     expect(sycDue('followupsDue', $conv))->toBeFalse();
 });
 
 it('no lo manda si la conversación está derivada a un asesor', function () {
     $conv = sycConv(sycLead(), ['handoff_state' => Conversation::HANDOFF_ASSIGNED]);
-    sycMsg($conv, 'inbound', 17);
-    sycMsg($conv, 'outbound', 16.9);
+    sycMsg($conv, 'inbound', 10);
+    sycMsg($conv, 'outbound', 5);
 
     expect(sycDue('followupsDue', $conv))->toBeFalse();
 });
 
 it('sí lo manda con el agente apagado', function () {
     $conv = sycConv(sycLead(), ['ai_enabled' => false]);
-    sycMsg($conv, 'inbound', 17);
-    sycMsg($conv, 'outbound', 16.9, ['sender' => 'human']);
+    sycMsg($conv, 'inbound', 10);
+    sycMsg($conv, 'outbound', 5, ['sender' => 'human']);
 
     expect(sycDue('followupsDue', $conv))->toBeTrue();
 });
 
 it('no lo manda para pedidos confirmados', function () {
     $conv = sycConv(sycLead('Cochabamba', 'cliente-confirmado'));
-    sycMsg($conv, 'inbound', 17);
-    sycMsg($conv, 'outbound', 16.9);
+    sycMsg($conv, 'inbound', 10);
+    sycMsg($conv, 'outbound', 5);
 
     expect(sycDue('followupsDue', $conv))->toBeFalse();
 });
 
 it('manda un solo seguimiento por silencio', function () {
     $conv = sycConv(sycLead());
-    sycMsg($conv, 'inbound', 17);
-    sycMsg($conv, 'outbound', 16.9);
+    sycMsg($conv, 'inbound', 10);
+    sycMsg($conv, 'outbound', 5);
 
     app(SilenceTracker::class)->sendFollowup($conv);
 
     expect(sycDue('followupsDue', $conv->fresh()))->toBeFalse();
+});
+
+it('el recordatorio no dispara otro 4 h después', function () {
+    $conv = sycConv(sycLead());
+    sycMsg($conv, 'inbound', 12);
+    sycMsg($conv, 'outbound', 9);
+    sycMsg($conv, 'outbound', 4.5, ['payload' => json_encode(['followup' => true])]);
+
+    expect(sycDue('followupsDue', $conv))->toBeFalse();
+});
+
+it('si el cliente contesta y vuelve a callarse, hay otro recordatorio', function () {
+    $conv = sycConv(sycLead());
+    sycMsg($conv, 'inbound', 20);
+    sycMsg($conv, 'outbound', 18, ['payload' => json_encode(['followup' => true])]);
+    sycMsg($conv, 'inbound', 10);
+    sycMsg($conv, 'outbound', 5);
+
+    expect(sycDue('followupsDue', $conv))->toBeTrue();
 });
 
 it('el texto es neutro, con el primer nombre en formato título y nunca en mayúsculas', function () {
@@ -325,6 +351,82 @@ it('el comando cierra lo que corresponde', function () {
 
     expect((int) DB::table('leads')->where('id', $leadId)->value('lead_pipeline_stage_id'))
         ->toBe(sycStage('Cochabamba', 'cliente-sin-inters'));
+});
+
+// ---------------------------------------------------------------------------
+// No atendido: cierre al cerrarse la ventana de 24 h
+// ---------------------------------------------------------------------------
+
+it('No atendido con la ventana cerrada y nuestro mensaje como último pasa a sin interés', function () {
+    $conv = sycConv(sycLead('Cochabamba', 'no-atendido'));
+    sycMsg($conv, 'inbound', 30);
+    sycMsg($conv, 'outbound', 29);
+
+    expect(sycDue('unattendedClosuresDue', $conv))->toBeTrue();
+});
+
+it('No atendido con la ventana abierta todavía no se cierra', function () {
+    $conv = sycConv(sycLead('Cochabamba', 'no-atendido'));
+    sycMsg($conv, 'inbound', 20);
+    sycMsg($conv, 'outbound', 19);
+
+    expect(sycDue('unattendedClosuresDue', $conv))->toBeFalse();
+});
+
+it('No atendido donde el último mensaje es del cliente no se cierra: el pendiente es nuestro', function () {
+    $conv = sycConv(sycLead('Cochabamba', 'no-atendido'));
+    sycMsg($conv, 'outbound', 40);
+    sycMsg($conv, 'inbound', 30);
+
+    expect(sycDue('unattendedClosuresDue', $conv))->toBeFalse();
+});
+
+it('las 24 h son solo para No atendido: Contactado sigue esperando los 3 días', function () {
+    $conv = sycConv(sycLead('Cochabamba', 'cliente-contactado'));
+    sycMsg($conv, 'inbound', 30);
+    sycMsg($conv, 'outbound', 29);
+
+    expect(sycDue('unattendedClosuresDue', $conv))->toBeFalse();
+});
+
+it('No atendido mueve también lo acumulado antes de activar la regla', function () {
+    config(['whatsapp.auto_close.since' => now()->subHour()->toDateTimeString()]);
+
+    $conv = sycConv(sycLead('Cochabamba', 'no-atendido'));
+    sycMsg($conv, 'inbound', 24 * 10);
+    sycMsg($conv, 'outbound', 24 * 10 - 1);
+
+    expect(sycDue('unattendedClosuresDue', $conv))->toBeTrue();
+});
+
+it('No atendido no se cierra si el pedido tiene otra conversación con la ventana abierta', function () {
+    $leadId = sycLead('Cochabamba', 'no-atendido');
+    $vieja = sycConv($leadId);
+    sycMsg($vieja, 'inbound', 30);
+    sycMsg($vieja, 'outbound', 29);
+
+    $nueva = sycConv($leadId);
+    sycMsg($nueva, 'inbound', 2);
+
+    expect(sycDue('unattendedClosuresDue', $vieja))->toBeFalse();
+});
+
+it('el comando cierra No atendido con su marca, y se reabre si el cliente vuelve', function () {
+    $leadId = sycLead('Cochabamba', 'no-atendido');
+    $conv = sycConv($leadId);
+    sycMsg($conv, 'inbound', 30);
+    sycMsg($conv, 'outbound', 29);
+
+    test()->artisan('whatsapp:seguimiento-y-cierre')->assertSuccessful();
+
+    $lead = Webkul\Lead\Models\LeadProxy::modelClass()::find($leadId);
+
+    expect((int) $lead->lead_pipeline_stage_id)->toBe(sycStage('Cochabamba', 'cliente-sin-inters'))
+        ->and($lead->activities()->where('activities.title', SilenceTracker::UNATTENDED_MARKER_TITLE)->exists())->toBeTrue()
+        ->and(app(SilenceTracker::class)->reopenIfAutoClosed($conv->fresh()))->toBeTrue();
+
+    expect((int) DB::table('leads')->where('id', $leadId)->value('lead_pipeline_stage_id'))
+        ->toBe(sycStage('Cochabamba', 'cliente-contactado'));
 });
 
 // ---------------------------------------------------------------------------

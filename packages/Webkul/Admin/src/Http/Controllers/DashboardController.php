@@ -34,7 +34,6 @@ class DashboardController extends Controller
         'leads-attention-by-users'        => 'getLeadsAttentionByUsersStats',
         'tiempo-por-vendedor'             => 'getResponseTimeByUsersStats',
         'distribucion-tiempo-respuesta'   => 'getResponseTimeDistributionStats',
-        'tiempo-respuesta-whatsapp'       => 'getWhatsappResponseTimeStats',
         'tiempo-por-contacto'             => 'getResponseTimeDetailStats',
         'tiempo-por-etapa'                => 'getStageDwellTimeStats',
         'ventas-por-sucursal'             => 'getVentasByBranchesStats',

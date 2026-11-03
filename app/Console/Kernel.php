@@ -34,18 +34,21 @@ class Kernel extends ConsoleKernel
          *
          * Reemplaza a whatsapp:cerrar-derivaciones-inactivas, que sólo cubría
          * las derivaciones. El plazo se configura con
-         * WHATSAPP_AI_REACTIVATE_HOURS (6 por defecto, 0 lo desactiva); cada
-         * hora alcanza, y withoutOverlapping evita que dos corridas se pisen.
+         * WHATSAPP_AI_REACTIVATE_HOURS (4 por defecto, 0 lo desactiva) y
+         * cuenta desde el último mensaje. Cada 15 minutos para que vuelva
+         * cerca de las 4 h; va antes del recordatorio, que no sale con una
+         * derivación abierta.
          */
         $schedule->command('whatsapp:reactivar-agente')
-            ->hourly()
+            ->everyFifteenMinutes()
             ->withoutOverlapping();
 
         /*
-         * Recordatorio a las 16 h y cierre en "Cliente sin interés" a las 72 h
-         * cuando el cliente no contesta. No hace nada mientras
+         * Recordatorio a las 4 h de nuestro último mensaje y cierre en
+         * "Cliente sin interés" cuando el cliente no contesta (No atendido: al
+         * cerrarse la ventana de 24 h; resto: 72 h). No hace nada mientras
          * WHATSAPP_AUTO_CLOSE_SINCE esté vacío. Cada 15 minutos para que el
-         * recordatorio salga cerca de las 16 h, con 8 h de ventana por delante.
+         * recordatorio salga cerca de las 4 h.
          */
         $schedule->command('whatsapp:seguimiento-y-cierre')
             ->everyFifteenMinutes()

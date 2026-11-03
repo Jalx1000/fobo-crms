@@ -1,0 +1,404 @@
+{
+    "lead": {
+        "id": 1676,
+        "title": "WhatsApp - Agencia de Cooperación Internacional de Corea",
+        "description": null,
+        "lead_value": "150.0000",
+        "lead_value_is_manual": 0,
+        "status": 1,
+        "lost_reason": null,
+        "closed_at": null,
+        "confirmed_at": null,
+        "first_stage_change_at": null,
+        "user_id": 4,
+        "person_id": 2082,
+        "lead_source_id": 6,
+        "lead_type_id": 1,
+        "lead_pipeline_id": 7,
+        "lead_pipeline_stage_id": 27,
+        "created_at": "2026-09-21 21:05:13",
+        "updated_at": "2026-09-22 11:21:51",
+        "expected_close_date": null
+    },
+    "attribute_values": [
+        {
+            "id": 23005,
+            "entity_type": "leads",
+            "text_value": "WhatsApp - Agencia de Cooperación Internacional de Corea",
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1676,
+            "attribute_id": 20,
+            "unique_id": null
+        },
+        {
+            "id": 23006,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": 150,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1676,
+            "attribute_id": 22,
+            "unique_id": null
+        },
+        {
+            "id": 23007,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 6,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1676,
+            "attribute_id": 23,
+            "unique_id": null
+        },
+        {
+            "id": 23008,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 1,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1676,
+            "attribute_id": 24,
+            "unique_id": null
+        },
+        {
+            "id": 23009,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 4,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1676,
+            "attribute_id": 25,
+            "unique_id": null
+        },
+        {
+            "id": 23010,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1676,
+            "attribute_id": 26,
+            "unique_id": null
+        },
+        {
+            "id": 23011,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 10,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1676,
+            "attribute_id": 27,
+            "unique_id": null
+        },
+        {
+            "id": 23012,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 40,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1676,
+            "attribute_id": 28,
+            "unique_id": null
+        },
+        {
+            "id": 24290,
+            "entity_type": "leads",
+            "text_value": "36",
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1676,
+            "attribute_id": 68,
+            "unique_id": null
+        },
+        {
+            "id": 23013,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 7,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 1676,
+            "attribute_id": 69,
+            "unique_id": null
+        }
+    ],
+    "lead_products": [
+        {
+            "id": 1399,
+            "quantity": 2,
+            "price": "75.0000",
+            "amount": "150.0000",
+            "lead_id": 1676,
+            "product_id": 65,
+            "created_at": "2026-09-22 11:21:33",
+            "updated_at": "2026-09-22 11:21:33"
+        }
+    ],
+    "lead_tags": [],
+    "lead_activities": [
+        {
+            "activity_id": 33039,
+            "lead_id": 1676
+        },
+        {
+            "activity_id": 33040,
+            "lead_id": 1676
+        },
+        {
+            "activity_id": 33041,
+            "lead_id": 1676
+        },
+        {
+            "activity_id": 33042,
+            "lead_id": 1676
+        },
+        {
+            "activity_id": 33043,
+            "lead_id": 1676
+        },
+        {
+            "activity_id": 33044,
+            "lead_id": 1676
+        },
+        {
+            "activity_id": 33045,
+            "lead_id": 1676
+        },
+        {
+            "activity_id": 33046,
+            "lead_id": 1676
+        },
+        {
+            "activity_id": 34599,
+            "lead_id": 1676
+        },
+        {
+            "activity_id": 34600,
+            "lead_id": 1676
+        },
+        {
+            "activity_id": 34601,
+            "lead_id": 1676
+        },
+        {
+            "activity_id": 34676,
+            "lead_id": 1676
+        }
+    ],
+    "activities": [
+        {
+            "id": 33039,
+            "title": "Creado",
+            "type": "system",
+            "comment": null,
+            "additional": null,
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": null,
+            "created_at": "2026-09-21 21:05:13",
+            "updated_at": "2026-09-21 21:05:13",
+            "location": null
+        },
+        {
+            "id": 33040,
+            "title": "Actualizado Nombre de cliente",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"WhatsApp - Agencia de Cooperación Internacional de Corea\", \"value\": \"WhatsApp - Agencia de Cooperación Internacional de Corea\"}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Nombre de cliente\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": null,
+            "created_at": "2026-09-21 21:05:13",
+            "updated_at": "2026-09-21 21:05:13",
+            "location": null
+        },
+        {
+            "id": 33041,
+            "title": "Actualizado Canal",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Whatsapp\", \"value\": 6}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Canal\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": null,
+            "created_at": "2026-09-21 21:05:13",
+            "updated_at": "2026-09-21 21:05:13",
+            "location": null
+        },
+        {
+            "id": 33042,
+            "title": "Actualizado Tipo de cliente",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Nuevo Cliente\", \"value\": 1}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Tipo de cliente\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": null,
+            "created_at": "2026-09-21 21:05:14",
+            "updated_at": "2026-09-21 21:05:14",
+            "location": null
+        },
+        {
+            "id": 33043,
+            "title": "Actualizado Asesor Asignado",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Daniel Escalante\", \"value\": 14}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Asesor Asignado\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": null,
+            "created_at": "2026-09-21 21:05:14",
+            "updated_at": "2026-09-21 21:05:14",
+            "location": null
+        },
+        {
+            "id": 33044,
+            "title": "Actualizado Pipeline",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Sin ciudad\", \"value\": 10}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Pipeline\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": null,
+            "created_at": "2026-09-21 21:05:14",
+            "updated_at": "2026-09-21 21:05:14",
+            "location": null
+        },
+        {
+            "id": 33045,
+            "title": "Actualizado Etapa",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"No atendido\", \"value\": 40}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Etapa\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": null,
+            "created_at": "2026-09-21 21:05:14",
+            "updated_at": "2026-09-21 21:05:14",
+            "location": null
+        },
+        {
+            "id": 33046,
+            "title": "Actualizado Ciudad",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Sin ciudad\", \"value\": 10}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Ciudad\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": null,
+            "created_at": "2026-09-21 21:05:14",
+            "updated_at": "2026-09-21 21:05:14",
+            "location": null
+        },
+        {
+            "id": 34599,
+            "title": "Actualizado Ciudad",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"La Paz\", \"value\": 7}, \"old\": {\"label\": \"Sin ciudad\", \"value\": 10}, \"attribute\": \"Ciudad\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-09-22 10:58:06",
+            "updated_at": "2026-09-22 10:58:06",
+            "location": null
+        },
+        {
+            "id": 34600,
+            "title": "Actualizado Asesor Asignado",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Stefani Mendieta\", \"value\": 4}, \"old\": {\"label\": \"Daniel Escalante\", \"value\": 14}, \"attribute\": \"Asesor Asignado\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-09-22 10:58:11",
+            "updated_at": "2026-09-22 10:58:11",
+            "location": null
+        },
+        {
+            "id": 34601,
+            "title": "Actualizado Edad del Cliente",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": 36, \"value\": 36}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Edad del Cliente\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-09-22 10:58:18",
+            "updated_at": "2026-09-22 10:58:18",
+            "location": null
+        },
+        {
+            "id": 34676,
+            "title": "Actualizado Valor del Pedido",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"150,00 BOB\", \"value\": 150}, \"old\": {\"label\": \"0,00 BOB\", \"value\": 0}, \"attribute\": \"Valor del Pedido\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-09-22 11:21:51",
+            "updated_at": "2026-09-22 11:21:51",
+            "location": null
+        }
+    ],
+    "conversations": [
+        {
+            "id": 1380,
+            "lead_id": 1676
+        }
+    ]
+}

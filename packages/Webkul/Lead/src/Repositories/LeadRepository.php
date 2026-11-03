@@ -233,36 +233,8 @@ class LeadRepository extends Repository
             $data['person_id'] = $person->id;
         }
 
-        if (isset($data['lead_pipeline_stage_id'])) {
-            $stage = $this->stageRepository->find($data['lead_pipeline_stage_id']);
-
-            $name = strtolower($stage->name ?? '');
-            $code = strtolower($stage->code ?? '');
-            $isWon = ($code === 'won') || ($code === 'pedido-entregado') || str_contains($name, 'won') || str_contains($name, 'ganado') || str_contains($name, 'entregado');
-            $isLost = ($code === 'lost') || ($code === 'pedidos-cancelado') || str_contains($name, 'lost') || str_contains($name, 'perdido') || str_contains($name, 'cancelado');
-            $isConfirmed = ($code === 'pedidos-confirmado') || str_contains($name, 'confirmado');
-
-            $currentLead = $this->find($id);
-
-            if ($isWon || $isLost) {
-                $data['closed_at'] = $data['closed_at'] ?? Carbon::now();
-            } else {
-                $data['closed_at'] = null;
-            }
-
-            if ($isConfirmed && ! $currentLead?->confirmed_at) {
-                $data['confirmed_at'] = Carbon::now();
-            }
-
-            /**
-             * first_stage_change_at: primera salida de Prospecto (la etapa inicial).
-             * Pegajoso: se fija una sola vez y nunca se sobrescribe ni se borra, para que
-             * el "Tiempo en responder" sea inmune a reaperturas/movimientos accidentales.
-             */
-            if (($isWon || $isLost || $isConfirmed) && ! $currentLead?->first_stage_change_at) {
-                $data['first_stage_change_at'] = Carbon::now();
-            }
-        }
+        // closed_at, confirmed_at y first_stage_change_at los graba el modelo
+        // Lead al cambiar de etapa (Lead::stampStageDates).
 
         if (empty($data['expected_close_date'])) {
             $data['expected_close_date'] = null;

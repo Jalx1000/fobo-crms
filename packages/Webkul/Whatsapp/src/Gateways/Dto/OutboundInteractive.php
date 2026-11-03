@@ -98,6 +98,8 @@ final class OutboundInteractive
         ?string $header = null,
         ?string $footer = null,
     ): self {
+        [$body, $footer] = self::withFixedFooter($body, $footer);
+
         self::assertBody($body);
         self::assertOptional('header', $header, self::MAX_HEADER);
         self::assertOptional('footer', $footer, self::MAX_FOOTER);
@@ -207,6 +209,31 @@ final class OutboundInteractive
         }
 
         return $normalized;
+    }
+
+    /**
+     * El pie fijo de las listas (`whatsapp.interactive.list_footer`) gana
+     * siempre. Si el agente mandó otro, se anexa al body como hace el parser
+     * con un pie demasiado largo.
+     *
+     * Comparar contra el pie fijo lo vuelve idempotente: `fromArray()` pasa por
+     * acá al reintentar y un payload que ya lo tiene no se toca.
+     *
+     * @return array{0: string, 1: ?string}
+     */
+    private static function withFixedFooter(string $body, ?string $footer): array
+    {
+        $fixed = trim((string) config('whatsapp.interactive.list_footer'));
+
+        if ($fixed === '' || $footer === $fixed) {
+            return [$body, $footer];
+        }
+
+        if ($footer !== null && trim($footer) !== '') {
+            $body = trim($body."\n\n".$footer);
+        }
+
+        return [$body, $fixed];
     }
 
     private static function assertBody(string $body): void

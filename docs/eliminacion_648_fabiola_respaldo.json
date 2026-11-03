@@ -1,0 +1,701 @@
+{
+    "lead": {
+        "id": 648,
+        "title": "Pedido Promo Varietales",
+        "description": "Promo Varietales",
+        "lead_value": "239.0000",
+        "lead_value_is_manual": 0,
+        "status": 1,
+        "lost_reason": null,
+        "closed_at": null,
+        "confirmed_at": "2026-08-25 13:33:45",
+        "first_stage_change_at": "2026-08-25 13:33:45",
+        "user_id": 15,
+        "person_id": 520,
+        "lead_source_id": 6,
+        "lead_type_id": 1,
+        "lead_pipeline_id": 8,
+        "lead_pipeline_stage_id": 32,
+        "created_at": "2026-08-13 23:13:27",
+        "updated_at": "2026-08-25 13:33:45",
+        "expected_close_date": null
+    },
+    "attribute_values": [
+        {
+            "id": 10696,
+            "entity_type": "leads",
+            "text_value": "Pedido Promo Varietales",
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 648,
+            "attribute_id": 20,
+            "unique_id": null
+        },
+        {
+            "id": 10697,
+            "entity_type": "leads",
+            "text_value": "Promo Varietales",
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 648,
+            "attribute_id": 21,
+            "unique_id": null
+        },
+        {
+            "id": 10698,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": 239,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 648,
+            "attribute_id": 22,
+            "unique_id": null
+        },
+        {
+            "id": 10699,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 6,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 648,
+            "attribute_id": 23,
+            "unique_id": null
+        },
+        {
+            "id": 10700,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 1,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 648,
+            "attribute_id": 24,
+            "unique_id": null
+        },
+        {
+            "id": 10701,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 15,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 648,
+            "attribute_id": 25,
+            "unique_id": null
+        },
+        {
+            "id": 10702,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 648,
+            "attribute_id": 26,
+            "unique_id": null
+        },
+        {
+            "id": 10703,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 8,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 648,
+            "attribute_id": 27,
+            "unique_id": null
+        },
+        {
+            "id": 10704,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 32,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 648,
+            "attribute_id": 28,
+            "unique_id": null
+        },
+        {
+            "id": 10706,
+            "entity_type": "leads",
+            "text_value": "Calle A. Urquidi, entre jacinto anaya y Mariano borda Nro. 2275",
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 648,
+            "attribute_id": 64,
+            "unique_id": null
+        },
+        {
+            "id": 10707,
+            "entity_type": "leads",
+            "text_value": "38",
+            "boolean_value": null,
+            "integer_value": null,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 648,
+            "attribute_id": 68,
+            "unique_id": null
+        },
+        {
+            "id": 10705,
+            "entity_type": "leads",
+            "text_value": null,
+            "boolean_value": null,
+            "integer_value": 8,
+            "float_value": null,
+            "datetime_value": null,
+            "date_value": null,
+            "json_value": null,
+            "entity_id": 648,
+            "attribute_id": 69,
+            "unique_id": null
+        }
+    ],
+    "lead_products": [
+        {
+            "id": 936,
+            "quantity": 1,
+            "price": "239.0000",
+            "amount": "239.0000",
+            "lead_id": 648,
+            "product_id": 43,
+            "created_at": "2026-08-13 23:19:28",
+            "updated_at": "2026-08-13 23:19:28"
+        }
+    ],
+    "lead_activities": [
+        {
+            "activity_id": 17632,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17633,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17634,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17635,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17636,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17637,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17638,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17639,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17640,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17641,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17643,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17644,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17645,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17646,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17647,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17649,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17650,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17651,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17652,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17653,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17654,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17655,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17671,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 17672,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 19939,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 19940,
+            "lead_id": 648
+        },
+        {
+            "activity_id": 19941,
+            "lead_id": 648
+        }
+    ],
+    "activities": [
+        {
+            "id": 17632,
+            "title": "Creado",
+            "type": "system",
+            "comment": null,
+            "additional": null,
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:27",
+            "updated_at": "2026-08-13 23:13:27",
+            "location": null
+        },
+        {
+            "id": 17633,
+            "title": "Actualizado Nombre de cliente",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Consulta agendada\", \"value\": \"Consulta agendada\"}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Nombre de cliente\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:27",
+            "updated_at": "2026-08-13 23:13:27",
+            "location": null
+        },
+        {
+            "id": 17634,
+            "title": "Actualizado Descripción del pedido",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Primer contacto\", \"value\": \"Primer contacto\"}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Descripción del pedido\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:27",
+            "updated_at": "2026-08-13 23:13:27",
+            "location": null
+        },
+        {
+            "id": 17635,
+            "title": "Actualizado Canal",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Whatsapp\", \"value\": 6}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Canal\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:27",
+            "updated_at": "2026-08-13 23:13:27",
+            "location": null
+        },
+        {
+            "id": 17636,
+            "title": "Actualizado Tipo de cliente",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Nuevo Cliente\", \"value\": 1}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Tipo de cliente\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:27",
+            "updated_at": "2026-08-13 23:13:27",
+            "location": null
+        },
+        {
+            "id": 17637,
+            "title": "Actualizado Asesor Asignado",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Daniel Escalante\", \"value\": 14}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Asesor Asignado\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:27",
+            "updated_at": "2026-08-13 23:13:27",
+            "location": null
+        },
+        {
+            "id": 17638,
+            "title": "Actualizado Fecha de Entrega Esperada",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Sun Aug 16, 2026\", \"value\": \"2026-08-16\"}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Fecha de Entrega Esperada\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:27",
+            "updated_at": "2026-08-13 23:13:27",
+            "location": null
+        },
+        {
+            "id": 17639,
+            "title": "Actualizado Pipeline",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Tarija\", \"value\": 1}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Pipeline\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:27",
+            "updated_at": "2026-08-13 23:13:27",
+            "location": null
+        },
+        {
+            "id": 17640,
+            "title": "Actualizado Etapa",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"No atendido\", \"value\": 1}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Etapa\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:27",
+            "updated_at": "2026-08-13 23:13:27",
+            "location": null
+        },
+        {
+            "id": 17641,
+            "title": "Actualizado Ciudad",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Tarija\", \"value\": 1}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Ciudad\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:27",
+            "updated_at": "2026-08-13 23:13:27",
+            "location": null
+        },
+        {
+            "id": 17643,
+            "title": "Actualizado Fecha de Entrega Esperada",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": null, \"value\": null}, \"old\": {\"label\": \"Sun Aug 16, 2026\", \"value\": \"2026-08-16\"}, \"attribute\": \"Fecha de Entrega Esperada\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:31",
+            "updated_at": "2026-08-13 23:13:31",
+            "location": null
+        },
+        {
+            "id": 17644,
+            "title": "Actualizado Ubicacion",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Calle A. Urquidi, entre jacinto anaya y Mariano borda Nro. 2275\", \"value\": \"Calle A. Urquidi, entre jacinto anaya y Mariano borda Nro. 2275\"}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Ubicacion\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:31",
+            "updated_at": "2026-08-13 23:13:31",
+            "location": null
+        },
+        {
+            "id": 17645,
+            "title": "Actualizado Pipeline",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Cochabamba\", \"value\": 8}, \"old\": {\"label\": \"Tarija\", \"value\": 1}, \"attribute\": \"Pipeline\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:31",
+            "updated_at": "2026-08-13 23:13:31",
+            "location": null
+        },
+        {
+            "id": 17646,
+            "title": "Actualizado Etapa",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"No atendido\", \"value\": 31}, \"old\": {\"label\": \"No atendido\", \"value\": 1}, \"attribute\": \"Etapa\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:31",
+            "updated_at": "2026-08-13 23:13:31",
+            "location": null
+        },
+        {
+            "id": 17647,
+            "title": "Actualizado Ciudad",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Cochabamba\", \"value\": 8}, \"old\": {\"label\": \"Tarija\", \"value\": 1}, \"attribute\": \"Ciudad\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:31",
+            "updated_at": "2026-08-13 23:13:31",
+            "location": null
+        },
+        {
+            "id": 17649,
+            "title": "Actualizado Asesor Asignado",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Gabriel Muñoz\", \"value\": 15}, \"old\": {\"label\": \"Daniel Escalante\", \"value\": 14}, \"attribute\": \"Asesor Asignado\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:32",
+            "updated_at": "2026-08-13 23:13:32",
+            "location": null
+        },
+        {
+            "id": 17650,
+            "title": "Actualizado Nombre de cliente",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Pedido Promo Varietales\", \"value\": \"Pedido Promo Varietales\"}, \"old\": {\"label\": \"Consulta agendada\", \"value\": \"Consulta agendada\"}, \"attribute\": \"Nombre de cliente\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:32",
+            "updated_at": "2026-08-13 23:13:32",
+            "location": null
+        },
+        {
+            "id": 17651,
+            "title": "Actualizado Descripción del pedido",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Promo Varietales\", \"value\": \"Promo Varietales\"}, \"old\": {\"label\": \"Primer contacto\", \"value\": \"Primer contacto\"}, \"attribute\": \"Descripción del pedido\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:32",
+            "updated_at": "2026-08-13 23:13:32",
+            "location": null
+        },
+        {
+            "id": 17652,
+            "title": "Actualizado Valor del Pedido",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"239,00 BOB\", \"value\": 239}, \"old\": {\"label\": \"0,00 BOB\", \"value\": 0}, \"attribute\": \"Valor del Pedido\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:32",
+            "updated_at": "2026-08-13 23:13:32",
+            "location": null
+        },
+        {
+            "id": 17653,
+            "title": "Actualizado Fecha de Entrega Esperada",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Sun Aug 16, 2026\", \"value\": \"2026-08-16\"}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Fecha de Entrega Esperada\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:32",
+            "updated_at": "2026-08-13 23:13:32",
+            "location": null
+        },
+        {
+            "id": 17654,
+            "title": "Actualizado Fecha de Entrega Esperada",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": null, \"value\": null}, \"old\": {\"label\": \"Sun Aug 16, 2026\", \"value\": \"2026-08-16\"}, \"attribute\": \"Fecha de Entrega Esperada\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:32",
+            "updated_at": "2026-08-13 23:13:32",
+            "location": null
+        },
+        {
+            "id": 17655,
+            "title": "Actualizado Edad del Cliente",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": 38, \"value\": 38}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Edad del Cliente\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:13:32",
+            "updated_at": "2026-08-13 23:13:32",
+            "location": null
+        },
+        {
+            "id": 17671,
+            "title": "Actualizado Fecha de Entrega Esperada",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Sun Aug 16, 2026\", \"value\": \"2026-08-16\"}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"Fecha de Entrega Esperada\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:19:28",
+            "updated_at": "2026-08-13 23:19:28",
+            "location": null
+        },
+        {
+            "id": 17672,
+            "title": "Actualizado Fecha de Entrega Esperada",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": null, \"value\": null}, \"old\": {\"label\": \"Sun Aug 16, 2026\", \"value\": \"2026-08-16\"}, \"attribute\": \"Fecha de Entrega Esperada\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 13,
+            "created_at": "2026-08-13 23:19:28",
+            "updated_at": "2026-08-13 23:19:28",
+            "location": null
+        },
+        {
+            "id": 19939,
+            "title": "Actualizado confirmed_at",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Tue Aug 25, 2026 13:33 PM\", \"value\": \"2026-08-25T17:33:45.701616Z\"}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"confirmed_at\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 15,
+            "created_at": "2026-08-25 13:33:45",
+            "updated_at": "2026-08-25 13:33:45",
+            "location": null
+        },
+        {
+            "id": 19940,
+            "title": "Actualizado first_stage_change_at",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Tue Aug 25, 2026 13:33 PM\", \"value\": \"2026-08-25T17:33:45.704271Z\"}, \"old\": {\"label\": null, \"value\": null}, \"attribute\": \"first_stage_change_at\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 15,
+            "created_at": "2026-08-25 13:33:45",
+            "updated_at": "2026-08-25 13:33:45",
+            "location": null
+        },
+        {
+            "id": 19941,
+            "title": "Actualizado Etapa",
+            "type": "system",
+            "comment": null,
+            "additional": "{\"new\": {\"label\": \"Cliente confirmado\", \"value\": 32}, \"old\": {\"label\": \"No atendido\", \"value\": 31}, \"attribute\": \"Etapa\"}",
+            "schedule_from": null,
+            "schedule_to": null,
+            "is_done": 1,
+            "user_id": 15,
+            "created_at": "2026-08-25 13:33:45",
+            "updated_at": "2026-08-25 13:33:45",
+            "location": null
+        }
+    ],
+    "conversations": [
+        {
+            "id": 1036,
+            "lead_id": 648
+        }
+    ]
+}

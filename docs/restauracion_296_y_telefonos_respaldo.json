@@ -1,0 +1,84 @@
+{
+    "persons": [
+        {
+            "id": 65,
+            "name": "Joaquin Lopez - Joaquín",
+            "contact_numbers": "[{\"label\": \"work\", \"value\": \"5541880652210\"}]",
+            "emails": "[{\"label\": \"work\", \"value\": \"554188065221@whatsapp.sofopolis.com\"}]",
+            "unique_id": "554188065221@whatsapp.sofopolis.com|5541880652210",
+            "t": "5541880652210"
+        },
+        {
+            "id": 182,
+            "name": "Elio Anacleto - Elio Anacleto",
+            "contact_numbers": "[{\"label\": \"work\", \"value\": \"5567963621010\"}]",
+            "emails": "[{\"label\": \"work\", \"value\": \"556796362101@whatsapp.sofopolis.com\"}]",
+            "unique_id": "556796362101@whatsapp.sofopolis.com|5567963621010",
+            "t": "5567963621010"
+        },
+        {
+            "id": 205,
+            "name": "fernandodanielojeda28 - Fernando",
+            "contact_numbers": "[{\"label\": \"work\", \"value\": \"54926170833730\"}]",
+            "emails": "[{\"label\": \"work\", \"value\": \"5492617083373@whatsapp.sofopolis.com\"}]",
+            "unique_id": "5492617083373@whatsapp.sofopolis.com|54926170833730",
+            "t": "54926170833730"
+        },
+        {
+            "id": 237,
+            "name": "Dr Hernán M. Rodríguez 🩺 -",
+            "contact_numbers": "[{\"label\": \"work\", \"value\": \"346415508070\"}]",
+            "emails": "[{\"label\": \"work\", \"value\": \"34641550807@whatsapp.sofopolis.com\"}]",
+            "unique_id": "34641550807@whatsapp.sofopolis.com|346415508070",
+            "t": "346415508070"
+        },
+        {
+            "id": 257,
+            "name": "Gastimen -",
+            "contact_numbers": "[{\"label\": \"work\", \"value\": \"150570275630\"}]",
+            "emails": "[{\"label\": \"work\", \"value\": \"15057027563@whatsapp.sofopolis.com\"}]",
+            "unique_id": "",
+            "t": "150570275630"
+        },
+        {
+            "id": 340,
+            "name": "Carlos Zapata - Carlos Zapata Espinoza",
+            "contact_numbers": "[{\"label\": \"work\", \"value\": \"519789113740\"}]",
+            "emails": "[{\"label\": \"work\", \"value\": \"51978911374@whatsapp.sofopolis.com\"}]",
+            "unique_id": "51978911374@whatsapp.sofopolis.com|519789113740",
+            "t": "519789113740"
+        },
+        {
+            "id": 418,
+            "name": "MARVEL ANGELO VARGAS",
+            "contact_numbers": "[{\"label\": \"work\", \"value\": \"69690000\"}]",
+            "emails": "[{\"label\": \"work\", \"value\": \"d.angelo.666@hotmail.com\"}]",
+            "unique_id": "7|d.angelo.666@hotmail.com|69690000",
+            "t": "69690000"
+        },
+        {
+            "id": 1075,
+            "name": "Carlos Alberto Santa Rosa",
+            "contact_numbers": "[{\"label\": \"work\", \"value\": \"5511983355030\"}]",
+            "emails": "[]",
+            "unique_id": "5511983355030",
+            "t": "5511983355030"
+        },
+        {
+            "id": 4426,
+            "name": "wviscafe",
+            "contact_numbers": "[{\"label\": \"work\", \"value\": \"12013287670\"}]",
+            "emails": "[]",
+            "unique_id": "12013287670",
+            "t": "12013287670"
+        },
+        {
+            "id": 7281,
+            "name": "V",
+            "contact_numbers": "[{\"label\": \"work\", \"value\": \"12022907980\"}]",
+            "emails": "[]",
+            "unique_id": "12022907980",
+            "t": "12022907980"
+        }
+    ]
+}

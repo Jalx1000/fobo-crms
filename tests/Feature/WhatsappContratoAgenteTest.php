@@ -337,3 +337,16 @@ it('un pedido con productos NO es is_empty: el siguiente va por POST', function 
     expect($payload['is_empty'])->toBeFalse()
         ->and($payload['is_open'])->toBeTrue();
 });
+
+it('un pedido cerrado nunca es is_empty, aunque no tenga productos', function () {
+    $conv = conversacionConPedido(['lead_id' => leadEnEtapa('pedidos-entregados')->id]);
+
+    expect(app(Webkul\Whatsapp\Services\AgentPayload::class)->lead($conv)['is_empty'])->toBeFalse();
+});
+
+it('un pedido con monto pero sin filas de productos NO es is_empty', function () {
+    // Los pedidos cargados a mano antes de junio: Bs 600 y ninguna fila en lead_products.
+    $conv = conversacionConPedido(['lead_id' => leadEnEtapa('no-atendido', ['lead_value' => 600])->id]);
+
+    expect(app(Webkul\Whatsapp\Services\AgentPayload::class)->lead($conv)['is_empty'])->toBeFalse();
+});

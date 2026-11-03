@@ -21,6 +21,10 @@ beforeEach(function () {
     Queue::fake();
     Http::preventStrayRequests();
     DB::beginTransaction();
+
+    // El .env de producción puede traer un pie fijo; los casos de abajo
+    // asumen que no hay. Los del pie fijo lo prenden a mano.
+    config(['whatsapp.interactive.list_footer' => null]);
 });
 
 afterEach(fn () => DB::rollBack());
@@ -117,6 +121,34 @@ it('DTO interactivo: sobrevive la ida y vuelta por el payload', function () {
     $reconstruido = OutboundInteractive::fromArray($original->toArray());
 
     expect($reconstruido->toArray())->toBe($original->toArray());
+});
+
+it('Pie fijo: toda lista lo lleva aunque el agente no mande pie', function () {
+    config(['whatsapp.interactive.list_footer' => 'Cada pedido tiene vigencia hasta fin de mes.']);
+
+    $lista = OutboundInteractive::list('¿Ciudad?', [['title' => 'Santa Cruz'], ['title' => 'Sucre']]);
+
+    expect($lista->footer)->toBe('Cada pedido tiene vigencia hasta fin de mes.')
+        ->and($lista->body)->toBe('¿Ciudad?');
+});
+
+it('Pie fijo: el pie del agente pasa al body y no se pierde', function () {
+    config(['whatsapp.interactive.list_footer' => 'Cada pedido tiene vigencia hasta fin de mes.']);
+
+    $parsed = parser()->parse("¿Ciudad?\n\n1.-) Santa Cruz\n2.-) Sucre\n3.-) Oruro\n4.-) Potosí\n\nGracias.");
+
+    expect($parsed->interactive->footer)->toBe('Cada pedido tiene vigencia hasta fin de mes.')
+        ->and($parsed->interactive->body)->toBe("¿Ciudad?\n\nGracias.");
+});
+
+it('Pie fijo: los botones no lo llevan y el reintento no lo duplica', function () {
+    config(['whatsapp.interactive.list_footer' => 'Cada pedido tiene vigencia hasta fin de mes.']);
+
+    $botones = OutboundInteractive::buttons('¿Sí?', [['title' => 'Sí'], ['title' => 'No']]);
+    $lista = OutboundInteractive::list('¿Ciudad?', [['title' => 'Santa Cruz'], ['title' => 'Sucre']]);
+
+    expect($botones->footer)->toBeNull()
+        ->and(OutboundInteractive::fromArray($lista->toArray())->toArray())->toBe($lista->toArray());
 });
 
 /*

@@ -144,6 +144,25 @@ it('no abre un segundo pedido si el contacto ya tiene uno', function () {
         ->and(Lead::where('person_id', $person->id)->count())->toBe(1);
 });
 
+it('no enlaza un pedido cerrado: abre uno nuevo', function () {
+    // El #72: entregado el 19/06, reabierto y pisado por el agente el 30/10.
+    $person = contactoConCiudad(null);
+    $entregado = app(LeadOpener::class)->open($person);
+    $entregado->update([
+        'lead_pipeline_stage_id' => DB::table('lead_pipeline_stages')
+            ->where('lead_pipeline_id', $entregado->lead_pipeline_id)
+            ->where('code', 'pedidos-entregados')
+            ->value('id'),
+    ]);
+
+    $nuevo = app(LeadOpener::class)->forPerson($person);
+
+    expect($nuevo)->not->toBe($entregado->id)
+        ->and(Lead::where('person_id', $person->id)->count())->toBe(2)
+        ->and(DB::table('lead_pipeline_stages')->where('id', $entregado->fresh()->lead_pipeline_stage_id)->value('code'))
+        ->toBe('pedidos-entregados');
+});
+
 it('respeta el interruptor de config', function () {
     config(['whatsapp.auto_create_lead' => false]);
 

@@ -140,6 +140,10 @@ class InboxController extends Controller
             ], 422);
         }
 
+        if ($closed = $this->closedWindowResponse($existing)) {
+            return $closed;
+        }
+
         $message = DB::transaction(function () use ($existing, $data, $resolver) {
             // Reuse an existing conversation already linked to this person/lead
             // (inbound links person_id reliably); otherwise resolve by phone.
@@ -200,6 +204,10 @@ class InboxController extends Controller
             return response()->json([
                 'message' => 'El agente está activo en esta conversación. Desactivalo para escribir a mano.',
             ], 422);
+        }
+
+        if ($closed = $this->closedWindowResponse($existing)) {
+            return $closed;
         }
 
         if (! $existing && empty($data['phone'])) {
@@ -308,6 +316,10 @@ class InboxController extends Controller
             return response()->json([
                 'message' => 'El agente está activo en esta conversación. Desactivalo para escribir a mano.',
             ], 422);
+        }
+
+        if ($closed = $this->closedWindowResponse($existing)) {
+            return $closed;
         }
 
         if (! $existing && empty($data['phone'])) {
@@ -673,6 +685,32 @@ class InboxController extends Controller
      * link (set at inbound ingestion) over the phone which may be stored in a
      * different format than Meta's "from".
      */
+    /**
+     * Free-form messages only go out inside the 24h window; outside it Meta
+     * answers 131047 after the advisor already saw the message as sent. The UI
+     * hides the composer, but the mobile API and direct calls reach here too.
+     * Templates are the way through, so sendTemplate does not call this.
+     */
+    protected function closedWindowResponse($conversation): ?JsonResponse
+    {
+        if (! $conversation) {
+            return null;
+        }
+
+        $window = MessagingWindow::compute(
+            $this->gateways->for($conversation)->messagingWindowHours(),
+            $conversation->last_inbound_at,
+        );
+
+        if (! $window->applies || $window->open) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => 'Fuera de la ventana de 24h de WhatsApp. Se requiere una plantilla aprobada o esperar a que el cliente escriba.',
+        ], 422);
+    }
+
     protected function existingConversation(Request $request)
     {
         $conversation = $this->findExistingConversation($request);

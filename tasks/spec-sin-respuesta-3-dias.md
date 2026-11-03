@@ -3,6 +3,23 @@
 Estado: **aprobado** (15/10/2026). Origen: auditoría de datos,
 `docs/agent/auditoria-datos-2026-10.md`.
 
+> **Cambios del 28/10/2026 (decididos por el usuario). Reemplazan lo que diga abajo:**
+>
+> - **Recordatorio a las 4 h de NUESTRO último mensaje** (asesor, agente o recordatorio), no a
+>   las 16 h del último del cliente. Solo sale si la ventana de 24 h sigue abierta. Es **uno
+>   solo por silencio**: el recordatorio no dispara otro.
+> - **No atendido se cierra al cerrarse la ventana:** si el pedido está en `no-atendido`, el
+>   último mensaje es nuestro y pasaron 24 h desde el último mensaje del cliente, pasa a
+>   `cliente-sin-inters` sin esperar los 3 días. Si el último mensaje es del cliente no se
+>   toca, porque el pendiente es del equipo. **Incluye lo acumulado:** no mira la fecha de
+>   activación (al 28/10 eran 195 pedidos). Deja su propia marca (`UNATTENDED_MARKER_TITLE`) y
+>   se reabre igual que el cierre de 3 días.
+> - **Reactivación del agente a las 4 h del último mensaje:** el nuestro si el cliente no
+>   respondió, o el del cliente si el asesor no le contestó. Además tienen que haber pasado
+>   4 h desde que se apagó. Antes eran 6 h desde el apagado.
+> - Activado en producción con `WHATSAPP_AUTO_CLOSE_SINCE="2026-10-28 11:45"` y
+>   `WHATSAPP_FOLLOWUP_HOURS=4`.
+
 ## Objective
 
 Dos piezas que trabajan juntas sobre los pedidos abiertos de WhatsApp:
