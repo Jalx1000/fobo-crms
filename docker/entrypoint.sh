@@ -41,6 +41,11 @@ done
 
 ln -sfn "$APP_ROOT/storage/app/public" public/storage
 
+# Sin este marcador Krayin se considera no instalado y redirige todo a /install
+# con la base real conectada: el respaldo que consulta la base exige un .env, y
+# acá la configuración llega por variables de entorno. El volumen arranca vacío.
+touch storage/installed
+
 # =============================================================================
 # 2. Base de datos
 # =============================================================================
