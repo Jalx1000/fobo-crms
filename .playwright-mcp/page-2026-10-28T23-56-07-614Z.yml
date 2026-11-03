@@ -1,0 +1,147 @@
+- generic [ref=f6e2]:
+  - generic [ref=f6e3]:
+    - generic [ref=f6e4]: lun
+    - generic [ref=f6e5]: mar
+    - generic [ref=f6e6]: mié
+    - generic [ref=f6e7]: jue
+    - generic [ref=f6e8]: vie
+    - generic [ref=f6e9]: sáb
+    - generic [ref=f6e10]: dom
+  - generic [ref=f6e11]:
+    - generic [ref=f6e15]:
+      - generic [ref=f6e16]:
+        - button "1" [ref=f6e17] [cursor=pointer]
+        - generic [ref=f6e18]: "1"
+      - button "09:00 Juan Pérez" [ref=f6e20] [cursor=pointer]
+    - button "2" [ref=f6e23] [cursor=pointer]
+    - generic [ref=f6e25]:
+      - generic [ref=f6e26]:
+        - button "3" [ref=f6e27] [cursor=pointer]
+        - generic [ref=f6e28]: "2"
+      - generic [ref=f6e29]:
+        - button "09:00 Juan Pérez" [ref=f6e30] [cursor=pointer]
+        - button "09:30 Ana Rojas" [ref=f6e31] [cursor=pointer]
+    - button "4" [ref=f6e34] [cursor=pointer]
+    - generic [ref=f6e36]:
+      - generic [ref=f6e37]:
+        - button "5" [ref=f6e38] [cursor=pointer]
+        - generic [ref=f6e39]: "1"
+      - button "09:00 Juan Pérez" [ref=f6e41] [cursor=pointer]
+    - generic [ref=f6e42]:
+      - generic [ref=f6e43]:
+        - button "6" [ref=f6e44] [cursor=pointer]
+        - generic [ref=f6e45]: "2"
+      - generic [ref=f6e46]:
+        - button "09:00 Juan Pérez" [ref=f6e47] [cursor=pointer]
+        - button "09:30 Ana Rojas" [ref=f6e48] [cursor=pointer]
+    - generic [ref=f6e49]:
+      - generic [ref=f6e50]:
+        - button "7" [ref=f6e51] [cursor=pointer]
+        - generic [ref=f6e52]: "1"
+      - button "09:00 Juan Pérez" [ref=f6e54] [cursor=pointer]
+    - button "8" [ref=f6e57] [cursor=pointer]
+    - generic [ref=f6e59]:
+      - generic [ref=f6e60]:
+        - button "9" [ref=f6e61] [cursor=pointer]
+        - generic [ref=f6e62]: "2"
+      - generic [ref=f6e63]:
+        - button "09:00 Juan Pérez" [ref=f6e64] [cursor=pointer]
+        - button "09:30 Ana Rojas" [ref=f6e65] [cursor=pointer]
+    - button "10" [ref=f6e68] [cursor=pointer]
+    - button "11" [ref=f6e72] [cursor=pointer]
+    - generic [ref=f6e74]:
+      - generic [ref=f6e75]:
+        - button "12" [ref=f6e76] [cursor=pointer]
+        - generic [ref=f6e77]: "2"
+      - generic [ref=f6e78]:
+        - button "09:00 Juan Pérez" [ref=f6e79] [cursor=pointer]
+        - button "09:30 Ana Rojas" [ref=f6e80] [cursor=pointer]
+    - generic [ref=f6e81]:
+      - generic [ref=f6e82]:
+        - button "13" [ref=f6e83] [cursor=pointer]
+        - generic [ref=f6e84]: "1"
+      - button "09:00 Juan Pérez" [ref=f6e86] [cursor=pointer]
+    - generic [ref=f6e87]:
+      - generic [ref=f6e88]:
+        - button "14" [ref=f6e89] [cursor=pointer]
+        - generic [ref=f6e90]: "5"
+      - generic [ref=f6e91]:
+        - button "09:00 Juan Pérez" [ref=f6e92] [cursor=pointer]
+        - button "09:30 Ana Rojas" [ref=f6e93] [cursor=pointer]
+        - button "10:00 Luis Vaca" [ref=f6e94] [cursor=pointer]
+        - button "+2 más" [ref=f6e95] [cursor=pointer]
+    - generic [ref=f6e96]:
+      - generic [ref=f6e97]:
+        - button "15" [ref=f6e98] [cursor=pointer]
+        - generic [ref=f6e99]: "2"
+      - generic [ref=f6e100]:
+        - button "09:00 Juan Pérez" [ref=f6e101] [cursor=pointer]
+        - button "09:30 Ana Rojas" [ref=f6e102] [cursor=pointer]
+    - button "16" [ref=f6e105] [cursor=pointer]
+    - generic [ref=f6e107]:
+      - generic [ref=f6e108]:
+        - button "17" [ref=f6e109] [cursor=pointer]
+        - generic [ref=f6e110]: "1"
+      - button "09:00 Juan Pérez" [ref=f6e112] [cursor=pointer]
+    - button "18" [ref=f6e115] [cursor=pointer]
+    - generic [ref=f6e117]:
+      - generic [ref=f6e118]:
+        - button "19" [ref=f6e119] [cursor=pointer]
+        - generic [ref=f6e120]: "1"
+      - button "09:00 Juan Pérez" [ref=f6e122] [cursor=pointer]
+    - button "20" [ref=f6e125] [cursor=pointer]
+    - generic [ref=f6e127]:
+      - generic [ref=f6e128]:
+        - button "21" [ref=f6e129] [cursor=pointer]
+        - generic [ref=f6e130]: "2"
+      - generic [ref=f6e131]:
+        - button "09:00 Juan Pérez" [ref=f6e132] [cursor=pointer]
+        - button "09:30 Ana Rojas" [ref=f6e133] [cursor=pointer]
+    - button "22" [ref=f6e136] [cursor=pointer]
+    - generic [ref=f6e138]:
+      - generic [ref=f6e139]:
+        - button "23" [ref=f6e140] [cursor=pointer]
+        - generic [ref=f6e141]: "1"
+      - button "09:00 Juan Pérez" [ref=f6e143] [cursor=pointer]
+    - generic [ref=f6e144]:
+      - generic [ref=f6e145]:
+        - button "24" [ref=f6e146] [cursor=pointer]
+        - generic [ref=f6e147]: "2"
+      - generic [ref=f6e148]:
+        - button "09:00 Juan Pérez" [ref=f6e149] [cursor=pointer]
+        - button "09:30 Ana Rojas" [ref=f6e150] [cursor=pointer]
+    - button "25" [ref=f6e153] [cursor=pointer]
+    - button "26" [ref=f6e157] [cursor=pointer]
+    - generic [ref=f6e159]:
+      - generic [ref=f6e160]:
+        - button "27" [ref=f6e161] [cursor=pointer]
+        - generic [ref=f6e162]: "2"
+      - generic [ref=f6e163]:
+        - button "09:00 Juan Pérez" [ref=f6e164] [cursor=pointer]
+        - button "09:30 Ana Rojas" [ref=f6e165] [cursor=pointer]
+    - generic [ref=f6e166]:
+      - generic [ref=f6e167]:
+        - button "28" [ref=f6e168] [cursor=pointer]
+        - generic [ref=f6e169]: "5"
+      - generic [ref=f6e170]:
+        - button "09:00 Juan Pérez" [ref=f6e171] [cursor=pointer]
+        - button "09:30 Ana Rojas" [ref=f6e172] [cursor=pointer]
+        - button "10:00 Luis Vaca" [ref=f6e173] [cursor=pointer]
+        - button "+2 más" [ref=f6e174] [cursor=pointer]
+    - generic [ref=f6e175]:
+      - generic [ref=f6e176]:
+        - button "29" [ref=f6e177] [cursor=pointer]
+        - generic [ref=f6e178]: "1"
+      - button "09:00 Juan Pérez" [ref=f6e180] [cursor=pointer]
+    - generic [ref=f6e181]:
+      - generic [ref=f6e182]:
+        - button "30" [ref=f6e183] [cursor=pointer]
+        - generic [ref=f6e184]: "2"
+      - generic [ref=f6e185]:
+        - button "09:00 Juan Pérez" [ref=f6e186] [cursor=pointer]
+        - button "09:30 Ana Rojas" [ref=f6e187] [cursor=pointer]
+    - generic [ref=f6e188]:
+      - generic [ref=f6e189]:
+        - button "31" [ref=f6e190] [cursor=pointer]
+        - generic [ref=f6e191]: "1"
+      - button "09:00 Juan Pérez" [ref=f6e193] [cursor=pointer]

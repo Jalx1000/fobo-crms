@@ -1,0 +1,467 @@
+<!doctype html><html><head><meta charset="utf-8"><title>lookup</title>
+<style>body{font:14px system-ui;padding:16px;width:420px} .hidden{display:none} #log{font:12px monospace;white-space:pre;margin-top:12px;color:#333}</style>
+<script src="vue.js"></script></head><body>
+<div id="app">
+  <p>Paciente (como «Nueva cita»)</p>
+  <v-lookup src="/api/persons" :params="{ limit: 50 }" name="p" placeholder="Buscar…" server-filtered can-add-new @on-selected="sel" :value="{ id: null, name: '' }"></v-lookup>
+  <p>Seleccionado: <b id="sel">{{ selected }}</b></p>
+</div>
+<div id="log"></div>
+<script type="text/x-template" id="v-lookup-template">
+        <div
+            class="relative"
+            ref="lookup"
+        >
+            <!-- Input Box (Button) -->
+            <div
+                class="relative inline-block w-full"
+                @click="toggle"
+            >
+                <!-- Input Container -->
+                <div class="relative flex cursor-pointer items-center justify-between rounded border border-gray-200 p-2 hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:text-gray-300">
+                    <!-- Selected Item or Placeholder Text -->
+                    <span
+                        class="overflow-hidden text-ellipsis"
+                        :title="selectedItem?.name"
+                    >
+                        {{ selectedItem?.name !== "" ? selectedItem?.name : "Haz clic para agregar" }}
+                    </span>
+
+                    <!-- Icons Container -->
+                    <div class="flex items-center gap-2">
+                        <!-- Close Icon -->
+                        <i
+                            v-if="(selectedItem?.name) && ! isSearching"
+                            class="icon-cross-large cursor-pointer text-xl text-gray-600"
+                            @click="remove"
+                        ></i>
+
+                        <!-- Arrow Icon -->
+                        <i
+                            class="text-2xl text-gray-600"
+                            :class="showPopup ? 'icon-up-arrow' : 'icon-down-arrow'"
+                        ></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Popup Box -->
+            <div
+                v-if="showPopup"
+                class="absolute top-full z-10 mt-1 flex w-full origin-top transform flex-col gap-2 rounded-lg border border-gray-200 bg-white p-2 shadow-lg transition-transform dark:border-gray-900 dark:bg-gray-800"
+            >
+                <!-- Search Bar -->
+                <div class="relative flex items-center">
+                    <input
+                        type="text"
+                        v-model.lazy="searchTerm"
+                        v-debounce="500"
+                        class="w-full rounded border border-gray-200 px-2.5 py-2 text-sm font-normal text-gray-800 transition-all hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400 dark:focus:border-gray-400"
+                        placeholder="Buscar..."
+                        ref="searchInput"
+                        @input="onInput"
+                    />
+
+                    <!-- Search Icon (absolute positioned) -->
+                    <span class="absolute flex items-center ltr:right-2 rtl:left-2">
+                        <!-- Loader (optional, based on condition) -->
+                        <div
+                            class="relative"
+                            v-if="isSearching"
+                        >
+                            <!-- Spinner -->
+
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    aria-hidden="true"
+    viewBox="0 0 24 24"
+    class="h-5 w-5 animate-spin dark:text-white"
+>
+    <circle
+        class="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        stroke-width="4"
+    >
+    </circle>
+
+    <path
+        class="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+    >
+    </path>
+</svg>                        </div>
+                    </span>
+                </div>
+
+                <!-- Results List -->
+                <ul class="max-h-40 divide-y divide-gray-100 overflow-y-auto">
+                    <li
+                        v-for="item in filteredResults"
+                        :key="item.id"
+                        class="cursor-pointer px-4 py-2 text-gray-800 transition-colors hover:bg-blue-100 dark:text-white dark:hover:bg-gray-900"
+                        @click="selectItem(item)"
+                    >
+                        {{ item.name }}
+
+                        <!-- Para distinguir homónimos cuando el backend busca también por CI/teléfono -->
+                        <span
+                            v-if="serverFiltered && itemDetail(item)"
+                            class="block text-xs text-gray-500 dark:text-gray-400"
+                        >
+                            {{ itemDetail(item) }}
+                        </span>
+                    </li>
+
+                    <li
+                        v-if="isSearching && filteredResults.length === 0"
+                        class="px-4 py-2 text-gray-500"
+                    >
+                        Buscando…
+                    </li>
+
+                    <!-- Con menos de 3 letras no se busca: decir eso, no «sin resultados». -->
+                    <li
+                        v-else-if="filteredResults.length === 0 && ! preload && searchTerm.length <= 2"
+                        class="px-4 py-2 text-gray-500"
+                    >
+                        Escribe al menos 3 letras para buscar.
+                    </li>
+
+                    <li
+                        v-else-if="filteredResults.length === 0"
+                        class="px-4 py-2 text-gray-500"
+                    >
+                        No se encontraron resultados                    </li>
+
+                    <!-- Crear uno nuevo también cuando hay coincidencias: dos pacientes
+                         pueden llamarse igual (antes solo salía sin resultados). -->
+                    <li
+                        v-if="canAddNew && searchTerm.length > 2 && ! isSearching"
+                        @click="selectItem({ id: '', name: searchTerm })"
+                        class="cursor-pointer border-t border-gray-200 px-4 py-2 text-gray-600 hover:bg-brandColor hover:text-white dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
+                    >
+                        <i class="icon-add text-md"></i>
+
+                        Agregar como nuevo: «{{ searchTerm }}»
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </script>
+<script>
+var timeoutID = null;
+
+const Debounce = {
+    mounted(el, binding) {
+        let handler = function (e) {
+            if (binding.value !== binding.oldValue) {
+                clearTimeout(timeoutID)
+                
+                timeoutID = setTimeout(function () {
+                    el.dispatchEvent(new Event('change'))
+                }, binding.value || 500)
+            }
+        };
+
+        el.addEventListener('input', handler);
+    }
+}
+window.DB = [{ id: 21412, name: 'Alejandro' }, { id: 2, name: 'María Pérez' }, { id: 3, name: 'Mario Gómez' }];
+window.DELAY = 300;
+window.REQS = [];
+const log = (m) => { document.getElementById('log').textContent += m + "\n"; };
+function CancelToken() {}
+const axiosMock = {
+  CancelToken: { source() { let c; const token = new Promise((_, rej) => c = rej); const s = { token, cancel: () => { s.cancelled = true; c && c({ __cancel: true }); } }; return s; } },
+  isCancel: e => !!(e && e.__cancel),
+  get(url, opts) {
+    const q = (opts.params.query || '').toLowerCase();
+    window.REQS.push(q); log('GET ' + url + ' query=' + JSON.stringify(q));
+    const res = new Promise(r => setTimeout(() => r({ data: { data: window.DB.filter(p => p.name.toLowerCase().includes(q)) } }), window.DELAY));
+    return Promise.race([res, opts.cancelToken]);
+  },
+};
+const app = Vue.createApp({ data: () => ({ selected: '' }), methods: { sel(i) { this.selected = JSON.stringify(i); } } });
+app.config.globalProperties.$axios = axiosMock;
+app.directive('debounce', Debounce);
+app.mixin({ mounted() { if (this.$options.template === '#v-lookup-template') window.LK = this; } });
+window.app = app;
+</script>
+<script>
+app.component('v-lookup', {
+            template: '#v-lookup-template',
+
+            props: {
+                src: {
+                    type: String,
+                    required: true,
+                },
+
+                params: {
+                    type: Object,
+                    default: () => ({}),
+                },
+
+                name: {
+                    type: String,
+                    required: true,
+                },
+
+                placeholder: {
+                    type: String,
+                    required: true,
+                },
+
+                value: {
+                    type: Object,
+                    default: () => ({}),
+                },
+
+                rules: {
+                    type: String,
+                    default: '',
+                },
+
+                label: {
+                    type: String,
+                    default: '',
+                },
+
+                canAddNew: {
+                    type: Boolean,
+                    default: false,
+                },
+
+                /**
+                 * El backend ya filtra (ej. pacientes por nombre, CI o teléfono):
+                 * no volver a filtrar por nombre en el navegador, que descartaría
+                 * los que coincidieron por CI o teléfono.
+                 */
+                serverFiltered: {
+                    type: Boolean,
+                    default: false,
+                },
+
+                preload: {
+                    type: Boolean,
+                    default: false,
+                }
+            },
+
+            emits: ['on-selected'],
+
+            data() {
+                return {
+                    showPopup: false,
+
+                    searchTerm: '',
+
+                    selectedItem: {},
+
+                    searchedResults: [],
+
+                    isSearching: false,
+
+                    cancelToken: null,
+
+                    // Número de la última búsqueda: solo esa apaga «Buscando…» y
+                    // deja sus resultados. No se compara el cancelToken porque
+                    // desde data() llega envuelto en un Proxy reactivo y nunca
+                    // es === al objeto original (quedaba «Buscando…» para siempre).
+                    lastRequestId: 0,
+                };
+            },
+
+            mounted() {
+                if (this.value) {
+                    this.selectedItem = this.value;
+                }
+
+                this.search(this.preload);
+            },
+
+            created() {
+                window.addEventListener('click', this.handleFocusOut);
+            },
+
+            beforeDestroy() {
+                window.removeEventListener('click', this.handleFocusOut);
+            },
+
+            watch: {
+                searchTerm(newVal, oldVal) {
+                    this.search(this.preload);
+                },
+            },
+
+            computed: {
+                /**
+                 * Filter the searchedResults based on the search query.
+                 *
+                 * @return {Array}
+                 */
+                filteredResults() {
+                    if (this.serverFiltered) {
+                        return this.searchedResults;
+                    }
+
+                    return this.searchedResults.filter(item =>
+                        item.name.toLowerCase().includes(this.searchTerm.toLowerCase())
+                    );
+                }
+            },
+
+            methods: {
+                /**
+                 * CI y primer teléfono del resultado, si los trae (PersonResource).
+                 *
+                 * @param {Object} item
+                 *
+                 * @return {String}
+                 */
+                itemDetail(item) {
+                    const phone = Array.isArray(item.contact_numbers) ? item.contact_numbers[0]?.value : null;
+
+                    return [item.ci_paciente ? 'CI ' + item.ci_paciente : null, phone]
+                        .filter(Boolean)
+                        .join(' · ');
+                },
+
+                /**
+                 * Mientras se escribe (v-debounce actualiza searchTerm 500 ms
+                 * después), marcar que hay una búsqueda en camino, salvo que el
+                 * texto haya vuelto a ser el ya buscado.
+                 *
+                 * @param {Event} event
+                 *
+                 * @return {void}
+                 */
+                onInput(event) {
+                    this.isSearching = event.target.value !== this.searchTerm
+                        && event.target.value.length > 2;
+                },
+
+                /**
+                 * Toggle the popup.
+                 *
+                 * @return {void}
+                 */
+                toggle() {
+                    this.showPopup = ! this.showPopup;
+
+                    if (this.showPopup) {
+                        this.$nextTick(() => this.$refs.searchInput.focus());
+                    }
+                },
+
+                /**
+                 * Select an item from the list.
+                 *
+                 * @param {Object} item
+                 *
+                 * @return {void}
+                 */
+                selectItem(item) {
+                    this.showPopup = false;
+
+                    this.searchTerm = '';
+
+                    this.selectedItem = item;
+
+                    this.$emit('on-selected', item);
+                },
+
+                /**
+                 * Initialize the items.
+                 *
+                 * @return {void}
+                 */
+                search(preload = false) {
+                    const requestId = ++this.lastRequestId;
+
+                    if (this.cancelToken) {
+                        this.cancelToken.cancel();
+
+                        this.cancelToken = null;
+                    }
+
+                    if (
+                        ! preload
+                        && this.searchTerm.length <= 2
+                    ) {
+                        this.searchedResults = [];
+
+                        this.isSearching = false;
+
+                        return;
+                    }
+
+                    this.isSearching = true;
+
+                    this.cancelToken = this.$axios.CancelToken.source();
+
+                    this.$axios.get(this.src, {
+                            params: {
+                                ...this.params,
+                                query: this.searchTerm
+                            },
+                            cancelToken: this.cancelToken.token,
+                        })
+                        .then(response => {
+                            if (requestId === this.lastRequestId) {
+                                this.searchedResults = response.data.data;
+                            }
+                        })
+                        .catch(error => {
+                            if (! this.$axios.isCancel(error)) {
+                                console.error("Search request failed:", error);
+                            }
+                        })
+                        .finally(() => {
+                            if (requestId === this.lastRequestId) {
+                                this.isSearching = false;
+                            }
+                        });
+                },
+
+                /**
+                 * Handle the focus out event.
+                 *
+                 * @param {Event} event
+                 *
+                 * @return {void}
+                 */
+                handleFocusOut(event) {
+                    const lookup = this.$refs.lookup;
+
+                    if (
+                        lookup &&
+                        ! lookup.contains(event.target)
+                    ) {
+                        this.showPopup = false;
+                    }
+                },
+
+                /**
+                 * Remove the selected item.
+                 *
+                 * @return {void}
+                 */
+                remove() {
+                    this.selectedItem = {
+                        id: '',
+                        name: '',
+                    };
+
+                    this.$emit('on-selected', {});
+                }
+            },
+        });
+    </script>
+<script>window.vm = app.mount('#app');</script>
+</body></html>

@@ -1,0 +1,28 @@
+- generic [ref=f4e3]:
+  - generic [ref=f4e4]:
+    - button "←" [ref=f4e5] [cursor=pointer]
+    - button "Miércoles 28/10/2026" [ref=f4e6] [cursor=pointer]
+    - button "→" [ref=f4e7] [cursor=pointer]
+    - button "Hoy" [ref=f4e8] [cursor=pointer]
+  - generic [ref=f4e9]:
+    - button "Día" [ref=f4e10] [cursor=pointer]
+    - button "Semana" [ref=f4e11] [cursor=pointer]
+    - button "Mes" [ref=f4e12] [cursor=pointer]
+    - button "Lista" [ref=f4e13] [cursor=pointer]
+  - generic [ref=f4e14]:
+    - generic: ⌕
+    - 'searchbox "Buscar paciente: nombre, teléfono o CI" [ref=f4e15]'
+  - generic [ref=f4e16]:
+    - button "Especialidad Todas ▾" [ref=f4e18] [cursor=pointer]:
+      - generic [ref=f4e19]: Especialidad
+      - generic [ref=f4e20]: Todas
+      - generic [ref=f4e21]: ▾
+    - button "Doctores 3 doctores ▾" [ref=f4e23] [cursor=pointer]:
+      - generic [ref=f4e24]: Doctores
+      - generic [ref=f4e25]: 3 doctores
+      - generic [ref=f4e26]: ▾
+    - button "Estado Todos ▾" [ref=f4e28] [cursor=pointer]:
+      - generic [ref=f4e29]: Estado
+      - generic [ref=f4e30]: Todos
+      - generic [ref=f4e31]: ▾
+    - button "Limpiar filtros" [ref=f4e32] [cursor=pointer]

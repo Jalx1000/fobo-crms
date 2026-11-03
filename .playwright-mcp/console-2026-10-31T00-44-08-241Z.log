@@ -1,0 +1,4 @@
+[    1151ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ https://odontoking.sofopolis.com/admin/login:0
+[    1201ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://odontoking.sofopolis.com/admin/login:0
+[  567131ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ https://odontoking.sofopolis.com/admin/login:0
+[  567151ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://odontoking.sofopolis.com/admin/login:0

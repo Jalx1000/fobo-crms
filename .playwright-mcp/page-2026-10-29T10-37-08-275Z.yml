@@ -1,0 +1,19 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - button "←" [ref=e5] [cursor=pointer]
+    - button "Jueves 29/10/2026" [ref=e6] [cursor=pointer]
+    - button "→" [ref=e7] [cursor=pointer]
+    - button "Hoy" [ref=e8] [cursor=pointer]
+  - generic [ref=e9]:
+    - button "Día" [ref=e10] [cursor=pointer]
+    - button "Semana" [ref=e11] [cursor=pointer]
+    - button "Mes" [ref=e12] [cursor=pointer]
+    - button "Lista" [ref=e13] [cursor=pointer]
+  - generic [ref=e14]:
+    - generic [ref=e15]:
+      - generic: ⌕
+      - 'searchbox "Buscar paciente: nombre, teléfono o CI" [ref=e16]'
+    - button "⚲ Filtros 2" [ref=e17] [cursor=pointer]:
+      - generic [ref=e18]: ⚲
+      - generic [ref=e19]: Filtros
+      - generic [ref=e20]: "2"

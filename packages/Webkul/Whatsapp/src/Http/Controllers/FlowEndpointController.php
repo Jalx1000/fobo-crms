@@ -49,8 +49,18 @@ class FlowEndpointController extends Controller
             return response('', 421);
         }
 
+        // DIAGNÓSTICO TEMPORAL (2026-10-31): qué pide Meta y qué se responde.
+        Log::info('[WhatsAppFlow] DEBUG pedido', [
+            'action'  => $decrypted['payload']['action'] ?? null,
+            'screen'  => $decrypted['payload']['screen'] ?? null,
+            'flow'    => FlowToken::flow($decrypted['payload']['flow_token'] ?? null),
+            'version' => $decrypted['payload']['version'] ?? null,
+            'keys'    => array_keys((array) ($decrypted['payload']['data'] ?? [])),
+        ]);
+
         try {
             $result = $this->route($decrypted['payload']);
+            Log::info('[WhatsAppFlow] DEBUG respuesta', ['screen' => $result['screen'] ?? null, 'keys' => array_keys((array) ($result['data'] ?? []))]);
         } catch (Throwable $e) {
             Log::error('[WhatsAppFlow] Error procesando el pedido del Flow', [
                 'screen' => $decrypted['payload']['screen'] ?? null,

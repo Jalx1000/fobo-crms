@@ -1,0 +1,158 @@
+- generic [active] [ref=f6e1]:
+  - generic [ref=f6e2]:
+    - banner [ref=f6e3]:
+      - generic [ref=f6e4]:
+        - text: 
+        - link [ref=f6e5] [cursor=pointer]:
+          - /url: https://odontoking.sofopolis.com/admin/dashboard
+          - img "Odontoking" [ref=f6e6]
+      - generic [ref=f6e7]:
+        - generic [ref=f6e8]:
+          - generic [ref=f6e9]: 
+          - textbox "Búsqueda Mega" [ref=f6e10]
+        - generic [ref=f6e12]:
+          - button "" [ref=f6e14] [cursor=pointer]
+          - generic:   
+      - generic [ref=f6e16]:
+        - text:   
+        - generic [ref=f6e17]: 
+        - text:    
+        - button "d" [ref=f6e21] [cursor=pointer]
+    - generic [ref=f6e22]:
+      - navigation [ref=f6e25]:
+        - link "" [ref=f6e27] [cursor=pointer]:
+          - /url: https://odontoking.sofopolis.com/admin/dashboard
+        - link "" [ref=f6e30] [cursor=pointer]:
+          - /url: https://odontoking.sofopolis.com/admin/leads
+        - link "" [ref=f6e33] [cursor=pointer]:
+          - /url: https://odontoking.sofopolis.com/admin/whatsapp
+        - link "" [ref=f6e36] [cursor=pointer]:
+          - /url: https://odontoking.sofopolis.com/admin/quotes
+        - link "" [ref=f6e39] [cursor=pointer]:
+          - /url: javascript:void(0)
+        - link "" [ref=f6e42] [cursor=pointer]:
+          - /url: javascript:void(0)
+        - link "" [ref=f6e45] [cursor=pointer]:
+          - /url: https://odontoking.sofopolis.com/admin/activities
+        - link "" [ref=f6e48] [cursor=pointer]:
+          - /url: javascript:void(0)
+        - link "" [ref=f6e51] [cursor=pointer]:
+          - /url: https://odontoking.sofopolis.com/admin/products
+        - link "" [ref=f6e54] [cursor=pointer]:
+          - /url: https://odontoking.sofopolis.com/admin/settings/settings
+        - link "" [ref=f6e57] [cursor=pointer]:
+          - /url: https://odontoking.sofopolis.com/admin/configuration
+      - generic [ref=f6e59]:
+        - generic [ref=f6e61]:
+          - generic [ref=f6e62]:
+            - generic [ref=f6e63]:
+              - navigation [ref=f6e66]:
+                - list [ref=f6e67]:
+                  - listitem [ref=f6e68]:
+                    - link "Tablero" [ref=f6e69] [cursor=pointer]:
+                      - /url: https://odontoking.sofopolis.com/admin/dashboard
+                    - generic [ref=f6e70]: /
+                  - listitem [ref=f6e71]: Calendario
+              - generic [ref=f6e72]: Calendario
+            - generic [ref=f6e73]:
+              - generic [ref=f6e74]:
+                - generic [ref=f6e75]:
+                  - button "Pausar sincronización" [ref=f6e76] [cursor=pointer]
+                  - button "Sincronizar ahora" [ref=f6e79] [cursor=pointer]
+                - link "Crear Cita" [ref=f6e81] [cursor=pointer]:
+                  - /url: https://odontoking.sofopolis.com/admin/leads/create
+              - generic [ref=f6e82]:
+                - generic [ref=f6e83] [cursor=pointer]: 
+                - generic [ref=f6e84] [cursor=pointer]: 
+          - generic [ref=f6e86]:
+            - generic [ref=f6e87]:
+              - generic [ref=f6e88]:
+                - button "Período anterior" [ref=f6e89] [cursor=pointer]: ←
+                - button "Jueves 05/11/2026" [ref=f6e90] [cursor=pointer]
+                - button "Período siguiente" [ref=f6e91] [cursor=pointer]: →
+                - button "Hoy" [ref=f6e92] [cursor=pointer]
+              - group "Vista del calendario" [ref=f6e93]:
+                - button "Día" [pressed] [ref=f6e94] [cursor=pointer]
+                - button "Semana" [ref=f6e95] [cursor=pointer]
+                - button "Mes" [ref=f6e96] [cursor=pointer]
+                - button "Lista" [ref=f6e97] [cursor=pointer]
+              - generic [ref=f6e98]:
+                - generic [ref=f6e99]:
+                  - generic: 
+                  - searchbox "Buscar paciente por nombre, teléfono o CI" [ref=f6e100]
+                - text: 
+              - group "Filtros del calendario" [ref=f6e101]:
+                - 'button "Doctores: Ninguno" [ref=f6e103] [cursor=pointer]':
+                  - generic [ref=f6e104]: Doctores
+                  - generic [ref=f6e105]: Ninguno
+                  - generic [aria-hidden] [ref=f6e106]: 
+            - generic [ref=f6e109]:
+              - generic [ref=f6e110]: 07:00
+              - generic [ref=f6e111]: 08:00
+              - generic [ref=f6e112]: 09:00
+              - generic [ref=f6e113]: 10:00
+              - generic [ref=f6e114]: 11:00
+              - generic [ref=f6e115]: 12:00
+              - generic [ref=f6e116]: 13:00
+              - generic [ref=f6e117]: 14:00
+              - generic [ref=f6e118]: 15:00
+              - generic [ref=f6e119]: 16:00
+              - generic [ref=f6e120]: 17:00
+              - generic [ref=f6e121]: 18:00
+              - generic [ref=f6e122]: 19:00
+        - generic [ref=f6e124]:
+          - paragraph
+          - paragraph [ref=f6e125]:
+            - text: Desarrollado por
+            - link "Sofopolis" [ref=f6e127] [cursor=pointer]:
+              - /url: https://sofopolis.com/ai/
+          - paragraph
+    - text:     
+  - generic [ref=f6e128]:
+    - generic [ref=f6e130]:
+      - generic [ref=f6e131] [cursor=pointer]
+      - generic [ref=f6e132]:
+        - generic [ref=f6e133] [cursor=pointer]:
+          - text: 
+          - generic: Messages
+          - generic [ref=f6e134]: "2"
+        - generic [ref=f6e135] [cursor=pointer]:
+          - text: 
+          - generic: Request
+        - generic [ref=f6e136] [cursor=pointer]:
+          - text: 
+          - generic: Timeline
+        - text: 
+        - generic [ref=f6e137] [cursor=pointer]:
+          - text: 
+          - generic: Views
+          - generic [ref=f6e138]: "141"
+        - generic [ref=f6e139] [cursor=pointer]:
+          - text: 
+          - generic: Queries
+          - generic [ref=f6e140]: "30"
+        - generic [ref=f6e141] [cursor=pointer]:
+          - text: 
+          - generic: Models
+          - generic [ref=f6e142]: "19"
+        - text:  
+      - generic [ref=f6e143]:
+        - generic [ref=f6e144] [cursor=pointer]
+        - generic [ref=f6e145] [cursor=pointer]: 
+        - generic [ref=f6e146] [cursor=pointer]
+        - generic [ref=f6e147] [cursor=pointer]
+        - generic [ref=f6e148] [cursor=pointer]: 
+        - generic [ref=f6e149] [cursor=pointer]:
+          - generic: 
+          - generic: 334ms
+        - generic [ref=f6e150]:
+          - generic: 
+          - generic: 7MB
+        - generic [ref=f6e151]:
+          - generic: 
+          - generic: 10.x
+        - generic [ref=f6e152] [cursor=pointer]:
+          - generic: 
+          - generic: GET admin/activities
+    - text:                                                                                                                                                                                                                                                                                                                                                                      
+  - text: 

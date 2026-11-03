@@ -1,0 +1,71 @@
+- generic [ref=f7e2]:
+  - generic [ref=f7e3]:
+    - generic [ref=f7e4]: lun
+    - generic [ref=f7e5]: mar
+    - generic [ref=f7e6]: mié
+    - generic [ref=f7e7]: jue
+    - generic [ref=f7e8]: vie
+    - generic [ref=f7e9]: sáb
+    - generic [ref=f7e10]: dom
+  - generic [ref=f7e11]:
+    - button "1" [ref=f7e17] [cursor=pointer]
+    - button "2" [ref=f7e20] [cursor=pointer]
+    - button "3" [ref=f7e23] [cursor=pointer]
+    - button "4" [ref=f7e26] [cursor=pointer]
+    - button "5" [ref=f7e29] [cursor=pointer]
+    - button "6" [ref=f7e32] [cursor=pointer]
+    - button "7" [ref=f7e35] [cursor=pointer]
+    - button "8" [ref=f7e38] [cursor=pointer]
+    - button "9" [ref=f7e41] [cursor=pointer]
+    - button "10" [ref=f7e44] [cursor=pointer]
+    - button "11" [ref=f7e47] [cursor=pointer]
+    - button "12" [ref=f7e50] [cursor=pointer]
+    - button "13" [ref=f7e53] [cursor=pointer]
+    - button "14" [ref=f7e56] [cursor=pointer]
+    - button "15" [ref=f7e59] [cursor=pointer]
+    - button "16" [ref=f7e62] [cursor=pointer]
+    - button "17" [ref=f7e65] [cursor=pointer]
+    - button "18" [ref=f7e68] [cursor=pointer]
+    - button "19" [ref=f7e71] [cursor=pointer]
+    - button "20" [ref=f7e74] [cursor=pointer]
+    - button "21" [ref=f7e77] [cursor=pointer]
+    - button "22" [ref=f7e80] [cursor=pointer]
+    - button "23" [ref=f7e83] [cursor=pointer]
+    - button "24" [ref=f7e86] [cursor=pointer]
+    - button "25" [ref=f7e89] [cursor=pointer]
+    - button "26" [ref=f7e92] [cursor=pointer]
+    - button "27" [ref=f7e95] [cursor=pointer]
+    - button "28" [ref=f7e98] [cursor=pointer]
+    - button "29" [ref=f7e101] [cursor=pointer]
+    - button "30" [ref=f7e104] [cursor=pointer]
+    - button "31" [ref=f7e107] [cursor=pointer]
+  - generic [ref=f7e109]:
+    - generic [ref=f7e110]:
+      - generic [ref=f7e111]: Miércoles 28/10/2026
+      - generic [ref=f7e112]: · 5 citas
+      - button "Ver día" [ref=f7e113] [cursor=pointer]
+    - button "09:00 Juan Pérez Dr. Hurtado · Confirmada" [ref=f7e114] [cursor=pointer]:
+      - generic [ref=f7e115]: 09:00
+      - generic [ref=f7e116]:
+        - generic [ref=f7e117]: Juan Pérez
+        - generic [ref=f7e118]: Dr. Hurtado · Confirmada
+    - button "09:30 Ana Rojas Dr. Hurtado · Confirmada" [ref=f7e119] [cursor=pointer]:
+      - generic [ref=f7e120]: 09:30
+      - generic [ref=f7e121]:
+        - generic [ref=f7e122]: Ana Rojas
+        - generic [ref=f7e123]: Dr. Hurtado · Confirmada
+    - button "10:00 Luis Vaca Dr. Hurtado · Confirmada" [ref=f7e124] [cursor=pointer]:
+      - generic [ref=f7e125]: 10:00
+      - generic [ref=f7e126]:
+        - generic [ref=f7e127]: Luis Vaca
+        - generic [ref=f7e128]: Dr. Hurtado · Confirmada
+    - button "11:00 María Suárez Dr. Hurtado · Confirmada" [ref=f7e129] [cursor=pointer]:
+      - generic [ref=f7e130]: 11:00
+      - generic [ref=f7e131]:
+        - generic [ref=f7e132]: María Suárez
+        - generic [ref=f7e133]: Dr. Hurtado · Confirmada
+    - button "15:00 Carla Ortiz Dr. Hurtado · Confirmada" [ref=f7e134] [cursor=pointer]:
+      - generic [ref=f7e135]: 15:00
+      - generic [ref=f7e136]:
+        - generic [ref=f7e137]: Carla Ortiz
+        - generic [ref=f7e138]: Dr. Hurtado · Confirmada
