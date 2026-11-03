@@ -147,11 +147,12 @@ return [
         'logo' => env('WHATSAPP_BIENVENIDA_LOGO', env('APP_URL').'/whatsapp/bienvenida-sensia.jpg'),
 
         /*
-        | El video de Sensia (VideoDeBienvenida), una vez por conversación.
+        | El video de Sensia (VideoDeBienvenida), como mucho uno cada 24 h.
         |
         | Desde el Punto sale como encabezado de `video_template`, una plantilla aparte
         | con encabezado VIDEO; mientras Meta no la apruebe se manda `template` sin
-        | video. Si el cliente escribe primero, sale como mensaje común.
+        | video. Si el cliente escribe primero, sale como mensaje común justo antes del
+        | saludo del agente: el que contiene `video_saludo` (sin tildes ni mayúsculas).
         |
         | Sólo para `video_numeros` (los de prueba del equipo); `*` lo abre a todos.
         | Meta acepta MP4 H.264 + AAC de hasta 16 MB: el versionado pesa 8,6 MB.
@@ -159,6 +160,7 @@ return [
         'video_template' => env('WHATSAPP_BIENVENIDA_VIDEO_TEMPLATE', 'bienvenida_sensia_video'),
         'video'          => env('WHATSAPP_BIENVENIDA_VIDEO', env('APP_URL').'/whatsapp/bienvenida-sensia.mp4'),
         'video_numeros'  => env('WHATSAPP_BIENVENIDA_VIDEO_NUMEROS', '59176616013,59175640698'),
+        'video_saludo'   => env('WHATSAPP_BIENVENIDA_VIDEO_SALUDO', 'Soy Sofía, tu asistente'),
     ],
 
     /*
