@@ -8,7 +8,8 @@
 #   3. Migraciones
 #   4. Caches de Laravel
 #   5. Permisos (siempre al final: lo anterior genera archivos como root)
-#   6. Arrancar supervisor (apache + queue workers + scheduler)
+#   6. Dejar un solo MPM en Apache
+#   7. Arrancar supervisor (apache + queue workers + scheduler)
 # =============================================================================
 set -euo pipefail
 
@@ -98,7 +99,18 @@ find storage bootstrap/cache -type d -exec chmod 775 {} +
 find storage bootstrap/cache -type f -exec chmod 664 {} +
 
 # =============================================================================
-# 6. Supervisor
+# 6. Apache: un solo MPM
+#
+# En la imagen construida solo está mpm_prefork, pero en Railway Apache arrancaba
+# con AH00534 (More than one MPM loaded). Se corrige acá porque el problema
+# aparece en runtime; mod_php exige prefork.
+# =============================================================================
+log "MPM encontrados: $(ls /etc/apache2/mods-enabled | grep -E '^mpm_.*\.load$' | tr '\n' ' ')"
+rm -f /etc/apache2/mods-enabled/mpm_event.* /etc/apache2/mods-enabled/mpm_worker.*
+apache2ctl -t
+
+# =============================================================================
+# 7. Supervisor
 # =============================================================================
 log "Iniciando supervisor..."
 exec /usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf
