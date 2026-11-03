@@ -1162,6 +1162,9 @@ return [
                     'distribuidor-sin-ciudad'  => 'Un distribuidor tiene que distribuir en al menos una ciudad.',
                     'distribuidor-global'      => 'Un distribuidor no puede tener permiso Global: elegí Grupo o Individual.',
                     'distribuidor-grupo-ciudad'=> 'Para un distribuidor el grupo es su empresa, no la ciudad. Quitá el grupo ":grupo" o usá permiso Individual.',
+                    'puede-asignar'            => 'Puede asignar asesor',
+                    'puede-asignar-info'       => 'Elige el asesor de pedidos y clientes. Cambiar el asesor de un cliente le pasa todos sus pedidos abiertos.',
+                    'sin-permiso-asignar'      => 'No tenés permiso para cambiar el asesor. Pedíselo a un encargado que pueda asignar o a un administrador.',
                 ],
                 'edit' => [
                     'title' => 'Editar Usuario',

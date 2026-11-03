@@ -39,6 +39,8 @@ class EnvioDePlantilla
      *
      * @param  array<int, string>  $variables  Por posición, como las espera Meta.
      * @param  ?string  $imagen  URL pública del encabezado, si la plantilla lo pide.
+     * @param  bool  $abrirPedido  false para no abrirle un pedido vacío al cliente si
+     *                             no tiene uno (ver LeadOpener::forPerson).
      */
     public function enviar(
         string $telefono,
@@ -48,6 +50,7 @@ class EnvioDePlantilla
         array $variables = [],
         ?string $imagen = null,
         string $motivo = 'plantilla',
+        bool $abrirPedido = true,
     ): ?object {
         if (! trim($telefono)) {
             return null;
@@ -88,8 +91,8 @@ class EnvioDePlantilla
             return null;
         }
 
-        $mensaje = DB::transaction(function () use ($telefono, $nombre, $plantilla, $variables, $header) {
-            $conversacion = $this->conversaciones->findOrCreate($telefono, $nombre);
+        $mensaje = DB::transaction(function () use ($telefono, $nombre, $plantilla, $variables, $header, $abrirPedido) {
+            $conversacion = $this->conversaciones->findOrCreate($telefono, $nombre, $abrirPedido);
 
             return MessageProxy::modelClass()::create([
                 'conversation_id' => $conversacion->id,

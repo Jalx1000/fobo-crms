@@ -5,6 +5,10 @@
     'url'              => null,
 ])
 
+@php
+    $puedeAsignar = app(\Webkul\Core\Services\AsignacionDeAsesor::class)->puede();
+@endphp
+
 <div class="flex flex-col gap-1">
     @foreach ($customAttributes as $attribute)
         @if ($attribute->code == 'combos_productos')
@@ -41,7 +45,11 @@
                     @include ($typeView, [
                         'attribute' => $attribute,
                         'value'     => $value,
-                        'allowEdit' => $allowEdit,
+                        'allowEdit' => $allowEdit && (
+                            $attribute->code != 'user_id'
+                            || ! in_array($attribute->entity_type, ['leads', 'persons'])
+                            || $puedeAsignar
+                        ),
                         'url'       => $url,
                     ])
                 </div>

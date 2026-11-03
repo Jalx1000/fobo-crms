@@ -392,6 +392,52 @@ it('manda la plantilla y cuenta el intento', function () {
         ->and($s->de($c['person_id'])->intentos)->toBe(1);
 });
 
+it('con una plantilla de video manda el video de Sensia, no el logo', function () {
+    conPlantillaDeRecordatorio(['format' => 'VIDEO', 'media' => true, 'variables' => 0]);
+    config(['distribuidor.recordatorios.media' => 'https://ejemplo.test/whatsapp/bienvenida-sensia.mp4']);
+
+    $c = clienteParaRecordatorio();
+    app(Recordatorios::class)->programarTrasEntrega($c['person_id'], now()->subDays(30));
+
+    expect(app(\Webkul\Distribuidor\Services\RecordatorioDeRecompra::class)->enviarA($c['person_id']))->toBeTrue();
+
+    $payload = json_decode(DB::table('whatsapp_messages')->orderByDesc('id')->value('payload'), true);
+
+    // toEqual y no toBe: la columna JSON de MySQL reordena las claves (link antes que format).
+    expect($payload['header'])->toEqual([
+        'format' => 'VIDEO',
+        'link'   => 'https://ejemplo.test/whatsapp/bienvenida-sensia.mp4',
+    ]);
+});
+
+it('el recordatorio no le abre un pedido vacío al cliente', function () {
+    conPlantillaDeRecordatorio();
+
+    $c = clienteParaRecordatorio();
+    app(Recordatorios::class)->programarTrasEntrega($c['person_id'], now()->subDays(30));
+
+    $antes = DB::table('leads')->where('person_id', $c['person_id'])->count();
+
+    expect(app(\Webkul\Distribuidor\Services\RecordatorioDeRecompra::class)->enviarA($c['person_id']))->toBeTrue()
+        ->and(DB::table('leads')->where('person_id', $c['person_id'])->count())->toBe($antes);
+});
+
+it('un pedido vacío que abrió el CRM no traba el recordatorio', function () {
+    conPlantillaDeRecordatorio();
+
+    $c = clienteParaRecordatorio();
+    app(Recordatorios::class)->programarTrasEntrega($c['person_id'], now()->subDays(30));
+
+    $leadId = otroPedidoDe($c);
+    DB::table('leads')->where('id', $leadId)->update([
+        'title'      => \Webkul\Whatsapp\Services\LeadOpener::TITLE_PREFIX.'Cliente',
+        'lead_value' => 0,
+        'status'     => 1,
+    ]);
+
+    expect(app(\Webkul\Distribuidor\Services\RecordatorioDeRecompra::class)->enviarA($c['person_id']))->toBeTrue();
+});
+
 it('con un pedido en curso no se le manda el recordatorio', function () {
     conPlantillaDeRecordatorio();
 

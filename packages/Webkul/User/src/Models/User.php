@@ -27,6 +27,14 @@ class User extends Authenticatable implements UserContract
         'status',
         'view_permission',
         'horario',
+        'puede_asignar',
+    ];
+
+    /**
+     * @var array
+     */
+    protected $casts = [
+        'puede_asignar' => 'boolean',
     ];
 
     /**

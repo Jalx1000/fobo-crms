@@ -139,7 +139,11 @@ class CloudApiGateway extends BaseGateway
                         continue;
                     }
 
-                    $statuses[] = new StatusUpdate((string) $status['id'], (string) $status['status']);
+                    $statuses[] = new StatusUpdate(
+                        (string) $status['id'],
+                        (string) $status['status'],
+                        (array) ($status['errors'] ?? []),
+                    );
                 }
             }
         }

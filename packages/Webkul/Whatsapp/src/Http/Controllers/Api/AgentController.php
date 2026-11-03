@@ -13,6 +13,7 @@ use Webkul\Whatsapp\Models\MessageProxy;
 use Webkul\Whatsapp\Services\AgentPayload;
 use Webkul\Whatsapp\Services\Handoff as HandoffService;
 use Webkul\Whatsapp\Services\InteractiveParser;
+use Webkul\Whatsapp\Services\VideoDeBienvenida;
 
 /**
  * Token-authenticated API for the external AI agent: read the conversation for
@@ -261,6 +262,20 @@ class AgentController extends Controller
              */
             $attributes['body'] = $parsed->fallbackText;
             $attributes['payload'] = ['interactive_skipped' => $parsed->reason];
+        }
+
+        /*
+         * El saludo de Sofía va con el video de Sensia, que sale antes (VideoDeBienvenida).
+         * Con el texto original y no el ya convertido: el menú de zonas lo vuelve
+         * interactivo. Si el video falla, el saludo sale igual.
+         */
+        try {
+            app(VideoDeBienvenida::class)->enviarConSaludo($conversation, $data['text']);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('WhatsApp: no se pudo encolar el video de bienvenida', [
+                'conversation_id' => $conversation->id,
+                'error'           => $e->getMessage(),
+            ]);
         }
 
         $message = MessageProxy::modelClass()::create($attributes);

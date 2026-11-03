@@ -40,8 +40,8 @@ class WhatsappServiceProvider extends ServiceProvider
         // que había abierto el CRM se borra (VincularPedidoAConversacion).
         \Illuminate\Support\Facades\Event::listen('lead.create.after', \Webkul\Whatsapp\Listeners\VincularPedidoAConversacion::class);
 
-        // El cliente escribe y todavía no recibió el video de Sensia: se lo manda (EnviarVideoDeSaludo).
-        \Illuminate\Support\Facades\Event::listen('whatsapp.message.received', \Webkul\Whatsapp\Listeners\EnviarVideoDeSaludo::class);
+        // El video de Sensia ya no sale cuando el cliente escribe sino con el saludo del
+        // agente (AgentController::send → VideoDeBienvenida::enviarConSaludo).
 
         MessageProxy::modelClass()::created(function ($message) {
             if (

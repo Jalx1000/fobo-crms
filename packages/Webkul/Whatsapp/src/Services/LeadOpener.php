@@ -40,8 +40,12 @@ class LeadOpener
      *
      * Devuelve null si está apagado por config o si algo falla: un pedido que no se
      * pudo abrir NUNCA puede costar el mensaje del cliente.
+     *
+     * @param  bool  $abrir  false para mensajes que salen del CRM sin que el cliente
+     *                       haya escrito (el recordatorio): se vincula el pedido abierto
+     *                       si hay, pero no se abre uno vacío. Lo abre su respuesta.
      */
-    public function forPerson(?Model $person): ?int
+    public function forPerson(?Model $person, bool $abrir = true): ?int
     {
         if (! $person) {
             return null;
@@ -59,7 +63,7 @@ class LeadOpener
             return (int) $abierto->id;
         }
 
-        if (! config('whatsapp.auto_create_lead', true)) {
+        if (! $abrir || ! config('whatsapp.auto_create_lead', true)) {
             return null;
         }
 

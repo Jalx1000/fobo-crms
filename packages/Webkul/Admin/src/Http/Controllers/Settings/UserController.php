@@ -17,6 +17,7 @@ use Webkul\Admin\Http\Requests\MassDestroyRequest;
 use Webkul\Admin\Http\Requests\MassUpdateRequest;
 use Webkul\Admin\Http\Resources\UserResource;
 use Webkul\Admin\Notifications\User\Create as UserCreatedNotification;
+use Webkul\Core\Services\AsignacionDeAsesor;
 use Webkul\Distribuidor\Services\ZonasDelDistribuidor;
 use Webkul\User\Repositories\GroupRepository;
 use Webkul\User\Repositories\RoleRepository;
@@ -53,7 +54,12 @@ class UserController extends Controller
 
         $rolDistribuidor = $roles->firstWhere('name', ZonasDelDistribuidor::ROL)?->id;
 
-        return view('admin::settings.users.index', compact('roles', 'groups', 'ciudades', 'rolDistribuidor'));
+        // "Puede asignar asesor" aparece sólo para el Encargado, y sólo lo edita un administrador.
+        $rolEncargado = $roles->firstWhere('name', AsignacionDeAsesor::ROL_ENCARGADO)?->id;
+
+        $editaAsignar = auth()->guard('user')->user()?->role?->permission_type === 'all';
+
+        return view('admin::settings.users.index', compact('roles', 'groups', 'ciudades', 'rolDistribuidor', 'rolEncargado', 'editaAsignar'));
     }
 
     /**
@@ -70,6 +76,7 @@ class UserController extends Controller
             'status'           => 'boolean|in:0,1',
             'view_permission'  => 'string|in:global,group,individual',
             'horario'          => 'nullable|string',
+            'puede_asignar'    => 'nullable|boolean',
         ]);
 
         $data = request()->all();
@@ -82,6 +89,8 @@ class UserController extends Controller
         }
 
         $this->validarDistribuidor($data);
+
+        $data = $this->permisoDeAsignar($data);
 
         Event::dispatch('settings.user.create.before');
 
@@ -133,6 +142,7 @@ class UserController extends Controller
             'status'           => 'nullable|boolean|in:0,1',
             'view_permission'  => 'required|string|in:global,group,individual',
             'horario'          => 'nullable|string',
+            'puede_asignar'    => 'nullable|boolean',
         ]);
 
         $data = request()->all();
@@ -150,6 +160,8 @@ class UserController extends Controller
         }
 
         $this->validarDistribuidor($data);
+
+        $data = $this->permisoDeAsignar($data);
 
         Event::dispatch('settings.user.update.before', $id);
 
@@ -186,6 +198,23 @@ class UserController extends Controller
         if ($errores) {
             throw ValidationException::withMessages($errores);
         }
+    }
+
+    /**
+     * "Puede asignar asesor" sólo existe para el rol Encargado: los administradores
+     * siempre pueden y el resto nunca. Y sólo lo cambia un administrador, para que
+     * nadie se lo dé a sí mismo si su rol llega a tener acceso a Usuarios.
+     */
+    protected function permisoDeAsignar(array $data): array
+    {
+        if (auth()->guard('user')->user()?->role?->permission_type !== 'all') {
+            return Arr::except($data, ['puede_asignar']);
+        }
+
+        $data['puede_asignar'] = ! empty($data['puede_asignar'])
+            && app(AsignacionDeAsesor::class)->esRolEncargado(isset($data['role_id']) ? (int) $data['role_id'] : null);
+
+        return $data;
     }
 
     /**

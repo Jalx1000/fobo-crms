@@ -17,6 +17,7 @@ use Webkul\Admin\Http\Requests\AttributeForm;
 use Webkul\Admin\Http\Requests\MassDestroyRequest;
 use Webkul\Admin\Http\Resources\PersonResource;
 use Webkul\Contact\Repositories\PersonRepository;
+use Webkul\Core\Services\AsignacionDeAsesor;
 use Webkul\Core\Services\Distribuidores;
 use Webkul\Lead\Repositories\PipelineRepository;
 
@@ -147,6 +148,8 @@ class PersonController extends Controller
             return redirect()->back()->withInput();
         }
 
+        app(AsignacionDeAsesor::class)->validar($request->all(), null, esAlta: true);
+
         Event::dispatch('contacts.person.create.before');
 
         $person = $this->personRepository->create($request->all());
@@ -190,6 +193,8 @@ class PersonController extends Controller
      */
     public function update(AttributeForm $request, int $id): RedirectResponse|JsonResponse
     {
+        app(AsignacionDeAsesor::class)->validar($request->all(), $this->personRepository->findOrFail($id)->user_id);
+
         Event::dispatch('contacts.person.update.before', $id);
 
         $person = $this->personRepository->update($request->all(), $id);
