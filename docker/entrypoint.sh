@@ -78,7 +78,11 @@ php artisan migrate --force --no-interaction
 log "Calentando caches..."
 php artisan config:cache --no-interaction
 php artisan event:cache --no-interaction
-php artisan route:cache --no-interaction
+
+# route:cache falla hoy porque mail-routes.php se registra dos veces y Laravel
+# rechaza el nombre duplicado. Sin cache las rutas funcionan igual, solo se
+# resuelven en cada request (es como corre Easypanel).
+php artisan route:cache --no-interaction || log "AVISO: route:cache falló, se sigue sin cache de rutas."
 
 # Una vista rota no debe tumbar todo el CRM: se compila al primer uso y el
 # error queda visible en esa pantalla.
