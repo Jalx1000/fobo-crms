@@ -403,7 +403,8 @@ it('con una plantilla de video manda el video de Sensia, no el logo', function (
 
     $payload = json_decode(DB::table('whatsapp_messages')->orderByDesc('id')->value('payload'), true);
 
-    expect($payload['header'])->toBe([
+    // toEqual y no toBe: la columna JSON de MySQL reordena las claves (link antes que format).
+    expect($payload['header'])->toEqual([
         'format' => 'VIDEO',
         'link'   => 'https://ejemplo.test/whatsapp/bienvenida-sensia.mp4',
     ]);
