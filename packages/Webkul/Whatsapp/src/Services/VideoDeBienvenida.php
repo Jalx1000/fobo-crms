@@ -4,6 +4,7 @@ namespace Webkul\Whatsapp\Services;
 
 use Illuminate\Support\Facades\DB;
 use Webkul\Core\Services\PhoneNumber;
+use Webkul\Lead\Models\LeadProxy;
 use Webkul\Whatsapp\Jobs\SendMessage;
 use Webkul\Whatsapp\Models\MessageProxy;
 
@@ -55,7 +56,10 @@ class VideoDeBienvenida
      */
     public function enviarSiFalta(object $conversacion): bool
     {
-        if (! $this->url() || ! $this->aplicaA($conversacion->wa_phone) || $this->yaLoRecibio($conversacion->id)) {
+        if (! $this->url()
+            || ! $this->aplicaA($conversacion->wa_phone)
+            || $this->yaLoRecibio($conversacion->id)
+            || ! $this->esClienteNuevo($conversacion)) {
             return false;
         }
 
@@ -85,6 +89,22 @@ class VideoDeBienvenida
         SendMessage::dispatch($mensaje->id)->onQueue(config('whatsapp.queue'));
 
         return true;
+    }
+
+    /**
+     * Nuevo = sin pedido previo. Es la MISMA condición por la que el agente manda el
+     * saludo de bienvenida (AgentPayload::cliente → es_conocido): el video acompaña ese
+     * saludo, así que va sólo a clientes nuevos, no a los que ya compraron.
+     */
+    protected function esClienteNuevo(object $conversacion): bool
+    {
+        if (! $conversacion->person_id) {
+            return true;
+        }
+
+        return ! LeadProxy::modelClass()::query()
+            ->where('person_id', (int) $conversacion->person_id)
+            ->exists();
     }
 
     /**
