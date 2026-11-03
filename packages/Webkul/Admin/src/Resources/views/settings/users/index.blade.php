@@ -458,7 +458,7 @@
                                         name="puede_asignar"
                                         value="1"
                                         :label="trans('admin::app.settings.users.index.create.puede-asignar')"
-                                        ::checked="parseInt(user.puede_asignar || 0)"
+                                        ::checked="Number(user.puede_asignar || 0)"
                                     />
 
                                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
