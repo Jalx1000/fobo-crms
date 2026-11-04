@@ -73,12 +73,26 @@
                             </x-admin::table.td>
 
                             <x-admin::table.td class="!px-2">
-                                <i @click="removePromotion(index)" class="icon-delete cursor-pointer text-2xl"></i>
+                                <button
+                                    type="button"
+                                    @click="removePromotion(index)"
+                                    aria-label="{{ __('Eliminar promoción') }}"
+                                    class="cursor-pointer leading-none text-gray-600 transition-colors hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400"
+                                >
+                                    <i class="icon-delete text-2xl"></i>
+                                </button>
                             </x-admin::table.td>
                         </x-admin::table.tbody.tr>
                     </x-admin::table.tbody>
                 </x-admin::table>
             </div>
+
+            <p
+                v-if="! promotions.length"
+                class="py-4 text-center text-sm text-gray-400 dark:text-gray-400"
+            >
+                {{ __('No hay promociones todavía. Agregá una con “Agregar promoción”.') }}
+            </p>
 
             <div class="flex items-center justify-between">
                 <button type="button" class="flex max-w-max items-center gap-2 text-brandColor" @click="addPromotion">

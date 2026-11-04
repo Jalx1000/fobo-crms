@@ -61,15 +61,26 @@
                             </x-admin::table.td>
 
                             <x-admin::table.td class="!px-2">
-                                <i
+                                <button
+                                    type="button"
                                     @click="removeZone(index)"
-                                    class="icon-delete cursor-pointer text-2xl"
-                                ></i>
+                                    :aria-label="`{{ __('Eliminar zona') }} ${zone.name || ''}`.trim()"
+                                    class="cursor-pointer leading-none text-gray-600 transition-colors hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400"
+                                >
+                                    <i class="icon-delete text-2xl"></i>
+                                </button>
                             </x-admin::table.td>
                         </x-admin::table.tbody.tr>
                     </x-admin::table.tbody>
                 </x-admin::table>
             </div>
+
+            <p
+                v-if="! zones.length"
+                class="py-4 text-center text-sm text-gray-400 dark:text-gray-400"
+            >
+                {{ __('No hay zonas todavía. Agregá la primera con “Agregar zona”.') }}
+            </p>
 
             <div class="flex items-center justify-between">
                 <button
