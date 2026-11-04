@@ -4821,4 +4821,53 @@
         .dark .ddc-seg-btn + .ddc-seg-btn { border-left-color: #1f2937; }
         .dark .ddc-seg-btn.is-active { background: #1f2937; color: #60a5fa; }
     }
+
+    /* ─────────────────────────────────────────────────────────────────────
+       Celular/tablet (≤1023px): cada vista cómoda en pantalla chica.
+       La franja de borde a borde ya la da el contenedor (.act-body en
+       activities/index); acá solo compactamos las vistas y agrandamos los
+       toques. Va al final a propósito: le gana a las reglas de arriba.
+       ───────────────────────────────────────────────────────────────────── */
+    @media (max-width: 1023px) {
+        /* Selector de vista (Día/Semana/Mes/Lista): 4 botones iguales, táctiles. */
+        .ddc-seg { width: 100%; }
+        .ddc-seg-btn { flex: 1 1 0; min-width: 0; height: 40px; font-size: 13px; }
+
+        /* Fecha y buscador con alto táctil. */
+        .ddc-tb-icon, .ddc-tb-chip, .ddc-tb-date-label { height: 40px; }
+        .ddc-tb-search input { height: 44px; }
+
+        /* MES: 156px por celda era enorme en el celular; las bajamos y achicamos
+           números y eventos para que entren las 7 columnas sin apretar. */
+        .dwc-month-view { padding: 8px; gap: 8px; border-radius: 0; border-left: 0; border-right: 0; }
+        .dwc-month-view .ddc-date-weekdays,
+        .dwc-month-view .ddc-date-grid { gap: 3px; }
+        .dwc-month-view .ddc-date-weekday { font-size: 10px; }
+        .dwc-month-cell { height: auto; min-height: 54px; border-radius: 6px; }
+        .dwc-month-cell-header { padding: 3px 5px; font-size: 11px; }
+        .dwc-month-cell-events { padding: 0 3px 4px; gap: 2px; max-height: none; }
+        .dwc-month-event { font-size: 10px; padding: 1px 4px; border-left-width: 2px; }
+
+        /* SEMANA (varios doctores): columnas más angostas y el doctor fijo a la
+           izquierda mientras se deslizan los días (scroll horizontal). */
+        .dwc-week-view { border-radius: 0; border-left: 0; border-right: 0; }
+        .dwc-week-header,
+        .dwc-week-row { grid-template-columns: 88px repeat(7, minmax(72px, 1fr)); }
+        .dwc-week-header-cell,
+        .dwc-week-doctor-cell { padding: 8px 6px; font-size: 12px; }
+        .dwc-week-doctor-cell,
+        .dwc-week-header-cell.doctor-col {
+            position: -webkit-sticky; position: sticky; left: 0; z-index: 6;
+        }
+        .dwc-week-header-cell.doctor-col { padding-left: 10px; }
+
+        /* DÍA / SEMANA de un doctor: la grilla ya scrollea; columna de horas fina. */
+        .dwc-hour-row { font-size: 11px; padding-right: 6px; }
+
+        /* LISTA: hora compacta y filas de borde a borde. */
+        .dwc-list-table,
+        .dwc-list-filters { border-radius: 0; border-left: 0; border-right: 0; }
+        .dwc-list-time { min-width: 72px; font-size: 12px; }
+        .dwc-list-row { padding: 10px 12px; gap: 8px; }
+    }
 </style>
