@@ -180,6 +180,11 @@ Route::middleware(['auth:sanctum', 'throttle:doctor-availability'])->group(funct
  */
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('v1/activities', [\App\Http\Controllers\Api\V1\ActivityController::class, 'store']);
+
+    // Override de pacientes: tolera actualizar/crear sin enviar contact_numbers/emails
+    // (el saneamiento del vendor falla con "Undefined array key" → 500).
+    Route::post('v1/contacts/persons', [\App\Http\Controllers\Api\V1\PersonController::class, 'store']);
+    Route::put('v1/contacts/persons/{id}', [\App\Http\Controllers\Api\V1\PersonController::class, 'update']);
 });
 
 /**
