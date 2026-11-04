@@ -57,11 +57,30 @@ class AppointmentService
         $allDoctorIds = array_values(array_unique(array_merge([(int) $doctorId], $allDoctorIds)));
         $personData = $data['person'];
         $productId = $data['product_id'] ?? null;
-        // Regla 1 lead = 1 cita: cada cita crea su propio lead. Solo se reusa un
-        // lead cuando llega un lead_id EXPLÍCITO (ej. agendar desde un lead).
-        // (Antes se auto-reusaba el lead abierto más reciente del paciente, lo que
-        // dejaba varios appointments colgando de un mismo lead.)
+        // Reuso de lead: si llega un lead_id EXPLÍCITO se usa ese. Si no, se reusa
+        // el lead ABIERTO más reciente del paciente (su "caso" en curso), para no
+        // proliferar un lead por cada cita. Un lead en etapa terminal
+        // (completada / perdida / cancelada) o status=0 NO se reusa: esos casos
+        // están cerrados y una cita nueva abre un lead nuevo.
         $existingLeadId = $data['lead_id'] ?? null;
+
+        if (! $existingLeadId) {
+            $closedStageIds = array_filter([
+                (int) config('smd.stage_map.completed'),
+                (int) config('smd.stage_map.no_show'),
+                (int) config('smd.stage_map.cancelled'),
+            ]);
+
+            $existingLeadId = DB::table('leads')
+                ->where('person_id', $personData['id'] ?? 0)
+                ->where(fn ($q) => $q->whereNull('status')->orWhere('status', '!=', 0))
+                ->where(function ($q) use ($closedStageIds) {
+                    $q->whereNull('lead_pipeline_stage_id')
+                        ->orWhereNotIn('lead_pipeline_stage_id', $closedStageIds ?: [0]);
+                })
+                ->orderByDesc('id')
+                ->value('id');
+        }
 
         // Si no viene product_id pero sí lead_id, intentar tomarlo del primer producto del lead
         if (! $productId && $existingLeadId) {
