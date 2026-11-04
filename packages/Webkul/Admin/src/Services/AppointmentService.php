@@ -183,6 +183,29 @@ class AppointmentService
 
         $product = $productId ? DB::table('products')->where('id', $productId)->first() : null;
 
+        // Zona elegida y precio pactado: se persisten como DATO (no texto) en la
+        // cita (activities.additional) y en el lead (lead_value + lead_products),
+        // para poder reportar/reconciliar y congelar el precio de la promo.
+        $zoneId = $data['zone_id'] ?? null;
+        $zone = $zoneId ? DB::table('service_zones')->where('id', $zoneId)->first() : null;
+
+        // La zona debe pertenecer al servicio indicado.
+        if ($zone && $productId && (int) $zone->product_id !== (int) $productId) {
+            throw new AppointmentException('La zona seleccionada no pertenece al servicio indicado.');
+        }
+
+        // Si llega la zona pero no el servicio, el servicio es el de la zona.
+        if (! $productId && $zone) {
+            $productId = (int) $zone->product_id;
+            $product = DB::table('products')->where('id', $productId)->first();
+        }
+
+        // Precio pactado: el enviado por el agente (precio/promo del catálogo), o
+        // el precio base de la zona como respaldo. Null si no hay forma de saberlo.
+        $quotedPrice = (isset($data['price']) && $data['price'] !== null && $data['price'] !== '')
+            ? (float) $data['price']
+            : ($zone->price !== null ? (float) $zone->price : null);
+
         $nameParts = explode(' ', trim($person->name ?? 'Paciente'));
         $eventTitle = ($person->name ?? 'Paciente').' - '.($product->name ?? 'Consulta');
         $title = $data['title'] ?? $eventTitle;
@@ -473,6 +496,7 @@ class AppointmentService
                 $data, $scheduleFrom, $scheduleTo,
                 $doctor, $allDoctorIds,
                 $person, $productId, $product, $title,
+                $zoneId, $zone, $quotedPrice,
                 $existingLeadId, $smdResult, $validateWithSmd
             ) {
                 if ($existingLeadId) {
@@ -493,6 +517,16 @@ class AppointmentService
                     $lead = $this->leadRepository->create($leadData);
                 }
 
+                // #4 Mantener el título del lead en sync con la cita activa (al
+                // reutilizar un lead quedaba un título viejo).
+                // #3 Registrar el valor cotizado en el lead (antes quedaba 0.0000).
+                $leadUpdate = ['title' => $title];
+                if ($quotedPrice !== null) {
+                    $leadUpdate['lead_value'] = $quotedPrice;
+                    $leadUpdate['lead_value_is_manual'] = 1;
+                }
+                DB::table('leads')->where('id', $lead->id)->update($leadUpdate);
+
                 $currentUserId = auth()->guard('user')->id() ?? auth()->id() ?? 1;
 
                 $activityData = [
@@ -503,6 +537,15 @@ class AppointmentService
                     'schedule_to'   => $scheduleTo->format('Y-m-d H:i:s'),
                     'user_id'       => $currentUserId,
                     'participants'  => ['doctors' => $allDoctorIds, 'persons' => [$person->id]],
+                    // Servicio + zona + precio pactado como DATO (no solo en el texto).
+                    // La zona es clave en HIFU (varias zonas comparten servicio/duración).
+                    'additional'    => json_encode([
+                        'product_id'   => $productId,
+                        'product_name' => $product->name ?? null,
+                        'zone_id'      => $zoneId,
+                        'zone_name'    => $zone->name ?? null,
+                        'price'        => $quotedPrice,
+                    ], JSON_UNESCAPED_UNICODE),
                 ];
 
                 // Estado inicial y sucursal de la cita (aditivo: solo si existen
@@ -531,6 +574,20 @@ class AppointmentService
 
                 if ($productId) {
                     $activity->products()->sync([$productId]);
+
+                    // #3 Registrar el servicio + precio pactado en lead_products para
+                    // que el pipeline y los reportes muestren la cifra real. El precio
+                    // queda congelado en la cita aunque la promo cambie después.
+                    DB::table('lead_products')->updateOrInsert(
+                        ['lead_id' => $lead->id, 'product_id' => $productId],
+                        [
+                            'quantity'   => 1,
+                            'price'      => $quotedPrice ?? 0,
+                            'amount'     => $quotedPrice ?? 0,
+                            'updated_at' => now(),
+                            'created_at' => now(),
+                        ]
+                    );
                 }
 
                 // Vincular la cita con el evento de SMD (external_id) para que EDITARLA
@@ -569,6 +626,9 @@ class AppointmentService
                     'activity_id'  => $activity->id,
                     'product_id'   => $productId,
                     'product_name' => $product->name ?? null,
+                    'zone_id'      => $zoneId,
+                    'zone_name'    => $zone->name ?? null,
+                    'price'        => $quotedPrice,
                     'message'      => $validateWithSmd
                         ? 'Cita creada y sincronizada correctamente.'
                         : 'Cita creada. Disponibilidad validada contra la agenda local (turno y solapamiento). Sin integración con ShareMeData.',

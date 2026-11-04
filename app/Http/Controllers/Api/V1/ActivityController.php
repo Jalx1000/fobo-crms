@@ -49,9 +49,13 @@ class ActivityController extends BaseActivityController
             ], 422);
         }
 
-        // Validaciones exclusivas de meeting (product_id opcional pero debe existir si se envía)
+        // Validaciones exclusivas de meeting. product_id (servicio), zone_id (zona
+        // del servicio) y price (precio pactado) son opcionales pero, si vienen,
+        // deben existir / ser válidos. La zona debe pertenecer al servicio.
         $this->validate(request(), [
             'product_id' => 'nullable|integer|exists:products,id',
+            'zone_id'    => 'nullable|integer|exists:service_zones,id',
+            'price'      => 'nullable|numeric|min:0',
         ]);
 
         try {
@@ -63,6 +67,8 @@ class ActivityController extends BaseActivityController
                 'title'         => request('title'),
                 'reason'        => request('comment'),
                 'product_id'    => request('product_id'),
+                'zone_id'       => request('zone_id'),
+                'price'         => request('price'),
                 'lead_id'       => request('lead_id'),
             ]);
 
