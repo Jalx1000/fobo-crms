@@ -6,7 +6,8 @@
 > nuevo de Tessa.
 > **Estado:** validado en **producción** el 2026-11-04. Todos los ejemplos de este
 > documento son respuestas **reales** del servidor.
-> Colección Postman: [`postman/tessa-agente.postman_collection.json`](postman/tessa-agente.postman_collection.json).
+> Colección Postman: [`tessa-agente.postman_collection.json`](tessa-agente.postman_collection.json)
+> · entorno: [`tessa.postman_environment.json`](tessa.postman_environment.json).
 
 ---
 
@@ -260,7 +261,7 @@ Guardá el `id` del paciente (person) devuelto para la cita.
 
 ## 10. Referencias
 
-- Colección Postman lista para importar: `postman/tessa-agente.postman_collection.json`
-  (+ entorno `postman/tessa.postman_environment.json`).
-- Detalle de disponibilidad/agenda: `docs/disponibilidad-doctores.md`.
-- Handoff original (ojo: catálogo desactualizado): `docs/handoff-agente-ia-tessa.md`.
+- Colección Postman lista para importar: `tessa-agente.postman_collection.json`
+  (+ entorno `tessa.postman_environment.json`) — en esta misma carpeta.
+- Detalle de disponibilidad/agenda: `../disponibilidad-doctores.md`.
+- Handoff original (su ejemplo de catálogo ya quedó apuntando aquí): `../handoff-agente-ia-tessa.md`.

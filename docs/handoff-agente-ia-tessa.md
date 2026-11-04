@@ -248,21 +248,30 @@ frequency_text, min_interval_days, duration_minutes` y `zones[]` con
 `{ id, name, duration_minutes, price, current_price }`. Acepta `?q=` (búsqueda),
 `?limit=` y `?branch_id=` (aplica la promo de esa sucursal al `current_price`).
 
-`current_price` ya trae la **promo vigente** aplicada (ej.: Axilas base Bs 70 →
-vigente Bs 50 en octubre). Verificado en producción.
+`current_price` ya trae la **promo vigente** aplicada. **Pasá `?branch_id=1`**
+(Santa Cruz) o cotizarás el precio base sin promo (ej. real nov-2026: Depilación
+*Axilas + Bikini* base Bs 170 → con `branch_id=1` Bs 150). Verificado en producción.
 
-Ejemplo:
+Ejemplo (catálogo real, nov-2026):
 ```
-GET https://tessa.sofopolis.com/api/public/products?q=HIFU
+GET https://tessa.sofopolis.com/api/public/products?branch_id=1&q=HIFU
 → { "data": [ { "sku":"HIFU", "specialty":"Faciales de rejuvenecimiento",
      "min_interval_days":90, "zones":[
-       {"name":"Rostro","duration_minutes":60,"price":"900.0000","current_price":900},
-       {"name":"Rostro y cuello","duration_minutes":90,"price":"1300.0000","current_price":1300}
-     ] } ] }
+       {"name":"Rostro completo","duration_minutes":60,"current_price":1500},
+       {"name":"Rostro completo + papada","duration_minutes":75,"current_price":1800},
+       {"name":"Rostro completo + papada + cuello","duration_minutes":90,"current_price":2190},
+       {"name":"Óvalo facial + mandíbula + papada","duration_minutes":60,"current_price":900},
+       {"name":"Papada + cuello","duration_minutes":45,"current_price":800}
+     ] },
+     { "sku":"HIFU-CORPORAL", "specialty":"Reducción de grasa localizada y modelado",
+       "zones":[ {"name":"Abdomen bajo","duration_minutes":60,"current_price":1090} ] } ] }
 ```
 
 > `/whatsapp/products` (auth admin) sigue existiendo con la misma estructura; para el
 > agente usá el público `/api/public/products`.
+>
+> 📄 **Guía completa y actualizada + colección Postman:** carpeta `docs/entrega-agente/`
+> (`agente-endpoints-ofrecer-servicios.md`). Este bloque es solo un resumen.
 
 ---
 
