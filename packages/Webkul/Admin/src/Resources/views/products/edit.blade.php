@@ -216,5 +216,30 @@
         </div>
     </x-admin::form>
 
+    <!-- Zonas y Promociones del servicio (Tessa) -->
+    <div class="mt-4 flex flex-col gap-4">
+        {!! view_render_event('admin.products.edit.zones.before', ['product' => $product]) !!}
+
+        <div class="box-shadow rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+            <p class="border-b border-gray-200 p-4 text-base font-semibold text-gray-800 dark:border-gray-800 dark:text-white">
+                {{ __('Zonas') }}
+            </p>
+
+            @include('admin::products.view.zones')
+        </div>
+
+        {!! view_render_event('admin.products.edit.promotions.before', ['product' => $product]) !!}
+
+        <div class="box-shadow rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+            <p class="border-b border-gray-200 p-4 text-base font-semibold text-gray-800 dark:border-gray-800 dark:text-white">
+                {{ __('Promociones') }}
+            </p>
+
+            @include('admin::products.view.promotions')
+        </div>
+
+        {!! view_render_event('admin.products.edit.promotions.after', ['product' => $product]) !!}
+    </div>
+
     {!! view_render_event('admin.products.edit.form.after') !!}
 </x-admin::layouts>

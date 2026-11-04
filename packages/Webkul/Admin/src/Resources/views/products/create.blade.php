@@ -214,5 +214,22 @@
         </div>
     </x-admin::form>
 
+    <!-- Zonas y Promociones del servicio (Tessa) -->
+    <div class="mt-4 flex flex-col gap-4">
+        <div class="box-shadow rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+            <p class="border-b border-gray-200 p-4 text-base font-semibold text-gray-800 dark:border-gray-800 dark:text-white">
+                {{ __('Zonas y promociones') }}
+            </p>
+
+            <div class="flex items-start gap-2 p-4 text-sm text-gray-500 dark:text-gray-300">
+                <i class="icon-info text-xl"></i>
+
+                <p>
+                    {{ __('Guardá primero el servicio. Luego, al editarlo, vas a poder agregar sus zonas (duración y precio) y sus promociones con vigencia.') }}
+                </p>
+            </div>
+        </div>
+    </div>
+
     {!! view_render_event('admin.products.create.form.after') !!}
 </x-admin::layouts>
