@@ -68,6 +68,26 @@ class ActivityController extends Controller
                 ->orderBy('name')
                 ->get();
 
+            // Línea (especialidad) de cada doctor + catálogo de líneas, para el
+            // filtro de la barra del calendario. Aditivo: si no hay datos, los
+            // arreglos quedan vacíos y el calendario funciona igual que antes.
+            $specialtyByDoctor = DB::table('doctor_specialty')->get()->groupBy('doctor_id');
+
+            $doctors = $doctors->map(function ($doctor) use ($specialtyByDoctor) {
+                $doctor->specialty_ids = collect($specialtyByDoctor->get($doctor->id, []))
+                    ->pluck('specialty_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->values()
+                    ->all();
+
+                return $doctor;
+            });
+
+            $specialties = DB::table('specialties')
+                ->select(['id', 'name'])
+                ->orderBy('name')
+                ->get();
+
             $prefix = DB::getTablePrefix();
 
             $appointments = DB::table('activities')
@@ -266,6 +286,7 @@ class ActivityController extends Controller
                         })
                     )),
                 'doctors'       => $doctors,
+                'specialties'   => $specialties,
                 'appointments'  => $appointments,
                 'availability'  => $availability,
                 'calendar_view' => $view,

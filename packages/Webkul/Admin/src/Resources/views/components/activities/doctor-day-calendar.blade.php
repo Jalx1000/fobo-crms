@@ -87,6 +87,17 @@
             </div>
 
             <div class="ddc-tb-doctors">
+                <!-- Filtros: Línea (especialidad) y Estado de la cita. En blanco = todos. -->
+                <div class="ddc-tb-filters">
+                    <select class="ddc-tb-select" v-model="specialtyFilter" aria-label="Filtrar por línea">
+                        <option value="">Línea: todas</option>
+                        <option v-for="s in specialties" :key="'spf-'+s.id" :value="String(s.id)">@{{ s.name }}</option>
+                    </select>
+                    <select class="ddc-tb-select" v-model="statusFilter" aria-label="Filtrar por estado">
+                        <option value="">Estado: todos</option>
+                        <option v-for="st in stages" :key="'stf-'+st.id" :value="String(st.id)">@{{ st.name }}</option>
+                    </select>
+                </div>
                 <div class="ddc-tb-doctors-head">
                     <span>Doctores</span>
                     <button type="button" class="ddc-tb-link" @click="selectAllDoctors">Todos</button>
@@ -1607,6 +1618,9 @@
                 appointments: [],
                 availability: [],
                 stages: [],
+                specialties: [],
+                specialtyFilter: '',
+                statusFilter: '',
                 selectedDoctorIds: [],
                 doctorFilterInitialized: false,
                 patientSearch: '',
@@ -1853,8 +1867,24 @@
                 const yyyy = d.getFullYear();
                 return `${names[d.getDay()]} ${dd}/${mm}/${yyyy}`;
             },
+            /**
+             * Doctores que realmente se muestran: los seleccionados, y si hay un
+             * filtro de Línea activo, solo los de esa línea. Vacío = sin filtro,
+             * así el calendario se comporta igual que antes.
+             */
+            effectiveDoctorIds() {
+                const ids = this.selectedDoctorIds.map(id => String(id));
+                const linea = String(this.specialtyFilter ?? '');
+                if (linea === '') return ids;
+                const allowed = new Set(
+                    this.doctors
+                        .filter(d => Array.isArray(d.specialty_ids) && d.specialty_ids.map(String).includes(linea))
+                        .map(d => String(d.id))
+                );
+                return ids.filter(id => allowed.has(id));
+            },
             columns() {
-                const ids = new Set(this.selectedDoctorIds.map(id => Number(id)));
+                const ids = new Set(this.effectiveDoctorIds.map(id => Number(id)));
                 return this.doctors.filter(d => d && d.id && ids.has(Number(d.id)));
             },
             gridCols() {
@@ -1871,10 +1901,10 @@
                 return this.columns.length === 1;
             },
             listAppointments() {
-                if (!this.selectedDoctorIds.length) return [];
-                const ids = new Set(this.selectedDoctorIds.map(id => String(id)));
+                if (!this.effectiveDoctorIds.length) return [];
+                const ids = new Set(this.effectiveDoctorIds.map(id => String(id)));
                 return this.appointments
-                    .filter(a => ids.has(String(a.doctor_id)))
+                    .filter(a => ids.has(String(a.doctor_id)) && this.matchesStatus(a))
                     .slice()
                     .sort((a, b) => new Date(a.start) - new Date(b.start));
             },
@@ -2405,6 +2435,7 @@
                         this.appointments = r.data.appointments;
                         this.availability = r.data.availability || [];
                         this.stages = r.data.stages || [];
+                        this.specialties = r.data.specialties || [];
 
                         if (!this.doctorFilterInitialized) {
                             this.selectedDoctorIds = this.doctors.map(d => String(d.id));
@@ -2466,12 +2497,21 @@
             clearDoctors() {
                 this.selectedDoctorIds = [];
             },
+            /**
+             * ¿La cita pasa el filtro de Estado? Vacío = todos (igual que antes).
+             */
+            matchesStatus(ev) {
+                const sel = String(this.statusFilter ?? '');
+                if (sel === '') return true;
+                return String(ev.lead_pipeline_stage_id ?? '') === sel;
+            },
             getEventsForDay(isoDate) {
-                if (!isoDate || !this.selectedDoctorIds.length) return [];
-                const ids = new Set(this.selectedDoctorIds.map(id => String(id)));
+                if (!isoDate || !this.effectiveDoctorIds.length) return [];
+                const ids = new Set(this.effectiveDoctorIds.map(id => String(id)));
                 return this.appointments.filter(a =>
                     a.start.startsWith(isoDate) &&
-                    ids.has(String(a.doctor_id))
+                    ids.has(String(a.doctor_id)) &&
+                    this.matchesStatus(a)
                 );
             },
             getDoctorAvailability(dateStr, doctorId) {
@@ -2491,7 +2531,7 @@
             },
             dayDoctorEvents(dateStr, doctorId) {
                 const events = this.appointments
-                    .filter(a => a.start.split(' ')[0] === dateStr && String(a.doctor_id) === String(doctorId))
+                    .filter(a => a.start.split(' ')[0] === dateStr && String(a.doctor_id) === String(doctorId) && this.matchesStatus(a))
                     .map(a => {
                         const dtStart = new Date(a.start);
                         const dtEnd = new Date(a.end);
@@ -4759,6 +4799,15 @@
     .ddc-tb-doctors-head { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #6b7280; white-space: nowrap; }
     .ddc-tb-link { border: 0; background: none; padding: 0; color: #2563eb; font-size: 12px; font-weight: 500; }
     .ddc-tb-multi { flex: 1 1 auto; min-width: 0; max-height: 100%; }
+    /* Filtros de la barra (Línea / Estado): selects compactos del estilo del admin. */
+    .ddc-tb-filters { display: flex; gap: 8px; width: 100%; }
+    .ddc-tb-select {
+        flex: 1 1 0; min-width: 0; height: 34px; padding: 0 8px;
+        border: 1px solid #e5e7eb; border-radius: 6px; background: #fff;
+        color: #374151; font-size: 13px; cursor: pointer;
+    }
+    .ddc-tb-select:focus { outline: 2px solid #93c5fd; outline-offset: -1px; border-color: #60a5fa; }
+    .dark .ddc-tb-select { background: #111827; border-color: #1f2937; color: #e5e7eb; }
 
     .dark .ddc-tb-icon, .dark .ddc-tb-chip, .dark .ddc-tb-date-label,
     .dark .ddc-seg, .dark .ddc-tb-search input { background: #1f2937; color: #e5e7eb; }
@@ -4833,9 +4882,10 @@
         .ddc-seg { width: 100%; }
         .ddc-seg-btn { flex: 1 1 0; min-width: 0; height: 40px; font-size: 13px; }
 
-        /* Fecha y buscador con alto táctil. */
+        /* Fecha, buscador y filtros con alto táctil. */
         .ddc-tb-icon, .ddc-tb-chip, .ddc-tb-date-label { height: 40px; }
         .ddc-tb-search input { height: 44px; }
+        .ddc-tb-select { height: 44px; font-size: 14px; }
 
         /* MES: 156px por celda era enorme en el celular; las bajamos y achicamos
            números y eventos para que entren las 7 columnas sin apretar. */
