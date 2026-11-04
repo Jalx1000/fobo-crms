@@ -1,132 +1,121 @@
 #!/bin/bash
 # =============================================================================
-# entrypoint.sh - Krayin CRM / Railway
+# entrypoint.sh — Krayin CRM / Railway (Apache + mod_php bajo supervisor)
 #
-# Se ejecuta como root antes de arrancar supervisor.
-# Orden:
-#   1. Parchear nginx.conf con el $PORT que Railway asigna
-#   2. Crear directorios de runtime necesarios
-#   3. Esperar a que la base de datos esté disponible
-#   4. Ejecutar migraciones (--force en producción)
-#   5. Calentar caches de Laravel
-#   6. Crear symlink de storage
-#   7. Arrancar supervisor (que levanta nginx, php-fpm, worker, scheduler)
+# Corre como root antes de arrancar supervisor. Orden:
+#   1. Preparar storage (en Railway es un volumen: arranca vacío)
+#   2. Esperar a la base de datos
+#   3. Migraciones
+#   4. Caches de Laravel
+#   5. Permisos (siempre al final: lo anterior genera archivos como root)
+#   6. Dejar un solo MPM en Apache
+#   7. Arrancar supervisor (apache + queue workers + scheduler)
 # =============================================================================
+set -euo pipefail
 
-set -e
-
-# Color para logs
-log() { echo "[entrypoint] $*"; }
+log()   { echo "[entrypoint] $*"; }
 error() { echo "[entrypoint][ERROR] $*" >&2; }
 
-# =============================================================================
-# 1. Puerto Railway
-# =============================================================================
-PORT="${PORT:-8080}"
-log "Usando puerto: $PORT"
+APP_ROOT=/var/www/html
+cd "$APP_ROOT"
 
-# Reemplazar placeholder en nginx.conf
-sed -i "s/__PORT__/${PORT}/g" /etc/nginx/nginx.conf
+export PORT="${PORT:-8080}"
+
+# Workers y scheduler apagados salvo pedido explícito: este contenedor usa los
+# tokens reales de WhatsApp y dos instancias activas duplican los envíos.
+export RUN_WORKERS="${RUN_WORKERS:-false}"
+log "Puerto: ${PORT} | RUN_WORKERS=${RUN_WORKERS}"
 
 # =============================================================================
-# 2. Directorios de runtime y permisos
+# 1. Storage
 # =============================================================================
-log "Preparando directorios de runtime..."
-
-# Directorios que necesita Laravel para funcionar
 for dir in \
-    /var/www/html/storage/app/public \
-    /var/www/html/storage/framework/cache/data \
-    /var/www/html/storage/framework/sessions \
-    /var/www/html/storage/framework/views \
-    /var/www/html/storage/logs \
-    /var/www/html/bootstrap/cache \
-    /tmp/nginx_client_body \
-    /tmp/nginx_proxy \
-    /tmp/nginx_fastcgi \
-    /tmp/nginx_uwsgi \
-    /tmp/nginx_scgi; do
+    storage/app/public \
+    storage/framework/cache/data \
+    storage/framework/sessions \
+    storage/framework/views \
+    storage/logs \
+    bootstrap/cache; do
     mkdir -p "$dir"
 done
 
-chown -R www-data:www-data \
-    /var/www/html/storage \
-    /var/www/html/bootstrap/cache
+ln -sfn "$APP_ROOT/storage/app/public" public/storage
 
-chmod -R 775 \
-    /var/www/html/storage \
-    /var/www/html/bootstrap/cache
-
-# Directorio para el socket de php-fpm
-mkdir -p /run
-chown www-data:www-data /run
+# Sin este marcador Krayin se considera no instalado y redirige todo a /install
+# con la base real conectada: el respaldo que consulta la base exige un .env, y
+# acá la configuración llega por variables de entorno. El volumen arranca vacío.
+touch storage/installed
 
 # =============================================================================
-# 3. Esperar a que MySQL esté disponible
+# 2. Base de datos
 # =============================================================================
-if [ -n "$DB_HOST" ] && [ "$DB_CONNECTION" != "sqlite" ]; then
-    DB_HOST_VAL="${DB_HOST:-127.0.0.1}"
-    DB_PORT_VAL="${DB_PORT:-3306}"
-    MAX_TRIES=30
-    TRIES=0
+if [ -n "${DB_HOST:-}" ]; then
+    log "Esperando la base de datos en ${DB_HOST}:${DB_PORT:-3306}..."
 
-    log "Esperando a que la DB esté disponible en ${DB_HOST_VAL}:${DB_PORT_VAL}..."
-
-    until php -r "
-        \$conn = @new PDO(
-            '${DB_CONNECTION}:host=${DB_HOST_VAL};port=${DB_PORT_VAL};dbname=${DB_DATABASE}',
-            '${DB_USERNAME}',
-            '${DB_PASSWORD}'
+    # getenv() y no interpolar: una contraseña con comillas rompería el script
+    tries=0
+    until php -r '
+        new PDO(
+            sprintf("mysql:host=%s;port=%s", getenv("DB_HOST"), getenv("DB_PORT") ?: "3306"),
+            getenv("DB_USERNAME"),
+            getenv("DB_PASSWORD"),
+            [PDO::ATTR_TIMEOUT => 3]
         );
-        echo 'ok';
-    " 2>/dev/null | grep -q 'ok'; do
-        TRIES=$((TRIES + 1))
-        if [ "$TRIES" -ge "$MAX_TRIES" ]; then
-            error "No se pudo conectar a la DB después de ${MAX_TRIES} intentos. Abortando."
+    ' 2>/dev/null; do
+        tries=$((tries + 1))
+        if [ "$tries" -ge 30 ]; then
+            error "Sin conexión a la base de datos después de 30 intentos."
             exit 1
         fi
-        log "  Intento ${TRIES}/${MAX_TRIES} - reintentando en 2s..."
         sleep 2
     done
-
     log "Base de datos disponible."
 fi
 
 # =============================================================================
-# 4. Migraciones
+# 3. Migraciones
 # =============================================================================
 log "Ejecutando migraciones..."
-cd /var/www/html
-
-# --force es necesario en APP_ENV=production
-php artisan migrate --force --no-interaction || {
-    error "Las migraciones fallaron."
-    exit 1
-}
+php artisan migrate --force --no-interaction
 
 # =============================================================================
-# 5. Caches de Laravel (config, rutas, vistas, eventos)
+# 4. Caches
 # =============================================================================
-log "Calentando caches de Laravel..."
+log "Calentando caches..."
+php artisan config:cache --no-interaction
+php artisan event:cache --no-interaction
 
-php artisan config:cache    --no-interaction
-php artisan route:cache     --no-interaction
-php artisan view:cache      --no-interaction
-php artisan event:cache     --no-interaction
-php artisan queue:restart   --no-interaction
+# route:cache falla hoy porque mail-routes.php se registra dos veces y Laravel
+# rechaza el nombre duplicado. Sin cache las rutas funcionan igual, solo se
+# resuelven en cada request (es como corre Easypanel).
+php artisan route:cache --no-interaction || log "AVISO: route:cache falló, se sigue sin cache de rutas."
 
-# =============================================================================
-# 6. Storage symlink (public/storage -> storage/app/public)
-# =============================================================================
-log "Creando symlink de storage..."
+# Una vista rota no debe tumbar todo el CRM: se compila al primer uso y el
+# error queda visible en esa pantalla.
+php artisan view:cache --no-interaction || log "AVISO: view:cache falló, se sigue sin cache de vistas."
 
-# Solo crear si no existe ya
-if [ ! -L "/var/www/html/public/storage" ]; then
-    php artisan storage:link --no-interaction || true
-fi
+php artisan queue:restart --no-interaction
 
 # =============================================================================
-# 7. Arrancar supervisor
+# 5. Permisos
 # =============================================================================
-log "Iniciando supervisor (nginx + php-fpm + queue-worker + scheduler)..."
+chown -R www-data:www-data storage bootstrap/cache
+find storage bootstrap/cache -type d -exec chmod 775 {} +
+find storage bootstrap/cache -type f -exec chmod 664 {} +
+
+# =============================================================================
+# 6. Apache: un solo MPM
+#
+# En la imagen construida solo está mpm_prefork, pero en Railway Apache arrancaba
+# con AH00534 (More than one MPM loaded). Se corrige acá porque el problema
+# aparece en runtime; mod_php exige prefork.
+# =============================================================================
+log "MPM encontrados: $(ls /etc/apache2/mods-enabled | grep -E '^mpm_.*\.load$' | tr '\n' ' ')"
+rm -f /etc/apache2/mods-enabled/mpm_event.* /etc/apache2/mods-enabled/mpm_worker.*
+apache2ctl -t
+
+# =============================================================================
+# 7. Supervisor
+# =============================================================================
+log "Iniciando supervisor..."
 exec /usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf
