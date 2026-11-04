@@ -72,9 +72,17 @@ class ProductController extends Controller
      */
     public function store(AttributeForm $request)
     {
-        $request->validate($this->serviceRules());
+        $request->validate($this->serviceRules() + [
+            'zones'                    => ['nullable', 'array'],
+            'zones.*.name'             => ['nullable', 'string', 'max:255'],
+            'zones.*.duration_minutes' => ['nullable', 'integer', 'min:1', 'max:480'],
+            'zones.*.price'            => ['nullable', 'numeric', 'min:0'],
+        ]);
 
         $data = $request->all();
+
+        // Las zonas se persisten aparte (no son atributos del producto).
+        unset($data['zones']);
 
         if (empty($data['sku'])) {
             $data['sku'] = uniqid();
@@ -83,6 +91,20 @@ class ProductController extends Controller
         Event::dispatch('product.create.before');
 
         $product = $this->productRepository->create($data);
+
+        // Zonas cargadas en el formulario de creación: se guardan junto al servicio.
+        foreach ((array) $request->input('zones', []) as $zone) {
+            if (empty($zone['name'])) {
+                continue;
+            }
+
+            $product->zones()->create([
+                'name'             => $zone['name'],
+                'duration_minutes' => $zone['duration_minutes'] ?? null,
+                'price'            => $zone['price'] ?? null,
+                'is_active'        => true,
+            ]);
+        }
 
         Event::dispatch('product.create.after', $product);
 

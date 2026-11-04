@@ -211,25 +211,136 @@
                     {!! view_render_event('admin.products.create.accordion.before') !!}
                 </div>
             </div>
-        </div>
-    </x-admin::form>
 
-    <!-- Zonas y Promociones del servicio (Tessa) -->
-    <div class="mt-4 flex flex-col gap-4">
-        <div class="box-shadow rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-            <p class="border-b border-gray-200 p-4 text-base font-semibold text-gray-800 dark:border-gray-800 dark:text-white">
-                {{ __('Zonas y promociones') }}
-            </p>
+            <!-- Zonas del servicio (Tessa) -->
+            <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                <p class="mb-2 text-base font-semibold text-gray-800 dark:text-white">
+                    {{ __('Zonas') }}
+                </p>
 
-            <div class="flex items-start gap-2 p-4 text-sm text-gray-500 dark:text-gray-300">
-                <i class="icon-info text-xl"></i>
+                <p class="mb-4 text-sm text-gray-500 dark:text-gray-300">
+                    {{ __('Cada zona es una variante del servicio, con su propia duración y precio. Se guardan junto con el servicio.') }}
+                </p>
 
-                <p>
-                    {{ __('Guardá primero el servicio. Luego, al editarlo, vas a poder agregar sus zonas (duración y precio) y sus promociones con vigencia.') }}
+                <v-create-service-zones></v-create-service-zones>
+
+                <p class="mt-4 flex items-start gap-2 text-sm text-gray-500 dark:text-gray-300">
+                    <i class="icon-info text-xl"></i>
+                    <span>{{ __('Las promociones se agregan al editar el servicio, una vez creado.') }}</span>
                 </p>
             </div>
         </div>
-    </div>
+    </x-admin::form>
 
     {!! view_render_event('admin.products.create.form.after') !!}
+
+    @pushOnce('scripts')
+        <script
+            type="text/x-template"
+            id="v-create-service-zones-template"
+        >
+            <div class="flex flex-col gap-4">
+                <div class="block w-full overflow-x-auto" v-if="zones.length">
+                    <x-admin::table>
+                        <x-admin::table.thead>
+                            <x-admin::table.thead.tr>
+                                <x-admin::table.th>{{ __('Zona') }}</x-admin::table.th>
+                                <x-admin::table.th class="!w-[150px]">{{ __('Duración (min)') }}</x-admin::table.th>
+                                <x-admin::table.th class="!w-[150px]">{{ __('Precio') }}</x-admin::table.th>
+                                <x-admin::table.th class="!w-[50px]"></x-admin::table.th>
+                            </x-admin::table.thead.tr>
+                        </x-admin::table.thead>
+
+                        <x-admin::table.tbody>
+                            <x-admin::table.tbody.tr
+                                v-for="(zone, index) in zones"
+                                ::key="index"
+                            >
+                                <x-admin::table.td class="!px-2">
+                                    <input
+                                        type="text"
+                                        v-model="zone.name"
+                                        :name="`zones[${index}][name]`"
+                                        placeholder="Axilas"
+                                        class="w-full rounded-md border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-white"
+                                    />
+                                </x-admin::table.td>
+
+                                <x-admin::table.td class="!px-2">
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="480"
+                                        v-model="zone.duration_minutes"
+                                        :name="`zones[${index}][duration_minutes]`"
+                                        class="w-full rounded-md border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-white"
+                                    />
+                                </x-admin::table.td>
+
+                                <x-admin::table.td class="!px-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        v-model="zone.price"
+                                        :name="`zones[${index}][price]`"
+                                        class="w-full rounded-md border border-gray-200 px-2.5 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-white"
+                                    />
+                                </x-admin::table.td>
+
+                                <x-admin::table.td class="!px-2">
+                                    <button
+                                        type="button"
+                                        @click="removeZone(index)"
+                                        aria-label="{{ __('Eliminar zona') }}"
+                                        class="cursor-pointer leading-none text-gray-600 transition-colors hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400"
+                                    >
+                                        <i class="icon-delete text-2xl"></i>
+                                    </button>
+                                </x-admin::table.td>
+                            </x-admin::table.tbody.tr>
+                        </x-admin::table.tbody>
+                    </x-admin::table>
+                </div>
+
+                <p
+                    v-if="! zones.length"
+                    class="py-2 text-sm text-gray-400 dark:text-gray-400"
+                >
+                    {{ __('Todavía no agregaste zonas.') }}
+                </p>
+
+                <button
+                    type="button"
+                    class="flex max-w-max items-center gap-2 text-brandColor"
+                    @click="addZone"
+                >
+                    <i class="icon-add text-md !text-brandColor"></i>
+                    {{ __('Agregar zona') }}
+                </button>
+            </div>
+        </script>
+
+        <script type="module">
+            app.component('v-create-service-zones', {
+                template: '#v-create-service-zones-template',
+
+                data() {
+                    return {
+                        zones: [],
+                    };
+                },
+
+                methods: {
+                    addZone() {
+                        this.zones.push({ name: '', duration_minutes: 60, price: 0 });
+                    },
+
+                    removeZone(index) {
+                        this.zones.splice(index, 1);
+                    },
+                },
+            });
+        </script>
+    @endPushOnce
 </x-admin::layouts>
