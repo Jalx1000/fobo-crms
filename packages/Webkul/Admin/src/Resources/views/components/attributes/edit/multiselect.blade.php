@@ -6,7 +6,7 @@
     $selectedOption = old($attribute->code) ?: $value;
 
     /*
-    | explode(',', '') devuelve [''] — un array con una cadena vacía, no un array
+    | explode(',', '') devuelve [''] - un array con una cadena vacía, no un array
     | vacío. Sin filtrar, el multiselect dibuja un chip sin texto para ese '' y,
     | peor, lo manda en el submit como una opción más.
     |

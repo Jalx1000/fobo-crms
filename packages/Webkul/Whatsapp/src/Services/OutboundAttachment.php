@@ -94,8 +94,8 @@ class OutboundAttachment
      * message.
      *
      * WhatsApp only accepts a caption on image, video and document. Audio and
-     * sticker reject the field outright — Meta answers 400 and the whole message
-     * is lost — so the text has to go somewhere, and that is a product decision
+     * sticker reject the field outright - Meta answers 400 and the whole message
+     * is lost - so the text has to go somewhere, and that is a product decision
      * rather than a technical one.
      *
      * `caption` rides along with the file; `follow_up` is sent as a separate
@@ -118,7 +118,7 @@ class OutboundAttachment
         }
 
         // Audio y sticker: el texto viaja como un mensaje aparte, encolado justo
-        // detras del archivo. Descartarlo seria peor de lo que parece — el asesor
+        // detras del archivo. Descartarlo seria peor de lo que parece - el asesor
         // ve su texto salir del compositor y asume que llego, sin ninguna senal
         // de lo contrario.
         return ['caption' => null, 'follow_up' => $text];

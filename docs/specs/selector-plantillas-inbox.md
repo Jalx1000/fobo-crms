@@ -22,8 +22,8 @@ Relevado en el código de los dos proyectos, no asumido.
 | `'template'` en las capabilities de Cloud API | ❌ | ✅ |
 | `waba_id` configurado | ❌ **no existe** | ✅ |
 
-Imprimir ya sabe **enviar** una plantilla — lo hace hoy para mandar cotizaciones
-fuera de la ventana de 24h — pero solo la que está fijada en
+Imprimir ya sabe **enviar** una plantilla - lo hace hoy para mandar cotizaciones
+fuera de la ventana de 24h - pero solo la que está fijada en
 `config('whatsapp.templates.quote')`. No hay forma de que un asesor vea qué
 plantillas existen ni de elegir otra.
 
@@ -61,7 +61,7 @@ Corregime ahora o procedo con estos:
 ## Objetivo
 
 Que un asesor pueda, desde el inbox, ver las plantillas aprobadas de la cuenta,
-completar sus variables con un preview de cómo va a quedar, y enviarlas —
+completar sus variables con un preview de cómo va a quedar, y enviarlas -
 especialmente cuando la ventana de 24h está cerrada y es lo único que WhatsApp
 acepta.
 
@@ -69,7 +69,7 @@ acepta.
 
 ## Bloqueante: falta el `waba_id`
 
-`Imprimir no tiene el WABA id en ninguna parte` — ni en `config/whatsapp.php` ni
+`Imprimir no tiene el WABA id en ninguna parte` - ni en `config/whatsapp.php` ni
 en `.env`. El catálogo se lee de `GET /{waba_id}/message_templates`, así que sin
 ese dato **no hay catálogo posible**.
 
@@ -88,7 +88,7 @@ prueba end-to-end, no la implementación.
 
 ### Dentro
 
-1. **`TemplateCatalog`** — consulta Meta, se queda con las APPROVED, aplana los
+1. **`TemplateCatalog`** - consulta Meta, se queda con las APPROVED, aplana los
    componentes de Meta (header / body / footer / buttons) a lo que necesita el
    composer, y cachea (30 min por defecto) con clave por `waba_id`.
 2. **Conteo de variables por el placeholder MÁS ALTO**, no por cuántos
@@ -97,7 +97,7 @@ prueba end-to-end, no la implementación.
 3. **Rutas** `GET whatsapp/templates` y `POST whatsapp/send-template`.
 4. **`'template'` en las capabilities** de `CloudApiGateway`, que es lo que
    decide si el botón aparece.
-5. **Selector en `inbox-component.blade.php`** — lo comparten la página de chat
+5. **Selector en `inbox-component.blade.php`** - lo comparten la página de chat
    y el inbox embebido, así que una sola vez cubre las dos vistas.
 6. **Validación en el servidor**: cantidad de variables exacta, ninguna vacía,
    plantilla todavía existente, agente IA apagado.
@@ -125,7 +125,7 @@ El código de Odontoking no corre tal cual en Imprimir. Cuatro adaptaciones:
    `['template' => nombre, 'language' => ..., 'variables' => [...]]`;
    `OutboundTemplate::fromArray()` de Imprimir lee `name`, `language` y
    **`body_params`**. Copiar la forma vieja hace que el job envíe una plantilla
-   sin nombre — falla en el worker, no en la request.
+   sin nombre - falla en el worker, no en la request.
 3. **`GatewayManager` no tiene `outbound()`** en Imprimir; tiene `active()` y
    `for($conversation)`. Se usa `for()`: la capacidad hay que evaluarla contra
    **el canal de esa conversación**, no contra el activo de la instalación, o el
@@ -182,7 +182,7 @@ protected function countVariables(string $body): int
 
 ## Estrategia de pruebas
 
-Pest, en `tests/Feature/`, con `Http::fake()` — no se llama a Meta de verdad.
+Pest, en `tests/Feature/`, con `Http::fake()` - no se llama a Meta de verdad.
 
 - Una plantilla no APPROVED nunca aparece en el catálogo.
 - `{{1}}` + `{{3}}` reporta 3 variables, no 2.
@@ -212,7 +212,7 @@ Pest, en `tests/Feature/`, con `Http::fake()` — no se llama a Meta de verdad.
 1. Con `WHATSAPP_WABA_ID` puesto, el inbox lista las plantillas aprobadas.
 2. El asesor completa las variables, ve el preview y envía.
 3. El mensaje aparece en el hilo con el texto ya resuelto y llega al cliente.
-4. Funciona con la ventana de 24h **cerrada** — que es el caso que lo justifica.
+4. Funciona con la ventana de 24h **cerrada** - que es el caso que lo justifica.
 5. El botón no aparece en conversaciones de Messenger ni de Kommo.
 7. Una plantilla con encabezado de archivo pide el adjunto y se envía con él;
    sin adjunto, el botón de enviar queda deshabilitado y nunca se produce un

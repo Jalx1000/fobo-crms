@@ -16,7 +16,7 @@ class ProductVarianteRepository extends Repository
      * Deja las variantes del producto como vinieron del formulario.
      *
      * Borrar y reinsertar, como la lista de precios: se edita entera en una
-     * pantalla y nada apunta a una variante por id — los ítems de cotización
+     * pantalla y nada apunta a una variante por id - los ítems de cotización
      * guardan una FOTO, no una referencia.
      */
     public function reemplazar(int $productId, array $filas): void
@@ -66,8 +66,8 @@ class ProductVarianteRepository extends Repository
 
     /**
      * La identidad de una variante como texto comparable: los valores de eje
-     * ordenados por nombre de eje, así el orden de las claves del JSON —que
-     * MySQL normaliza— no la cambia.
+     * ordenados por nombre de eje, así el orden de las claves del JSON -que
+     * MySQL normaliza- no la cambia.
      */
     protected static function claveDe(array $valores): string
     {

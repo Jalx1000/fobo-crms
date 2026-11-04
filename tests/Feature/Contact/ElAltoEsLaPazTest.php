@@ -7,7 +7,7 @@ use Webkul\Product\Services\Responsables;
 
 /**
  * El Alto es La Paz (decisión del 16/10/2026): el contacto conserva «El Alto»
- * —la cotización no lo lleva, ciudades_sin_cotizacion—, pero para el pipeline,
+ * -la cotización no lo lleva, ciudades_sin_cotizacion-, pero para el pipeline,
  * el reparto y los filtros por ciudad cuenta como La Paz.
  */
 require_once __DIR__.'/../helpers/personas.php';

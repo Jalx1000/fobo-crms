@@ -248,19 +248,19 @@ it('keeps the reason Meta gives for a failed delivery', function () {
 
     expect($status->status)->toBe('failed')
         // The numeric code leads, because Meta's documentation is indexed by it.
-        ->and($status->error)->toBe('131026: Message Undeliverable — Message could not be delivered.');
+        ->and($status->error)->toBe('131026: Message Undeliverable - Message could not be delivered.');
 });
 
 it('still reports the details when the payload carries no code', function () {
     // Guards the positional bug: with a plain list the details would slide up
-    // into the title's slot and read as "Template Paused: Quality dropped" —
+    // into the title's slot and read as "Template Paused: Quality dropped" -
     // two different things joined as if one labelled the other.
     $status = failedReceipt([[
         'title'      => 'Template Paused',
         'error_data' => ['details' => 'Quality dropped.'],
     ]]);
 
-    expect($status->error)->toBe('Template Paused — Quality dropped.');
+    expect($status->error)->toBe('Template Paused - Quality dropped.');
 });
 
 it('reports nothing rather than guessing when there is no error block', function () {

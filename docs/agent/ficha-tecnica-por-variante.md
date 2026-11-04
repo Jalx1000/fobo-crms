@@ -1,4 +1,4 @@
-# Ficha técnica por variante — qué cambia para el agente (21/09/2026)
+# Ficha técnica por variante - qué cambia para el agente (21/09/2026)
 
 ## Resumen
 
@@ -52,7 +52,7 @@ y no *«te mandé la ficha»*.
 3. **Nunca** los de otra variante. Mandar la ficha de 140 L cuando pidieron
    50 L es peor que no mandar nada.
 
-## Los 422 — el CRM ya no manda «todo» cuando hace falta una variante
+## Los 422 - el CRM ya no manda «todo» cuando hace falta una variante
 
 Desde el 21/09, después de que a un cliente que pidió 50 L le llegaron tres
 PDFs, el endpoint **se niega** a mandar todos los documentos de un producto

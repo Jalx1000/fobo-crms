@@ -1,4 +1,4 @@
-# Planeación — Tablero, léxico unificado y valor de pedidos
+# Planeación - Tablero, léxico unificado y valor de pedidos
 
 > Branch: `kohlberg` · Entorno: **producción** (kohlberg.sofopolis.com) · DB: `kohlberg` (prefijo `kl_`)
 > Documento de referencia de todo lo trabajado y lo que falta.
@@ -17,7 +17,7 @@ el **mismo léxico** y que el **valor monetario de los pedidos** sea confiable.
 
 ## 2. Decisiones acordadas (el "por qué")
 
-### 2.1 Opción B — fecha por evento de etapa
+### 2.1 Opción B - fecha por evento de etapa
 El problema raíz era que cada card contaba con una fecha distinta (`created_at`,
 `confirmed_at`, `closed_at`) y la vista por etapa con otra, así que nada cuadraba.
 
@@ -31,13 +31,13 @@ evento** de esa etapa:
 | Pedido entregado | `closed_at` (cuándo se entregó) |
 | Pedido cancelado | `closed_at` (cuándo se cerró) |
 
-**Excepción — "Productos solicitados":** son TODAS las cantidades de productos, de
+**Excepción - "Productos solicitados":** son TODAS las cantidades de productos, de
 cualquier etapa, por `created_at`. Es **demanda** (lo que se pidió), no una etapa.
 Por eso puede haber "9 vendidos y 0 solicitados" en un solo día: el pedido se **creó**
 el 18 (ahí se solicitaron) y se **entregó** el 23 (ahí se vendieron). En un rango que
 cubra ambos días, solicitados = vendidos.
 
-### 2.2 lead_value (valor del pedido) — Opción 3
+### 2.2 lead_value (valor del pedido) - Opción 3
 - Por defecto **automático**: `lead_value = Σ(precio × cantidad)` de los productos.
 - **Override manual SOLO para Supervisor/Administrador** (rol).
 - Si el lead **no tiene productos**, respeta el valor manual.
@@ -81,7 +81,7 @@ cubra ambos días, solicitados = vendidos.
 
 ### 3.3 Card "Evolución" (rehecho para que se entienda)
 - **Antes:** comparaba la línea actual contra una línea plana = promedio anterior (confuso).
-- **Ahora:** dos líneas reales — **período actual** vs **período anterior** — comparables
+- **Ahora:** dos líneas reales - **período actual** vs **período anterior** - comparables
   punto a punto.
 - Cifra grande = **total** del período + promedio por día/semana + rango de fechas + chip
   ▲/▼ % vs anterior.
@@ -107,7 +107,7 @@ cubra ambos días, solicitados = vendidos.
   Tailwind arbitrarias `bg-[#hex]` no estaban en el CSS compilado y salían sin color).
 
 ### 3.5 Verificación con datos reales
-- **Día 23** (todas las ciudades): solo 2 leads — #162 Prospecto (creado 23) y #158
+- **Día 23** (todas las ciudades): solo 2 leads - #162 Prospecto (creado 23) y #158
   Pedido entregado (entregado 23, 9 prod, Bs. 420).
   - Funnel: Prospectos **1** · Entregado **1**.
   - Productos más vendidos: Red Blend **6** · Malbec **3** = **9**.
@@ -141,7 +141,7 @@ El backend ya enforce la regla; falta la UI:
 
 ---
 
-## 5. Testing — estado y deuda
+## 5. Testing - estado y deuda
 
 - Los tests **no** usan `RefreshDatabase` ni transacciones → si se corren contra
   producción, **insertan datos basura** (usuarios/leads/productos de prueba).
@@ -166,24 +166,24 @@ El backend ya enforce la regla; falta la UI:
 
 ## 6. Archivos tocados (referencia)
 
-- `app/Http/Middleware/EncryptCookies.php` — cookies de filtro global sin cifrar.
-- `packages/Webkul/Admin/src/Http/Controllers/DashboardController.php` — defaults de filtro
+- `app/Http/Middleware/EncryptCookies.php` - cookies de filtro global sin cifrar.
+- `packages/Webkul/Admin/src/Http/Controllers/DashboardController.php` - defaults de filtro
   desde cookie en servidor.
-- `packages/Webkul/Admin/src/Http/Controllers/Lead/LeadController.php` — filtros globales +
+- `packages/Webkul/Admin/src/Http/Controllers/Lead/LeadController.php` - filtros globales +
   kanban fecha por etapa (Opción B).
-- `packages/Webkul/Admin/src/Helpers/Dashboard.php` — KPIs, evolución.
-- `packages/Webkul/Admin/src/Helpers/Reporting/Lead.php` — confirmedStageIds,
+- `packages/Webkul/Admin/src/Helpers/Dashboard.php` - KPIs, evolución.
+- `packages/Webkul/Admin/src/Helpers/Reporting/Lead.php` - confirmedStageIds,
   stageEventDateExpr, funnel, evolución.
-- `packages/Webkul/Admin/src/Helpers/Reporting/Product.php` — productos vendidos/solicitados,
+- `packages/Webkul/Admin/src/Helpers/Reporting/Product.php` - productos vendidos/solicitados,
   top vendidos (closed_at).
-- `packages/Webkul/Lead/src/Repositories/LeadRepository.php` — amount + regla lead_value.
-- `packages/Webkul/Lead/src/Models/Lead.php` — fillable/cast lead_value_is_manual.
+- `packages/Webkul/Lead/src/Repositories/LeadRepository.php` - amount + regla lead_value.
+- `packages/Webkul/Lead/src/Models/Lead.php` - fillable/cast lead_value_is_manual.
 - `packages/Webkul/Lead/src/Database/Migrations/2026_06_24_000001_add_lead_value_is_manual_to_leads_table.php`
-- `packages/Webkul/Admin/src/Resources/views/dashboard/index/*` — evolution, over-all,
+- `packages/Webkul/Admin/src/Resources/views/dashboard/index/*` - evolution, over-all,
   total-leads, total-leads-vs-entregados, index.
-- `packages/Webkul/Admin/src/Resources/views/leads/index/*` — date-filters, view-switcher,
+- `packages/Webkul/Admin/src/Resources/views/leads/index/*` - date-filters, view-switcher,
   kanban, table.
-- `packages/Webkul/Admin/src/Resources/lang/{es,en}/app.php` — léxico.
+- `packages/Webkul/Admin/src/Resources/lang/{es,en}/app.php` - léxico.
 
 ---
 

@@ -13,6 +13,8 @@ use Webkul\Whatsapp\Console\Commands\NormalizePhones;
 use Webkul\Whatsapp\Console\Commands\RepairGateway;
 use Webkul\Whatsapp\Console\Commands\WabaId;
 use Webkul\Whatsapp\Console\Commands\WebhookInfo;
+use Webkul\Whatsapp\Models\MessageProxy;
+use Webkul\Whatsapp\Observers\MessageObserver;
 
 class WhatsappServiceProvider extends ServiceProvider
 {
@@ -24,6 +26,9 @@ class WhatsappServiceProvider extends ServiceProvider
         $this->loadViewsFrom(__DIR__.'/../Resources/views', 'whatsapp');
 
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
+
+        // Mensaje de un asesor → el pedido pasa a SOLICITUD RECIBIDA.
+        MessageProxy::modelClass()::observe(MessageObserver::class);
 
         // Public webhook endpoints (Meta calls these; no session/CSRF).
         $this->loadRoutesFrom(__DIR__.'/../Routes/api.php');

@@ -24,8 +24,8 @@ class GatewayManager
 {
     /**
      * Channels that address contacts by phone number and share the 24h window.
-     * They are interchangeable for the same human — a contact migrated from
-     * Kommo to Cloud API is one person, not two — which is what makes the
+     * They are interchangeable for the same human - a contact migrated from
+     * Kommo to Cloud API is one person, not two - which is what makes the
      * inbox's de-duplication safe. Anything outside a family is never merged.
      */
     public const DEFAULT_FAMILY = 'whatsapp';
@@ -58,7 +58,7 @@ class GatewayManager
 
     /**
      * Resolve the driver that owns a conversation, so history created under a
-     * previous provider — or on another channel — still resolves correctly.
+     * previous provider - or on another channel - still resolves correctly.
      */
     public function for(Conversation $conversation): Gateway
     {

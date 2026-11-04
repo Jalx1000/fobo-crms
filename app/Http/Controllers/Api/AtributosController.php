@@ -28,8 +28,8 @@ class AtributosController extends Controller
      * Entidades permitidas y de dónde se leen.
      *
      * Lista blanca y no `$request->entity_type` libre: sin esto, cualquiera con
-     * un token podría pedir los atributos de `users` —donde viven datos de los
-     * asesores— pasando el nombre de la tabla.
+     * un token podría pedir los atributos de `users` -donde viven datos de los
+     * asesores- pasando el nombre de la tabla.
      */
     protected const ENTIDADES = [
         'persons'       => \Webkul\Contact\Repositories\PersonRepository::class,

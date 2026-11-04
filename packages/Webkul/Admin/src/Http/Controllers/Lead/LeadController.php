@@ -340,7 +340,7 @@ class LeadController extends Controller
              * Narrow the board to one messaging channel.
              *
              * The kanban does not go through the DataGrid, so it cannot use the
-             * joined `platform` column the grids filter on — the same rule is
+             * joined `platform` column the grids filter on - the same rule is
              * applied here as a constraint instead, from the same definition, so
              * a contact can never read as WhatsApp on the board and Messenger on
              * the grid.

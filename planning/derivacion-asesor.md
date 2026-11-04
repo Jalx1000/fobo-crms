@@ -1,4 +1,4 @@
-# Derivación a un asesor humano — guía para el agente IA
+# Derivación a un asesor humano - guía para el agente IA
 
 Complemento de [`integracion-agente.md`](./integracion-agente.md). Ahí está cómo el
 agente recibe eventos y responde texto; acá, cómo **suelta** la conversación cuando
@@ -103,8 +103,8 @@ Y una vez que un asesor la reclama:
 |---|---|
 | `state` | `requested` (nadie la tomó) · `assigned` (tiene asesor) · `resolved` (cerrada) |
 | `pooled` | `true` = quedó en el pool del equipo, la toma el primero que llegue |
-| `assigned_user` | **`int \| null`** — ID del asesor, `null` si está en el pool |
-| `assigned_user_name` | **`string \| null`** — nombre del asesor, `null` si está en el pool |
+| `assigned_user` | **`int \| null`** - ID del asesor, `null` si está en el pool |
+| `assigned_user_name` | **`string \| null`** - nombre del asesor, `null` si está en el pool |
 | `changed` | `false` = ya había una derivación abierta, no se hizo nada nuevo |
 
 > Este doc mostraba antes **solo** el caso `null`, sin decir de qué tipo era el campo
@@ -245,12 +245,12 @@ php artisan queue:restart   # el mail sale de un job en la cola whatsapp
 
 ## 6. Del lado del asesor
 
-- **Tomar conversación** — la saca del pool y se la asigna. Si dos hacen clic a la
+- **Tomar conversación** - la saca del pool y se la asigna. Si dos hacen clic a la
   vez, gana uno y el otro ve un aviso; nunca quedan dos dueños.
-- **Escribir sin tomarla** — si está en el pool, escribir ya la reclama. Sobre una
+- **Escribir sin tomarla** - si está en el pool, escribir ya la reclama. Sobre una
   asignada a otro se puede escribir igual (supervisores, reemplazos), con el banner
   "Atiende Fulano" a la vista.
-- **Cerrar derivación** — devuelve la conversación al agente IA. El checkbox viene
+- **Cerrar derivación** - devuelve la conversación al agente IA. El checkbox viene
   tildado por defecto, para que no quede en tierra de nadie: IA apagada y sin
   derivación abierta.
 - **El switch de Agente IA queda bloqueado** mientras haya una derivación abierta.
@@ -262,7 +262,7 @@ php artisan queue:restart   # el mail sale de un job en la cola whatsapp
 
 ## 7. Checklist para conectar
 
-- [ ] Token Sanctum del usuario `Agente` (#13) — es **distinto** de
+- [ ] Token Sanctum del usuario `Agente` (#13) - es **distinto** de
       `WHATSAPP_AGENT_TOKEN`: ese es el que el CRM te manda a vos, este es el que
       vos usás para volver al CRM.
 - [ ] Tool `derivar_a_asesor` registrada en el workflow.

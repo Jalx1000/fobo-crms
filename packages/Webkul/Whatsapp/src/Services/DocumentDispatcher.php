@@ -17,7 +17,7 @@ use Webkul\Whatsapp\Models\MessageProxy;
  * Sends a document the CRM generated itself (a quote PDF today, an invoice or a
  * report tomorrow) into a contact's WhatsApp thread.
  *
- * Deliberately thin: it reuses the same pipeline the inbox composer uses — stage
+ * Deliberately thin: it reuses the same pipeline the inbox composer uses - stage
  * the file on the public disk, write an outbound `whatsapp_messages` row with
  * status `queued`, let the SendMessage job talk to the provider. That way the
  * document shows up in the thread and in the profile drawer's "Docs" tab exactly
@@ -36,7 +36,7 @@ class DocumentDispatcher
      * The thread this document belongs in.
      *
      * A contact already talking to us must not get a second thread, so an
-     * existing conversation always wins over the phone number — and only
+     * existing conversation always wins over the phone number - and only
      * phone-family channels are considered: "enviar por WhatsApp" must never
      * silently deliver over Messenger just because that thread is more recent.
      *
@@ -91,7 +91,7 @@ class DocumentDispatcher
      * The 24h service window for a thread.
      *
      * Outside it WhatsApp only accepts approved templates, and this pipeline
-     * sends free-form media — so the caller has to check before queueing rather
+     * sends free-form media - so the caller has to check before queueing rather
      * than discover it as a failed row minutes later.
      */
     public function window(Model $conversation): MessagingWindow
@@ -106,7 +106,7 @@ class DocumentDispatcher
      * Whether this thread can only be reached through an approved template.
      *
      * Exposed so a caller can tell the user which of the two routes is about to
-     * happen — sending a template costs money and uses fixed text, and that
+     * happen - sending a template costs money and uses fixed text, and that
      * should never be silent.
      */
     public function requiresTemplate(Model $conversation): bool
@@ -124,7 +124,7 @@ class DocumentDispatcher
      * honest place to read that back. Anywhere else would be guessing at the
      * shape of someone else's payload.
      *
-     * Counts every template send, not only quotes — that is exactly the number
+     * Counts every template send, not only quotes - that is exactly the number
      * an administrator watching the bill wants, and it stays correct if another
      * feature starts sending templates too.
      */
@@ -152,7 +152,7 @@ class DocumentDispatcher
      * @param  string  $contents  The raw bytes (an already rendered PDF).
      * @param  string|null  $caption  Rides along with the file; WhatsApp accepts
      *                                a caption on documents. Ignored on the
-     *                                template route — the approved body wins.
+     *                                template route - the approved body wins.
      * @param  OutboundTemplate|null  $template  Used ONLY when the 24h window is
      *                                           closed. Inside the window we
      *                                           send free-form: the text stays

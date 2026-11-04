@@ -101,7 +101,7 @@ class QuoteItemRepository extends Repository
     /**
      * Los códigos que el ítem copia de la variante: TR4, barra, medida, unidad.
      *
-     * Se resuelve desde `criterios` —lo que el cliente eligió— igual que el
+     * Se resuelve desde `criterios` -lo que el cliente eligió- igual que el
      * precio. Es una FOTO: corregir un TR4 mañana no puede cambiar una
      * cotización que el cliente ya tiene en la mano.
      *
@@ -124,10 +124,10 @@ class QuoteItemRepository extends Repository
         /*
         | Dos caminos hacia la misma variante:
         |
-        |   `variante_id` lo manda el FORMULARIO — el asesor la eligió del
+        |   `variante_id` lo manda el FORMULARIO - el asesor la eligió del
         |   select, así que no hay nada que resolver.
         |
-        |   `criterios` los manda el AGENTE — dice qué eligió el cliente
+        |   `criterios` los manda el AGENTE - dice qué eligió el cliente
         |   ({Tamaño: 50 L, Canal: HORECA}) y el CRM busca la variante.
         */
         $variante = isset($data['variante_id']) && $data['variante_id']

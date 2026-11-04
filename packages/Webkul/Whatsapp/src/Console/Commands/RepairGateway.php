@@ -7,7 +7,7 @@ use Webkul\Whatsapp\Models\ConversationProxy;
 
 /**
  * Conversations record the gateway they were created under, and SendMessage
- * honours that record rather than the active config. That is deliberate — but it
+ * honours that record rather than the active config. That is deliberate - but it
  * means conversations created while WHATSAPP_GATEWAY pointed at the wrong
  * provider stay broken forever, silently routing to a driver that cannot address
  * them. This repairs them.

@@ -1,4 +1,4 @@
-# Sprint IA — Agente, ventana de 24h y API para el agente
+# Sprint IA - Agente, ventana de 24h y API para el agente
 
 > El CRM es el cerebro. El agente (LangChain, en otro proyecto) es un consumidor
 > externo: el CRM le manda eventos y él responde por una API documentada.
@@ -7,9 +7,9 @@
 
 | Tema | Decisión |
 |---|---|
-| Topología | **A — el CRM orquesta.** Si el agente está OFF, el CRM no le manda eventos |
+| Topología | **A - el CRM orquesta.** Si el agente está OFF, el CRM no le manda eventos |
 | Doble respuesta (humano vs IA) | **Toma humana:** para escribir desde el front, el asesor primero **desactiva** el agente. Con el agente ON el composer está bloqueado |
-| Al desactivar | Mostrar nota recordatoria: *"Desactivaste el agente — reactivalo al terminar"* |
+| Al desactivar | Mostrar nota recordatoria: *"Desactivaste el agente - reactivalo al terminar"* |
 | Ventana 24h | Aplica a **ambos** gateways (los dos entregan sobre WhatsApp/WABA). El error `3108` lo confirma |
 | Endpoint del agente | Expuesto con **API key de usuario (Bearer token)**, como el resto de la REST API de Krayin, y en **Swagger** |
 | IA por defecto en conversación nueva | **ON** |
@@ -45,13 +45,13 @@ flowchart TD
 
 ## Historias
 
-### HU-IA-0 · Separadores de fecha en el chat — `[FRONT]`
+### HU-IA-0 · Separadores de fecha en el chat - `[FRONT]`
 Hoy cada mensaje muestra solo `H:i`; no se sabe de qué día es.
 - `thread` agrega `date` (Y-m-d) o `created_at` ISO a cada mensaje.
 - El front inserta un separador entre días: **Hoy / Ayer / 15 jul 2026**.
 **AC:** una conversación con mensajes de varios días muestra un separador por día.
 
-### HU-IA-1 · Ventana de 24h (ambos gateways) — `[BACK · FRONT]`
+### HU-IA-1 · Ventana de 24h (ambos gateways) - `[BACK · FRONT]`
 - Migración: `last_inbound_at` en `whatsapp_conversations` (+ backfill del máximo inbound existente).
 - Se actualiza en cada inbound (en `IngestInboundPayload`).
 - Rasgo del gateway `messagingWindowHours(): ?int` → 24 para Cloud API y Kommo, `null` para un futuro canal no-WhatsApp.
@@ -62,7 +62,7 @@ Hoy cada mensaje muestra solo `H:i`; no se sabe de qué día es.
 - Hace >24h (o sin inbound) → cerrada, no deja escribir.
 - **Fuera de alcance:** enviar plantillas aprobadas (feature aparte).
 
-### HU-IA-2 · Switch del agente por conversación + toma humana — `[BACK · FRONT]`
+### HU-IA-2 · Switch del agente por conversación + toma humana - `[BACK · FRONT]`
 - `PUT /admin/whatsapp/conversations/{id}/agent` `{enabled: bool}` → setea `ai_enabled`.
 - `thread` devuelve `ai_enabled` (crudo) y `ai_effective` (con herencia del global).
 - Front:
@@ -75,17 +75,17 @@ Hoy cada mensaje muestra solo `H:i`; no se sabe de qué día es.
 - Con agente ON no se puede escribir a mano; hay que desactivarlo primero.
 - Al desactivar aparece la nota y se habilita el composer.
 
-### HU-IA-3 · API para el agente (Swagger + Bearer) — `[BACK]`
+### HU-IA-3 · API para el agente (Swagger + Bearer) - `[BACK]`
 Bajo la REST API de Krayin (`api/v1`), auth Sanctum (Bearer = API key de usuario):
-- `POST /api/v1/whatsapp/conversations/{id}/messages` — el agente responde. `sender=ia`. Va por `SendMessage` → gateway activo. **Rechaza si la ventana de 24h está cerrada** con motivo claro.
-- `GET /api/v1/whatsapp/conversations/{id}/messages` — historial para contexto.
+- `POST /api/v1/whatsapp/conversations/{id}/messages` - el agente responde. `sender=ia`. Va por `SendMessage` → gateway activo. **Rechaza si la ventana de 24h está cerrada** con motivo claro.
+- `GET /api/v1/whatsapp/conversations/{id}/messages` - historial para contexto.
 - Anotado en **OpenAPI/Swagger** (`l5-swagger` ya instalado) → visible en `/api/documentation`.
 **AC:**
 - Token inválido → 401.
 - El agente envía y el mensaje sale por el gateway activo con `sender=ia`.
 - Importar el spec en el agente muestra request/response.
 
-### HU-IA-4 · Enviador de eventos al agente — `[BACK]`
+### HU-IA-4 · Enviador de eventos al agente - `[BACK]`
 - Config: `whatsapp.ai.webhook_url`, `whatsapp.ai.token` (Bearer hacia el agente), `whatsapp.ai.history_size` (def. 15).
 - Al persistir un inbound, si `aiEffective()` es true → encola `NotifyAgent`.
 - `NotifyAgent` hace `POST` al agente con el contrato (abajo). Reintentos con backoff.
@@ -121,11 +121,11 @@ El agente responde con **su** API key de usuario al `reply.url`.
 
 ## Orden de implementación
 
-1. **HU-IA-0** (fecha por día) — chico, aislado, sin riesgo.
-2. **HU-IA-1** (ventana 24h) — evita que el asesor mande a ciegas y choque con el 3108.
-3. **HU-IA-2** (switch + toma humana) — habilita el chat humano sin doble respuesta.
-4. **HU-IA-3** (API + Swagger) — para que el agente pueda responder.
-5. **HU-IA-4** (enviador de eventos) — cierra el lazo: el agente recibe y responde.
+1. **HU-IA-0** (fecha por día) - chico, aislado, sin riesgo.
+2. **HU-IA-1** (ventana 24h) - evita que el asesor mande a ciegas y choque con el 3108.
+3. **HU-IA-2** (switch + toma humana) - habilita el chat humano sin doble respuesta.
+4. **HU-IA-3** (API + Swagger) - para que el agente pueda responder.
+5. **HU-IA-4** (enviador de eventos) - cierra el lazo: el agente recibe y responde.
 
 Nota: 3 y 4 se prueban juntos (el agente necesita ambos para el ida y vuelta).
 ```

@@ -5,8 +5,8 @@ use Webkul\Lead\Repositories\LeadRepository;
 /**
  * Buscar un lead por el teléfono del contacto.
  *
- * El módulo tiene DOS buscadores sobre los mismos datos — el listado (DataGrid)
- * y el tablero kanban (RequestCriteria sobre el repositorio) — y cada uno lee su
+ * El módulo tiene DOS buscadores sobre los mismos datos - el listado (DataGrid)
+ * y el tablero kanban (RequestCriteria sobre el repositorio) - y cada uno lee su
  * propia lista de campos. Que uno encuentre y el otro no es el modo de falla
  * natural acá, así que se afirma sobre los dos.
  */

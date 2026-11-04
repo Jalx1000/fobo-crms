@@ -72,7 +72,7 @@ class QuickReplyController extends Controller
     }
 
     /**
-     * Personal replies of other advisors are invisible — also not editable.
+     * Personal replies of other advisors are invisible - also not editable.
      */
     protected function findVisible(string $id)
     {

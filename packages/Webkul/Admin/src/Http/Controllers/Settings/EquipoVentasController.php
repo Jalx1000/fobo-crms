@@ -13,8 +13,8 @@ use Webkul\User\Repositories\UserRepository;
  *
  * Solo lectura. Se edita en cada usuario (Configuración → Usuarios, sección
  * «Atiende») o en cada producto: el dato pertenece a la persona, y acá lo que
- * hace falta es ver el conjunto —qué casilla quedó sin nadie, quién cubre de
- * más— sin abrir doce fichas.
+ * hace falta es ver el conjunto -qué casilla quedó sin nadie, quién cubre de
+ * más- sin abrir doce fichas.
  */
 class EquipoVentasController extends Controller
 {

@@ -14,7 +14,7 @@ repite: *"para emitir la cotización formal necesito razón social y NIT"*.
 
 De esos cuatro datos, tres ya tenían dónde ir. **El NIT no tenía ningún campo en
 el CRM.** Terminaba apelotonado como texto libre dentro de la descripción de la
-cotización — donde nadie lo puede filtrar, exportar ni usar para facturar. Se ve
+cotización - donde nadie lo puede filtrar, exportar ni usar para facturar. Se ve
 en la única cotización que el agente llegó a crear:
 
 ```
@@ -22,7 +22,7 @@ en la única cotización que el agente llegó a crear:
 ```
 
 En Bolivia el NIT es **el** dato para emitir factura. Si el agente lo captura y
-lo deja ahí, el asesor tiene que leer la conversación entera para encontrarlo —
+lo deja ahí, el asesor tiene que leer la conversación entera para encontrarlo -
 que es exactamente lo que el PASO 4 existía para evitar.
 
 ---
@@ -103,7 +103,7 @@ curl -sS -X POST "$BASE/api/v1/quotes" \
   -H 'Content-Type: application/json' -H 'Accept: application/json' \
   -d '{
     "entity_type": "quotes",
-    "subject": "Cotización WhatsApp — Bolsas Magia Verde",
+    "subject": "Cotización WhatsApp - Bolsas Magia Verde",
     "person_id": 936,
     "user_id": 1,
     "expired_at": "2026-09-16",
@@ -141,8 +141,8 @@ GET  /api/v1/quotes/{id}       → idem
 
 **En los cuatro casos `nit` viene `null`, y el dato SÍ está en la base.**
 
-No lo tomes como que falló. Si necesitás leerlo de vuelta —hoy no deberías: lo
-escribe el agente y lo lee un humano en el CRM— decímelo y armo un endpoint que
+No lo tomes como que falló. Si necesitás leerlo de vuelta -hoy no deberías: lo
+escribe el agente y lo lee un humano en el CRM- decímelo y armo un endpoint que
 lo exponga. Parchear el recurso de Krayin no es opción: está en `vendor/`.
 
 ---
@@ -166,14 +166,14 @@ lo del apartado anterior.
 Al cargar el mismo código de atributo (`nit`) en dos entidades apareció un
 problema latente: `AttributeRepository::getAttributeByCode($code)` buscaba **solo
 por código**, ignorando la entidad, y cacheaba por código. Con `nit` en `persons`
-(86) y en `quotes` (87) devolvía siempre el 86 — así que la cotización buscaba en
+(86) y en `quotes` (87) devolvía siempre el 86 - así que la cotización buscaba en
 sus valores el id del atributo de personas y devolvía `null` para un dato que
 estaba correctamente guardado.
 
 Ya está arreglado (la búsqueda recibe la entidad y la caché se indexa por
 `entidad.código`). Lo menciono porque explica por qué esto no funcionó a la
 primera, y porque el mismo problema iba a aparecer con cualquier código repetido
-—"ciudad", "dirección"— en el futuro.
+-"ciudad", "dirección"- en el futuro.
 
 ---
 

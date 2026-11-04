@@ -15,7 +15,7 @@ final class StatusUpdate
      *
      *                              Carried because a message that Meta ACCEPTED
      *                              (it returned a wamid) and then failed to
-     *                              deliver has its reason only here — dropping
+     *                              deliver has its reason only here - dropping
      *                              it leaves a row marked failed with nothing to
      *                              act on, and the agent staring at a blank.
      */

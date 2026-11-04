@@ -1199,7 +1199,7 @@
                 if (this.viewType === 'week' && this.days.length) {
                     const s = new Date(this.days[0].date);
                     const e = new Date(this.days[this.days.length - 1].date);
-                    return `${this.formatDate(s)} — ${this.formatDate(e)}`;
+                    return `${this.formatDate(s)} - ${this.formatDate(e)}`;
                 }
                 if (this.viewType === 'month') {
                     const d = this.parseISODate(this.startISO);

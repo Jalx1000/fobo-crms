@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Schema;
  *
  * Magia Verde tiene una ficha técnica en PDF por tamaño (35, 50, 75, 140 y
  * 200 L), pero los adjuntos colgaban del producto: cuando el cliente pedía la
- * ficha de 50 L, el agente solo podía mandar «las fichas de Magia Verde» —las
- * cinco, o las primeras N—, nunca la que correspondía.
+ * ficha de 50 L, el agente solo podía mandar «las fichas de Magia Verde» -las
+ * cinco, o las primeras N-, nunca la que correspondía.
  *
  * `variante_id` nulo = adjunto general del producto (una foto del producto, el
  * catálogo entero). Con variante = solo se manda cuando se pide esa variante.

@@ -24,7 +24,7 @@ conversación de WhatsApp se la manda al cliente en dos clics.
 
 ## Assumptions
 
-> Corregime si alguna está mal — sobre estas se construye todo lo demás.
+> Corregime si alguna está mal - sobre estas se construye todo lo demás.
 
 1. **La "categoría" de un producto es el atributo `product_type`** (`multiselect`, "Categoría").
    Hoy tiene **una sola opción cargada: "División de Embalajes"**. El mapa de características
@@ -32,7 +32,7 @@ conversación de WhatsApp se la manda al cliente en dos clics.
 2. **Es un `multiselect`**: un producto puede tener más de una categoría. Cuando eso pase, el
    formulario ofrece la **unión** de las características de todas sus categorías.
 3. Los adjuntos son del **producto**, no del lead. Vincular producto↔lead ya lo resuelve Krayin.
-4. Los archivos van al **disco privado** (`local`), servidos por una ruta autenticada — igual que
+4. Los archivos van al **disco privado** (`local`), servidos por una ruta autenticada - igual que
    c21. Ver Decisión 3.
 5. Esto **sí toca código** (a diferencia de `crm-inmobiliario-c21.md`, que fue solo datos).
 6. No se toca `Webkul/Whatsapp` salvo para *consumir* lo que ya expone. Ver Decisión 4.
@@ -59,7 +59,7 @@ producto↔lead), la API del agente de IA, ni nada de handoff.
 
 ## Decisiones de diseño
 
-### D1 — Características: config, no UI de admin
+### D1 - Características: config, no UI de admin
 
 Un archivo PHP declara qué campos ofrece cada categoría; agregar uno es **una línea, sin
 migración**. Es lo que ya funciona en c21, y el autor dejó escrito el motivo: sin una lista
@@ -89,11 +89,11 @@ return [
 
 Tipos soportados, igual que c21: texto (default), `boolean`, `lista` (valores separados por coma).
 El formulario también acepta **claves libres**, para no bloquear al asesor cuando aparece un dato
-que nadie previó — la config guía, no encierra.
+que nadie previó - la config guía, no encierra.
 
 Una categoría sin entrada en `por_categoria` ofrece solo las `comunes` más las claves libres.
 
-### D2 — Tres tipos de adjunto, no cuatro
+### D2 - Tres tipos de adjunto, no cuatro
 
 c21 usa `foto|video|plano|tour`. Para imprenta se colapsa a:
 
@@ -101,7 +101,7 @@ c21 usa `foto|video|plano|tour`. Para imprenta se colapsa a:
 |---|---|---|---|
 | `imagen` | `path` | `image` | 5 MB · jpg, png, webp |
 | `documento` | `path` | `document` | 25 MB · pdf, jpg, png, webp |
-| `enlace` | `url` | texto con la URL | — |
+| `enlace` | `url` | texto con la URL | - |
 
 Los límites de carga son **más altos** que los de envío a propósito: `whatsapp.media` admite
 5 MB en imagen y 100 MB en documento, pero una imagen que entra al CRM no siempre se manda por
@@ -110,7 +110,7 @@ WhatsApp. El envío valida por segunda vez contra `whatsapp.media` y avisa si un
 **Sin `video`** en esta fase: nadie lo pidió y arrastra los 200 MB de c21. Agregarlo después es
 sumar un valor al enum.
 
-### D3 — Disco privado, ruta autenticada
+### D3 - Disco privado, ruta autenticada
 
 Los archivos van a `Storage::disk('local')`, en `productos/{id}/`, y se sirven por
 `admin.products.medias.archivo` detrás del middleware `user`. Es lo que hace c21, y el motivo
@@ -121,7 +121,7 @@ está escrito ahí: *"la galería no debe ser visible para cualquiera que adivin
 > enviar un adjunto de producto se **copia** del disco privado al staging público del módulo de
 > WhatsApp, que ya tiene su propio ciclo de vida. No se cambia ese comportamiento.
 
-### D4 — El inbox: el módulo de dominio conoce a WhatsApp, no al revés
+### D4 - El inbox: el módulo de dominio conoce a WhatsApp, no al revés
 
 `GaleriaInboxController` **vive en `Inmobiliaria`, no en `Whatsapp`**. El autor lo dejó
 explicado:
@@ -146,7 +146,7 @@ consume `OutboundAttachment`. `Webkul/Whatsapp` no gana una sola referencia nuev
 > intacta en este proyecto.
 >
 > Se decidió **no tocarlo**: limpiarlo es un refactor con su propio riesgo y no era el pedido. Lo
-> que sí se hizo es fijarlo con dos tests — uno afirma que las clases nuevas no aparecen en
+> que sí se hizo es fijarlo con dos tests - uno afirma que las clases nuevas no aparecen en
 > `Whatsapp`, y otro deja constancia del acoplamiento previo para que, si alguien lo limpia, el
 > test falle y obligue a actualizar esta nota en vez de dejarla mintiendo.
 
@@ -210,7 +210,7 @@ tests/Feature/Product/
 
 Se sigue lo que ya hay en el repo: repositorios de `Webkul\Core\Eloquent\Repository`, contratos +
 proxies de Concord, strings por `@lang('admin::…')`, Tailwind con `dark:`. Los comentarios
-explican **por qué**, no qué — como los de c21.
+explican **por qué**, no qué - como los de c21.
 
 ```php
 /**
@@ -293,15 +293,15 @@ productos actuales.
 
 ## Open Questions
 
-**Q1 y Q2 — siguen abiertas y son las únicas que bloquean algo. ⚠️**
+**Q1 y Q2 - siguen abiertas y son las únicas que bloquean algo. ⚠️**
 `config/caracteristicas.php` tiene el mapa de `division-de-embalajes` cargado con cinco campos
 **inventados como ejemplo** (material, gramaje, medidas, troquelado, acabados), marcados como
 PROVISIONAL en el propio archivo. Todo lo demás funciona; falta que el negocio diga qué se carga
 de verdad y cuáles son las otras categorías. Cambiarlo es editar esas líneas: no hay migración ni
 datos que migrar mientras nadie haya cargado características todavía.
 
-**Q3 — resuelto:** el enlace se envía como mensaje de texto (`caption` + URL en líneas separadas),
+**Q3 - resuelto:** el enlace se envía como mensaje de texto (`caption` + URL en líneas separadas),
 que es lo único que hace que WhatsApp arme el preview.
 
-**Q4 — resuelto por ahora:** `product_image` queda intacto. Con galería propia está duplicado,
+**Q4 - resuelto por ahora:** `product_image` queda intacto. Con galería propia está duplicado,
 pero migrar de uno al otro es un trabajo aparte y no se decidió en esta fase.

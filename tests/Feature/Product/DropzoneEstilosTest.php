@@ -46,7 +46,7 @@ it('el CSS compilado define el borde punteado del dropzone', function () {
 it('el CSS compilado trae el resto de las utilidades del dropzone', function () {
     $css = cssDelAdmin();
 
-    // Ojo: toContain() en Pest es variádica — un segundo argumento se toma como
+    // Ojo: toContain() en Pest es variádica - un segundo argumento se toma como
     // otra aguja a buscar, no como mensaje. El detalle va en el nombre del test.
     foreach (['.sr-only{', '.cursor-pointer{', '.rounded-lg{', '.border-dashed{'] as $clase) {
         expect($css)->toContain($clase);

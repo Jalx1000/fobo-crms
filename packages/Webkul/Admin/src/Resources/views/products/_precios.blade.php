@@ -45,8 +45,8 @@
     {{--
         Marca que este formulario incluye la tabla de precios.
 
-        Sin esto, cualquier POST a products.update que no traiga `precios` —el
-        editor inline de atributos de la vista del producto, por ejemplo— se
+        Sin esto, cualquier POST a products.update que no traiga `precios` -el
+        editor inline de atributos de la vista del producto, por ejemplo- se
         leería como «el asesor vació la tabla» y borraría la lista entera.
     --}}
     <input type="hidden" name="precios_enviados" value="1" />
@@ -98,7 +98,7 @@
                     {{--
                         Las columnas de eje se dibujan acá Y las mantiene el script.
                         Server-side porque de lo contrario la tabla no dice a qué
-                        combinación pertenece cada precio hasta que corre el JS —y
+                        combinación pertenece cada precio hasta que corre el JS -y
                         si el JS no corre, el formulario se envía sin los valores
                         y la lista se guarda vacía.
                     --}}

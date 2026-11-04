@@ -1,6 +1,6 @@
 # Spec: Nombre y foto de perfil de contactos (Messenger / WhatsApp)
 
-Estado: **BORRADOR — pendiente de aprobación**
+Estado: **BORRADOR - pendiente de aprobación**
 Rama: `imprimir-modulo-whatsapp`
 
 ## Contexto (diagnóstico)
@@ -122,5 +122,5 @@ UI: comprobación manual en el navegador (una conversación de Messenger con `av
 
 ## Decisiones tomadas
 
-- 2026-09-26 — La foto se muestra en la cabecera y el panel de perfil de la bandeja, también dentro de las vistas de Person y de Lead.
-- 2026-09-26 — El renombrado se registra solo con `Log::info` (canal, person_id, nombre anterior y nuevo), sin actividad visible en la Person.
+- 2026-09-26 - La foto se muestra en la cabecera y el panel de perfil de la bandeja, también dentro de las vistas de Person y de Lead.
+- 2026-09-26 - El renombrado se registra solo con `Log::info` (canal, person_id, nombre anterior y nuevo), sin actividad visible en la Person.

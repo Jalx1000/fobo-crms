@@ -40,7 +40,7 @@ return [
     |--------------------------------------------------------------------------
     | Por categoría
     |--------------------------------------------------------------------------
-    | ⚠️ PROVISIONAL — los campos de 'division-de-embalajes' son una propuesta,
+    | ⚠️ PROVISIONAL - los campos de 'division-de-embalajes' son una propuesta,
     | no los datos reales de imprimir. Está pendiente que el negocio confirme
     | qué se carga de verdad (Q1 y Q2 del spec). Cambiarlos es editar estas
     | líneas: no hay migración ni datos que migrar mientras nadie los haya

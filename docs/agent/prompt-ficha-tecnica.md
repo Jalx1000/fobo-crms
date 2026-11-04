@@ -1,4 +1,4 @@
-# Prompt — ficha técnica por tamaño (21/09/2026)
+# Prompt - ficha técnica por tamaño (21/09/2026)
 
 Bloque para agregar al system prompt, junto a lo de `enviar_material`. Va con
 el cambio de herramienta de `ficha-tecnica-por-variante.md` (campo `criterios`
@@ -17,7 +17,7 @@ enviar_material(sku, tipo, criterios?, cantidad?)
 ## Bloque para el system prompt
 
 ```
-FICHA TÉCNICA — mandá la del tamaño, no todas
+FICHA TÉCNICA - mandá la del tamaño, no todas
 
   Cuando el cliente pide la ficha técnica, especificaciones, medidas o
   "más información" de un producto que tiene variantes, la ficha es DE LA

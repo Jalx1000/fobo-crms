@@ -474,7 +474,7 @@ class Lead extends AbstractReporting
 
         foreach ($results as $row) {
             $key = $row->date;
-            $user = $row->user_name ?? '—';
+            $user = $row->user_name ?? '-';
             $byDate[$key] ??= [];
             $byDate[$key][$user] = (int) $row->count;
         }
@@ -544,7 +544,7 @@ class Lead extends AbstractReporting
             $countsByUser = [];
 
             foreach ($query->get() as $row) {
-                $countsByUser[$row->user_name ?? '—'] = (int) $row->count;
+                $countsByUser[$row->user_name ?? '-'] = (int) $row->count;
             }
 
             return $countsByUser;
@@ -800,7 +800,7 @@ class Lead extends AbstractReporting
             $countsByUser = [];
 
             foreach ($query->get() as $row) {
-                $countsByUser[$row->user_name ?? '—'] = (int) $row->count;
+                $countsByUser[$row->user_name ?? '-'] = (int) $row->count;
             }
 
             return $countsByUser;
@@ -907,7 +907,7 @@ class Lead extends AbstractReporting
                     ? ($entradas[$row->id] ?? $row->closed_at ?? $row->updated_at)
                     : $now;
 
-                $segundosPorAsesor[$row->user_name ?? '—'][] = \Webkul\Admin\Helpers\HorasHabiles::segundos(
+                $segundosPorAsesor[$row->user_name ?? '-'][] = \Webkul\Admin\Helpers\HorasHabiles::segundos(
                     \Carbon\Carbon::parse($row->created_at),
                     \Carbon\Carbon::parse($hasta)
                 );
@@ -1232,7 +1232,7 @@ class Lead extends AbstractReporting
 
     /**
      * Leads "No atendidos" (etapa inicial "No atendido", $notAttendedStageIds)
-     * agrupados por ciudad — cada pipeline representa una ciudad. Alimenta el
+     * agrupados por ciudad - cada pipeline representa una ciudad. Alimenta el
      * card doughnut "No atendidos por Ciudad". Cuenta por created_at y respeta
      * el filtro de pipeline, los roles ignorados y el ACL, igual que el resto
      * de métricas. Solo incluye ciudades con al menos un lead no atendido.

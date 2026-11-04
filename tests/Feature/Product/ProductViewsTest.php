@@ -53,7 +53,7 @@ it('la edición renderiza galería y dropzone que sube al soltar', function () {
 it('el token CSRF va embebido y no se lee de un meta inexistente', function () {
     /*
      * El bug que esto previene: este admin NO tiene <meta name="csrf-token">.
-     * Leer el token de ahí devuelve null y toda petición muere con 419 —
+     * Leer el token de ahí devuelve null y toda petición muere con 419 -
      * portada, borrado y reordenamiento dejarían de funcionar en silencio.
      */
     $html = test()->get(route('admin.products.edit', $this->producto->id))->assertOk()->getContent();
@@ -101,8 +101,8 @@ it('los scripts llegan enteros: ninguna directiva Blade se cuela en el JS', func
      * archivos no hacía nada, sin un solo error en consola, porque el navegador
      * veía texto suelto y no JavaScript roto.
      *
-     * La afirmación correcta no es «no hay </script> en el medio» —el corte pasa
-     * ANTES del código— sino «este código está dentro de un <script>»: el último
+     * La afirmación correcta no es «no hay </script> en el medio» -el corte pasa
+     * ANTES del código- sino «este código está dentro de un <script>»: el último
      * <script de apertura tiene que venir después del último </script> de cierre.
      */
     $html = test()->get(route('admin.products.edit', $this->producto->id))->assertOk()->getContent();

@@ -1,4 +1,4 @@
-# Front — Inbox omnicanal
+# Front - Inbox omnicanal
 
 > Base: `packages/Webkul/Whatsapp/src/Resources/views/inbox-component.blade.php`
 > (Vue 3 inline registrado como `v-whatsapp-inbox`, ~1875 líneas).
@@ -55,7 +55,7 @@ oscuro (el inbox ya soporta `dark:`).
 requiere una acción distinta. Verlo solo al abrirla hace perder tiempo.
 
 **El compositor es la única fuente de verdad de lo que se puede enviar.** Si `capabilities()` no
-declara `document`, el botón no aparece — no aparece y falla. Esa es la regla que ya documenta el
+declara `document`, el botón no aparece - no aparece y falla. Esa es la regla que ya documenta el
 DTO `Capabilities` ("una capacidad listada siempre debe funcionar") y hay que sostenerla al
 multiplicar canales.
 

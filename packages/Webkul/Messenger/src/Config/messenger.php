@@ -6,7 +6,7 @@
 |--------------------------------------------------------------------------
 | Credentials for the Messenger driver. This array is merged into
 | config('whatsapp.gateways.messenger') by MessengerServiceProvider, so the
-| inbox resolves Messenger exactly like any other channel — there is no second
+| inbox resolves Messenger exactly like any other channel - there is no second
 | pipeline, no second store and no second inbox.
 |
 | Per-page credentials (page id + page access token) do NOT live here: a tenant

@@ -107,7 +107,7 @@ class ChatController extends Controller
                 'stage_name_bound'
             )
             // Fallback for the unbound majority: the contact's active (or latest)
-            // lead. A guess — that is exactly why binding exists.
+            // lead. A guess - that is exactly why binding exists.
             ->selectSub(
                 DB::table('leads')
                     ->join('lead_pipeline_stages', 'lead_pipeline_stages.id', '=', 'leads.lead_pipeline_stage_id')
@@ -157,7 +157,7 @@ class ChatController extends Controller
         match ($request->input('filter')) {
             'unassigned' => $query->whereNull('person_id')->whereNull('lead_id'),
             'unread'     => $query->where('unread_count', '>', 0),
-            // Every conversation waiting on a human, mine or not — this is what
+            // Every conversation waiting on a human, mine or not - this is what
             // lets a supervisor spot one that has been sitting for hours.
             'handoff' => $query->whereIn('whatsapp_conversations.handoff_state', $openStates),
             // Derived and unclaimed: the team pool.
@@ -209,7 +209,7 @@ class ChatController extends Controller
                 'ai_enabled'    => $c->aiEffective(),
                 'stage'         => $c->stage_name_bound ?? $c->stage_name,
                 // Free: already on the row. Drives the badge and, more
-                // importantly, the "Sin asesor" counter — with no notice sent to
+                // importantly, the "Sin asesor" counter - with no notice sent to
                 // the customer and no in-app notifications in Krayin, this list
                 // is the only signal the team gets in real time.
                 'handoff'      => $c->handoff_state,
@@ -335,7 +335,7 @@ class ChatController extends Controller
             ? ConversationProxy::modelClass()::whereIn('id', $conversationIds)->max('last_inbound_at')
             : null;
 
-        // Follow-up snapshot: who spoke last and how long ago — that's what
+        // Follow-up snapshot: who spoke last and how long ago - that's what
         // tells the advisor whether this client is waiting on them.
         $lastMessage = $conversationIds->isNotEmpty()
             ? $messageModel::whereIn('conversation_id', $conversationIds)
@@ -482,8 +482,8 @@ class ChatController extends Controller
      * Kept separate from person(): that one is a heavy drawer payload (media,
      * links, products) and this is fetched every time the picker opens.
      *
-     * Titles collide in practice — several "Cotización WhatsApp - <nombre>" for
-     * the same contact on the same day — so value, date and stage travel too:
+     * Titles collide in practice - several "Cotización WhatsApp - <nombre>" for
+     * the same contact on the same day - so value, date and stage travel too:
      * without them the advisor cannot tell the rows apart.
      */
     public function personLeads(string $id): JsonResponse
@@ -567,7 +567,7 @@ class ChatController extends Controller
      * Move a lead to another stage straight from the WhatsApp profile drawer,
      * so the advisor never has to leave the conversation to update the pipeline.
      *
-     * The target stage is resolved inside the lead's OWN pipeline — an id from
+     * The target stage is resolved inside the lead's OWN pipeline - an id from
      * another pipeline is rejected instead of silently relocating the lead.
      * The repository takes care of the derived fields (closed_at, confirmed_at,
      * first_stage_change_at) and `lead.update.after` keeps automations running.

@@ -7,7 +7,7 @@ use Webkul\Quote\Repositories\QuoteRepository;
  * El NIT entre la cotización y la persona.
  *
  * El NIT es EL dato para facturar en Bolivia y el flujo de venta lo pide dos
- * veces. Lo que se protege acá es que no se pierda —ni se pise— al pasar de la
+ * veces. Lo que se protege acá es que no se pierda -ni se pise- al pasar de la
  * conversación de WhatsApp a la cotización y de vuelta a la ficha del contacto.
  */
 /**
@@ -76,7 +76,7 @@ function cotizacion($personId, array $extra = [])
     /*
      * El evento lo dispara el CONTROLADOR, no el repositorio. Se replica acá
      * igual que en QuoteController para probar el listener; el cableado real
-     * —que la API REST también lo dispare— lo cubre el último test.
+     * -que la API REST también lo dispare- lo cubre el último test.
      */
     Illuminate\Support\Facades\Event::dispatch('quote.create.after', $q);
 

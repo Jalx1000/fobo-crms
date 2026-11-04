@@ -1,4 +1,4 @@
-# Spec: Pedidos — filtro por ejecutivo comercial
+# Spec: Pedidos - filtro por ejecutivo comercial
 
 Estado: **implementado** (16/10/2026). Fase A en `5c9c73e`; fase B decidida por el usuario el mismo día.
 

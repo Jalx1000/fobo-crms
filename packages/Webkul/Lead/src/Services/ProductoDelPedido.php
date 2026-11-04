@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\DB;
  *
  * Casi ningún pedido tenía producto (1 de 312 el 13/10): solo se veía en las
  * cotizaciones, y un pedido sin cotización no decía qué se pidió. Ahora se
- * registra cuando se sabe —una cotización, una derivación del agente con su
- * producto, el cliente eligiendo del menú— venga del CRM o del agente.
+ * registra cuando se sabe -una cotización, una derivación del agente con su
+ * producto, el cliente eligiendo del menú- venga del CRM o del agente.
  *
  * Solo agrega: un producto que el pedido ya tiene no se toca (el asesor pudo
  * haber corregido la cantidad), y no cambia el valor del pedido, que sale de

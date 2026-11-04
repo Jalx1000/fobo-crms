@@ -3,7 +3,7 @@
 
     Calculado, no cargado a mano: sale de las cotizaciones vinculadas o, si no
     hay, de los productos del pedido (ver ResumenPedido). Por eso no se puede
-    editar acá — se edita la cotización o los productos, y esto sigue.
+    editar acá - se edita la cotización o los productos, y esto sigue.
 --}}
 @php
     $resumen = app(\Webkul\Lead\Services\ResumenPedido::class)->de($lead);

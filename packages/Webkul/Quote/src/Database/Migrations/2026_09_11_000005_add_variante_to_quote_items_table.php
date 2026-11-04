@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * `quote_items` ya copiaba `sku` y `name` del producto: una cotización es un
  * documento emitido, no una vista sobre el catálogo. Estos cuatro campos siguen
- * el mismo criterio — si mañana alguien corrige un TR4 o una medida, la
+ * el mismo criterio - si mañana alguien corrige un TR4 o una medida, la
  * cotización que el cliente ya tiene en la mano no puede cambiar.
  *
  * Es también lo que hace que el PDF sobreviva a que se borre un producto, que

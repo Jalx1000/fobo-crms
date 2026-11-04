@@ -1,4 +1,4 @@
-# Apartado de configuración — Canales
+# Apartado de configuración - Canales
 
 > Pantalla `Configuración → Canales`. Es el primer entregable con cara visible del proyecto.
 
@@ -27,9 +27,9 @@ canales.general → auto_create_person, auto_create_lead, default_country_code,
 "WhatsApp Business Platform" es el **paraguas** de Meta, e **incluye** a Cloud API. La disyuntiva
 real no es *Cloud API vs Business Platform*, sino:
 
-- **Conexión directa** — App y WABA propias
-- **A través de un BSP/partner** — Kommo, 360dialog, Twilio… el partner intermedia
-- **Embedded Signup** — el CRM es Tech Provider y cada cliente conecta *su* WABA
+- **Conexión directa** - App y WABA propias
+- **A través de un BSP/partner** - Kommo, 360dialog, Twilio… el partner intermedia
+- **Embedded Signup** - el CRM es Tech Provider y cada cliente conecta *su* WABA
 
 El código actual ya tiene los dos primeros: los gateways `cloud_api` y `kommo`.
 
@@ -50,7 +50,7 @@ a partir de ese valor, **no** de una config global.
 | Instagram | `instagram_via_facebook` | Cuenta IG vinculada a una página; se descubre desde `me/accounts` | 🔨 nuevo |
 | Instagram | `instagram_direct` | Business Login contra `graph.instagram.com`, sin página de Facebook | 🔨 nuevo |
 
-**Instagram: sin autodetección.** Decisión tomada — dos botones separados, el usuario elige el
+**Instagram: sin autodetección.** Decisión tomada - dos botones separados, el usuario elige el
 método explícitamente. La UI no adivina cuál corresponde.
 
 Consecuencia inmediata: se puede tener WhatsApp por Cloud API directo **y** por Kommo en paralelo
@@ -62,7 +62,7 @@ durante una migración de proveedor. Hoy es imposible, `config('whatsapp.gateway
 
 Conviven en la misma pantalla, y no son intercambiables:
 
-**Redirect OAuth server-side** — para Messenger e Instagram.
+**Redirect OAuth server-side** - para Messenger e Instagram.
 El token nunca toca el navegador, no hace falta JS SDK, y es amable con la CSP del panel.
 
 ```
@@ -76,7 +76,7 @@ El token nunca toca el navegador, no hace falta JS SDK, y es amable con la CSP d
            → POST /{page_id}/subscribed_apps con los subscribed_fields
 ```
 
-**Popup del JS SDK de Meta** — obligatorio para el Embedded Signup de WhatsApp.
+**Popup del JS SDK de Meta** - obligatorio para el Embedded Signup de WhatsApp.
 No hay alternativa server-side. El popup devuelve un `code` al JS, que se postea al backend.
 
 ```
@@ -109,7 +109,7 @@ No hay alternativa server-side. El popup devuelve un `code` al JS, que se postea
 │    ▲ Token caduca en 6 días          [Renovar] [Probar] [⋯]           │
 ├───────────────────────────────────────────────────────────────────────┤
 │ ⓘ  Instagram · @heaven_bo               Vía página de Facebook        │
-│    ✕ Sin webhook — falta activar "Acceso a mensajes" en la app de IG  │
+│    ✕ Sin webhook - falta activar "Acceso a mensajes" en la app de IG  │
 │                                      [Ver cómo] [Resuscribir] [⋯]     │
 └───────────────────────────────────────────────────────────────────────┘
 ```
@@ -153,7 +153,7 @@ GET    settings/channels/callback/{channel}     canjea code, lista cuentas, guar
 POST   settings/channels/embedded-signup        recibe el code del popup de WhatsApp
 ```
 
-### Seguridad — no negociable
+### Seguridad - no negociable
 
 - `credentials` con cast `encrypted:array`. El App Secret **no** va a la BD: es de la App.
 - `state` firmado con TTL corto en el OAuth, **validado en el callback**. Sin esto, cualquiera
@@ -175,5 +175,5 @@ Reemplaza a `whatsapp:webhook-info` y `whatsapp:kommo-check`, ahora por cuenta y
 exactamente las mismas verificaciones que el botón "Probar conexión" de la UI.
 
 Razón de existir: cuando algo se rompa en producción hay que poder diagnosticarlo por SSH sin abrir
-el navegador — que es como se diagnosticaron el `WHATSAPP_GATEWAY=meta` y el par WABA/phone
+el navegador - que es como se diagnosticaron el `WHATSAPP_GATEWAY=meta` y el par WABA/phone
 desalineado.

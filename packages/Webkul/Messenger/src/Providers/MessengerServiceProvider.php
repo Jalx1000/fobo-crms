@@ -10,7 +10,7 @@ use Webkul\Messenger\Gateways\MessengerGateway;
 /**
  * Messenger is not an inbox of its own: it is one more channel of the shared
  * messaging inbox owned by Webkul\Whatsapp. This provider therefore registers
- * exactly two things — the channel and its webhook — and nothing that would
+ * exactly two things - the channel and its webhook - and nothing that would
  * duplicate a store, a menu entry or an API.
  */
 class MessengerServiceProvider extends ServiceProvider
@@ -39,13 +39,13 @@ class MessengerServiceProvider extends ServiceProvider
     /**
      * Declare Messenger in the inbox's channel registry.
      *
-     * Done at register() — like any mergeConfigFrom — so the entry exists
+     * Done at register() - like any mergeConfigFrom - so the entry exists
      * before anything resolves a driver, and so `config:cache` captures it.
      *
      * Precedence matters: the keys that define what this channel *is* are
      * written LAST, so they win. An earlier version of this module wrote the
      * entry from boot() with a different shape, and a `config:cache` built back
-     * then survives on disk — letting a stale cached entry silently override
+     * then survives on disk - letting a stale cached entry silently override
      * the driver, the family or the AI default of the running code.
      * Credentials still come from config/messenger.php and the environment.
      */

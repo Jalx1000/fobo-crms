@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
  * tipo de aplicación. Con un solo juego por producto había que elegir cuál de
  * las dos fichas era «la» ficha.
  *
- * Se guarda como lista ordenada —no como mapa— porque la ficha lleva
+ * Se guarda como lista ordenada -no como mapa- porque la ficha lleva
  * encabezados («Dimensiones del rollo», «Dimensiones del cono») y el orden es
  * parte de cómo se lee. Cada entrada es `{"clave": …, "valor": …}` y una
  * entrada sin `valor` es un encabezado.

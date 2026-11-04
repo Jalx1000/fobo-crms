@@ -39,7 +39,7 @@
                     <div class="flex flex-wrap justify-center gap-5">
                         <div class="flex items-center gap-2" v-for="(color, index) in colors" :key="index">
                             <span class="h-3.5 w-3.5 rounded-sm" :style="{ backgroundColor: color }"></span>
-                            <p class="text-xs dark:text-gray-300">@{{ legendLabels[index] }} — @{{ dataMinutesPerLead[index] }} hrs</p>
+                            <p class="text-xs dark:text-gray-300">@{{ legendLabels[index] }} - @{{ dataMinutesPerLead[index] }} hrs</p>
                         </div>
                     </div>
                 </div>

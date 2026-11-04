@@ -1,4 +1,4 @@
-# Sprint 0 — Fundación: datos + webhook entrante + resolución de teléfono
+# Sprint 0 - Fundación: datos + webhook entrante + resolución de teléfono
 
 **Duración:** 1 semana (~5 días-dev) · **Objetivo:** que un mensaje entrante de WhatsApp llegue a
 Laravel, se persista y quede asociado al `Person` correcto. Sin UI todavía.
@@ -12,7 +12,7 @@ modelos, repos, controlador de webhook, job de ingesta y resolución de teléfon
 
 ## Historias
 
-### HU-01 · Migraciones + modelos + repos — 1.5d `[BACK]`
+### HU-01 · Migraciones + modelos + repos - 1.5d `[BACK]`
 Crear `whatsapp_conversations` y `whatsapp_messages` (ver modelo de datos en README), modelos
 Eloquent con contratos, y repositorios extendiendo `Webkul\Core\Eloquent\Repository`.
 **AC:**
@@ -20,7 +20,7 @@ Eloquent con contratos, y repositorios extendiendo `Webkul\Core\Eloquent\Reposit
 - `conversation.person()` y `message.replyTo()` relacionados; `message.conversation()`.
 - `php artisan migrate` corre limpio y revierte con `migrate:rollback`.
 
-### HU-02 · Webhook Meta: verificación + recepción + firma — 1d `[BACK]`
+### HU-02 · Webhook Meta: verificación + recepción + firma - 1d `[BACK]`
 `WhatsappWebhookController`:
 - `GET /api/v1/whatsapp/webhook` → responde `hub.challenge` si `hub.verify_token` coincide con env.
 - `POST /api/v1/whatsapp/webhook` → valida `X-Hub-Signature-256` (HMAC sha256 con app secret),
@@ -29,7 +29,7 @@ Eloquent con contratos, y repositorios extendiendo `Webkul\Core\Eloquent\Reposit
 - Firma inválida → `401`, no encola.
 - Verificación GET con token correcto devuelve el challenge en texto plano.
 
-### HU-03 · Cola Redis `whatsapp` + `IngestJob` idempotente — 1d `[BACK · REDIS]`
+### HU-03 · Cola Redis `whatsapp` + `IngestJob` idempotente - 1d `[BACK · REDIS]`
 Cola dedicada `whatsapp` (connection Redis). `IngestJob` parsea `entry→changes→value`:
 - Rama `messages[]` → crea/actualiza conversación + mensaje entrante.
 - Rama `statuses[]` → se maneja en Sprint 2 (dejar hook).
@@ -37,7 +37,7 @@ Cola dedicada `whatsapp` (connection Redis). `IngestJob` parsea `entry→changes
 - Reprocesar el mismo `wa_message_id` **no** duplica (upsert por `wa_message_id`).
 - Worker `php artisan queue:work redis --queue=whatsapp` procesa el job.
 
-### HU-04 · Resolución `phone → Person` + bandeja "Sin asignar" — 1.5d `[BACK]`
+### HU-04 · Resolución `phone → Person` + bandeja "Sin asignar" - 1.5d `[BACK]`
 - Normalizar teléfonos a **E.164** (helper) y hacer match contra `Person.contact_numbers`.
 - Backfill: comando artisan que normaliza los `contact_numbers` existentes.
 - Si no hay Person → conversación con `status=unassigned`, `person_id=null`.

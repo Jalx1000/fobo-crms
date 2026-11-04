@@ -16,14 +16,14 @@ use Webkul\Whatsapp\Models\MessageProxy;
 /**
  * Recontacto antes de que cierre la ventana de 24 h.
  *
- * Si el cliente no contestó nuestro último mensaje —del agente o de un asesor,
- * por ejemplo la cotización—, `horas_antes` horas antes del cierre se le
+ * Si el cliente no contestó nuestro último mensaje -del agente o de un asesor,
+ * por ejemplo la cotización-, `horas_antes` horas antes del cierre se le
  * escribe UNA vez, para que responda mientras todavía se le puede escribir sin
  * plantilla. Se agenda con cada mensaje del cliente; si vuelve a escribir, el
  * agendado anterior queda sin efecto.
  *
  * En horario (whatsapp.handoff.horario_*): si el momento cae de noche se corre
- * a la apertura, o —si a la apertura la ventana ya cerró— al final del día
+ * a la apertura, o -si a la apertura la ventana ya cerró- al final del día
  * hábil anterior.
  */
 class Recontactar implements ShouldQueue
@@ -123,12 +123,12 @@ class Recontactar implements ShouldQueue
 
         $message = MessageProxy::modelClass()::create([
             'conversation_id' => $conversation->id,
-            'direction' => 'outbound',
-            'type' => 'text',
-            'body' => $texto,
-            'status' => 'queued',
-            'sender' => 'system',
-            'payload' => ['recontacto' => true, 'motivo' => $porCotizacion ? 'cotizacion' : 'sin_respuesta'],
+            'direction'       => 'outbound',
+            'type'            => 'text',
+            'body'            => $texto,
+            'status'          => 'queued',
+            'sender'          => 'system',
+            'payload'         => ['recontacto' => true, 'motivo' => $porCotizacion ? 'cotizacion' : 'sin_respuesta'],
         ]);
 
         $conversation->forceFill(['last_message_at' => now()])->save();

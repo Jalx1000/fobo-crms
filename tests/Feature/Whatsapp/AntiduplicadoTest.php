@@ -9,7 +9,7 @@ use Webkul\Whatsapp\Models\Message;
  * Observado en producción (conversación 3, mensajes 1055/1056, 1058/1059,
  * 1063/1064, 1066/1067): el modelo llama a `mostrar_opciones` y ADEMÁS escribe
  * la misma pregunta como texto con las opciones al final. El cliente la recibe
- * dos veces —una con botones y otra sin— y la segunda lo invita a tipear lo que
+ * dos veces -una con botones y otra sin- y la segunda lo invita a tipear lo que
  * los botones ya resolvían.
  */
 beforeEach(function () {
@@ -38,7 +38,7 @@ afterEach(function () {
  *
  * NO se llama `menu()`: Krayin define un helper global con ese nombre y el
  * layout del admin lo usa. Una función de test con el mismo nombre lo pisa y
- * todas las vistas del admin revientan con 500 — en OTROS archivos de test, que
+ * todas las vistas del admin revientan con 500 - en OTROS archivos de test, que
  * es donde nadie lo va a buscar.
  */
 function menuInteractivo($conv, string $body): Message
@@ -127,7 +127,7 @@ it('ninguna función global de test pisa un helper de la aplicación', function 
     /*
      * Regresión de un bug que no se veía en este archivo sino en otros: una
      * función `menu()` acá pisaba el helper global de Krayin y TODAS las vistas
-     * del admin devolvían 500 — pero solo cuando la suite corría completa, y el
+     * del admin devolvían 500 - pero solo cuando la suite corría completa, y el
      * error aparecía en tests de productos que no tienen nada que ver.
      *
      * Pest carga los archivos de test antes de correrlos, así que cualquier

@@ -9,7 +9,7 @@ namespace Webkul\Whatsapp\Gateways\Dto;
  * closed: WhatsApp rejects free-form messages outside it. The text is fixed at
  * approval time; only the numbered placeholders vary per send.
  *
- * A file (our quote PDF) can only travel in the header — a template body takes
+ * A file (our quote PDF) can only travel in the header - a template body takes
  * text and nothing else. The header carries the *file*, not a provider media
  * id: uploading is Cloud API's business, and resolving the id before we get
  * here would leak Meta's two-step upload into the provider-agnostic queue job.
@@ -22,7 +22,7 @@ final class OutboundTemplate
      *                            'es_MX'…). A mismatch is not a fallback: Meta
      *                            answers 132001 and the message is lost.
      * @param  array<int, string>  $bodyParams  Positional values for {{1}}, {{2}}…
-     *                                          None may be an empty string —
+     *                                          None may be an empty string -
      *                                          Meta rejects the whole message
      *                                          with 132000.
      * @param  OutboundMedia|null  $headerMedia  The file for a DOCUMENT/IMAGE

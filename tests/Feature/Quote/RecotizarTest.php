@@ -10,7 +10,7 @@ use Webkul\Quote\Repositories\QuoteRepository;
  * Recotizar: crear una cotización nueva partiendo de una anterior del mismo
  * pedido.
  *
- * Se copian el cliente y las condiciones comerciales —que casi nunca cambian—
+ * Se copian el cliente y las condiciones comerciales -que casi nunca cambian-
  * y NO los productos, que son justamente lo que se está recotizando. La validez
  * arranca de nuevo: la cotización nueva vence a los 10 días de hoy, no cuando
  * vencía la vieja.

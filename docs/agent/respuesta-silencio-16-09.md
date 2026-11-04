@@ -14,7 +14,7 @@ lado de ustedes.
 | `ai_enabled` | `true` en ambas |
 | `handoff.open` | `false` (estado `resolved`) en ambas |
 | `agenteDebeResponder()` | `true` en ambas |
-| Cola `whatsapp` | 0 pendientes — todo procesado |
+| Cola `whatsapp` | 0 pendientes - todo procesado |
 | Log de errores del webhook | sin `el agente IA rechazo el evento` ni timeouts |
 | Agente vivo | sí (405 a GET, espera POST) |
 | ¿Contestó a otros hoy? | **sí**: conv 2 a las 10:11 y conv 2722 a las 10:19 |
@@ -23,8 +23,8 @@ lado de ustedes.
 
 | Conversación | ¿Un asesor escribió después de derivar? | ¿El agente responde? |
 |---|---|---|
-| 3 · 59175640698 | Sí — *«Ok gracias por escribirnos»* | **No** (3 mensajes sin respuesta) |
-| 2560 · 59175599756 | Sí — *«…la cantidad mínima es de 50 rollos»* | **No** (4 mensajes sin respuesta) |
+| 3 · 59175640698 | Sí - *«Ok gracias por escribirnos»* | **No** (3 mensajes sin respuesta) |
+| 2560 · 59175599756 | Sí - *«…la cantidad mínima es de 50 rollos»* | **No** (4 mensajes sin respuesta) |
 | 2 | No | Sí |
 | 2722 | No | Sí |
 
@@ -53,9 +53,9 @@ Cada entrada del historial lleva ahora **`sender`**, con el valor real:
 {"role":"assistant","sender":"human",  "content":"Ok gracias por escribirnos","type":"text"}
 ```
 
-- `contact` — el cliente.
-- `ia` — ustedes.
-- `human` — un asesor escribiendo desde el inbox del CRM.
+- `contact` - el cliente.
+- `ia` - ustedes.
+- `human` - un asesor escribiendo desde el inbox del CRM.
 
 El `role` **no cambia** (user/assistant), para no romper lo que ya tienen
 armado. `sender` viaja al lado y se puede ignorar hasta que lo usen.

@@ -1,4 +1,4 @@
-# Plan técnico — el agente IA solicita el teléfono en Messenger
+# Plan técnico - el agente IA solicita el teléfono en Messenger
 
 > Spec: `docs/specs/messenger-agente-solicita-telefono.md` (APROBADA, 2026-08-21)
 > Tareas: `tasks/todo-messenger-telefono.md`
@@ -75,7 +75,7 @@ Cada tarea deja el sistema funcionando; ninguna deja media feature colgada.
 
 5. **El endpoint es idempotente.** El mismo número dos veces no duplica en
    `contact_numbers` ni suma intentos. n8n reintenta; un 409 solo lo haría
-   reintentar en loop — mismo criterio que ya usa `handoff`.
+   reintentar en loop - mismo criterio que ya usa `handoff`.
 
 6. **Se reusa `resolvePerson()` para detectar el duplicado**, no una query
    nueva: es el mismo matcheo por cola de dígitos que usa el ingreso de
@@ -90,7 +90,7 @@ Cada tarea deja el sistema funcionando; ninguna deja media feature colgada.
 | El agente manda un número mal extraído ("es el 700..." → `700`) | Validación de longitud mínima + 422 sin escribir nada. La conversación queda en `asked` y el agente puede repreguntar (hasta 3). |
 | El chip del inbox aparece en conversaciones de Cloud API | `phone_required` se deriva de la familia del canal; test explícito de que Cloud API da `false`. |
 | Encender `MESSENGER_AI_ENABLED` hace que el agente conteste conversaciones que nadie entrenó | Es la última tarea, y va con aprobación explícita. Además `ai_enabled` es por conversación: se puede apagar una sin apagar el canal. |
-| El worker corre código viejo tras el deploy | Reiniciar el `queue:work` de supervisord dentro del contenedor — es un paso obligatorio del despliegue en este proyecto. |
+| El worker corre código viejo tras el deploy | Reiniciar el `queue:work` de supervisord dentro del contenedor - es un paso obligatorio del despliegue en este proyecto. |
 
 ---
 

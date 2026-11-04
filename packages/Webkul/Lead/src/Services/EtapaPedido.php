@@ -11,7 +11,7 @@ use Webkul\Lead\Repositories\LeadRepository;
  * ciudad tiene el suyo, con ids distintos).
  *
  * Solo desde las etapas indicadas: un pedido que el asesor ya llevó más
- * adelante —o cerró— no retrocede por una automatización. Va por el
+ * adelante -o cerró- no retrocede por una automatización. Va por el
  * repositorio y con los mismos eventos que el arrastre en el kanban.
  */
 class EtapaPedido

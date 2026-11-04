@@ -1,4 +1,4 @@
-# Omnicanal — WhatsApp + Messenger + Instagram
+# Omnicanal - WhatsApp + Messenger + Instagram
 
 > **Estado:** planificación. Nada de esto está construido todavía.
 > **Punto de partida:** el módulo `Webkul\Whatsapp` en producción (rama `imprimir-modulo-whatsapp`)
@@ -23,7 +23,7 @@ y **aislamiento por cliente (multi-tenant)**.
 
 ## Qué cambia respecto a lo que ya existe
 
-El módulo actual acertó en la abstracción — el contrato `Gateway`, los DTOs canónicos y el
+El módulo actual acertó en la abstracción - el contrato `Gateway`, los DTOs canónicos y el
 `GatewayManager` ya aíslan al núcleo del proveedor. Lo que hay que romper son **tres supuestos
 WhatsApp-only** incrustados debajo:
 
@@ -46,7 +46,7 @@ WhatsApp-only** incrustados debajo:
 |---|---|---|---|
 | 1 | Alcance de cuentas | **Multi-tenant.** Se conectan también cuentas de clientes | +1 sprint. Tech Provider ante Meta. Aislamiento de datos obligatorio |
 | 2 | Modos WhatsApp | **Los tres**: Cloud API directo, BSP/partner (Kommo), Embedded Signup | El selector de conexión ofrece las tres rutas |
-| 3 | Instagram | **Ambos caminos, elección explícita** por parte del usuario — sin autodetección | Dos drivers y dos botones distintos en la UI de conexión |
+| 3 | Instagram | **Ambos caminos, elección explícita** por parte del usuario - sin autodetección | Dos drivers y dos botones distintos en la UI de conexión |
 | 4 | Dónde vive la configuración | **Pantalla dedicada** `Configuración → Canales`, no `core_config` | `SystemConfig` de Krayin solo soporta campos estáticos; no hay OAuth ni CRUD |
 | 5 | Tenant | **Tabla propia** `channel_tenants`, no los `groups` de usuarios de Krayin | Los grupos son de personas, no de propiedad de datos |
 | 6 | Tiempo real | **Polling** en v1; broadcasting a v2 | Menos superficie de fallo mientras se estabilizan tres canales |
@@ -54,7 +54,7 @@ WhatsApp-only** incrustados debajo:
 
 ### Pendientes de decidir (bloquean el Sprint 0)
 
-1. **Resolución de tenant en el webhook** — qué hacer con una cuenta desconocida y con una
+1. **Resolución de tenant en el webhook** - qué hacer con una cuenta desconocida y con una
    colisión de `external_id` entre tenants. Ver [multi-tenant.md](multi-tenant.md#decisión-abierta).
 2. **Política de fusión de contactos** entre canales sin teléfono (IG/FB) y `Person` existentes.
    Ver [modelo-datos.md](modelo-datos.md#decisión-abierta-fusión-de-identidades).
@@ -99,7 +99,7 @@ WhatsApp-only** incrustados debajo:
 - Contrato `Gateway` y DTOs (`InboundMessage`, `ContactIdentity`, `Capabilities`, `SendResult`…)
 - Patrón webhook → firma → cola → 200 rápido
 - Idempotencia por id de mensaje del proveedor
-- `Handoff` (derivación a asesor) y la API del agente IA — solo hay que volverlos agnósticos de canal
+- `Handoff` (derivación a asesor) y la API del agente IA - solo hay que volverlos agnósticos de canal
 - Todo el inbox Vue: hilo, perfil, notas, respuestas rápidas, visor de imágenes
 
 ### Diferencias por canal que el código debe absorber
@@ -134,10 +134,10 @@ WhatsApp-only** incrustados debajo:
 - Agente IA y derivación a asesor operando en los tres canales
 - ACL por tenant y por canal
 
-### Fuera (v1) — anotado, no construido
+### Fuera (v1) - anotado, no construido
 
 - Gestión de plantillas HSM desde el CRM (hoy se disparan por Kommo/n8n) → v2
-- Handover Protocol de Meta (`pass_thread_control`) — solo si convive otra app en la misma página
+- Handover Protocol de Meta (`pass_thread_control`) - solo si convive otra app en la misma página
 - Comentarios de feed de FB/IG y menciones públicas (otra superficie de webhooks)
 - Telegram, WhatsApp Business App (no-API), correo, web-chat
 - Broadcasting en tiempo real (queda polling)

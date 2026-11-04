@@ -1,4 +1,4 @@
-# Arquitectura — Módulo WhatsApp (`Webkul\Whatsapp`)
+# Arquitectura - Módulo WhatsApp (`Webkul\Whatsapp`)
 
 > Refleja el código construido en `imprimir-modulo-whatsapp` + la capa de gateway propuesta.
 > Lo propuesto está marcado como tal; no se mezcla con lo que ya existe.
@@ -40,7 +40,7 @@ Esto permite simplificar de forma agresiva:
 
 Hoy hay dos fugas de proveedor dentro del núcleo:
 
-- `IngestInboundPayload` conoce `entry → changes → value` — **100% específico de Meta**.
+- `IngestInboundPayload` conoce `entry → changes → value` - **100% específico de Meta**.
 - `SendMessage` instancia `CloudApi` directamente, y `WebhookController` lee
   `config('whatsapp.cloud.app_secret')`.
 
@@ -50,7 +50,7 @@ Cambiar a Kommo hoy significaría reescribir el núcleo. Eso es lo que arregla e
 
 ```mermaid
 flowchart TB
-    subgraph Core["1 · Nucleo agnostico — NO sabe de proveedores"]
+    subgraph Core["1 · Nucleo agnostico - NO sabe de proveedores"]
       direction LR
       Front["Inbox Vue"]
       WH["WebhookController"]
@@ -61,14 +61,14 @@ flowchart TB
       MD["Conversation · Message"]
     end
 
-    subgraph Boundary["2 · Frontera — contrato + lenguaje canonico"]
+    subgraph Boundary["2 · Frontera - contrato + lenguaje canonico"]
       direction LR
       GM["GatewayManager<br/>resuelve por config"]
       GW["Gateway<br/>(interface)"]
       DTO["DTOs canonicos<br/>InboundMessage · StatusUpdate<br/>ContactIdentity · MediaRef<br/>SendResult · Capabilities"]
     end
 
-    subgraph Drivers["3 · Adaptadores — uno activo por instalacion"]
+    subgraph Drivers["3 · Adaptadores - uno activo por instalacion"]
       direction LR
       CA["CloudApiGateway"]
       KO["KommoGateway"]
@@ -105,7 +105,7 @@ interface Gateway
 }
 ```
 
-## Autenticación del webhook — el punto crítico
+## Autenticación del webhook - el punto crítico
 
 Cada proveedor autentica de forma **radicalmente distinta**. Un `validateSignature(): bool` asume
 el modelo de Meta y se rompe con el resto. Las categorías reales:
@@ -192,7 +192,7 @@ direccionar:
 - `KommoGateway` usa `$c->provider_conversation_id` (si Kommo direcciona por chat id) **o**
   `$c->wa_phone` (si da teléfono). Se decide **dentro del driver**, sin tocar el núcleo.
 
-### `ContactIdentity` — la identidad deja de asumirse como teléfono
+### `ContactIdentity` - la identidad deja de asumirse como teléfono
 
 ```php
 final class ContactIdentity
@@ -213,7 +213,7 @@ El `ConversationResolver` pasa a resolver en cascada:
 
 Así el núcleo funciona **tanto si el proveedor da teléfono como si da un id propio**.
 
-### `MediaRef` — normaliza "cómo se obtiene el archivo"
+### `MediaRef` - normaliza "cómo se obtiene el archivo"
 
 ```php
 final class MediaRef
@@ -228,7 +228,7 @@ final class MediaRef
 ```
 El núcleo solo dice "traeme los bytes"; `fetchMedia()` resuelve la diferencia.
 
-### `Capabilities` — entrega progresiva, no promesa teórica
+### `Capabilities` - entrega progresiva, no promesa teórica
 
 ```php
 final class Capabilities
@@ -254,7 +254,7 @@ Esto convierte el desarrollo en entrega progresiva:
 | Driver | `send` hoy | Objetivo |
 |---|---|---|
 | `CloudApiGateway` | `text` | `text, image, document, audio, reply` |
-| `KommoGateway` | — | según su doc de mensajería |
+| `KommoGateway` | - | según su doc de mensajería |
 
 ## Diagrama de clases
 
@@ -307,7 +307,7 @@ classDiagram
 ## Cómo queda el núcleo (genérico)
 
 ```php
-// WebhookController — ya no sabe de Meta
+// WebhookController - ya no sabe de Meta
 public function receive(Request $r, GatewayManager $gateways)
 {
     $gateway = $gateways->active();
@@ -321,13 +321,13 @@ public function receive(Request $r, GatewayManager $gateways)
     return response()->json(['status' => 'ok']);
 }
 
-// IngestInboundPayload — ya no parsea nada
+// IngestInboundPayload - ya no parsea nada
 $batch = $gateways->driver($this->gatewayKey)->parseWebhook($this->payload);
 
 foreach ($batch->messages as $inbound) { $this->persist($inbound); }
 foreach ($batch->statuses as $status) { $this->applyStatus($status); }
 
-// SendMessage — ya no instancia CloudApi
+// SendMessage - ya no instancia CloudApi
 $gateway = $gateways->for($message->conversation);
 $result  = $gateway->sendText($message->conversation, $message->body, $replyToProviderId);
 ```
@@ -358,7 +358,7 @@ $result  = $gateway->sendText($message->conversation, $message->body, $replyToPr
 ```
 
 **Cada driver recibe su propio array de config inyectado.** El núcleo nunca vuelve a leer
-`config('whatsapp.cloud.*')` — eso pasa a ser privado del driver. (Hoy `WebhookController` lo lee:
+`config('whatsapp.cloud.*')` - eso pasa a ser privado del driver. (Hoy `WebhookController` lo lee:
 esa fuga se elimina.)
 
 ## Cambios de esquema que introduce la capa

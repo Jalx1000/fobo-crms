@@ -4,7 +4,7 @@
     Portado de `inmobiliaria::inmuebles._dropzone` (proyecto c21).
 
     El input vive FUERA del label y se asocia con `for`. La asociación explícita
-    funciona en todos los navegadores; la implícita —el input adentro— es la que
+    funciona en todos los navegadores; la implícita -el input adentro- es la que
     no abre el selector al hacer clic.
 
     Sin JavaScript la tarjeta sigue abriendo el selector, porque eso lo resuelve
@@ -170,7 +170,7 @@
 
                 /**
                  * Una miniatura: la imagen si se puede previsualizar, y si no
-                 * —un PDF— el nombre, que es lo único que ayuda a reconocerlo.
+                 * -un PDF- el nombre, que es lo único que ayuda a reconocerlo.
                  */
                 function miniatura(archivo) {
                     const caja = document.createElement('div');

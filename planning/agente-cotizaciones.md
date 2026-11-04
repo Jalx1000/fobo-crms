@@ -1,4 +1,4 @@
-# Consigna para el agente — cotizaciones y derivación por ciudad
+# Consigna para el agente - cotizaciones y derivación por ciudad
 
 > **Para**: quien mantiene el servicio Python del agente.
 > **Autenticación**: el mismo token Sanctum que ya usa para responder mensajes
@@ -58,7 +58,7 @@ las métricas de la sucursal más grande con demanda de todo el país.
 
 ### Mover el lead
 
-Primero resolvé la etapa inicial del pipeline destino — **no hardcodees ids de
+Primero resolvé la etapa inicial del pipeline destino - **no hardcodees ids de
 etapa**, cada pipeline tiene los suyos:
 
 ```bash
@@ -88,7 +88,7 @@ segundo trabajo, no una corrección.
 
 ## 2. Crear la cotización
 
-### `POST /api/v1/quotes` — campos obligatorios
+### `POST /api/v1/quotes` - campos obligatorios
 
 | Campo | Tipo | Nota |
 |---|---|---|
@@ -105,13 +105,13 @@ segundo trabajo, no una corrección.
 `description`, `billing_address`, `shipping_address`, `discount_percent`,
 `discount_amount`, `tax_amount`, `adjustment_amount`, `lead_id`, `marca`.
 
-- **`lead_id`** — mandalo siempre. Es lo que vincula la cotización con la
+- **`lead_id`** - mandalo siempre. Es lo que vincula la cotización con la
   oportunidad y, por lo tanto, con el pipeline de la ciudad.
-- **`marca`** — id de opción del atributo *Marca* (Imprimir / Magia Verde).
+- **`marca`** - id de opción del atributo *Marca* (Imprimir / Magia Verde).
   Define con qué logo y color se imprime el PDF. Si no sabés cuál corresponde,
   omitilo: el PDF sale con el diseño por defecto en vez de con la marca
   equivocada.
-- **`entity_type`** — no lo mandes, el controlador lo agrega solo.
+- **`entity_type`** - no lo mandes, el controlador lo agrega solo.
 
 ### ⚠️ `items` es obligatorio aunque la validación no lo diga
 
@@ -181,7 +181,7 @@ curl -X POST https://imprimir.sofopolis.com/api/v1/quotes \
 | `GET` | `/api/v1/quotes` | Listar |
 | `GET` | `/api/v1/quotes/search` | Buscar por `subject`, `description`, `person.name`, `user.name` |
 | `GET` | `/api/v1/quotes/{id}` | Leer una |
-| `PUT` | `/api/v1/quotes/{id}` | Actualizar — **ver la trampa** |
+| `PUT` | `/api/v1/quotes/{id}` | Actualizar - **ver la trampa** |
 | `DELETE` | `/api/v1/quotes/{id}` | **No usar** |
 | `POST` | `/api/v1/quotes/mass-destroy` | **No usar** |
 
@@ -225,11 +225,11 @@ El CRM valida tipos, no criterio comercial. Estas son del agente:
 | `422` | Falta un obligatorio o el tipo es inválido | Corregir el body; el cuerpo trae `errors` por campo |
 | `500` sin `items` | El bug descrito arriba | Mandar siempre `items` |
 | `404` | No existe | Revisar el id |
-| `401` / `500` en auth | Token inválido o ausente | Revisar el Bearer. *La REST API de Krayin devuelve `500` en vez de `401` ante token inválido — es comportamiento global de la plataforma* |
+| `401` / `500` en auth | Token inválido o ausente | Revisar el Bearer. *La REST API de Krayin devuelve `500` en vez de `401` ante token inválido - es comportamiento global de la plataforma* |
 
 ---
 
-## Anexo — dos cosas para decidir del lado del CRM
+## Anexo - dos cosas para decidir del lado del CRM
 
 No bloquean al agente, pero conviene resolverlas:
 

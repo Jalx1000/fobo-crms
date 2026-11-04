@@ -52,4 +52,5 @@ Route::prefix('api/v1/whatsapp')
         Route::post('conversations/{id}/messages', [AgentController::class, 'send']);
         Route::post('conversations/{id}/interactive', [AgentController::class, 'sendInteractive']);
         Route::post('conversations/{id}/handoff', [AgentController::class, 'handoff']);
+        Route::post('conversations/{id}/etapa', [AgentController::class, 'etapa']);
     });

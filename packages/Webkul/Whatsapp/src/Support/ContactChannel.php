@@ -20,7 +20,7 @@ class ContactChannel
      * Filter value for a contact with no conversation at all.
      *
      * A dropdown filter builds `where(column, value)`, and that never matches a
-     * NULL — so the "no channel" case has to be an actual value, produced by the
+     * NULL - so the "no channel" case has to be an actual value, produced by the
      * COALESCE in column(). Without it the majority of hand-entered contacts
      * would only ever show up with the filter cleared.
      */
@@ -37,7 +37,7 @@ class ContactChannel
      *
      * ONE row per contact by construction (ROW_NUMBER() = 1), not by luck: of
      * the three grids only Leads has a GROUP BY, so a join that multiplied would
-     * silently show the same contact several times in the other two — a bug that
+     * silently show the same contact several times in the other two - a bug that
      * reads as bad data rather than bad code, and raises no error at all.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
@@ -81,8 +81,8 @@ class ContactChannel
     /**
      * Narrow a query to contacts reachable on one channel.
      *
-     * For query builders that are not DataGrids — the leads kanban board hits a
-     * repository endpoint, not the grid — so it cannot use the joined column and
+     * For query builders that are not DataGrids - the leads kanban board hits a
+     * repository endpoint, not the grid - so it cannot use the joined column and
      * needs the same rule expressed as a constraint.
      *
      * Deliberately built on the SAME ranked subquery as joinTo(): a contact must

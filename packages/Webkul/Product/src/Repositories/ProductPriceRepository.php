@@ -16,8 +16,8 @@ class ProductPriceRepository extends Repository
      * Deja la lista del producto exactamente como vino del formulario.
      *
      * Se borra y se vuelve a insertar en vez de comparar fila por fila. La lista
-     * se edita entera —el asesor agrega, saca y reordena filas en la misma
-     * pantalla— y no hay nada que apunte a un `product_price` por id: ninguna
+     * se edita entera -el asesor agrega, saca y reordena filas en la misma
+     * pantalla- y no hay nada que apunte a un `product_price` por id: ninguna
      * cotización guarda la fila que usó, guarda el precio. Sin referencias que
      * romper, reconciliar sería complejidad sin beneficio.
      *

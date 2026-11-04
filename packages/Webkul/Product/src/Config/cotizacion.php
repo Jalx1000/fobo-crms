@@ -2,7 +2,7 @@
 
 /*
 |--------------------------------------------------------------------------
-| Cotización — formato RG-VCO-005
+| Cotización - formato RG-VCO-005
 |--------------------------------------------------------------------------
 | Lo que la propuesta comercial de Imprimir lleva fijo y que NO es de una
 | cotización en particular: el código del documento del sistema de calidad,
@@ -114,7 +114,7 @@ return [
 
     /*
     | Horario en el que el equipo atiende. Fuera de él las consultas se asignan
-    | igual —el asesor las ve al día siguiente— y el agente le avisa al cliente.
+    | igual -el asesor las ve al día siguiente- y el agente le avisa al cliente.
     */
     'horario_atencion' => ['desde' => '08:00', 'hasta' => '19:00'],
 

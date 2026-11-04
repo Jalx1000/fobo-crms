@@ -1,4 +1,4 @@
-# Prompt — asesor asignado por producto y ciudad (15/09/2026)
+# Prompt - asesor asignado por producto y ciudad (15/09/2026)
 
 Bloques para reemplazar/agregar en `system-prompt-imprimir.md`. Van junto con
 los cambios de herramientas de `round-robin-responsables.md` (campo `ciudad` en
@@ -7,7 +7,7 @@ los cambios de herramientas de `round-robin-responsables.md` (campo `ciudad` en
 ## Reemplaza el PASO 2
 
 ```
-PASO 2 — Ciudad  (mostrar_opciones)
+PASO 2 - Ciudad  (mostrar_opciones)
   "¿De qué ciudad nos escribe?"
   ▸ Santa Cruz   ▸ La Paz   ▸ Cochabamba   ▸ Otra ciudad
 
@@ -26,7 +26,7 @@ PASO 2 — Ciudad  (mostrar_opciones)
 ## Reemplaza el PASO 5
 
 ```
-PASO 5 — Cierre. CUATRO acciones, EN ESTE ORDEN:
+PASO 5 - Cierre. CUATRO acciones, EN ESTE ORDEN:
   1) register_cotizacion  → los datos de empresa en el contacto
   2) crear_cotizacion     → producto, variante, cantidad Y `ciudad` (PASO 2).
      La respuesta trae `asesor` (nombre, teléfono, horario) o null.
@@ -57,7 +57,7 @@ PASO 5 — Cierre. CUATRO acciones, EN ESTE ORDEN:
 ## Agrega, después de "No saltees pasos…"
 
 ```
-QUIÉN ATIENDE — regla general
+QUIÉN ATIENDE - regla general
   Vos no elegís al asesor. El CRM lo decide por producto y ciudad y reparte por
   turnos; el mismo cliente conserva su asesor. No nombres asesores de memoria:
   el equipo cambia en el CRM y tu prompt no.

@@ -1,6 +1,6 @@
 # Spec: el agente IA debe solicitar el número de teléfono en Messenger
 
-> Estado: **APROBADA** (2026-08-21). Sin preguntas abiertas — ver "Decisiones
+> Estado: **APROBADA** (2026-08-21). Sin preguntas abiertas - ver "Decisiones
 > tomadas". Lista para planificar.
 >
 > Rama: `imprimir-modulo-whatsapp` · Autor: Javier Mogro / Claude
@@ -16,7 +16,7 @@ de plomería:
 
 | # | Hallazgo | Evidencia |
 |---|---|---|
-| 1 | Un contacto de Messenger **nunca trae teléfono**. La identidad es el PSID (page-scoped id), útil solo para la página que lo emitió. | `MessengerGateway::identityOf()` (`Gateways/MessengerGateway.php:501`) construye `ContactIdentity(providerId: $psid)` — `phone` queda `null`. |
+| 1 | Un contacto de Messenger **nunca trae teléfono**. La identidad es el PSID (page-scoped id), útil solo para la página que lo emitió. | `MessengerGateway::identityOf()` (`Gateways/MessengerGateway.php:501`) construye `ContactIdentity(providerId: $psid)` - `phone` queda `null`. |
 | 2 | Aun sin teléfono se **crea Person y Lead**. `resolveOrCreatePerson()` solo espera al teléfono para la familia `whatsapp`; Messenger es familia propia, así que registra el Person de una. | `ConversationResolver::resolveOrCreatePerson()` + `createPerson()` (`Services/ConversationResolver.php`). |
 | 3 | Ese Person se crea **sin `contact_numbers`** y con nombre `"Messenger 123456"` cuando el perfil de Graph no responde. | `createPerson()`: el spread de `contact_numbers` se omite si no hay dígitos. |
 | 4 | Un contacto de Messenger **nunca matchea** con un contacto ya existente en el CRM: sin teléfono no hay clave cross-canal. Es una decisión deliberada y correcta (duplicar es reversible, fusionar mal no), pero deja duplicados acumulándose. | Comentario en `resolveOrCreatePerson()`. |
@@ -217,8 +217,8 @@ Pest, en `tests/Feature/`. Casos mínimos:
    fusión. Es la única dirección reversible: el número lo dictó un cliente y lo
    extrajo un LLM, y una fusión equivocada no se deshace.
 2. **Momento del pedido: al calificar.** El agente pide el teléfono recién
-   cuando la conversación califica — el cliente pregunta precio, pide cotización
-   o algo que requiera seguimiento — no en el primer mensaje. Por eso
+   cuando la conversación califica - el cliente pregunta precio, pide cotización
+   o algo que requiera seguimiento - no en el primer mensaje. Por eso
    `phone_required` es una señal, no una orden: el CRM dice *que falta*, el
    agente decide *cuándo* pedirlo.
 
@@ -236,4 +236,4 @@ Pest, en `tests/Feature/`. Casos mínimos:
 
 ## Preguntas abiertas
 
-Ninguna. Spec cerrada — lista para planificar.
+Ninguna. Spec cerrada - lista para planificar.

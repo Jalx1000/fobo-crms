@@ -30,7 +30,7 @@
     | configuracion, y un color claro deja el PDF ilegible sin que nada avise.
     |
     | Si no llega a 4.5:1 sobre blanco (WCAG AA para texto normal), se oscurece
-    | hasta que llegue. La marca sigue reconocible —mismo tono— y el texto se
+    | hasta que llegue. La marca sigue reconocible -mismo tono- y el texto se
     | lee. Los dos colores cargados hoy (#002677, #3e6950) pasan sin tocar.
     */
     $legible = function (string $hex): string {
@@ -82,7 +82,7 @@
     |
     | La firma del asesor va embebida como data URI por el mismo motivo que el
     | logo: dompdf no puede hacerse una request HTTP a si mismo. Si el asesor no
-    | cargo firma, queda la linea para firmar a mano — el bloque existe igual,
+    | cargo firma, queda la linea para firmar a mano - el bloque existe igual,
     | porque el cliente firma en su columna aunque el asesor no tenga imagen.
     |
     | Se lee $quote->user (el asesor asignado a ESTA cotizacion) y no el usuario
@@ -476,7 +476,7 @@
                     sirven al asesor.
 
                     El asunto se quito: repite lo que ya dice el detalle de
-                    items —producto y variante— y en las cotizaciones del agente
+                    items -producto y variante- y en las cotizaciones del agente
                     sale como un texto armado ("Bolsas Magia Verde - 75 L ·
                     TRADICIONAL · Interior") que no es lenguaje de propuesta.
                     Sigue guardado en la cotizacion y visible en el CRM.
@@ -657,7 +657,7 @@
 
                                 <div class="linea"></div>
 
-                                <div class="nombre">{{ $asesor?->name ?? '—' }}</div>
+                                <div class="nombre">{{ $asesor?->name ?? '-' }}</div>
 
                                 @if ($asesor?->cargo)
                                     <div class="detalle">{{ $asesor->cargo }}</div>
@@ -671,7 +671,7 @@
 
                                 <div class="linea"></div>
 
-                                <div class="nombre">{{ $cliente?->name ?? '—' }}</div>
+                                <div class="nombre">{{ $cliente?->name ?? '-' }}</div>
 
                                 @if ($clienteEmpresa)
                                     <div class="detalle">{{ $clienteEmpresa }}</div>

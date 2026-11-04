@@ -21,7 +21,7 @@ Correr **solo** las suites tocadas. Nunca la suite completa.
 
 - [x] **3. Variantes: tabla, modelo, resolución** ✅ 2026-09-11
   - Acceptance: `product_variantes` con `valores` JSON, `codigo_tr4`, `codigo_barra`, `medida`, `unidad`, `nombre_erp`, `orden`. `products.ejes_identidad` JSON. `Variantes::resolver($product, $criterios)` devuelve la variante mirando **solo** los ejes de identidad, con la misma tolerancia que `ListaPrecios`; null si no hay.
-  - Verify: tests — resuelve por Tamaño ignorando Canal/Zona; acentos/mayúsculas; sin variante → null; producto sin `ejes_identidad` → null.
+  - Verify: tests - resuelve por Tamaño ignorando Canal/Zona; acentos/mayúsculas; sin variante → null; producto sin `ejes_identidad` → null.
   - Files: 2 migraciones, `Models/ProductVariante.php` (+Proxy, Contract), `Repositories/ProductVarianteRepository.php`, `Support/Variantes.php`, `tests/Feature/Product/VariantesTest.php`
 
 - [x] **4. Formulario de variantes en el producto** ✅ 2026-09-11
@@ -57,8 +57,8 @@ Correr **solo** las suites tocadas. Nunca la suite completa.
   - Verify: crear cotización de tapas impresas + bolsas en pantalla → condiciones propuestas correctas; cambiarlas y guardar → quedan las editadas; test de vista.
   - Files: `quotes/create.blade.php`, `quotes/edit.blade.php`, `QuoteController.php`, `Support/Entrega.php`, test
 
-> Hallazgos de la 8: (a) los códigos van DENTRO de la celda del producto —la
-> tabla ya tenía 8 columnas—; (b) un atributo `select` guarda el ID de la
+> Hallazgos de la 8: (a) los códigos van DENTRO de la celda del producto -la
+> tabla ya tenía 8 columnas-; (b) un atributo `select` guarda el ID de la
 > opción, no el texto: se agregó `Support/Opciones::nombre()` que el PDF va a
 > necesitar para `lugar_entrega`, `forma_pago` y `sucursal`.
 
@@ -96,7 +96,7 @@ Correr **solo** las suites tocadas. Nunca la suite completa.
 - [x] **Las 3 sucursales** cargadas en **Warehouse** (Configuración → Almacenes),
       con `linea` y `maps_url` como atributos: Imprimir 1 (Embalajes),
       Imprimir 2 (Tapas), Imprimir 3 (Envases Flexibles). Las tres en Santa Cruz.
-- [x] **`products.warehouse_id`** — desde qué sucursal se despacha. Distinta de
+- [x] **`products.warehouse_id`** - desde qué sucursal se despacha. Distinta de
       la relación de inventario, que dice dónde hay stock.
 - [x] **Matriz de responsables** (`producto_responsables`): producto × ciudad →
       asesor, editable desde el formulario del producto.

@@ -227,7 +227,7 @@ it('nunca deja que MySQL corte la descripción en silencio', function () {
     /*
      * `quotes.description` es varchar(255) y la conexión NO está en modo
      * estricto: lo que pasa de ahí lo corta la base sin error. Se detectó
-     * perdiendo las notas del cliente —lo único que no se puede reconstruir— al
+     * perdiendo las notas del cliente -lo único que no se puede reconstruir- al
      * final de una descripción de 259 caracteres.
      */
     $r = test()->postJson("/api/v1/productos/conversations/{$this->conv->id}/cotizacion", [
@@ -265,7 +265,7 @@ it('el asunto nombra la variante en el orden de los ejes', function () {
 
     $this->quotes[] = $r->json('quote_id');
 
-    expect($r->json('asunto'))->toBe('Bolsas Magia Verde — 50 L · HORECA · Santa Cruz');
+    expect($r->json('asunto'))->toBe('Bolsas Magia Verde - 50 L · HORECA · Santa Cruz');
 });
 
 it('la cotización del agente sale con los mismos códigos y condiciones que la de pantalla', function () {

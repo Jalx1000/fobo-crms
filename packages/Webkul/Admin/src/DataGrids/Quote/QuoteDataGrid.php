@@ -254,7 +254,7 @@ class QuoteDataGrid extends DataGrid
 
         if (bouncer()->hasPermission('quotes.whatsapp')) {
             // POST, so the datagrid routes it through its confirm modal and then
-            // flashes whatever the controller answers — which is exactly what we
+            // flashes whatever the controller answers - which is exactly what we
             // need: the send can be refused for several reasons the salesperson
             // has to read (no number, 24h window closed).
             // Un solo botón: el canal (WhatsApp o Messenger) lo elige QuoteController::send().

@@ -8,7 +8,7 @@ use Webkul\User\Models\User;
  * Cargo y firma del asesor.
  *
  * Los dos van en la firma de lo que el asesor manda. Lo que se protege acá es
- * que la firma —un archivo— no se pierda en las ediciones que no la tocan, y
+ * que la firma -un archivo- no se pierda en las ediciones que no la tocan, y
  * que el admin y el propio asesor puedan cargarla por sus dos caminos.
  */
 beforeEach(function () {

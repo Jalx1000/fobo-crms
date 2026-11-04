@@ -45,7 +45,7 @@
                                 @{{ location.maps_url }}
                             </a>
 
-                            <span v-else class="text-gray-400">—</span>
+                            <span v-else class="text-gray-400">-</span>
                         </x-admin::table.td>
 
                         <x-admin::table.td>

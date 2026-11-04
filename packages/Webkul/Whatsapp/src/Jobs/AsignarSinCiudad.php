@@ -155,7 +155,7 @@ class AsignarSinCiudad implements ShouldQueue
     /**
      * Quiénes corresponden, sin gastar el turno de nadie: con producto, sus
      * responsables en la ciudad (o los nacionales); con solo la ciudad, quien
-     * atiende todo ahí; sin nada —o nadie en esa ciudad—, el turno nacional
+     * atiende todo ahí; sin nada -o nadie en esa ciudad-, el turno nacional
      * «sin ciudad» (sin los de `fuera_del_turno`).
      *
      * @return array<int, int>

@@ -10,7 +10,7 @@ use Webkul\Whatsapp\Gateways\Kommo\KommoGateway;
 use Webkul\Whatsapp\Models\Conversation;
 
 /**
- * Sending a quote as an approved template (HSM) — the only way to reach a
+ * Sending a quote as an approved template (HSM) - the only way to reach a
  * contact once the 24h service window has closed.
  *
  * Graph is faked everywhere: no test in this file reaches Meta.
@@ -172,7 +172,7 @@ it('refuses to send a template over a channel that has none', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Slice 2 — which route the pipeline picks
+| Slice 2 - which route the pipeline picks
 |--------------------------------------------------------------------------
 | These exercise the decision and the routing, not persistence: every model
 | here is built with forceFill and never saved, so the tests run without a
@@ -300,7 +300,7 @@ it('routes a row carrying a template descriptor to sendTemplate', function () {
 
 it('routes a row without a template descriptor to sendMedia, as before', function () {
     // Guards the ordering bug: isMedia('document') is true, so if the template
-    // branch were checked second it would never run — and if it were checked
+    // branch were checked second it would never run - and if it were checked
     // too loosely, this plain document would wrongly go out as a template.
     [$kind, $media] = tplDeliver(['media_disk_path' => 'whatsapp/media/7/x.pdf']);
 
@@ -336,7 +336,7 @@ it('refuses to queue a free-form document once the window has closed', function 
 
 /*
 |--------------------------------------------------------------------------
-| Slice 3 — the parameters the quote action feeds the template
+| Slice 3 - the parameters the quote action feeds the template
 |--------------------------------------------------------------------------
 */
 

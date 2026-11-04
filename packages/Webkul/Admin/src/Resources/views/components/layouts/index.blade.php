@@ -372,9 +372,9 @@
 
                         /*
                          * Se filtran los vacíos: el caso string ya lo hacía, el de
-                         * array no. Un [''] —que es lo que entrega explode(',', '')
+                         * array no. Un [''] -que es lo que entrega explode(',', '')
                          * del lado de PHP, y lo que puede devolver vee-validate al
-                         * quitar el último chip— dibujaba un chip sin texto, porque
+                         * quitar el último chip- dibujaba un chip sin texto, porque
                          * getItemName('') no encuentra opción y devuelve el id crudo.
                          */
                         return crudo.map(String).filter(valor => valor !== '');

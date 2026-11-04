@@ -12,8 +12,8 @@
         @if (bouncer()->hasPermission('quotes'))
             <div class="p-3">
                 {{-- Cabecera: crear desde cero o recotizar copiando la última.
-                     Recotizar es lo habitual —el cliente pide otra cantidad o
-                     se le mejora el precio— y antes obligaba a transcribir a
+                     Recotizar es lo habitual -el cliente pide otra cantidad o
+                     se le mejora el precio- y antes obligaba a transcribir a
                      mano el cliente y las ocho condiciones comerciales. --}}
                 <div v-if="quotes.length" class="mb-3 flex items-center justify-end gap-2">
                     <a

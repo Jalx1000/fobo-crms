@@ -1,4 +1,4 @@
-# Spec: Tablero — Distribución del tiempo de respuesta
+# Spec: Tablero - Distribución del tiempo de respuesta
 
 Estado: **implementado** (20/10/2026). Pedido del usuario: «agregar gráfica de tiempo en responder
 (igual que la de kohlberg)».

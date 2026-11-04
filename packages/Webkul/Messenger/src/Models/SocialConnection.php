@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Webkul\Messenger\Contracts\SocialConnection as SocialConnectionContract;
 
 /**
- * A connected social account — for Messenger, one Facebook page: its id and the
+ * A connected social account - for Messenger, one Facebook page: its id and the
  * page access token replies are sent with.
  *
  * Credentials live in the database rather than the environment because a tenant

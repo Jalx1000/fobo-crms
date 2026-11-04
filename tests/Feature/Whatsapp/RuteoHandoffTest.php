@@ -12,7 +12,7 @@ use Webkul\Whatsapp\Services\AgentPayload;
  * conversación ya derivada.
  *
  * La causa era una inconsistencia nuestra: el gate de ruteo miraba
- * `aiEffective()` —«¿está encendida la IA?»— mientras que el endpoint de envío
+ * `aiEffective()` -«¿está encendida la IA?»- mientras que el endpoint de envío
  * rechazaba con 409 por `handoffOpen()`. El CRM invitaba a responder y después
  * rechazaba la respuesta.
  */
@@ -97,8 +97,8 @@ it('el gate de ruteo y el de envío miran lo mismo', function () {
 it('el historial dice quién escribió cada mensaje, no solo si es entrante', function () {
     /*
      * Reportado el 16/09: dos clientes escribieron tres y cuatro veces sin que
-     * nadie les contestara. El CRM entregaba los eventos —el gate estaba
-     * abierto y el agente contestaba en otras conversaciones el mismo minuto—,
+     * nadie les contestara. El CRM entregaba los eventos -el gate estaba
+     * abierto y el agente contestaba en otras conversaciones el mismo minuto-,
      * pero el historial mandaba TODO lo saliente como `assistant`, así que las
      * palabras del asesor le llegaban al agente como propias. Un «Ok gracias
      * por escribirnos» escrito por un humano lo dejaba convencido de que ya se

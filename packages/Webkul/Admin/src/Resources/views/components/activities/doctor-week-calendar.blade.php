@@ -84,7 +84,7 @@
 
                         <div v-for="ev in dayDoctorEvents(day.date, columns[0].id)" :key="'ev-sd-'+ev.id" class="dwc-event" :style="{ top: ev.top + 'px', height: ev.height + 'px' }">
                             <div class="dwc-event-title">@{{ ev.title || ev.type }}</div>
-                            <div class="dwc-event-time">@{{ formatTime(ev.start) }} — @{{ formatTime(ev.end) }}</div>
+                            <div class="dwc-event-time">@{{ formatTime(ev.start) }} - @{{ formatTime(ev.end) }}</div>
                             <div class="flex items-center gap-2 mt-1">
                                 <a :href="editUrl(ev.id)" class="icon-edit text-xl"></a>
                                 <button type="button" class="icon-delete text-xl text-red-600" @click.stop="remove(ev)"></button>
@@ -112,7 +112,7 @@
 
                         <div v-for="ev in dayDoctorEvents(day.date, col.id)" :key="'ev-'+ev.id" class="dwc-event" :style="{ top: ev.top + 'px', height: ev.height + 'px' }">
                             <div class="dwc-event-title">@{{ ev.title || ev.type }}</div>
-                            <div class="dwc-event-time">@{{ formatTime(ev.start) }} — @{{ formatTime(ev.end) }} · @{{ day.label }}</div>
+                            <div class="dwc-event-time">@{{ formatTime(ev.start) }} - @{{ formatTime(ev.end) }} · @{{ day.label }}</div>
                             <div class="flex items-center gap-2 mt-1">
                                 <a :href="editUrl(ev.id)" class="icon-edit text-xl"></a>
                                 <button type="button" class="icon-delete text-xl text-red-600" @click.stop="remove(ev)"></button>
@@ -368,7 +368,7 @@
                 if (!this.days.length) return '';
                 const s = new Date(this.days[0].date);
                 const e = new Date(this.days[this.days.length - 1].date);
-                return `${this.formatDate(s)} — ${this.formatDate(e)}`;
+                return `${this.formatDate(s)} - ${this.formatDate(e)}`;
             },
             columns() {
                 const ids = new Set(this.selectedDoctorIds.map(id => Number(id)));

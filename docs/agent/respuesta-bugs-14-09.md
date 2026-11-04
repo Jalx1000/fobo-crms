@@ -9,9 +9,9 @@
 
 | # | Reporte | Veredicto | Qué hacer |
 |---|---|---|---|
-| 1 | Cotizaciones sin líneas | **Diagnóstico incorrecto** — las líneas se crean bien. Lo que fallaba era la LECTURA | Usar el nuevo `GET /productos/cotizaciones/{id}`, o leer `items` del 201 |
+| 1 | Cotizaciones sin líneas | **Diagnóstico incorrecto** - las líneas se crean bien. Lo que fallaba era la LECTURA | Usar el nuevo `GET /productos/cotizaciones/{id}`, o leer `items` del 201 |
 | 2 | HTTP 500 al leer una cotización | **Confirmado**, pero es 500 por *inexistente*, no por relación nula | Mismo endpoint nuevo: devuelve 404 |
-| 3 | Handoff `requested` no apaga la IA | **Confirmado — bug nuestro. Corregido** | Quitar el guard defensivo si molesta; ya no hace falta |
+| 3 | Handoff `requested` no apaga la IA | **Confirmado - bug nuestro. Corregido** | Quitar el guard defensivo si molesta; ya no hace falta |
 | 4 | Messenger cae en el id-space de WhatsApp | **Parcialmente incorrecto**: es el mismo espacio a propósito | Se rutea al agente; botones ya soportados (quick replies) |
 | 5 | Confirmaciones | **Las tres respondidas** por el negocio el 14/09 | Ver abajo |
 
@@ -31,7 +31,7 @@ En la base quedó: `sku=CM_00002 · tr4=020117-0035 · cantidad=20 · precio=10.
 TR4 correcto para 50 L, cantidad y precio correctos.
 
 **Lo que falla es `GET /api/v1/quotes/{id}`**: el `QuoteResource` de Krayin **no
-incluye `items` en ninguna forma** — no es que devuelva un array vacío, es que la
+incluye `items` en ninguna forma** - no es que devuelva un array vacío, es que la
 clave no existe. Sus campos son: `id, description, expired_at, subject, person,
 user, billing_address, shipping_address, sub_total, discount_amount, tax_amount,
 adjustment_amount, grand_total, updated_at, created_at`.
@@ -43,11 +43,11 @@ Vuestro `jq '{subject, items}'` produce `"items": null` sobre una clave ausente.
 **a)** El `201` de `crear_cotizacion` ahora devuelve las líneas:
 
 ```json
-{ "quote_id": 803, "asunto": "Bolsas Magia Verde — 50 L · TRADICIONAL · Santa Cruz",
+{ "quote_id": 803, "asunto": "Bolsas Magia Verde - 50 L · TRADICIONAL · Santa Cruz",
   "total": 210, "entrega": {...},
   "items": [{
     "sku": "CM_00002",
-    "descripcion": "Bolsas Magia Verde — 50 L · TRADICIONAL · Santa Cruz",
+    "descripcion": "Bolsas Magia Verde - 50 L · TRADICIONAL · Santa Cruz",
     "variante": {"Tamaño": "50 L"},
     "codigo_tr4": "020117-0035", "codigo_barra": "7779970880037",
     "medida": "(65×80) cm", "unidad": "PZA",
@@ -55,12 +55,12 @@ Vuestro `jq '{subject, items}'` produce `"items": null` sobre una clave ausente.
   }] }
 ```
 
-**b)** Endpoint de lectura nuevo: **`GET /api/v1/productos/cotizaciones/{id}`** —
+**b)** Endpoint de lectura nuevo: **`GET /api/v1/productos/cotizaciones/{id}`** -
 con líneas, y **404 cuando no existe**.
 
 > Sobre las cotizaciones 437 y 679: sus ítems tienen `created_at` **posterior** a
 > la cotización (una hora y nueve minutos después) y datos de carga manual
-> (437: TR4 de 35 L, cantidad 1, precio 0 — cuando el pedido era 50 L × 20).
+> (437: TR4 de 35 L, cantidad 1, precio 0 - cuando el pedido era 50 L × 20).
 > Alguien las abrió en el CRM y agregó la línea a mano. No puedo probar si la
 > original se creó y se perdió, o nunca se creó: son de antes de que el endpoint
 > devolviera las líneas. **La 680 (Hules, 12:10) se creó con su ítem en el mismo
@@ -83,13 +83,13 @@ devuelve 404.
 
 ---
 
-## 3. Handoff `requested` — bug nuestro, corregido
+## 3. Handoff `requested` - bug nuestro, corregido
 
 Tenían razón y era una inconsistencia nuestra:
 
 | Dónde | Qué miraba |
 |---|---|
-| Ruteo (`IngestInboundPayload`, `NotifyAgent`) | `aiEffective()` — solo «¿está encendida la IA?» |
+| Ruteo (`IngestInboundPayload`, `NotifyAgent`) | `aiEffective()` - solo «¿está encendida la IA?» |
 | Envío (`AgentController::send`) | `handoffOpen()` → 409 |
 
 O sea: **el CRM invitaba al agente a responder y después rechazaba la respuesta.**
@@ -101,7 +101,7 @@ y cubre `requested` **y** `assigned`. Además el payload dice la verdad:
 { "ai_enabled": false, "handoff": { "open": true, "state": "requested" } }
 ```
 
-`ai_enabled` pasa a significar «¿contestás vos?», no «¿está encendida la IA?» —
+`ai_enabled` pasa a significar «¿contestás vos?», no «¿está encendida la IA?» -
 con un handoff pedido son cosas distintas: la IA sigue encendida porque el asesor
 puede devolver la conversación.
 
@@ -118,7 +118,7 @@ la misma tabla, con `gateway = 'messenger'`, y **el endpoint
 Verificado: hay 21 conversaciones de Messenger; la 583 existe y su driver resuelve
 a `MessengerGateway`.
 
-**El 404 de la 2263 no es de ruteo: esa conversación no existe** — ni ella ni
+**El 404 de la 2263 no es de ruteo: esa conversación no existe** - ni ella ni
 ninguna entre la 2255 y la 2275. Las de Messenger llegan hasta la 588. Si tienen
 el `message.received` completo de ese evento, mándenmelo y lo rastreo.
 
@@ -171,7 +171,7 @@ nuevo (sección CASOS QUE NO SE COTIZAN).
 **HOGAR sigue con `cotiza: false` a propósito**: no hay precio propio para ese
 canal. Lo que cambia es que la nota les dice exactamente qué hacer en cada caso.
 
-**5.2 · `marca` — ahora sí se acepta.** Hasta hoy el endpoint **la ignoraba en
+**5.2 · `marca` - ahora sí se acepta.** Hasta hoy el endpoint **la ignoraba en
 silencio** (no estaba en la validación). Ya está: se manda por **nombre**,
 tolerante a acentos y mayúsculas, y se guarda como opción del atributo.
 
@@ -185,7 +185,7 @@ del PDF. Sin marca sale con el azul y el logo por defecto.
 **5.3 · Máximos: CONFIRMADO, no hay tope (14/09).** No existe ni en el modelo
 de datos ni en el negocio. No hay que cargar nada ni validar cantidad máxima. Si
 algún día se define uno, se agrega como campo del producto y aparece en
-`precio_producto` igual que el mínimo — ustedes no tendrían que cambiar nada.
+`precio_producto` igual que el mínimo - ustedes no tendrían que cambiar nada.
 
 ---
 
@@ -208,4 +208,4 @@ curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/productos/cotizaciones/99999999
 ```
 
 Para el handoff: derivar una conversación y mandarle otro mensaje al bot. El
-`message.received` tiene que llegar con `ai_enabled: false` — o no llegar.
+`message.received` tiene que llegar con `ai_enabled: false` - o no llegar.

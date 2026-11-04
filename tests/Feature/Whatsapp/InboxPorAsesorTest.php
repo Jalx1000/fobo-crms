@@ -6,7 +6,7 @@ use Webkul\Whatsapp\Models\Conversation;
 
 /**
  * Inbox por asesor (spec docs/specs/tablero-por-asesor.md, D8–D11): un
- * ejecutivo ve y atiende solo sus conversaciones —las mismas de «Míos»—;
+ * ejecutivo ve y atiende solo sus conversaciones -las mismas de «Míos»-;
  * Administrador y Supervisores ven todas las que tienen contacto o pedido, y
  * las que no tienen ninguno de los dos solo el Administrador.
  */

@@ -1,4 +1,4 @@
-# TODO — CRM inmobiliario Century 21
+# TODO - CRM inmobiliario Century 21
 
 **Spec:** `docs/specs/crm-inmobiliario-c21.md` · **Plan:** `tasks/plan-crm-inmobiliario.md`
 **Estado: ejecutado el 2026-08-25.** Solo escrituras en DB. Cero código. Cero n8n.
@@ -62,6 +62,6 @@ tarea 04. Levantó solo, la recuperación XA de InnoDB terminó limpia y no hubo
 
 ## Fuera de este lote
 
-- Los 7 workflows con `trigger_webhook` — diseñados en el spec, no implementados (sin n8n)
+- Los 7 workflows con `trigger_webhook` - diseñados en el spec, no implementados (sin n8n)
 - Asignación automática de `user_id` a Danitza Cuellar (`kl_users.id = 2`): requiere workflow
 - Los 20 leads migrados conservan su `user_id` original de imprenta

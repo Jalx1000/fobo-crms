@@ -1,4 +1,4 @@
-# TODO — Agente de IA de Imprimir (auditoría del 12/10/2026)
+# TODO - Agente de IA de Imprimir (auditoría del 12/10/2026)
 
 > **Para:** equipo que mantiene el agente (Python · LangChain / LangGraph).
 > **Base:** 303 conversaciones reales y ~2.400 mensajes del 02/10 al 12/10/2026 (301 por Kommo y 2 por Messenger).
@@ -8,7 +8,7 @@ Los cambios del lado del CRM van en otro documento (`auditoria-2026-10-12-todo-c
 
 ---
 
-## P0 — El agente NO menciona precios (decisión del negocio, 12/10)
+## P0 - El agente NO menciona precios (decisión del negocio, 12/10)
 
 **Regla.** El agente **nunca** dice un precio, un total, un monto en Bs ni un rango ("desde X Bs"), aunque el cliente insista. El precio lo da **la cotización**, que prepara y envía el asesor.
 
@@ -20,7 +20,7 @@ Los cambios del lado del CRM van en otro documento (`auditoria-2026-10-12-todo-c
 
 ---
 
-## P1 — Toda promesa de cotización termina en `crear_cotizacion`
+## P1 - Toda promesa de cotización termina en `crear_cotizacion`
 
 **Problema.** En 50 conversaciones el agente dijo "Con estos datos preparo su cotización y en breve se la hacemos llegar", y en **33 no se creó ninguna cotización**. En muchas ni siquiera se llamó a `crear_cotizacion`. El cliente queda esperando algo que no existe.
 
@@ -40,7 +40,7 @@ Conversaciones sin cotización: 3689, 3700, 3707, 4253, 4261, 4368, 4371, 4422, 
 
 ---
 
-## P2 — Traducir lo que dice el cliente a los valores del catálogo
+## P2 - Traducir lo que dice el cliente a los valores del catálogo
 
 Hace falta para que `crear_cotizacion` reciba criterios válidos:
 
@@ -56,7 +56,7 @@ Hace falta para que `crear_cotizacion` reciba criterios válidos:
 
 ---
 
-## P1b — Responder primero lo que pregunta el anuncio (sin precios)
+## P1b - Responder primero lo que pregunta el anuncio (sin precios)
 
 El 79 % de las conversaciones empieza con el texto de un anuncio ("¿Cuáles son los tamaños disponibles del Stretch Film?" 102, "¿Cuánto cuesta la bolsa XXL?" 81, "¿Cuánto cuesta la bolsa de 140L?" 54), y 101 de 303 terminan sin un segundo mensaje.
 
@@ -66,7 +66,7 @@ El 79 % de las conversaciones empieza con el texto de un anuncio ("¿Cuáles son
 
 ---
 
-## P3 — No repetir menús ni la presentación
+## P3 - No repetir menús ni la presentación
 
 **Problema.** Hubo 54 casos del mismo mensaje repetido dentro de una misma conversación, repartidos en 46 conversaciones. En la conversación 5107 el agente mandó **4 veces** la misma presentación con su foto mientras el cliente elegía tamaños:
 ```
@@ -88,7 +88,7 @@ La causa principal es que, por Kommo, **la opción elegida en un menú llega com
 
 ---
 
-## P4 — Contestar varios mensajes seguidos como uno solo
+## P4 - Contestar varios mensajes seguidos como uno solo
 
 **Problema.** Hubo 156 ráfagas, en las que el cliente manda 2 o más mensajes en menos de 60 s, y el agente contesta cada uno por separado (106 veces fueron 2 mensajes y 2 respuestas). En la conversación 3686 el cliente escribió "Buenas tardes" y 2 s después preguntó por bolsas al vacío. El agente respondió el saludo con la presentación de Magia Verde y recién al tercer mensaje dijo que no las fabrican.
 
@@ -98,7 +98,7 @@ La causa principal es que, por Kommo, **la opción elegida en un menú llega com
 
 ---
 
-## P5 — Manejar mejor los errores
+## P5 - Manejar mejor los errores
 
 **Problema.** Entre el 07/10 a las 21:08 y el 08/10 a las 08:48 el agente respondió **23 veces** "Disculpe, ocurrió un error. Por favor intente de nuevo en un momento 🙏." Fueron unas 12 horas y nadie se enteró.
 
@@ -109,7 +109,7 @@ La causa principal es que, por Kommo, **la opción elegida en un menú llega com
 
 ---
 
-## P6 — Mensajes sin contenido
+## P6 - Mensajes sin contenido
 
 **Problema.** 28 conversaciones empiezan con "Unable to display this message in CRM. View it in the WhatsApp Business app" y 4 con "Unable to open this message…". Kommo no le pasa al CRM el contenido real (suelen ser mensajes de anuncios o tipos que Kommo no soporta).
 

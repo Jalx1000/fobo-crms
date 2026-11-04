@@ -20,7 +20,7 @@ hello_world    en_US    APPROVED    UTILITY
 ```
 
 **No lleva parámetros**: el cuerpo es texto fijo. Por eso el pedido va **sin
-`components`** — mandárselos devuelve el error `132000` («number of parameters
+`components`** - mandárselos devuelve el error `132000` («number of parameters
 does not match»).
 
 ## El curl
@@ -72,7 +72,7 @@ curl --location 'https://graph.facebook.com/v21.0/1243549565512876/messages' \
     }
 }'
 
-`to`: formato internacional **sin `+`, sin espacios y sin guiones** —
+`to`: formato internacional **sin `+`, sin espacios y sin guiones** -
 `59175640698`, no `+591 75640698`.
 
 ## Qué responde

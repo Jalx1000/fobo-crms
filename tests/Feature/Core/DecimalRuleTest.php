@@ -12,7 +12,7 @@ use Webkul\Core\Contracts\Validations\Decimal;
  * valor que acababa de leer no pasaba su propia validación.
  *
  * Resultado: **editar cualquier producto con precio era imposible**. Y no solo
- * productos — la regla la usan todos los atributos `price` del CRM, incluido
+ * productos - la regla la usan todos los atributos `price` del CRM, incluido
  * `lead_value` de las oportunidades.
  */
 function pasaDecimal(mixed $valor): bool

@@ -63,7 +63,7 @@ class NormalizePhones extends Command
             });
 
         $this->info(sprintf(
-            '%s — scanned %d person(s), %d would change%s.',
+            '%s - scanned %d person(s), %d would change%s.',
             $apply ? 'Applied' : 'Dry-run',
             $scanned,
             $changed,

@@ -163,7 +163,7 @@
                  * The channel currently applied, for the select to show.
                  *
                  * The value arrives as an array when the column allows multiple
-                 * values and as a bare string otherwise, so both are handled —
+                 * values and as a bare string otherwise, so both are handled -
                  * reading the wrong one leaves the select blank while a filter
                  * is actually applied.
                  */
@@ -191,7 +191,7 @@
                 applyPlatform($event) {
                     const value = $event.target.value;
 
-                    // Every other panel filter is carried over untouched — only
+                    // Every other panel filter is carried over untouched - only
                     // the channel is being changed.
                     const columns = (this.applied?.filters?.columns ?? []).filter(
                         column => column.index !== 'all' && column.index !== 'platform'

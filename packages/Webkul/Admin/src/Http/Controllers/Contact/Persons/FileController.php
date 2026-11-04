@@ -15,7 +15,7 @@ class FileController extends Controller
     ) {}
 
     /**
-     * Every file ever exchanged with this contact — their own activities plus
+     * Every file ever exchanged with this contact - their own activities plus
      * everything belonging to any of their leads.
      */
     public function index(int $id): JsonResponse

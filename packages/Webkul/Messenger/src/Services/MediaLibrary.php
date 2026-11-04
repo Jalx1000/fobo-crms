@@ -12,7 +12,7 @@ use Throwable;
  *
  * Meta's CDN URLs are signed and expire within days, so hot-linking one means
  * every old thread eventually shows a broken avatar. Stored on the `public`
- * disk and served by URL — the same convention inbound WhatsApp media already
+ * disk and served by URL - the same convention inbound WhatsApp media already
  * follows.
  */
 class MediaLibrary

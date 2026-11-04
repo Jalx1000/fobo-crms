@@ -1,4 +1,4 @@
-# Round robin de asesores — a quién derivar (15/09/2026)
+# Round robin de asesores - a quién derivar (15/09/2026)
 
 ## Qué cambia para el agente
 
@@ -19,14 +19,14 @@ Equipo cargado hoy:
 
 | Producto (SKU) | Santa Cruz | La Paz | Cochabamba | Bolivia (resto) |
 |---|---|---|---|---|
-| Stretch Film (CM_00001) | — | Gabriela Marconi | Mauricio Garces | Bulmaro Vaca · Mariano Pinell |
-| Bolsas Magia Verde (CM_00002) | — | Gabriela Marconi | Mauricio Garces | Eduardo Lujan · Mariano Pinell |
+| Stretch Film (CM_00001) | - | Gabriela Marconi | Mauricio Garces | Bulmaro Vaca · Mariano Pinell |
+| Bolsas Magia Verde (CM_00002) | - | Gabriela Marconi | Mauricio Garces | Eduardo Lujan · Mariano Pinell |
 | Hules (CM_00003) | Fabio Sandoval | Gabriela Marconi | Mauricio Garces | Mariano Pinell |
-| Tapas (CM_00004) | — | Gabriela Marconi | Mauricio Garces | Mariano Pinell |
+| Tapas (CM_00004) | - | Gabriela Marconi | Mauricio Garces | Mariano Pinell |
 
-(«—» = nadie local → cae en Bolivia. Se edita en la ficha de cada usuario —*Configuración → Usuarios*, sección «Atiende»— y se ve completa en *Configuración → Equipo de ventas*.)
+(«-» = nadie local → cae en Bolivia. Se edita en la ficha de cada usuario -*Configuración → Usuarios*, sección «Atiende»- y se ve completa en *Configuración → Equipo de ventas*.)
 
-## 1. Mandar la ciudad — `POST …/conversations/{id}/cotizacion`
+## 1. Mandar la ciudad - `POST …/conversations/{id}/cotizacion`
 
 Campo nuevo, opcional: **`ciudad`** (texto libre: «Santa Cruz», «la paz»,
 «Cochabamba», «Tarija»…). **Mándenla siempre**: la `Zona` de los criterios no
@@ -42,13 +42,13 @@ La ciudad además **queda guardada** en la cotización y se copia sola a la fich
 del contacto (y a su oportunidad). Consecuencia práctica: a partir de la segunda
 consulta de ese cliente el CRM ya sabe de dónde es, así que si no mandan
 `ciudad` igual elige bien al asesor. Mandarla siempre sigue siendo lo correcto
-—es el dato más fresco—, pero olvidarla ya no manda todo a cobertura nacional.
+-es el dato más fresco-, pero olvidarla ya no manda todo a cobertura nacional.
 
 Si el contacto y la cotización traen ciudades distintas, **no se pisan**: queda
 cada una como está y alguien lo corrige a mano. Misma regla que el NIT.
 
 La respuesta 201 trae ahora **`asesor`** (o `null` si nadie atiende esa
-combinación — la cotización queda con el dueño que tenía):
+combinación - la cotización queda con el dueño que tenía):
 
 ```json
 "asesor": { "id": 1053, "nombre": "Gabriela Marconi",
@@ -60,7 +60,7 @@ combinación — la cotización queda con el dueño que tenía):
 le va a escribir en horario de 08:00 a 19:00»*. No inventen teléfono cuando
 viene `null`.
 
-## 2. Derivar — `POST /api/v1/whatsapp/conversations/{id}/handoff`
+## 2. Derivar - `POST /api/v1/whatsapp/conversations/{id}/handoff`
 
 Campos nuevos, opcionales: **`sku`** y **`ciudad`**. Con los dos, la
 conversación cae directo en la bandeja del asesor del turno (o del que ya
@@ -76,7 +76,7 @@ handoff sin `sku` cae en la misma persona. Mandar `sku`+`ciudad` igual no
 hace daño (es idempotente: no cambia de asesor a un contacto que ya tiene
 uno que atiende).
 
-## 3. Consultar sin asignar — `GET /api/v1/productos/responsables?sku=…&ciudad=…`
+## 3. Consultar sin asignar - `GET /api/v1/productos/responsables?sku=…&ciudad=…`
 
 Para contestar «¿con quién hablo por hules en La Paz?» o presentar al asesor
 **antes** de derivar. No mueve el turno.

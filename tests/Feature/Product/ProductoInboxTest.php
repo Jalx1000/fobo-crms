@@ -24,7 +24,7 @@ beforeEach(function () {
 afterEach(function () {
     // Defensivo: si beforeEach falló a mitad (el repositorio inserta el
     // producto y recién después guarda los atributos), $this->producto puede
-    // no existir — pero la fila sí. Sin esto, una corrida fallida deja
+    // no existir - pero la fila sí. Sin esto, una corrida fallida deja
     // productos huérfanos en la base compartida.
     if (! isset($this->producto)) {
         return;

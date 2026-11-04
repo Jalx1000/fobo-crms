@@ -6,7 +6,7 @@ Ejecutar en orden. Cada tarea deja el repo en verde.
 
 ---
 
-## Slice 0 — Alta de la plantilla (humano, arrancar ya, en paralelo)
+## Slice 0 - Alta de la plantilla (humano, arrancar ya, en paralelo)
 
 - [ ] **Dar de alta `cotizacion_documento` en WhatsApp Manager**
   - Aceptación: plantilla en estado *Approved*, categoría **Utility**, idioma
@@ -18,7 +18,7 @@ Ejecutar en orden. Cada tarea deja el repo en verde.
 
 ---
 
-## Slice 1 — El gateway sabe mandar una plantilla
+## Slice 1 - El gateway sabe mandar una plantilla
 
 - [x] **Crear el DTO `OutboundTemplate`**
   - Aceptación: `final class` inmutable con `name`, `language`, `bodyParams`,
@@ -46,7 +46,7 @@ Ejecutar en orden. Cada tarea deja el repo en verde.
 
 ---
 
-## Slice 2 — La tubería elige el camino
+## Slice 2 - La tubería elige el camino
 
 - [x] **Agregar el bloque `templates` a la config**
   - Aceptación: `config('whatsapp.templates.quote')` devuelve `name` y
@@ -73,7 +73,7 @@ Ejecutar en orden. Cada tarea deja el repo en verde.
 
 ---
 
-## Slice 3 — La cotización la usa
+## Slice 3 - La cotización la usa
 
 - [x] **Quitar el rechazo por ventana cerrada y armar los parámetros del body**
   - Aceptación: `sendWhatsapp()` ya no devuelve 422 por ventana; arma las 4
@@ -101,7 +101,7 @@ Ejecutar en orden. Cada tarea deja el repo en verde.
 
 **Checkpoint 3:** 14 tests nuevos verdes. La suite completa queda en el mismo
 baseline que HEAD (78 fallos, todos por la DB inalcanzable desde el host de
-desarrollo — verificado con `git stash`).
+desarrollo - verificado con `git stash`).
 
 > `lang/es/app.php` no pasa `pint --test`, pero **ya fallaba en HEAD**: las
 > violaciones están en bloques que este trabajo no toca (`participants`,
@@ -110,7 +110,7 @@ desarrollo — verificado con `git stash`).
 
 ---
 
-## Checkpoint final — E2E (bloqueado por Slice 0)
+## Checkpoint final - E2E (bloqueado por Slice 0)
 
 - [ ] **Envío real a un número de prueba, fuera de la ventana**
   - Aceptación: llega el PDF con el body correcto; aparece en el hilo del inbox

@@ -54,7 +54,7 @@ class SendMessage implements ShouldQueue
 
     /**
      * Route the row to the right gateway call. The message `type` is the single
-     * source of truth — it is what the composer set and what the thread renders.
+     * source of truth - it is what the composer set and what the thread renders.
      */
     protected function deliver(GatewayManager $gateways, $message): SendResult
     {

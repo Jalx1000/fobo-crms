@@ -1,11 +1,11 @@
-# Sprint 2 — Envío de mensajes + estados de entrega
+# Sprint 2 - Envío de mensajes + estados de entrega
 
 **Duración:** 1 semana (~5 días-dev) · **Objetivo:** que un agente humano responda desde el CRM y
 envíe texto, imagen, documento, audio y reply, viendo el estado de entrega (✓/✓✓).
 
 ## Historias
 
-### HU-09 · Endpoint de envío + `SendJob` → Cloud API — 2d `[BACK]`
+### HU-09 · Endpoint de envío + `SendJob` → Cloud API - 2d `[BACK]`
 - `POST /api/v1/whatsapp/conversations/{id}/messages` (body: `type`, `text`, adjunto, `reply_to_id`).
 - Persiste mensaje `direction=outbound`, `status=queued`, `sender=human` y encola `SendJob`.
 - `SendJob`: para media hace `POST /{phone-number-id}/media` (upload) y luego
@@ -15,12 +15,12 @@ envíe texto, imagen, documento, audio y reply, viendo el estado de entrega (✓
 - Los 5 tipos MVP (texto/imagen/documento/audio/reply) salen y llegan al teléfono.
 - Fallo de Cloud API deja el mensaje en `failed`, no rompe el request.
 
-### HU-10 · Webhook de statuses (delivered/read/failed) — 1d `[BACK]`
+### HU-10 · Webhook de statuses (delivered/read/failed) - 1d `[BACK]`
 Completar la rama `statuses[]` del `IngestJob`: mapear `sent/delivered/read/failed` al mensaje por
 `wa_message_id` y broadcast del cambio de estado.
 **AC:** el estado del mensaje se actualiza y se refleja en el front vía Echo.
 
-### HU-11 · Composer en el front + estados — 2d `[FRONT]`
+### HU-11 · Composer en el front + estados - 2d `[FRONT]`
 - Input de texto + botón adjuntar (imagen/documento/audio) + acción "responder" (cita el mensaje).
 - Envío optimista (mensaje aparece como `queued` antes de confirmar).
 - Indicadores de estado por mensaje: reloj (queued) → ✓ (sent) → ✓✓ (delivered) → ✓✓ azul (read).

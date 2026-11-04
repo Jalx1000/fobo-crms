@@ -37,7 +37,7 @@ class DerivacionSinRespuesta extends Mailable
         $lista = '';
 
         foreach ($mensajes as $m) {
-            $lista .= '<li style="margin:2px 0;">'.e(optional($m->created_at)->format('d/m H:i')).' — '
+            $lista .= '<li style="margin:2px 0;">'.e(optional($m->created_at)->format('d/m H:i')).' - '
                 .e(\Illuminate\Support\Str::limit((string) ($m->body ?: '['.$m->type.']'), 200)).'</li>';
         }
 

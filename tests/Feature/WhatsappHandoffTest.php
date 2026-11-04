@@ -11,8 +11,8 @@ use Webkul\Whatsapp\Models\Conversation;
 use Webkul\Whatsapp\Services\Handoff;
 
 /**
- * The suite has no dedicated test database — phpunit.xml does not override the
- * connection — so every test here rolls back instead of leaving rows behind.
+ * The suite has no dedicated test database - phpunit.xml does not override the
+ * connection - so every test here rolls back instead of leaving rows behind.
  */
 uses(DatabaseTransactions::class);
 
@@ -180,7 +180,7 @@ it('pools the handoff when the owner is deactivated', function () {
     Queue::fake();
 
     // Otherwise it would sit "assigned" to a dead mailbox, invisible in the
-    // pool, while the customer waits — and we tell the customer nothing.
+    // pool, while the customer waits - and we tell the customer nothing.
     $owner = makeAdvisor('Gone Advisor', status: 0);
     $person = makePerson($owner);
 
@@ -605,7 +605,7 @@ it('emails the active CRM users when nobody owns the contact', function () {
     $conversation = makeConversation();
     handoffService()->request($conversation);
 
-    // The address is the one they log in with — no second list to maintain.
+    // The address is the one they log in with - no second list to maintain.
     Mail::assertSent(HandoffRequested::class, fn ($mail) => $mail->hasTo($email));
 });
 

@@ -51,7 +51,7 @@ class AgentPayload
                 'parts'     => $parts,
                 /*
                 | Presente solo cuando el cliente tocó un botón o eligió de una
-                | lista. `text` ya trae el título —lo que el cliente ve—, pero el
+                | lista. `text` ya trae el título -lo que el cliente ve-, pero el
                 | agente debe rutear por el `id`: los títulos se acortan a 20/24
                 | caracteres y pueden repetirse entre menús, el id no.
                 */
@@ -151,7 +151,7 @@ class AgentPayload
      * Kommo entrega el toque de un botón o fila como un mensaje de texto con el
      * título, sin el `interactive` de Meta, y el agente repetía el menú porque
      * no sabía qué se había elegido. Se compara el texto con las opciones del
-     * ÚLTIMO menú enviado —solo ese: los títulos pueden repetirse entre menús—
+     * ÚLTIMO menú enviado -solo ese: los títulos pueden repetirse entre menús-
      * sin distinguir mayúsculas ni espacios en los extremos.
      *
      * @return array{id: string, title: string}|null
@@ -211,7 +211,7 @@ class AgentPayload
      * leía como PROPIAS las palabras de un asesor. Con eso pasó lo del 16/09:
      * un asesor cerró con «Ok gracias por escribirnos», el agente lo tomó como
      * su propia despedida y no volvió a contestarle al cliente, que escribió
-     * tres veces más. El `role` no cambia —los modelos esperan user/assistant—;
+     * tres veces más. El `role` no cambia -los modelos esperan user/assistant-;
      * el quién viaja al lado.
      *
      * @return array<int, array{role: string, sender: ?string, content: ?string, type: string}>

@@ -1,9 +1,9 @@
-# App Review — `pages_messaging` (Advanced Access)
+# App Review - `pages_messaging` (Advanced Access)
 
 > **Por qué**: con Standard Access la User Profile API solo responde por personas
 > con un rol en la app. Los clientes reales devuelven `code 100 / subcode 33`, así
 > que los contactos entran sin nombre ni foto (ver personas 239 y 240 vs. 238).
-> Los mensajes sí llegan — lo que falta es el perfil.
+> Los mensajes sí llegan - lo que falta es el perfil.
 
 Datos del entorno:
 
@@ -103,8 +103,8 @@ Recomendaciones:
 
 ## 4. Llamadas de prueba obligatorias
 
-Meta exige actividad reciente de la API con el permiso. Ya la hay — la página
-recibe y envía mensajes — pero conviene verificarlo antes de enviar:
+Meta exige actividad reciente de la API con el permiso. Ya la hay - la página
+recibe y envía mensajes - pero conviene verificarlo antes de enviar:
 
 - **App Dashboard → App Review → Requests**, sección de llamadas de prueba: tiene
   que figurar `pages_messaging` con actividad de los últimos 30 días.
@@ -153,7 +153,7 @@ contacto y los últimos mensajes, y salen por `mail.sofopolis.com`.
 
 > ⚠️ **Sobre `MESSENGER_AI_ENABLED`**: hasta ahora solo fijaba el default de las
 > conversaciones nuevas, así que un asesor podía encender la IA por conversación
-> desde la bandeja — y ya había ocurrido, es lo que produjo el crash del agente
+> desde la bandeja - y ya había ocurrido, es lo que produjo el crash del agente
 > con datos de Messenger.
 >
 > Ya se corrigió: ahora es un **interruptor de canal**. Con `false`, ninguna
@@ -163,7 +163,7 @@ contacto y los últimos mensajes, y salen por `mail.sofopolis.com`.
 >
 > - Si va a quedar en `false`, los datos de Messenger **no** salen hacia Railway
 >   y no hace falta listarlo como encargado para este canal.
-> - Si se activa en algún momento, **sí** salen, y hay que declararlo — además de
+> - Si se activa en algún momento, **sí** salen, y hay que declararlo - además de
 >   la obligación de Meta de informar las experiencias automatizadas (ver el
 >   bloque final de este documento).
 
@@ -191,7 +191,7 @@ Pregunta por entregas a autoridades por pedidos de seguridad nacional en los
 
 **No marcar casillas de políticas que no existen.** Es una declaración formal; si
 no hay procesos escritos, *"Ninguna de las anteriores"* es la respuesta honesta y
-no bloquea la revisión — la pregunta es descriptiva, no un requisito.
+no bloquea la revisión - la pregunta es descriptiva, no un requisito.
 
 ---
 
@@ -201,13 +201,13 @@ no bloquea la revisión — la pregunta es descriptiva, no un requisito.
 |---|---|
 | URL del sitio | `https://imprimir.sofopolis.com/` |
 | URL de login | `https://imprimir.sofopolis.com/admin/login` |
-| `fblogin-web-1` | **No** — no hay Facebook Login (sin Socialite ni config de Facebook) |
+| `fblogin-web-1` | **No** - no hay Facebook Login (sin Socialite ni config de Facebook) |
 | `accesscode-web-1` | usuario y contraseña del revisor |
-| `accesscode-web-2` | vacío — no es app de tienda |
+| `accesscode-web-2` | vacío - no es app de tienda |
 | `geo-web-5` | vacío, o "sin restricción geográfica" |
 | `documents-web-1` | el video del guion de la sección 3 |
 
-### `instructions-web-2` — español
+### `instructions-web-2` - español
 
 ```
 ACCESO
@@ -248,7 +248,7 @@ aparecerá sin nombre ni foto: esa es exactamente la limitación que esta
 solicitud busca levantar.
 ```
 
-### `instructions-web-2` — inglés
+### `instructions-web-2` - inglés
 
 ```
 ACCESS
@@ -277,7 +277,7 @@ NOTE
 ----
 We currently have Standard Access, so the User Profile API only resolves
 for accounts with a role on the app. If your account has no role, the
-thread will show no name or picture — which is precisely the limitation
+thread will show no name or picture - which is precisely the limitation
 this request aims to lift.
 ```
 
@@ -307,8 +307,8 @@ no un scope a nivel de datos. Endurecerlo requiere desarrollo, no configuración
 
 El CRM tiene un agente de IA que puede responder automáticamente. **Hoy está
 apagado por defecto en Messenger** (`MESSENGER_AI_ENABLED=false`), y además está
-fallando por otro motivo, así que la descripción de arriba — atención por asesor
-humano — es exacta tal como está el sistema hoy.
+fallando por otro motivo, así que la descripción de arriba - atención por asesor
+humano - es exacta tal como está el sistema hoy.
 
 Pero Meta exige **declarar las experiencias automatizadas** y que el usuario
 sepa que habla con un bot. Dos caminos:

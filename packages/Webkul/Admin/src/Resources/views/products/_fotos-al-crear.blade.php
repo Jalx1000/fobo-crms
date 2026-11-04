@@ -1,7 +1,7 @@
 {{--
     Carga de imágenes junto con el alta.
 
-    La galería completa —reordenar, portada, borrar, documentos, enlaces—
+    La galería completa -reordenar, portada, borrar, documentos, enlaces-
     necesita el producto ya creado, así que vive en la edición. Pero obligar a
     guardar y volver a entrar solo para subir la primera imagen hacía que los
     productos quedaran sin fotos, que es justo lo que hace falta para poder

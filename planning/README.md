@@ -1,4 +1,4 @@
-# Inbox WhatsApp en el CRM — Planificación Scrum
+# Inbox WhatsApp en el CRM - Planificación Scrum
 
 Feature: convertir el visor solo-lectura `historial-ia.blade.php` en un **inbox tipo WhatsApp**
 dentro del CRM, con recepción y envío de mensajes multimedia y un **switch de agente IA**
@@ -8,7 +8,7 @@ dentro del CRM, con recepción y envío de mensajes multimedia y un **switch de 
 
 | # | Decisión | Elección |
 |---|----------|----------|
-| 1 | Proveedor WhatsApp | **WhatsApp Cloud API (Meta)** — oficial |
+| 1 | Proveedor WhatsApp | **WhatsApp Cloud API (Meta)** - oficial |
 | 2 | Arquitectura del webhook | **Laravel es el hub**. El webhook apunta directo a Laravel; n8n queda como agente externo desacoplado |
 | 3 | Tiempo real navegador | **Laravel Reverb + Echo** (websockets sobre Redis). Sin polling |
 | 4 | Switch IA | **Global (SystemConfig) + override por conversación** |

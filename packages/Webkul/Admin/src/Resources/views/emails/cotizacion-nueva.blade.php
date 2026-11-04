@@ -37,19 +37,19 @@
     {{-- Cliente --}}
     <div style="{{ $bloque }}">
         <p style="{{ $subtitulo }}">Cliente</p>
-        <div style="{{ $fila }}"><strong style="color: #111827;">Nombre:</strong> {{ $person?->name ?? '—' }}</div>
+        <div style="{{ $fila }}"><strong style="color: #111827;">Nombre:</strong> {{ $person?->name ?? '-' }}</div>
         @if ($person?->organization)
             <div style="{{ $fila }}"><strong style="color: #111827;">Organización:</strong> {{ $person->organization->name }}</div>
         @endif
-        <div style="{{ $fila }}"><strong style="color: #111827;">Teléfono:</strong> {{ $telefonos ?: '—' }}</div>
-        <div style="{{ $fila }}"><strong style="color: #111827;">Email:</strong> {{ $emails ?: '—' }}</div>
+        <div style="{{ $fila }}"><strong style="color: #111827;">Teléfono:</strong> {{ $telefonos ?: '-' }}</div>
+        <div style="{{ $fila }}"><strong style="color: #111827;">Email:</strong> {{ $emails ?: '-' }}</div>
     </div>
 
     {{-- Oportunidad --}}
     @if ($lead)
         <div style="{{ $bloque }}">
             <p style="{{ $subtitulo }}">Oportunidad</p>
-            <div style="{{ $fila }}"><strong style="color: #111827;">N°:</strong> #{{ $lead->id }} — {{ $lead->title }}</div>
+            <div style="{{ $fila }}"><strong style="color: #111827;">N°:</strong> #{{ $lead->id }} - {{ $lead->title }}</div>
             @if ($lead->pipeline || $lead->stage)
                 <div style="{{ $fila }}"><strong style="color: #111827;">Etapa:</strong> {{ collect([$lead->pipeline?->name, $lead->stage?->name])->filter()->implode(' › ') }}</div>
             @endif

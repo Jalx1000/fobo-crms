@@ -143,7 +143,7 @@ class DashboardOrdersSheet extends DefaultValueBinder implements FromArray, Shou
      * Date each lead entered its CURRENT stage: the most recent stage-change
      * activity. Stage moves are logged by LogsActivity as a 'system' activity
      * whose `additional.attribute` is the stage attribute's DISPLAY NAME ("Etapa")
-     * — not its code — so we match on that and take MAX(created_at) per lead in a
+     * - not its code - so we match on that and take MAX(created_at) per lead in a
      * single grouped query (no N+1).
      *
      * Leads that never left their initial stage have no such activity, so the

@@ -1,10 +1,10 @@
-# Herramientas del agente (LangChain / LangGraph) — material de productos y opciones tocables
+# Herramientas del agente (LangChain / LangGraph) - material de productos y opciones tocables
 
 **Para:** quien mantiene el agente Python (`langgraph-fastapi-template`).
 **Estado del CRM:** ✅ endpoints implementados, testeados y desplegados.
 **Falta:** las cuatro herramientas del lado del agente.
 
-**Implementación de referencia:** [`langchain/crm_productos.py`](langchain/crm_productos.py) —
+**Implementación de referencia:** [`langchain/crm_productos.py`](langchain/crm_productos.py) -
 copiable, adaptá settings y logging a las convenciones del proyecto.
 
 ---
@@ -21,7 +21,7 @@ La idea que gobierna el diseño de la API:
 > **El agente pide "3 imágenes del SKU X". El CRM decide cuáles, en qué orden y
 > por qué vía. Las rutas de los archivos nunca pasan por el modelo.**
 
-El modelo solo manipula el **SKU** —público, ya aparece en las cotizaciones— y
+El modelo solo manipula el **SKU** -público, ya aparece en las cotizaciones- y
 ve **cuántos** adjuntos hay de cada tipo. Nunca un path, ni una URL de storage,
 ni un id de archivo.
 
@@ -129,7 +129,7 @@ hacer. No la escondas ni la reemplaces por otra fila.
 
 El endpoint que resuelve cuánto se le cobra al cliente. **Es POST y no GET**:
 los ejes llevan acentos (`Tamaño`) y los valores llevan espacios, y en query
-string cada cliente los escapa distinto — una diferencia de encoding se vería
+string cada cliente los escapa distinto - una diferencia de encoding se vería
 como «no hay precio» en vez de como un error.
 
 ```json
@@ -146,7 +146,7 @@ resultado: mandá lo que hayas entendido de la charla sin miedo.
 
 Tres respuestas posibles, todas `200`:
 
-**`resuelto`** — hay una sola fila. Podés dar el precio.
+**`resuelto`** - hay una sola fila. Podés dar el precio.
 
 ```json
 {
@@ -159,7 +159,7 @@ Tres respuestas posibles, todas `200`:
 }
 ```
 
-**`ambiguo`** — faltan ejes. **Preguntá y volvé a llamar.** `faltan` trae solo
+**`ambiguo`** - faltan ejes. **Preguntá y volvé a llamar.** `faltan` trae solo
 los ejes que de verdad cambian el precio entre las candidatas, y `opciones` los
 valores que quedan vivos: preguntar un eje que no discrimina le hace contestar al
 cliente algo que no sirve.
@@ -172,10 +172,10 @@ cliente algo que no sirve.
 }
 ```
 
-**`sin_datos`** — la combinación no está cargada. **No acerques la fila más
+**`sin_datos`** - la combinación no está cargada. **No acerques la fila más
 parecida**: derivá.
 
-Un producto de precio fijo también responde `resuelto`, con su precio de tabla —
+Un producto de precio fijo también responde `resuelto`, con su precio de tabla -
 así podés llamar a esta herramienta siempre, sin decidir antes de qué tipo es.
 
 ### 2.3 `POST /conversations/{conversation_id}/media`
@@ -199,7 +199,7 @@ galería, con la portada primero.
 ### 2.4 `POST /api/v1/whatsapp/conversations/{id}/interactive`
 
 ⚠️ **Prefijo distinto: `/whatsapp`, no `/productos`.** Botones y listas son una
-capacidad genérica del canal, no del catálogo — la misma separación que el CRM
+capacidad genérica del canal, no del catálogo - la misma separación que el CRM
 mantiene del lado del servidor.
 
 **Botones** (hasta 3 opciones):
@@ -236,7 +236,7 @@ mantiene del lado del servidor.
 }
 ```
 
-**Límites de Meta** — los valida el CRM antes de encolar y devuelve **422 con el
+**Límites de Meta** - los valida el CRM antes de encolar y devuelve **422 con el
 campo nombrado**, no el 400 genérico de Meta:
 
 | | Límite |
@@ -272,7 +272,7 @@ Cuando toca una opción, llega como un mensaje entrante normal en el webhook:
 
 ---
 
-## 3. Errores — todos definitivos, ninguno se reintenta
+## 3. Errores - todos definitivos, ninguno se reintenta
 
 | Código | Cuerpo | Qué hace el agente |
 |---|---|---|
@@ -350,7 +350,7 @@ agent = create_react_agent(model, tools=[*HERRAMIENTAS_CRM, *tus_tools], prompt=
 
 **Sobre `httpx`:** la referencia abre un `AsyncClient` por llamada para ser
 copiable sin arrastrar dependencias. Si el proyecto ya tiene uno en el lifespan
-de FastAPI, usá ese — abrir uno por tool-call desperdicia el pool.
+de FastAPI, usá ese - abrir uno por tool-call desperdicia el pool.
 
 **Sobre `tenacity`:** **no** envuelvas estas llamadas en reintentos. Ningún error
 de la tabla del §3 mejora reintentando, y un reintento sobre el POST puede
@@ -369,8 +369,8 @@ enviar_material y mostrar_opciones.
 
 0. NUNCA digas un precio que no te dio precio_producto.
    No calcules, no estimes, no redondeés, no multipliques por cantidad y no
-   repitas un precio de una conversación anterior. Hay productos —bolsas, hules,
-   tapas— cuyo precio depende de lo que el cliente elija, y buscar_productos te
+   repitas un precio de una conversación anterior. Hay productos -bolsas, hules,
+   tapas- cuyo precio depende de lo que el cliente elija, y buscar_productos te
    avisa cuáles diciendo "precio según Tamaño, Canal".
 
    Si precio_producto te contesta que faltan datos, PREGUNTÁ EXACTAMENTE LO QUE
@@ -481,7 +481,7 @@ curl -sS -X POST "$BASE/conversations/123/media" \
 ```
 
 El paso 4 tiene que devolver **404** con
-`"El producto CM_00015 no tiene documentos cargados en el catálogo."` — ese
+`"El producto CM_00015 no tiene documentos cargados en el catálogo."` - ese
 producto tiene 3 imágenes y ningún documento. **Verificado contra la API real.**
 
 > Si el 200 llega pero el mensaje no aparece en WhatsApp, el problema está en el
@@ -494,11 +494,11 @@ producto tiene 3 imágenes y ningún documento. **Verificado contra la API real.
 
 1. Confirmación de que el `args_schema` de `enviar_material` **no** expone
    `config` ni `conversation_id` (§4).
-2. Si alguna regla del §6 choca con el flujo actual — sobre todo
+2. Si alguna regla del §6 choca con el flujo actual - sobre todo
    **"material primero, descripción después"**, que cambia el orden de los
    mensajes que el agente venía mandando.
 3. Qué hace hoy el agente cuando el cliente pide fotos, para comparar el antes y
    el después.
-4. Que el ruteo de la respuesta use `message.selection.id` y no el texto — es el
+4. Que el ruteo de la respuesta use `message.selection.id` y no el texto - es el
    punto donde un menú "funciona" en la demo y falla en producción, cuando dos
    opciones de menús distintos comparten título.

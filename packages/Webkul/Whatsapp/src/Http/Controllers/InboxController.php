@@ -71,7 +71,7 @@ class InboxController extends Controller
             $messages = $messages->map(fn ($message) => $this->transform($message));
 
             // Internal notes live as Krayin note-activities on the linked
-            // person/lead — merge them into the stream chronologically.
+            // person/lead - merge them into the stream chronologically.
             $messages = $messages
                 ->concat($this->notesFor($conversation, $since))
                 ->sortBy('timestamp')
@@ -90,7 +90,7 @@ class InboxController extends Controller
             'server_time'  => $serverTime->toDateTimeString(),
             'capabilities' => $gateway->capabilities()->toArray(),
             // Which channel this thread lives on, already labelled. The header
-            // and the profile drawer render it verbatim — no key ever reaches
+            // and the profile drawer render it verbatim - no key ever reaches
             // the screen, and no channel is assumed to be WhatsApp.
             'channel'      => [
                 'key'    => $gateway->key(),
@@ -156,7 +156,7 @@ class InboxController extends Controller
      * This is the fix for the drift: ConversationResolver picks a lead once, at
      * ingestion (`person->leads()->latest()`), and every order opened afterwards
      * is invisible to the chat. Here the advisor re-points it explicitly, and it
-     * sticks — notes, the AI payload and the list badge all follow `lead_id`.
+     * sticks - notes, the AI payload and the list badge all follow `lead_id`.
      */
     public function setLead(Request $request, string $id): JsonResponse
     {
@@ -447,7 +447,7 @@ class InboxController extends Controller
         $existing = $this->existingConversation($request);
 
         // Capabilities is what the composer renders from, so a type that gets
-        // here without being listed means the UI is stale — not a valid send.
+        // here without being listed means the UI is stale - not a valid send.
         $gateway = $existing ? $this->gateways->for($existing) : $this->gateways->active();
 
         if (! $gateway->capabilities()->canSend($data['type'])) {
@@ -559,7 +559,7 @@ class InboxController extends Controller
             'name'        => 'nullable|string',
             'latitude'    => 'required|numeric|between:-90,90',
             'longitude'   => 'required|numeric|between:-180,180',
-            // The pin's own label/address — distinct from `name`, which is the
+            // The pin's own label/address - distinct from `name`, which is the
             // contact name used to resolve the conversation.
             'label'       => 'nullable|string|max:1000',
             'address'     => 'nullable|string|max:1000',
@@ -641,7 +641,7 @@ class InboxController extends Controller
     }
 
     /**
-     * Enviar una plantilla aprobada — lo único que WhatsApp acepta una vez
+     * Enviar una plantilla aprobada - lo único que WhatsApp acepta una vez
      * cerrada la ventana de 24h.
      */
     public function sendTemplate(
@@ -848,7 +848,7 @@ class InboxController extends Controller
      * Shared pre-flight for every outbound path (text, media, location).
      *
      * Returns a JsonResponse when the send must be refused, null when it may
-     * proceed — and claims the conversation as a side effect.
+     * proceed - and claims the conversation as a side effect.
      */
     protected function guardOutbound($existing): ?JsonResponse
     {
@@ -860,7 +860,7 @@ class InboxController extends Controller
             ], 422);
         }
 
-        // Writing on an unclaimed conversation IS claiming it — otherwise the
+        // Writing on an unclaimed conversation IS claiming it - otherwise the
         // pool would keep advertising it as unattended while someone is already
         // answering. Writing on a conversation assigned to someone else is not
         // blocked: supervisors and stand-ins need to be able to step in.
@@ -880,7 +880,7 @@ class InboxController extends Controller
      *
      * A new conversation can only be opened by phone number, and only phone
      * channels have one. Without an existing thread and without a phone, the
-     * message has no addressee — say so instead of failing deep inside the
+     * message has no addressee - say so instead of failing deep inside the
      * resolver with a type error.
      */
     protected function guardAddressable($existing, array $data): ?JsonResponse
@@ -1081,7 +1081,7 @@ class InboxController extends Controller
     }
 
     /**
-     * A contact can end up with several conversations — one per provider after a
+     * A contact can end up with several conversations - one per provider after a
      * migration, or one per phone format. Show the one on the active gateway:
      * it is the only one the agent can actually reply through. Recency alone
      * would surface a dead conversation from a decommissioned provider.

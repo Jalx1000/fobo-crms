@@ -1,6 +1,6 @@
 # Spec: Filtro global (ciudad + fecha) en Tablero, Oportunidades y Contactos
 
-Estado: **BORRADOR — pendiente de aprobación**
+Estado: **BORRADOR - pendiente de aprobación**
 Rama: `imprimir-modulo-whatsapp` · Checkpoint previo: `c2a060e`
 Referencia: CRM Kohlberg (`kolberg_laravel`): `Helpers/GlobalDateFilter.php`, `LeadController`, `PersonController`, `dashboard/index.blade.php`
 
@@ -116,8 +116,8 @@ UI: comprobación en el navegador real con la consola abierta (sin errores) en l
 
 ## Decisiones tomadas
 
-- 2026-09-28 — Imprimir usa varios pipelines: el selector de pipeline se mantiene, separado del de ciudad.
-- 2026-09-28 — Sin cascada lead → contacto por ahora: la ciudad del lead es solo `leads.ciudad`.
+- 2026-09-28 - Imprimir usa varios pipelines: el selector de pipeline se mantiene, separado del de ciudad.
+- 2026-09-28 - Sin cascada lead → contacto por ahora: la ciudad del lead es solo `leads.ciudad`.
 
 ## Open Questions
 

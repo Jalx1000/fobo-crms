@@ -4,7 +4,7 @@
     A plain navigating <select> rather than Vue state, matching how the pipeline
     switcher and the view switcher already work here. The kanban's get() forwards
     every URL parameter to the endpoint, so putting the choice in the URL is all
-    it takes — and it survives a reload, a bookmark and a shared link, which
+    it takes - and it survives a reload, a bookmark and a shared link, which
     component state would not.
 --}}
 @php

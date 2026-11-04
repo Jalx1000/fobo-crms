@@ -3,7 +3,7 @@
 
     Dos arrays paralelos (clave[]/valor[]) en vez de un mapa: el asesor puede
     agregar filas con claves que no están en la config, y un mapa obligaría a
-    conocer todas las claves de antemano — que es justo lo que no se puede.
+    conocer todas las claves de antemano - que es justo lo que no se puede.
 
     Los "sugeridos" son los campos declarados en config/caracteristicas.php para
     la categoría del producto. Son un atajo, no una restricción: guían para que
@@ -39,8 +39,8 @@
     {{--
         Marca que este formulario incluye las características.
 
-        Sin esto, cualquier POST a products.update que no las traiga —el editor
-        inline de atributos de la vista del producto— se leería como «el asesor
+        Sin esto, cualquier POST a products.update que no las traiga -el editor
+        inline de atributos de la vista del producto- se leería como «el asesor
         las borró todas» y las borraría de verdad, en silencio.
     --}}
     <input type="hidden" name="caracteristicas_enviadas" value="1" />

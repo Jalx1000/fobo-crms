@@ -11,13 +11,13 @@ $cloud = [
     'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
     // La cuenta (WABA) dueña de ese numero. Solo hace falta para LEER el
     // catalogo de plantillas: los envios se direccionan por phone_number_id.
-    // Tiene que ser el WABA de ESE numero — un par desalineado devuelve 132001
+    // Tiene que ser el WABA de ESE numero - un par desalineado devuelve 132001
     // o "Unsupported post request". `php artisan whatsapp:waba-id` lo descubre.
-    'waba_id' => env('WHATSAPP_WABA_ID'),
-    'token' => env('WHATSAPP_TOKEN'),
-    'app_secret' => env('WHATSAPP_APP_SECRET'),
+    'waba_id'      => env('WHATSAPP_WABA_ID'),
+    'token'        => env('WHATSAPP_TOKEN'),
+    'app_secret'   => env('WHATSAPP_APP_SECRET'),
     'verify_token' => env('WHATSAPP_VERIFY_TOKEN'),
-    'api_version' => env('WHATSAPP_API_VERSION', 'v21.0'),
+    'api_version'  => env('WHATSAPP_API_VERSION', 'v21.0'),
 ];
 
 return [
@@ -36,12 +36,12 @@ return [
     | Channel registry
     |--------------------------------------------------------------------------
     | Each driver receives its own config array. The core never reads these
-    | keys directly — only the driver does. Two entries are core:
+    | keys directly - only the driver does. Two entries are core:
     |
     | - label:  what the inbox shows on the badge. Users never see the raw key.
     | - family: channels that address the same identity (a phone number). The
-    |           list may collapse duplicates within a family — a contact
-    |           migrated from Kommo to Cloud API is one person — but never
+    |           list may collapse duplicates within a family - a contact
+    |           migrated from Kommo to Cloud API is one person - but never
     |           across families, where the same digits mean nothing alike.
     |
     | Other modules add their own channel here from their service provider's
@@ -49,27 +49,32 @@ return [
     */
     'gateways' => [
         'cloud_api' => array_merge($cloud, [
-            'driver' => \Webkul\Whatsapp\Gateways\CloudApi\CloudApiGateway::class,
-            'label' => 'WhatsApp',
-            'family' => 'whatsapp',
+            'driver'      => \Webkul\Whatsapp\Gateways\CloudApi\CloudApiGateway::class,
+            'label'       => 'WhatsApp',
+            'family'      => 'whatsapp',
             'lead_source' => 'WhatsApp',
         ]),
 
         'kommo' => [
             'driver' => \Webkul\Whatsapp\Gateways\Kommo\KommoGateway::class,
-            'label' => 'WhatsApp (Kommo)',
+            'label'  => 'WhatsApp (Kommo)',
             'family' => 'whatsapp',
             // Same source as Cloud API on purpose: the customer wrote on
             // WhatsApp; which provider carried it is our plumbing, not theirs.
             'lead_source' => 'WhatsApp',
-            'subdomain' => env('KOMMO_SUBDOMAIN'),
-            'token' => env('KOMMO_TOKEN'),
+            'subdomain'   => env('KOMMO_SUBDOMAIN'),
+            'token'       => env('KOMMO_TOKEN'),
 
             // Modo mixto: Kommo solo RECIBE y todo envío sale por este gateway
             // (normalmente 'cloud_api', el mismo número de WhatsApp). 'kommo'
             // = el salesbot de siempre, que solo sabe mandar texto. Por defecto
             // 'kommo' para que activarlo sea una decisión explícita en el .env.
             'send_via' => env('KOMMO_SEND_VIA', 'kommo'),
+
+            // Tipos de autor de un mensaje SALIENTE de Kommo que cuentan como
+            // asesor (eco: queda en el hilo y pasa el pedido a SOLICITUD
+            // RECIBIDA). El cliente llega como 'external'; los bots no entran.
+            'echo_author_types' => ['internal', 'user'],
 
             // Kommo signs nothing, so this secret in the webhook URL is the
             // only thing standing between the inbox and forged messages.
@@ -85,8 +90,13 @@ return [
             'message_field_id' => env('KOMMO_MESSAGE_FIELD_ID'),
 
             // ...and the salesbot that reads it and delivers the message.
-            'bot_id' => env('KOMMO_BOT_ID'),
+            'bot_id'      => env('KOMMO_BOT_ID'),
             'entity_type' => env('KOMMO_ENTITY_TYPE', 2), // 2 = lead
+
+            // Fuentes de Kommo (un número de WhatsApp cada una) cuyos mensajes
+            // entran, separadas por coma. Vacío = todas. La cuenta comparte
+            // Kommo con otros números (Odontoking): sin esto entran sus chats.
+            'allowed_source_ids' => env('KOMMO_ALLOWED_SOURCE_IDS', ''),
         ],
     ],
 
@@ -113,7 +123,7 @@ return [
     |--------------------------------------------------------------------------
     | Once the 24h service window closes, WhatsApp only accepts templates that
     | Meta approved beforehand. They are created and approved by hand in
-    | WhatsApp Manager — the CRM never creates them — so all we keep here is the
+    | WhatsApp Manager - the CRM never creates them - so all we keep here is the
     | pointer.
     |
     | `language` must be the EXACT code the template was approved under. It is
@@ -121,7 +131,7 @@ return [
     | and the message is lost.
     |
     | Categoría esperada: Utility. Si Meta la reclasifica a Marketing, el envío
-    | pasa a cobrarse también dentro de la ventana — revisar el texto aprobado.
+    | pasa a cobrarse también dentro de la ventana - revisar el texto aprobado.
     */
     'templates' => [
         // Minutos que se cachea el catalogo leido de Meta. El catalogo casi no
@@ -129,13 +139,13 @@ return [
         'cache_minutes' => env('WHATSAPP_TEMPLATES_CACHE_MINUTES', 30),
 
         // Cotización enviada como PDF adjunto en el header (DOCUMENT).
-        // Body: {{1}} asunto de la cotización, {{2}} total — exactamente estos
+        // Body: {{1}} asunto de la cotización, {{2}} total - exactamente estos
         // dos (QuoteController::templateBodyParams); con otra cantidad Meta
         // rechaza el envío. La plantilla es por WABA: al cambiar de número hay
         // que crearla en la cuenta nueva (2026-10-07: cotizacion_documento_v2
         // creada en la WABA 1090399237204184, número 77655508).
         'quote' => [
-            'name' => env('WHATSAPP_TEMPLATE_QUOTE', 'cotizacion_documento'),
+            'name'     => env('WHATSAPP_TEMPLATE_QUOTE', 'cotizacion_documento'),
             'language' => env('WHATSAPP_TEMPLATE_QUOTE_LANG', 'es'),
         ],
     ],
@@ -177,7 +187,7 @@ return [
     | Meta's own limits, mirrored here so an oversized or unsupported file is
     | rejected in the composer with a clear message instead of coming back as an
     | opaque 400 from Graph three seconds later. Sizes in kilobytes (Laravel's
-    | `max:` unit). Do NOT raise these above Meta's values — the API is the one
+    | `max:` unit). Do NOT raise these above Meta's values - the API is the one
     | enforcing them.
     |
     | https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media
@@ -185,24 +195,24 @@ return [
     'media' => [
         'image' => [
             'max_kb' => 5120,   // 5 MB
-            'mimes' => ['image/jpeg', 'image/png'],
+            'mimes'  => ['image/jpeg', 'image/png'],
         ],
 
         'audio' => [
             'max_kb' => 16384,  // 16 MB
-            'mimes' => ['audio/aac', 'audio/amr', 'audio/mpeg', 'audio/mp4', 'audio/ogg'],
+            'mimes'  => ['audio/aac', 'audio/amr', 'audio/mpeg', 'audio/mp4', 'audio/ogg'],
         ],
 
         'video' => [
             // Only H.264 + AAC. Meta transcodes nothing: a .mp4 with another
             // codec uploads fine and then fails to play on the handset.
             'max_kb' => 16384,  // 16 MB
-            'mimes' => ['video/mp4', 'video/3gp', 'video/3gpp'],
+            'mimes'  => ['video/mp4', 'video/3gp', 'video/3gpp'],
         ],
 
         'document' => [
             'max_kb' => 102400, // 100 MB
-            'mimes' => [
+            'mimes'  => [
                 'application/pdf',
                 'application/msword',
                 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -219,7 +229,7 @@ return [
             // Static only. Animated stickers get 500 KB, but there is no way to
             // tell the two apart before uploading, so the strict limit wins.
             'max_kb' => 100,
-            'mimes' => ['image/webp'],
+            'mimes'  => ['image/webp'],
         ],
     ],
 
@@ -248,15 +258,22 @@ return [
     | external agent (n8n or other) is notified on. Overridable per conversation.
     */
     'ai' => [
-        'enabled' => env('WHATSAPP_AI_ENABLED', false),
-        'webhook_url' => env('WHATSAPP_AGENT_WEBHOOK_URL'),
-        'token' => env('WHATSAPP_AGENT_TOKEN'), // Bearer the CRM sends so the agent knows it's us
+        'enabled'      => env('WHATSAPP_AI_ENABLED', false),
+        'webhook_url'  => env('WHATSAPP_AGENT_WEBHOOK_URL'),
+        'token'        => env('WHATSAPP_AGENT_TOKEN'), // Bearer the CRM sends so the agent knows it's us
         'history_size' => env('WHATSAPP_AGENT_HISTORY_SIZE', 15),
 
         // Segundos que se espera antes de avisar al agente. Si en ese lapso el
         // cliente manda otro mensaje, se avisa una sola vez con todos juntos
         // (`message.parts`). 0 = un aviso por mensaje, como antes.
         'debounce_seconds' => (int) env('WHATSAPP_AGENT_DEBOUNCE_SECONDS', 8),
+
+        // Etapas a las que el agente puede mover el pedido
+        // (POST conversations/{id}/etapa), cada una con las etapas DESDE las
+        // que se permite: nunca hace retroceder un pedido ni reabre uno cerrado.
+        'etapas' => [
+            'solicitud-recibida' => \Webkul\Lead\Models\Stage::NO_ATENDIDOS,
+        ],
     ],
 
     /*
@@ -264,12 +281,12 @@ return [
     | Handoff (derivación a un asesor)
     |--------------------------------------------------------------------------
     | When the AI agent (or an advisor) hands a conversation to a human, the
-    | customer is told nothing — the handoff is internal. So the notification
+    | customer is told nothing - the handoff is internal. So the notification
     | below is the backup signal; the primary one is the "Sin asesor" chip in
     | the inbox list.
     |
-    | Who gets the mail comes from the CRM's own users — the address they log in
-    | with — so there is no second list to keep in sync with the staff:
+    | Who gets the mail comes from the CRM's own users - the address they log in
+    | with - so there is no second list to keep in sync with the staff:
     |
     | - assigned  → the advisor who owns it.
     | - pooled    → every active user, narrowed to a group when pool_group_id is
@@ -296,13 +313,13 @@ return [
 
         // Horas sin mensajes (del cliente o del asesor) tras las que la
         // derivación se cierra sola y la IA vuelve a atender. 0 = nunca.
-        'cierre_horas' => (int) env('WHATSAPP_HANDOFF_CIERRE_HORAS', 8),
+        'cierre_horas'        => (int) env('WHATSAPP_HANDOFF_CIERRE_HORAS', 1),
         'sin_respuesta_copia' => array_values(array_filter(array_map('trim', explode(',', (string) env(
             'WHATSAPP_HANDOFF_SIN_RESPUESTA_COPIA',
             'jalejandromogro1@gmail.com'
         ))))),
         'horario_inicio' => env('WHATSAPP_HORARIO_INICIO', '08:00'),
-        'horario_fin' => env('WHATSAPP_HORARIO_FIN', '19:00'),
+        'horario_fin'    => env('WHATSAPP_HORARIO_FIN', '19:00'),
         // ISO: 1 = lunes … 7 = domingo.
         'horario_dias' => array_map('intval', explode(',', (string) env('WHATSAPP_HORARIO_DIAS', '1,2,3,4,5,6'))),
 
@@ -363,9 +380,9 @@ return [
     | escribe una vez, en horario. `:nombre` = su primer nombre.
     */
     'recontacto' => [
-        'enabled' => env('WHATSAPP_RECONTACTO', true),
-        'horas_antes' => (int) env('WHATSAPP_RECONTACTO_HORAS_ANTES', 6),
-        'texto' => env('WHATSAPP_RECONTACTO_TEXTO', 'Hola :nombre, ¿pudo ver nuestro último mensaje? Si tiene alguna consulta, escríbanos por acá y con gusto le ayudamos. 🙌'),
+        'enabled'          => env('WHATSAPP_RECONTACTO', true),
+        'horas_antes'      => (int) env('WHATSAPP_RECONTACTO_HORAS_ANTES', 18),
+        'texto'            => env('WHATSAPP_RECONTACTO_TEXTO', 'Hola :nombre, ¿pudo ver nuestro último mensaje? Si tiene alguna consulta, escríbanos por acá y con gusto le ayudamos. 🙌'),
         'texto_cotizacion' => env('WHATSAPP_RECONTACTO_TEXTO_COTIZACION', 'Hola :nombre, ¿pudo revisar la cotización que le enviamos? Si tiene alguna consulta o quiere avanzar con su pedido, respóndanos por acá. 🙌'),
     ],
 
@@ -383,10 +400,10 @@ return [
             'WHATSAPP_ALERT_EMAILS',
             'jalejandromogro1@gmail.com,dcuellar@sofopolis.com'
         ))))),
-        'umbral' => (int) env('WHATSAPP_ALERT_UMBRAL', 3),
-        'ventana_minutos' => (int) env('WHATSAPP_ALERT_VENTANA_MINUTOS', 15),
+        'umbral'           => (int) env('WHATSAPP_ALERT_UMBRAL', 3),
+        'ventana_minutos'  => (int) env('WHATSAPP_ALERT_VENTANA_MINUTOS', 15),
         'silencio_minutos' => (int) env('WHATSAPP_ALERT_SILENCIO_MINUTOS', 60),
-        'texto_error' => env('WHATSAPP_ALERT_TEXTO_ERROR', 'ocurrió un error'),
+        'texto_error'      => env('WHATSAPP_ALERT_TEXTO_ERROR', 'ocurrió un error'),
     ],
 
 ];

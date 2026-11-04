@@ -1,4 +1,4 @@
-# Spec: Pedidos sin ciudad — asesor por producto a la hora
+# Spec: Pedidos sin ciudad - asesor por producto a la hora
 
 Estado: v1 y **v2 implementadas** (16/10/2026). La v2 considera la ciudad y el producto que el cliente dijo dentro de la hora.
 
@@ -39,7 +39,7 @@ Al crearse un pedido en el pipeline «Sin ciudad» se agenda `AsignarSinCiudad` 
 | D3 | **No derivar**, IA encendida, **sin correos**. |
 | D4 | Si el asesor actual ya es válido, no se cambia. |
 
-## v2 — ciudad y producto dichos dentro de la hora (16/10)
+## v2 - ciudad y producto dichos dentro de la hora (16/10)
 
 **Caso real, pedido #6610** (Bruval Productos de Limpieza, nació 10:43 en «Sin ciudad» a nombre de
 Eduardo). El primer mensaje del cliente fue «¿Cuáles son los tamaños disponibles del **Stretch Film**?».

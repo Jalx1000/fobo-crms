@@ -2,8 +2,8 @@
 
 ## Objetivo
 El agente ruteado a Messenger hoy recibe **501** al pedir `POST /conversations/{id}/interactive`
-y tiene que caer a texto numerado. Meta sí ofrece botones en Messenger —*quick replies*
-(hasta 13) y *button template* (hasta 3)—; la carencia estaba en nuestro `MessengerGateway`.
+y tiene que caer a texto numerado. Meta sí ofrece botones en Messenger -*quick replies*
+(hasta 13) y *button template* (hasta 3)-; la carencia estaba en nuestro `MessengerGateway`.
 
 Éxito: el mismo payload que el agente manda a WhatsApp sale en Messenger como quick replies,
 y la elección del cliente vuelve al agente en `message.selection.id`, igual que en WhatsApp.

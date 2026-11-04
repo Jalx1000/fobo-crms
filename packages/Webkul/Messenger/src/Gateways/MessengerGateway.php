@@ -33,7 +33,7 @@ use Webkul\Whatsapp\Models\Conversation;
  * to the same Person/Lead and are answered from the same composer.
  *
  * Addressing: a Messenger contact has no phone. The PSID (page-scoped id) is
- * the conversation key, and it is only meaningful for the page that issued it —
+ * the conversation key, and it is only meaningful for the page that issued it -
  * hence provider_account_id on the conversation, so a reply always goes out
  * through the page the message arrived on.
  */
@@ -89,7 +89,7 @@ class MessengerGateway extends BaseGateway
 
     /**
      * Meta's subscription handshake. PHP rewrites dots in query keys, so the
-     * parameters arrive as hub_mode/hub_verify_token — accept both spellings
+     * parameters arrive as hub_mode/hub_verify_token - accept both spellings
      * rather than depending on that.
      */
     public function verifyWebhook(Request $request): ?Response
@@ -221,8 +221,8 @@ class MessengerGateway extends BaseGateway
      *
      * Messenger no tiene el interactivo de WhatsApp, pero sí quick replies:
      * hasta 13 burbujas tocables encima del teclado, cada una con un payload
-     * propio. Es el equivalente funcional y cubre los dos formatos del DTO —3
-     * botones o 10 filas de lista— sin quedarse corto.
+     * propio. Es el equivalente funcional y cubre los dos formatos del DTO -3
+     * botones o 10 filas de lista- sin quedarse corto.
      *
      * Se eligieron quick replies y no el button template porque:
      *   - el template tope 3 botones y la lista del agente llega a 10;
@@ -337,7 +337,7 @@ class MessengerGateway extends BaseGateway
                 array_filter(['Content-Type' => $media->mime]),
             )
             // With attach() the payload travels as multipart, so every field has
-            // to be a string — the nested objects go as JSON.
+            // to be a string - the nested objects go as JSON.
             ->post($this->endpoint($connection->account_id), array_filter([
                 'recipient'      => json_encode(['id' => $this->psidOf($conversation)]),
                 'messaging_type' => 'RESPONSE',
@@ -349,7 +349,7 @@ class MessengerGateway extends BaseGateway
 
         // Messenger attachments carry no caption field. The composer already
         // splits the caption off for types it knows cannot hold one; for the
-        // rest it arrives here, and dropping it would be silent data loss — the
+        // rest it arrives here, and dropping it would be silent data loss - the
         // advisor watched their text leave the composer. It follows the file.
         if ($media->caption) {
             $this->sendText($conversation, $media->caption);
@@ -373,7 +373,7 @@ class MessengerGateway extends BaseGateway
 
     /**
      * Meta caps attachments at 25 MB. The composer validates against WhatsApp's
-     * table, which allows 100 MB documents, so the check has to happen here —
+     * table, which allows 100 MB documents, so the check has to happen here -
      * otherwise a big PDF comes back as an opaque Graph error minutes later.
      */
     protected function guardSize(string $path): void
@@ -434,7 +434,7 @@ class MessengerGateway extends BaseGateway
 
     /**
      * Delivery receipts. Messenger reports reads by watermark (a timestamp, not
-     * a message id), which cannot be mapped onto a single message — only the
+     * a message id), which cannot be mapped onto a single message - only the
      * per-mid delivery events are translated.
      */
     protected function statusesOf(array $item): array
@@ -498,7 +498,7 @@ class MessengerGateway extends BaseGateway
      * Normalize the many event shapes into (type, body, media, raw).
      *
      * Postbacks and reactions have no thread representation of their own, so
-     * they are recorded as the text they stand for instead of being dropped —
+     * they are recorded as the text they stand for instead of being dropped -
      * "the customer tapped Comprar" is exactly the context an advisor needs.
      */
     protected function contentOf(array $item): ?array
@@ -506,8 +506,8 @@ class MessengerGateway extends BaseGateway
         /*
         | El cliente tocó una quick reply o un botón de plantilla.
         |
-        | Se guarda con la MISMA forma que deja la Cloud API —
-        | interactive.button_reply{id,title}— porque es de ahí que
+        | Se guarda con la MISMA forma que deja la Cloud API -
+        | interactive.button_reply{id,title}- porque es de ahí que
         | AgentPayload::selection() y el hilo leen la opción elegida. Traducir
         | acá es lo que hace que el agente rutee por `selection.id` sin saber
         | por qué canal llegó.
@@ -645,7 +645,7 @@ class MessengerGateway extends BaseGateway
 
     /**
      * Who is writing. Meta sends no name in the webhook, so it takes a Graph
-     * call — made only for a contact we have never seen, and never for an echo
+     * call - made only for a contact we have never seen, and never for an echo
      * (that is us).
      */
     protected function identityOf(SocialConnection $connection, string $psid, bool $isEcho): ContactIdentity

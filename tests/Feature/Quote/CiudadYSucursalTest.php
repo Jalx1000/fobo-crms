@@ -72,7 +72,7 @@ function personaCiudad(?string $ciudad = null)
 /**
  * Una cotización como la deja la pantalla: el repositorio la crea y el
  * controlador dispara el evento. Sin el evento no hay conciliación, y es el
- * controlador —no el repositorio— el que lo emite, igual que para el NIT.
+ * controlador -no el repositorio- el que lo emite, igual que para el NIT.
  */
 function cotizacionCiudad(array $extra)
 {

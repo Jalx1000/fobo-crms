@@ -10,7 +10,7 @@ use Webkul\Product\Repositories\ProductVarianteRepository;
 /**
  * Las cuatro líneas de venta directa de Imprimir.
  *
- * Los datos salen del documento «Estructura de Agente IA — IMPRIMIR»: los cinco
+ * Los datos salen del documento «Estructura de Agente IA - IMPRIMIR»: los cinco
  * tamaños de Magia Verde, los canales de precio, las dos presentaciones de
  * stretch film, los colores de hules y las dos variantes de tapas.
  *
@@ -41,11 +41,11 @@ use Webkul\Product\Repositories\ProductVarianteRepository;
 class ProductosImprimirSeeder extends Seeder
 {
     protected const TAMANOS = [
-        '35 L'  => '60 x 63 cm — bolsa de desechos multiuso',
-        '50 L'  => '65 x 80 cm — bolsa de desechos multiuso',
-        '75 L'  => '78 x 95 cm — bolsa de desechos multiuso',
-        '140 L' => '90 x 110 cm — bolsa de desechos multiuso',
-        '200 L' => '100 x 120 cm — bolsa XXL extragrande multiuso',
+        '35 L'  => '60 x 63 cm - bolsa de desechos multiuso',
+        '50 L'  => '65 x 80 cm - bolsa de desechos multiuso',
+        '75 L'  => '78 x 95 cm - bolsa de desechos multiuso',
+        '140 L' => '90 x 110 cm - bolsa de desechos multiuso',
+        '200 L' => '100 x 120 cm - bolsa XXL extragrande multiuso',
     ];
 
     /**
@@ -100,8 +100,8 @@ class ProductosImprimirSeeder extends Seeder
         /*
         | HOGAR no es «no se cotiza»: es «depende de cuánto lleve».
         |
-        | El §5.1 del documento lo dice así — «si es ama de casa o quiere menos
-        | de 10 unidades» va al supermercado—, o sea que por encima del mínimo es
+        | El §5.1 del documento lo dice así - «si es ama de casa o quiere menos
+        | de 10 unidades» va al supermercado-, o sea que por encima del mínimo es
         | venta directa como cualquier otra. La nota lleva la regla completa para
         | que el agente no tenga que deducirla: antes decía «no se cotiza por
         | chat» y el agente igual cotizaba, con una regla que se inventaba él.
@@ -121,7 +121,7 @@ class ProductosImprimirSeeder extends Seeder
     }
 
     /**
-     * Bolsas Magia Verde — el precio cruza tamaño, canal y zona.
+     * Bolsas Magia Verde - el precio cruza tamaño, canal y zona.
      *
      * Los canales que no se cotizan (HOGAR y DISTRIBUIDOR) se cargan por cada
      * tamaño y zona en vez de una sola vez sin ellos. Es más filas, pero el
@@ -188,7 +188,7 @@ class ProductosImprimirSeeder extends Seeder
     }
 
     /**
-     * Hules — el único de los cuatro con todos sus precios en el documento.
+     * Hules - el único de los cuatro con todos sus precios en el documento.
      *
      * El documento dice «7 colores» pero solo nombra transparente y negro; los
      * cinco restantes comparten precio y van como una fila sola hasta que el
@@ -230,7 +230,7 @@ class ProductosImprimirSeeder extends Seeder
     }
 
     /**
-     * Stretch Film — dos presentaciones, sin precios en el documento.
+     * Stretch Film - dos presentaciones, sin precios en el documento.
      */
     protected function stretchFilm(): void
     {
@@ -268,7 +268,7 @@ class ProductosImprimirSeeder extends Seeder
     }
 
     /**
-     * Tapas — precios y mínimos completos en el documento.
+     * Tapas - precios y mínimos completos en el documento.
      */
     protected function tapas(): void
     {
@@ -315,7 +315,7 @@ class ProductosImprimirSeeder extends Seeder
      *
      * `price` queda en 0 porque ninguno de los cuatro se vende a precio fijo: el
      * precio sale siempre de la lista de variantes. La API nunca le muestra ese
-     * 0 al agente — devuelve `precio: null` cuando hay lista cargada.
+     * 0 al agente - devuelve `precio: null` cuando hay lista cargada.
      */
     protected function producto(
         string $sku,
@@ -345,7 +345,7 @@ class ProductosImprimirSeeder extends Seeder
         if ($producto) {
             $producto->forceFill($datos)->save();
 
-            $this->command?->info("· {$sku} {$name} — actualizado");
+            $this->command?->info("· {$sku} {$name} - actualizado");
 
             return $producto->refresh();
         }
@@ -353,7 +353,7 @@ class ProductosImprimirSeeder extends Seeder
         /*
         | Directo al modelo y no por ProductRepository: el repositorio espera un
         | `entity_type` para guardar los atributos personalizados, y `db:seed`
-        | corre dentro de Model::unguarded() — ahí `entity_type` deja de ser
+        | corre dentro de Model::unguarded() - ahí `entity_type` deja de ser
         | filtrado por $fillable y se cuela al INSERT como si fuera una columna.
         |
         | No se pierde nada: los productos que ya estaban cargados a mano tampoco
@@ -365,7 +365,7 @@ class ProductosImprimirSeeder extends Seeder
             'quantity' => 0,
         ]);
 
-        $this->command?->info("· {$sku} {$name} — creado (id {$producto->id})");
+        $this->command?->info("· {$sku} {$name} - creado (id {$producto->id})");
 
         return $producto;
     }

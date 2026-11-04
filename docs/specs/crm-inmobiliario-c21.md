@@ -1,6 +1,6 @@
 # Spec: CRM inmobiliario Century 21 Bolivia sobre la instancia `imprimir`
 
-- **Estado:** borrador — pendiente de aprobación humana (Fase 1 de spec-driven development)
+- **Estado:** borrador - pendiente de aprobación humana (Fase 1 de spec-driven development)
 - **Fecha:** 2026-08-25
 - **Instancia:** `https://imprimir.sofopolis.com` · DB `kohlberg` · prefijo `kl_` · contenedor `heaven_imprimir`
 - **Documento origen:** `agente-inmobiliario-bolivia.md` + configuración de Sofo CRM aportada por el usuario
@@ -21,7 +21,7 @@ Esa frontera no se negocia: todo intento de meter esas piezas en Krayin exige to
 
 **Éxito:** el asesor puede recibir un lead inmobiliario por WhatsApp, verlo calificado con
 puntaje y temperatura, agendar y registrar una visita, y cerrarlo como ganado o perdido con
-motivo estructurado — sin que nada de la operación de imprenta se rompa.
+motivo estructurado - sin que nada de la operación de imprenta se rompa.
 
 ---
 
@@ -32,7 +32,7 @@ motivo estructurado — sin que nada de la operación de imprenta se rompa.
 Consecuencias que atraviesan todo el spec:
 
 1. No se pueden agregar columnas, migraciones, seeders ni modelos.
-2. Lo que Krayin no soporta a nivel de schema, **no se hace acá** — se delega a n8n.
+2. Lo que Krayin no soporta a nivel de schema, **no se hace acá** - se delega a n8n.
 3. El heurístico custom de won/lost en `packages/Webkul/Lead/src/Repositories/LeadRepository.php:234-235`
    se toma como **dado inmutable**, y el diseño de etapas se adapta a él.
 4. Toda la configuración se aplica como SQL sobre `kohlberg`, o desde la UI de administración
@@ -47,31 +47,31 @@ Consecuencias que atraviesan todo el spec:
 | 1 | REST API instalado | ✅ `krayin/rest-api: ^2.1` |
 | 2 | Workflows con acción webhook | ✅ `trigger_webhook` en `Automation/src/Helpers/Entity/Lead.php:93` |
 | 3 | Atributos con scope por pipeline | ❌ No existe. `kl_attributes` solo discrimina por `entity_type` |
-| 4 | Versión de Krayin | 2.x — `kl_lead_stages` vacía; etapas inline en `kl_lead_pipeline_stages` |
+| 4 | Versión de Krayin | 2.x - `kl_lead_stages` vacía; etapas inline en `kl_lead_pipeline_stages` |
 | 5 | Límite de usuarios | Sin límite. 6 usuarios activos, todos `@sofopolis.com` |
 
 ### Tres correcciones al documento origen
 
-**C1 — Los rotting days son por pipeline, no por etapa.**
+**C1 - Los rotting days son por pipeline, no por etapa.**
 `rotten_days` es columna de `kl_lead_pipelines` (default 360 en los 7 pipelines actuales).
 `kl_lead_pipeline_stages` solo tiene `code`, `name`, `probability`, `sort_order` y las dos FK.
 Las tablas de rotting por etapa del documento origen **no son implementables sin tocar código**.
 → Decisión tomada: `rotten_days = 100` en todos los pipelines. El SLA fino por etapa lo calcula
 n8n consultando `updated_at` vía REST API.
 
-**C2 — Krayin NO agrega Won/Lost automáticamente.**
+**C2 - Krayin NO agrega Won/Lost automáticamente.**
 Son filas normales sembradas por `Installer/src/Database/Seeders/Lead/PipelineSeeder.php`
 con `code='won'` / `code='lost'`. Los 7 pipelines de imprenta **no las tienen**: se apoyan en el
 heurístico por nombre (`entregado`/`ganado` → won, `cancelado`/`perdido` → lost).
 → El embudo inmobiliario crea Ganado/Perdido explícitamente, con `code` **y** nombre compatibles.
 
-**C3 — La instancia está viva y es de otro negocio.**
+**C3 - La instancia está viva y es de otro negocio.**
 7 pipelines por ciudad · 20 leads · 21 personas · 4 organizaciones · 15 productos ·
 523 actividades · 5 cotizaciones. Los atributos nativos de lead están renombrados a lenguaje
 de imprenta (`title` = "Nombre de cliente", `lead_value` = "Valor del Pedido",
 `expected_close_date` = "Fecha de Entrega Esperada").
 
-**C4 — `lead_stage_id` ya no existe (verificado).**
+**C4 - `lead_stage_id` ya no existe (verificado).**
 El schema real de `kl_lead_pipeline_stages` es `id`, `code`, `name`, `probability`, `sort_order`,
 `lead_pipeline_id`. La única FK activa es `lead_pipeline_id → kl_lead_pipelines`. La columna
 `lead_stage_id` fue eliminada por una migración posterior, lo que explica que `kl_lead_stages`
@@ -105,7 +105,7 @@ Mapeo de etapas aplicado en la migración:
 ### Etapas del embudo Inmobiliaria C21
 
 Un solo embudo. La distinción venta / alquiler / captación vive en el atributo `op_modalidad`,
-no en pipelines separados — para un asesor único, tres tableros medio vacíos cuestan más de lo
+no en pipelines separados - para un asesor único, tres tableros medio vacíos cuestan más de lo
 que informan.
 
 | sort | code | name | probability |
@@ -120,7 +120,7 @@ que informan.
 
 Ganado y Perdido son las **únicas** etapas que cierran el lead: disparan `closed_at` por la rama
 `$code === 'won'` / `$code === 'lost'` del heurístico, y además por nombre. Cliente efectivo y
-Sin interés son etapas de trabajo, no de cierre — el asesor mueve la tarjeta una segunda vez
+Sin interés son etapas de trabajo, no de cierre - el asesor mueve la tarjeta una segunda vez
 para cerrar.
 
 ### `lead_value` = comisión esperada (opción B del documento origen)
@@ -150,7 +150,7 @@ a lenguaje neutro para que sirvan en ambos negocios:
 `lead_source_id` ("Canal"), `lead_type_id` ("Tipo de cliente") y `user_id` ("Asesor Asignado") ya
 son neutros y se dejan como están.
 
-### Atributos a crear — 23, entidad `leads`
+### Atributos a crear - 23, entidad `leads`
 
 Los 23 (recuento verificado: 12 `op_` + 5 `bot_` + 2 `vis_` + 1 `perdida_` + 3 `cap_`).
 Ninguno obligatorio (`is_required = 0`) y ninguno único (`is_unique = 0`). Ver Boundaries para
@@ -176,7 +176,7 @@ selector de la UI (`settings/attributes/create.blade.php:336`), así que son vá
 | 120 | `bot_puntaje` | Puntaje | text | Numérico, lo escribe n8n |
 | 121 | `bot_temperatura` | Temperatura | select | caliente · tibio · frío |
 | 122 | `bot_codigos_vistos` | Inmuebles mostrados | textarea | Códigos separados por coma |
-| 123 | `bot_wa_id` | WhatsApp ID | text | **Clave de deduplicación** — ver Boundaries |
+| 123 | `bot_wa_id` | WhatsApp ID | text | **Clave de deduplicación** - ver Boundaries |
 | 124 | `bot_pausado_hasta` | Bot pausado hasta | datetime | El bot no responde mientras esté vigente |
 | 130 | `vis_codigo` | Inmueble de la visita | text | SKU del producto |
 | 131 | `vis_resultado` | Resultado de la visita | select | le gustó · no le gustó · no asistió · pendiente |
@@ -194,15 +194,15 @@ No aceptó requisitos o garantía · Documentación trabada · Nunca respondió 
 No es el titular · No aceptó exclusividad · Duplicado
 
 Reemplaza funcionalmente al campo nativo `lost_reason` (texto libre, no agrupable). `lost_reason`
-se deja intacto en el schema — borrarlo sería tocar código.
+se deja intacto en el schema - borrarlo sería tocar código.
 
 ### Sources y Types
 
-**Sources** — a agregar a los 7 existentes (Correo Electrónico, Web, Formulario Web, Teléfono,
+**Sources** - a agregar a los 7 existentes (Correo Electrónico, Web, Formulario Web, Teléfono,
 Directo, Whatsapp, Messenger): Anuncio Meta · Anuncio Google · Portal inmobiliario · Referido ·
 Feria · Cartel en obra.
 
-**Types** — a agregar a los 2 existentes (Nuevo Cliente, Cliente Antiguo): Comprador ·
+**Types** - a agregar a los 2 existentes (Nuevo Cliente, Cliente Antiguo): Comprador ·
 Inquilino · Propietario · Inversionista · Referidor.
 
 Ambas listas son compartidas por los dos pipelines (son tablas globales, no por pipeline).
@@ -238,7 +238,7 @@ El workflow de asignación por `op_departamento` del documento origen **no se cr
 asesor no tiene destinatario.
 
 La validación de `perdida_motivo` obligatorio se hace en n8n al recibir el webhook de Perdido,
-**no** con `is_required` — ver Boundaries.
+**no** con `is_required` - ver Boundaries.
 
 ### Productos = inmuebles (espejo mínimo)
 
@@ -250,13 +250,13 @@ Los 15 productos de imprenta actuales conviven sin conflicto: se distinguen por 
 
 ### Visitas = Activities tipo meeting
 
-- `title`: `Visita SC-EQ-0142 — Equipetrol`
+- `title`: `Visita SC-EQ-0142 - Equipetrol`
 - `schedule_from` / `schedule_to`: horario con buffer ya aplicado
 - `participants`: asesor asignado
 - `comment`: punto de encuentro, acompañantes, notas
 - Al cerrarla, el asesor carga `vis_resultado` en el lead
 
-Krayin **no valida choques de horario** — Activities acepta solapamientos sin quejarse. Por eso
+Krayin **no valida choques de horario** - Activities acepta solapamientos sin quejarse. Por eso
 la agenda autoritativa vive en n8n y Krayin recibe el reflejo. Invertir ese orden hace que el
 bot agende dos visitas en el mismo slot.
 
@@ -265,7 +265,7 @@ bot agende dos visitas en el mismo slot.
 ## Tech Stack
 
 - Krayin CRM 2.x sobre Laravel 10 (arquitectura modular Concord, `packages/Webkul/`)
-- MySQL 9 — DB `kohlberg`, prefijo de tablas `kl_`
+- MySQL 9 - DB `kohlberg`, prefijo de tablas `kl_`
 - `krayin/rest-api ^2.1` para el tráfico n8n → Krayin
 - n8n como sistema de ejecución (fuera de este repositorio)
 - Contenedores Docker gestionados por EasyPanel
@@ -404,7 +404,7 @@ Verificación manual obligatoria en la UI antes de dar por cerrada la Fase 4:
 1. El kanban del embudo inmobiliario muestra las 7 columnas en orden.
 2. Crear un lead de prueba en Prospectos, moverlo a Ganado, confirmar que `closed_at` se llenó.
 3. El formulario de lead muestra los 24 atributos agrupados por prefijo, ninguno bloqueando el guardado.
-4. Abrir un lead viejo de imprenta y guardarlo sin cambios — no debe pedir ningún campo nuevo.
+4. Abrir un lead viejo de imprenta y guardarlo sin cambios - no debe pedir ningún campo nuevo.
 5. Borrar el lead de prueba.
 
 El punto 4 es la prueba de regresión que importa: es donde se rompería la operación existente.
@@ -426,7 +426,7 @@ El punto 4 es la prueba de regresión que importa: es donde se rompería la oper
 
 **Preguntar primero:**
 - Cualquier `DELETE` sobre `kl_leads`, `kl_persons`, `kl_activities` o `kl_quotes`.
-- Renombrar atributos nativos (`title`, `lead_value`, `expected_close_date`) — afecta a los dos
+- Renombrar atributos nativos (`title`, `lead_value`, `expected_close_date`) - afecta a los dos
   pipelines a la vez.
 - Cambiar `is_default` del pipeline: mueve el destino de todo lead creado sin pipeline explícito.
 - Borrar los 6 pipelines de ciudad.
@@ -454,7 +454,7 @@ El punto 4 es la prueba de regresión que importa: es donde se rompería la oper
 5. Cada atributo `select` tiene su lista completa de opciones en `kl_attribute_options`;
    `perdida_motivo` tiene exactamente 12.
 6. `kl_lead_sources` tiene 13 filas y `kl_lead_types` 7.
-7. `kl_workflows` sigue teniendo exactamente sus 2 filas originales de actividades — no se creó
+7. `kl_workflows` sigue teniendo exactamente sus 2 filas originales de actividades - no se creó
    ni modificó ningún workflow.
 8. **Regresión:** los 20 leads siguen existiendo, con sus 523 actividades, sus 5 cotizaciones,
    sus 21 personas y sus 15 productos; todos apuntan a una etapa válida del pipeline
@@ -472,7 +472,7 @@ El punto 4 es la prueba de regresión que importa: es donde se rompería la oper
 | Q1 | Etiquetas nativas | Renombrar a lenguaje neutro (ver tabla arriba) |
 | Q2 | Ciudad de los leads de imprenta | **No se preserva.** Los 7 pipelines se borraron y la ciudad se descartó |
 | Q3 | `op_dormitorios` | `select`: indistinto · 1 · 2 · 3 · 4 · 5 o más |
-| Q4 | Usuario del asesor | Danitza Cuellar — `dcuellar@sofopolis.com`, `kl_users.id = 2` |
+| Q4 | Usuario del asesor | Danitza Cuellar - `dcuellar@sofopolis.com`, `kl_users.id = 2` |
 | Q5 | `lead_stage_id` | Resuelto por verificación: la columna no existe (ver C4) |
 | Q6 | Webhooks de n8n | **No se toca n8n.** Los 7 workflows quedan fuera de alcance |
 
@@ -486,4 +486,4 @@ El punto 4 es la prueba de regresión que importa: es donde se rompería la oper
 - Transcripción de audios
 - Alertas de búsqueda guardada
 - SLA fino por etapa (Krayin solo da un `rotten_days` por pipeline)
-- **Los 7 workflows con `trigger_webhook`** — diseñados y documentados, no implementados (Q6)
+- **Los 7 workflows con `trigger_webhook`** - diseñados y documentados, no implementados (Q6)

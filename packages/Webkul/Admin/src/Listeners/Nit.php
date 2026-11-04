@@ -22,7 +22,7 @@ use Webkul\Contact\Repositories\PersonRepository;
  *   los dos, distintos              → NO se toca nada (ver abajo)
  *
  * Corre en `quote.create.after` y `quote.update.after`, que disparan tanto el
- * CRM como la API REST — así el `register_cotizacion` del agente pasa por el
+ * CRM como la API REST - así el `register_cotizacion` del agente pasa por el
  * mismo camino que un asesor cargando a mano.
  */
 class Nit
@@ -85,7 +85,7 @@ class Nit
      *
      * Sin esto, una cotización con el campo vacío (cadena '') se leería como
      * «tiene un NIT distinto al de la persona» y caería en el caso de conflicto,
-     * que justamente no hace nada — y la herencia nunca ocurriría.
+     * que justamente no hace nada - y la herencia nunca ocurriría.
      */
     protected function limpiar(mixed $valor): ?string
     {

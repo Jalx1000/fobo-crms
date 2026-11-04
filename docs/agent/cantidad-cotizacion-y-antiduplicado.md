@@ -100,7 +100,7 @@ Por debajo del mínimo, `cantidad.message` trae qué decir:
 **El total lo calcula el CRM.** Hasta ahora la Regla 0 les prohibía calcular
 precios pero no les daba forma de dar un total, que es lo primero que pregunta
 cualquier cliente. Ese hueco era mío. Ahora: pasen `cantidad` y usen `total`
-tal cual — **nunca multipliquen ustedes**.
+tal cual - **nunca multipliquen ustedes**.
 
 ### ⚠️ El precio de las bolsas es POR PACK
 
@@ -136,7 +136,7 @@ quiere ajustar. No sigas al PASO 4 por debajo del mínimo.
 
 ---
 
-## 3. Cotización pre-elaborada — nueva tool
+## 3. Cotización pre-elaborada - nueva tool
 
 Hasta ahora el PASO 5 decía *«hemos registrado tu información»* y lo único que
 quedaba era la conversación: el asesor tenía que leerla entera para reconstruir
@@ -161,7 +161,7 @@ qué quería el cliente.
 {
   "message": "Cotización pre-elaborada. Un asesor la revisa antes de enviarla.",
   "quote_id": 114,
-  "asunto": "Bolsas Magia Verde — 50 L · HORECA · Santa Cruz",
+  "asunto": "Bolsas Magia Verde - 50 L · HORECA · Santa Cruz",
   "cantidad": 25, "precio": 13, "total": 325, "minimo": "10 unidades"
 }
 ```
@@ -187,7 +187,7 @@ empresa nunca autorizó.
 El último importa: el CRM se niega a crear una cotización huérfana que nadie va a
 encontrar.
 
-### El PASO 5 queda así — CUATRO acciones, en orden
+### El PASO 5 queda así - CUATRO acciones, en orden
 
 ```
 1) register_cotizacion  → datos de empresa en el contacto
@@ -229,7 +229,7 @@ async def crear_cotizacion(
     """
 ```
 
-`conversation_id` va por `RunnableConfig`, como en el resto — **no** como
+`conversation_id` va por `RunnableConfig`, como en el resto - **no** como
 argumento del modelo.
 
 ---
@@ -278,7 +278,7 @@ curl -sS -X POST "$BASE/productos/conversations/123/cotizacion" \
 
 ### Escenario end-to-end
 
-1. «hola quiero bolsas» → menú de producto — **debe llegar UNO SOLO**
+1. «hola quiero bolsas» → menú de producto - **debe llegar UNO SOLO**
 2. ciudad → uso → tamaño
 3. **«¿cuántas unidades lleva?»** ← lo nuevo
 4. «25» → *«Bs 13,00 por pack de 10 unidades. Total: Bs 325»*

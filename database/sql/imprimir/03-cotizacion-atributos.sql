@@ -34,17 +34,17 @@ INSERT INTO kl_attribute_options (name,sort_order,attribute_id) SELECT 'Puesto a
 INSERT INTO kl_attribute_options (name,sort_order,attribute_id) SELECT 'Recoge en planta',2,@a WHERE NOT EXISTS (SELECT 1 FROM (SELECT 1 FROM kl_attribute_options WHERE attribute_id=@a AND name='Recoge en planta') AS y);
 INSERT INTO kl_attribute_options (name,sort_order,attribute_id) SELECT 'A domicilio',3,@a WHERE NOT EXISTS (SELECT 1 FROM (SELECT 1 FROM kl_attribute_options WHERE attribute_id=@a AND name='A domicilio') AS y);
 
--- tiempo_entrega (text) — se propone desde los ítems; el asesor lo edita
+-- tiempo_entrega (text) - se propone desde los ítems; el asesor lo edita
 INSERT INTO kl_attributes (code,name,type,lookup_type,entity_type,sort_order,validation,is_required,is_unique,quick_add,is_user_defined,created_at,updated_at)
 SELECT 'tiempo_entrega','Tiempo de entrega','text',NULL,'quotes',NULL,'',0,0,1,1,NOW(),NOW()
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT 1 FROM kl_attributes WHERE entity_type='quotes' AND code='tiempo_entrega') AS x);
 
--- orden_compra (text) — lo llena el cliente al aceptar
+-- orden_compra (text) - lo llena el cliente al aceptar
 INSERT INTO kl_attributes (code,name,type,lookup_type,entity_type,sort_order,validation,is_required,is_unique,quick_add,is_user_defined,created_at,updated_at)
 SELECT 'orden_compra','Orden de compra','text',NULL,'quotes',NULL,'',0,0,1,1,NOW(),NOW()
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT 1 FROM kl_attributes WHERE entity_type='quotes' AND code='orden_compra') AS x);
 
--- sucursal (select) — hereda de la persona, editable
+-- sucursal (select) - hereda de la persona, editable
 INSERT INTO kl_attributes (code,name,type,lookup_type,entity_type,sort_order,validation,is_required,is_unique,quick_add,is_user_defined,created_at,updated_at)
 SELECT 'sucursal','Sucursal','select',NULL,'quotes',NULL,'',0,0,1,1,NOW(),NOW()
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT 1 FROM kl_attributes WHERE entity_type='quotes' AND code='sucursal') AS x);

@@ -246,8 +246,8 @@ class CiudadCliente
 
     /**
      * Ciudades del cliente que pertenecen a la zona de otra (decisión del
-     * 16/10/2026: El Alto es La Paz). El contacto conserva su ciudad —El Alto
-     * no va en la cotización (ciudades_sin_cotizacion)—, pero el pipeline, el
+     * 16/10/2026: El Alto es La Paz). El contacto conserva su ciudad -El Alto
+     * no va en la cotización (ciudades_sin_cotizacion)-, pero el pipeline, el
      * reparto y los filtros por ciudad la cuentan como La Paz.
      */
     public const ZONA = [

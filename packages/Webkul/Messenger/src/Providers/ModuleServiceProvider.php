@@ -12,7 +12,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
      * installation can swap the implementation like any other Krayin model.
      *
      * Conversations and messages are deliberately absent: Messenger stores none
-     * of its own — it writes to the shared inbox owned by Webkul\Whatsapp.
+     * of its own - it writes to the shared inbox owned by Webkul\Whatsapp.
      *
      * @var array
      */

@@ -236,7 +236,7 @@ class LeadRepository extends Repository
      * El dueño de un lead que llega sin uno.
      *
      * Antes: el usuario logueado o, sin sesión (webhook), el primer usuario
-     * activo por id — el administrador. Así casi todos los leads quedaban a
+     * activo por id - el administrador. Así casi todos los leads quedaban a
      * nombre de alguien que no vende y el handoff los mandaba al pozo.
      *
      * Ahora solo un asesor (activo y en la matriz «Atiende»): quien lo crea si
@@ -454,7 +454,7 @@ class LeadRepository extends Repository
      * (spec docs/specs/tablero-por-asesor.md, D13): para un ejecutivo se
      * descarta el `user_id` que venga, por cualquier camino (formulario,
      * edición en línea, inbox). Al crear, el pedido queda a su nombre
-     * (duenoPorDefecto). Sin usuario logueado —reparto, agente, jobs— Alcance
+     * (duenoPorDefecto). Sin usuario logueado -reparto, agente, jobs- Alcance
      * no restringe, así que el reparto automático sigue moviendo pedidos.
      * El encargado nacional (Bulmaro) también, pero solo a otro Ejecutivo
      * Comercial (20/10/2026); al pasarlo, deja de verlo.

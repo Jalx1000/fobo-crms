@@ -20,7 +20,7 @@ use Webkul\Whatsapp\Services\ConversationResolver;
 
 /**
  * Persists whatever the active gateway hands back. Knows nothing about any
- * provider's payload shape — that lives in the driver.
+ * provider's payload shape - that lives in the driver.
  */
 class IngestInboundPayload implements ShouldQueue
 {
@@ -46,7 +46,7 @@ class IngestInboundPayload implements ShouldQueue
             // the active gateway does not match the traffic hitting the webhook
             // (e.g. WHATSAPP_GATEWAY=kommo while Meta posts here). Dropping it
             // silently loses real customer messages, so say so loudly.
-            Log::warning('WhatsApp: webhook payload produced no events — is WHATSAPP_GATEWAY correct for this traffic?', [
+            Log::warning('WhatsApp: webhook payload produced no events - is WHATSAPP_GATEWAY correct for this traffic?', [
                 'gateway'      => $this->gatewayKey,
                 'payload_keys' => array_keys($this->payload),
             ]);
@@ -54,8 +54,17 @@ class IngestInboundPayload implements ShouldQueue
             return;
         }
 
-        foreach ($this->soloEstados($gateways) ? [] : $batch->messages as $message) {
-            $this->persistMessage($message, $resolver, $gateway);
+        $soloEstados = $this->soloEstados($gateways);
+
+        foreach ($batch->messages as $message) {
+            // De un canal que solo aporta estados pasan igual los ecos: lo que
+            // el asesor escribió desde la app de WhatsApp Business no entra por
+            // ningún otro lado. Van al hilo del canal activo de ese teléfono.
+            if ($soloEstados && ! $message->isEcho()) {
+                continue;
+            }
+
+            $this->persistMessage($message, $resolver, $gateway, $soloEstados ? (string) config('whatsapp.gateway') : null);
         }
 
         foreach ($batch->statuses as $status) {
@@ -83,8 +92,12 @@ class IngestInboundPayload implements ShouldQueue
 
     /**
      * Idempotent by the provider's message id: webhooks get retried.
+     *
+     * @param  string|null  $enCanal  Guardarlo en la conversación que ya existe
+     *                                en este canal (eco de un canal que solo
+     *                                aporta estados), sin abrir una nueva.
      */
-    protected function persistMessage(InboundMessage $inbound, ConversationResolver $resolver, Gateway $gateway): void
+    protected function persistMessage(InboundMessage $inbound, ConversationResolver $resolver, Gateway $gateway, ?string $enCanal = null): void
     {
         $model = MessageProxy::modelClass();
 
@@ -92,12 +105,14 @@ class IngestInboundPayload implements ShouldQueue
             return;
         }
 
-        $conversation = $resolver->resolve(
-            $inbound->contact,
-            $inbound->providerConversationId,
-            $this->gatewayKey,
-            $inbound->providerAccountId,
-        );
+        $conversation = $enCanal
+            ? ($inbound->contact->phone ? $resolver->findByPhone($inbound->contact->phone, $enCanal) : null)
+            : $resolver->resolve(
+                $inbound->contact,
+                $inbound->providerConversationId,
+                $this->gatewayKey,
+                $inbound->providerAccountId,
+            );
 
         if (! $conversation) {
             return;
@@ -152,7 +167,7 @@ class IngestInboundPayload implements ShouldQueue
         // Si no contesta lo que le respondamos, recontactarlo antes de que cierre la ventana.
         Recontactar::agendar($conversation);
 
-        // Hand the message to the AI agent — but only while it is enabled for
+        // Hand the message to the AI agent - but only while it is enabled for
         // this conversation. Off = a human is handling it.
         if ($conversation->agenteDebeResponder()) {
             NotifyAgent::despachar($created->id);
@@ -196,7 +211,7 @@ class IngestInboundPayload implements ShouldQueue
     /**
      * Download an inbound media file through the gateway and store it on the
      * public disk. Returns ['path' => url, 'mime' => ..., 'name' => ...] or an
-     * empty array — a failure must never drop the message, only its attachment.
+     * empty array - a failure must never drop the message, only its attachment.
      */
     protected function storeMedia(InboundMessage $inbound, Gateway $gateway, int $conversationId): array
     {

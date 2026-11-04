@@ -7,7 +7,7 @@ use RuntimeException;
 /**
  * The active gateway cannot deliver this kind of message. The composer renders
  * from Capabilities and should never offer it, so reaching this means the UI and
- * the driver drifted apart — or something posted straight to the endpoint.
+ * the driver drifted apart - or something posted straight to the endpoint.
  */
 class UnsupportedMessageException extends RuntimeException
 {

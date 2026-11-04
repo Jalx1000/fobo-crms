@@ -3,7 +3,7 @@
 namespace Webkul\Whatsapp\Gateways\Dto;
 
 /**
- * An inbound message, normalized. Drivers guarantee providerMessageId — if the
+ * An inbound message, normalized. Drivers guarantee providerMessageId - if the
  * provider gives none, the driver synthesizes a stable one so idempotency holds.
  */
 final class InboundMessage

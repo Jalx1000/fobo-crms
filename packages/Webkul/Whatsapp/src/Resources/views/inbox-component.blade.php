@@ -75,7 +75,7 @@
         .wa-stagebtn.is-current { background: var(--brand-color); color: #fff; }
         .wa-stagebtn:disabled { opacity: .5; cursor: default; }
 
-        /* Image viewer — self-contained CSS (admin Tailwind build is prebuilt,
+        /* Image viewer - self-contained CSS (admin Tailwind build is prebuilt,
            so new utility classes wouldn't be compiled). */
         .wa-zoomable { cursor: zoom-in; }
         .wa-viewer {
@@ -536,7 +536,7 @@
                 </div>
 
                 <!-- Mensaje / Nota interna: the note works even with the agent on
-                     or the window closed — it never reaches the customer -->
+                     or the window closed - it never reaches the customer -->
                 <div v-if="conversationId && !useMock" class="mb-2 flex gap-1 text-xs">
                     <button type="button" @click="composerMode = 'mensaje'"
                             class="rounded-full px-3 py-1 font-medium transition"
@@ -981,7 +981,7 @@
                             <button v-else type="button"
                                     class="mb-3 block w-full rounded-lg border border-dashed border-gray-300 px-3 py-3 text-center text-xs text-gray-400 transition hover:border-brandColor hover:text-brandColor dark:border-gray-700"
                                     @click="profileTab = 'pedidos'; leadFormOpen = true">
-                                Sin pedido en curso — crear uno
+                                Sin pedido en curso - crear uno
                             </button>
 
                             <!-- next scheduled activity -->
@@ -1029,11 +1029,11 @@
                             <div class="flex flex-col divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
                                 <div class="flex items-center justify-between px-2.5 py-1.5 text-xs">
                                     <span class="text-gray-500 dark:text-gray-400">Primer contacto</span>
-                                    <span class="font-medium text-gray-800 dark:text-gray-200">@{{ profile.whatsapp.first_contact || '—' }}</span>
+                                    <span class="font-medium text-gray-800 dark:text-gray-200">@{{ profile.whatsapp.first_contact || '-' }}</span>
                                 </div>
                                 <div class="flex items-center justify-between px-2.5 py-1.5 text-xs">
                                     <span class="text-gray-500 dark:text-gray-400">Último mensaje</span>
-                                    <span class="font-medium text-gray-800 dark:text-gray-200">@{{ profile.whatsapp.last_inbound || '—' }}</span>
+                                    <span class="font-medium text-gray-800 dark:text-gray-200">@{{ profile.whatsapp.last_inbound || '-' }}</span>
                                 </div>
                                 <div class="flex items-center justify-between px-2.5 py-1.5 text-xs">
                                     <span class="text-gray-500 dark:text-gray-400">Canal</span>
@@ -1287,7 +1287,7 @@
                              Tailwind class, on purpose: Leaflet renders into
                              whatever box it is given, so a purged utility class
                              would collapse the container to 0px and the map would
-                             vanish silently — no error, just nothing. This
+                             vanish silently - no error, just nothing. This
                              dimension is functional, so it must not depend on the
                              CSS build being in sync with this file. -->
                         <div class="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
@@ -1600,7 +1600,7 @@
                     leadForm: { title: '', value: '' },
                     leadSaving: false,
                     leadStageSaving: null, // id of the lead whose stage is in flight
-                    // Order (lead) this conversation is about — header chip + picker
+                    // Order (lead) this conversation is about - header chip + picker
                     order: null,
                     orderPickerOpen: false,
                     orderLeads: [],
@@ -1645,7 +1645,7 @@
 
                 // Whether this channel addresses people by phone number. Drives
                 // what the header shows and whether a missing phone is a problem
-                // at all — on Messenger it never is.
+                // at all - on Messenger it never is.
                 usesPhone() {
                     return (this.channel?.family ?? 'whatsapp') === 'whatsapp';
                 },
@@ -1658,7 +1658,7 @@
                     }[this.channelKey] ?? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
                 },
 
-                // The bound order, resolved against the picker list — that's where
+                // The bound order, resolved against the picker list - that's where
                 // the stage options live, so "Mover a" only shows once it's loaded.
                 boundLead() {
                     if (! this.order?.lead_id) return null;
@@ -1683,7 +1683,7 @@
                     ].filter(opt => this.canSend(opt.type));
                 },
 
-                // A staged file is enough on its own — the text is optional.
+                // A staged file is enough on its own - the text is optional.
                 canSubmit() {
                     if (this.uploading) return false;
                     return this.attachment !== null || this.draft.trim().length > 0;
@@ -2194,7 +2194,7 @@
                             if (res.data?.agent) this.aiEnabled = res.data.agent.effective;
                             // Sent on every poll and independent of the `since`
                             // cursor, so the banner updates even when no message
-                            // came in — a handoff produces none.
+                            // came in - a handoff produces none.
                             if (res.data?.handoff) this.handoff = res.data.handoff;
                             // Same deal as handoff: no message is produced when the
                             // lead moves stage from the kanban, so the chip has to
@@ -2364,7 +2364,7 @@
                  * Inline stage change from the "Pedidos" tab.
                  *
                  * Optimistic: the pill shows the new stage immediately and rolls
-                 * back to the previous one if the request fails — otherwise the
+                 * back to the previous one if the request fails - otherwise the
                  * <select> would keep displaying a stage the CRM never saved.
                  */
                 changeLeadStage(lead, event) {
@@ -2726,7 +2726,7 @@
                         file,
                         name: file.name,
                         size: file.size,
-                        // Object URL, revoked in clearAttachment — otherwise
+                        // Object URL, revoked in clearAttachment - otherwise
                         // every staged image leaks until a full page reload.
                         preview: type === 'image' ? URL.createObjectURL(file) : null,
                     };
@@ -2829,7 +2829,7 @@
 
                 /**
                  * Leaflet is pulled from the CDN the first time the picker is
-                 * opened — the inbox is inline Blade JS outside the Vite bundle,
+                 * opened - the inbox is inline Blade JS outside the Vite bundle,
                  * and most sessions never send a location at all.
                  */
                 loadLeaflet() {
@@ -2873,7 +2873,7 @@
                             }
 
                             // Start on the last pin, a saved location, or a wide
-                            // view — never on a hardcoded foreign city.
+                            // view - never on a hardcoded foreign city.
                             const start = this.hasPin
                                 ? [Number(this.locationForm.latitude), Number(this.locationForm.longitude)]
                                 : (this.savedLocations[0]
@@ -2894,7 +2894,7 @@
                                 attribution: '© OpenStreetMap',
                             }).addTo(this.map);
 
-                            // Tapping the map moves the pin too — on a phone that
+                            // Tapping the map moves the pin too - on a phone that
                             // is far easier than dragging a small marker.
                             this.map.on('click', e => this.setPin(e.latlng.lat, e.latlng.lng));
 
@@ -2983,7 +2983,7 @@
                 },
 
                 /**
-                 * A saved pin recenters the map instead of sending immediately —
+                 * A saved pin recenters the map instead of sending immediately -
                  * the advisor still confirms visually before the customer gets it.
                  */
                 useSavedLocation(place) {

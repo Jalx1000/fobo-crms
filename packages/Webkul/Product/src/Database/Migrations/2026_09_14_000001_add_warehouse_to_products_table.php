@@ -17,8 +17,8 @@ use Illuminate\Support\Facades\Schema;
  * producto), y esta dice de cuál sale. Un producto puede tener stock en tres
  * lados y despacharse siempre desde uno.
  *
- * Nullable y SET NULL: un producto sin planta se cotiza igual —solo que el
- * agente no puede decir dónde retirarlo— y borrar una planta no puede borrar
+ * Nullable y SET NULL: un producto sin planta se cotiza igual -solo que el
+ * agente no puede decir dónde retirarlo- y borrar una planta no puede borrar
  * los productos que fabricaba.
  */
 return new class extends Migration

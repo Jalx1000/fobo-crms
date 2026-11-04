@@ -6,7 +6,7 @@ use Webkul\Product\Support\Entrega;
  * Tarea 6: las reglas de entrega de la reunión del 11/09.
  *
  * Lo que se protege: que el plazo y el lugar salgan del producto y la cantidad,
- * y que combinar varios ítems dé lo más restrictivo — un pedido con tapas
+ * y que combinar varios ítems dé lo más restrictivo - un pedido con tapas
  * impresas tarda 20 días entero, no "inmediata para las bolsas".
  */
 function producto(array $attrs = []): object

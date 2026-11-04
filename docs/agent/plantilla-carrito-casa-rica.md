@@ -1,4 +1,4 @@
-# Plantilla de marketing «carrito abandonado» — Casa Rica
+# Plantilla de marketing «carrito abandonado» - Casa Rica
 
 | | |
 |---|---|
@@ -66,7 +66,7 @@ con los valores ya limpios.
 
 ## Cómo se creó (referencia: ya está creada y aprobada)
 
-Solo hace falta volver a correrlo si se borra o si se cambia el texto —en ese
+Solo hace falta volver a correrlo si se borra o si se cambia el texto -en ese
 caso con otro `name`, porque el nombre no se libera hasta borrar la anterior.
 
 ```bash

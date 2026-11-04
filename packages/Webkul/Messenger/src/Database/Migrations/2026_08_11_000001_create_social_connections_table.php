@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Connected social accounts — for Messenger, one row per Facebook page.
+ * Connected social accounts - for Messenger, one row per Facebook page.
  *
  * This is the only schema the channel owns: conversations and messages live in
  * the shared inbox tables. What cannot live there is the per-page credential,

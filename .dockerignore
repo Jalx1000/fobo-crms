@@ -1,5 +1,5 @@
 # =============================================================================
-# .dockerignore — Krayin CRM / Railway
+# .dockerignore - Krayin CRM / Railway
 # Excluye todo lo que no debe ir en la imagen de producción
 # =============================================================================
 

@@ -44,7 +44,7 @@
 
     /*
     | Razon social por defecto: la organizacion del contacto del lead, si la
-    | tiene. Es lo que se factura, y en la mayoria de los casos coincide — pero
+    | tiene. Es lo que se factura, y en la mayoria de los casos coincide - pero
     | queda editable porque no siempre: se cotiza a una persona y se factura a
     | otra empresa del mismo grupo.
     */
@@ -87,7 +87,7 @@
     | Tres cosas NO se copian, a propósito:
     |   - los productos, que son justamente lo que se está recotizando;
     |   - el asunto y la descripción, que describen esos productos («Bolsas
-    |     Magia Verde — 75 L · TRADICIONAL») y quedarían hablando de algo que
+    |     Magia Verde - 75 L · TRADICIONAL») y quedarían hablando de algo que
     |     esta cotización no tiene;
     |   - la fecha de vencimiento, que arranca de nuevo con la validez de la
     |     política comercial.

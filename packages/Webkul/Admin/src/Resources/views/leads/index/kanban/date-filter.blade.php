@@ -43,7 +43,7 @@
                     v-model="dateFrom"
                     class="rounded border w-full border-gray-200 bg-white py-1 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
                 />
-                <span class="text-xs text-gray-400">—</span>
+                <span class="text-xs text-gray-400">-</span>
                 <input
                     type="date"
                     v-model="dateTo"

@@ -59,7 +59,7 @@ class Entrega
      * Un pedido tiene un solo bloque de condiciones, así que se combinan por lo
      * más restrictivo:
      *
-     *   tiempo: el peor — tapas impresas arrastran a 20 días todo el pedido.
+     *   tiempo: el peor - tapas impresas arrastran a 20 días todo el pedido.
      *   lugar:  si algo se recoge en planta, todo se recoge en planta;
      *           si todo va a domicilio, va a domicilio;
      *           si no, puesto almacén cliente.
@@ -91,7 +91,7 @@ class Entrega
      *
      * Los tiempos son texto («Inmediata», «20 días», «3 semanas»): se ordena
      * por el número que traen, en días. «Inmediata» es 0. Un texto sin número
-     * se trata como el más largo — si el asesor escribió «a confirmar», eso es
+     * se trata como el más largo - si el asesor escribió «a confirmar», eso es
      * lo que tiene que salir, no «inmediata».
      */
     public static function peorTiempo(array $tiempos): string

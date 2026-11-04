@@ -7,7 +7,7 @@ use Webkul\Whatsapp\Http\Controllers\WebhookController;
 |--------------------------------------------------------------------------
 | Messenger webhook
 |--------------------------------------------------------------------------
-| Same controller, same queue, same ingest job as every other channel — only
+| Same controller, same queue, same ingest job as every other channel - only
 | the driver differs, and it is named explicitly here because Messenger traffic
 | must be parsed as Messenger regardless of which WhatsApp provider happens to
 | be the default.

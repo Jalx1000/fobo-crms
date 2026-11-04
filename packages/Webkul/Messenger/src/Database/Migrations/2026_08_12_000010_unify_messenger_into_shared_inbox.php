@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Storage;
  *
  * The first cut of this module kept its own conversations and messages and
  * *mirrored* them into whatsapp_conversations/whatsapp_messages. Two copies of
- * the same thread drift the moment either side is written alone — which is what
+ * the same thread drift the moment either side is written alone - which is what
  * happened: replies sent from one inbox never appeared in the other.
  *
  * After this migration there is one store. Messenger is a channel
@@ -47,7 +47,7 @@ return new class extends Migration
 
     /**
      * Make sure every Messenger thread exists in the shared store, with the
-     * page it belongs to attached — the mirror never recorded that.
+     * page it belongs to attached - the mirror never recorded that.
      */
     protected function carryOverConversations(): void
     {
@@ -97,7 +97,7 @@ return new class extends Migration
     }
 
     /**
-     * Copy any message the mirror missed — outbound replies sent from the old
+     * Copy any message the mirror missed - outbound replies sent from the old
      * social-inbox endpoint were never mirrored at all.
      */
     protected function carryOverMessages(): void
@@ -128,7 +128,7 @@ return new class extends Migration
                     }
 
                     // wa_message_id is unique and carries the provider's mid,
-                    // which is exactly what the mirror wrote — so this is the
+                    // which is exactly what the mirror wrote - so this is the
                     // same idempotency key both halves already used.
                     $alreadyThere = $row->external_id
                         ? DB::table('whatsapp_messages')->where('wa_message_id', $row->external_id)->exists()
@@ -275,7 +275,7 @@ return new class extends Migration
     /**
      * `brand_id` came from a multi-tenant product this CRM is not. It was also
      * read straight off a client-supplied header, so it never authorised
-     * anything — it only looked like it did.
+     * anything - it only looked like it did.
      */
     protected function dropUnusedBrandColumns(): void
     {

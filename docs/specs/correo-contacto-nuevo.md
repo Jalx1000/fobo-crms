@@ -1,6 +1,6 @@
 # Spec: Correo cuando se registra un contacto nuevo
 
-Estado: **BORRADOR — pendiente de aprobación**
+Estado: **BORRADOR - pendiente de aprobación**
 Rama: `imprimir-modulo-whatsapp`
 
 ## Contexto (verificado 2026-10-01)

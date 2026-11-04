@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# entrypoint.sh — Krayin CRM / Railway
+# entrypoint.sh - Krayin CRM / Railway
 #
 # Se ejecuta como root antes de arrancar supervisor.
 # Orden:
@@ -85,7 +85,7 @@ if [ -n "$DB_HOST" ] && [ "$DB_CONNECTION" != "sqlite" ]; then
             error "No se pudo conectar a la DB después de ${MAX_TRIES} intentos. Abortando."
             exit 1
         fi
-        log "  Intento ${TRIES}/${MAX_TRIES} — reintentando en 2s..."
+        log "  Intento ${TRIES}/${MAX_TRIES} - reintentando en 2s..."
         sleep 2
     done
 

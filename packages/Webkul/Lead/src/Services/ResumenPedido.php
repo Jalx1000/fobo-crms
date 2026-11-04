@@ -9,8 +9,8 @@ use Webkul\Lead\Models\LeadProxy;
  * El detalle de un pedido: qué se pidió, cuánto y por cuánto.
  *
  * Los tres datos que un asesor busca al abrir una oportunidad estaban
- * repartidos —los productos en una pestaña, las cotizaciones en otra, y el
- * valor en un campo que nadie actualizaba (todos los pedidos valían 0)—.
+ * repartidos -los productos en una pestaña, las cotizaciones en otra, y el
+ * valor en un campo que nadie actualizaba (todos los pedidos valían 0)-.
  *
  * Nada de esto se carga a mano: se calcula de lo que el pedido ya tiene, así
  * que no puede quedar desactualizado.
@@ -18,8 +18,8 @@ use Webkul\Lead\Models\LeadProxy;
  * DE DÓNDE SALE, en este orden:
  *
  *   1. Si el pedido tiene cotizaciones vinculadas, manda la ÚLTIMA. Las
- *      anteriores son versiones del mismo pedido —se recotiza al bajar el
- *      precio o cambiar la cantidad—, así que sumarlas daría un valor inflado.
+ *      anteriores son versiones del mismo pedido -se recotiza al bajar el
+ *      precio o cambiar la cantidad-, así que sumarlas daría un valor inflado.
  *   2. Si no hay cotizaciones, los productos cargados en el pedido.
  *   3. Si no hay ninguno de los dos, el pedido no vale nada todavía: cero.
  */
@@ -69,7 +69,7 @@ class ResumenPedido
 
         return [
             'lineas'    => $productos->map(fn ($p) => [
-                'producto' => (string) ($p->name ?: '—'),
+                'producto' => (string) ($p->name ?: '-'),
                 'cantidad' => (float) $p->quantity,
                 'importe'  => (float) $p->amount,
             ])->values()->all(),

@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
  * único responsable por casilla había que elegir a uno y el otro nunca
  * recibía nada. Ahora cada casilla es una lista y el CRM la recorre por turnos
  * (round robin): `ultimo_asignado_at` es el único estado que hace falta para
- * eso —el siguiente es siempre el que hace más tiempo no recibe—.
+ * eso -el siguiente es siempre el que hace más tiempo no recibe-.
  *
  * La cobertura nacional se guarda como una ciudad más («Bolivia», ver
  * `cotizacion.cobertura_nacional`). Es texto porque las ciudades también lo

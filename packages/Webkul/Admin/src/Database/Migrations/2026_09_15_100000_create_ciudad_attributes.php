@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\DB;
  *
  * Dos arreglos en uno porque son el mismo malentendido: el atributo `sucursal`
  * de cotizaciones era un select con ciudades adentro («Santa Cruz», «La Paz»…),
- * así que no había dónde anotar la sucursal —las tres plantas del módulo
- * Warehouse— ni dónde anotar la ciudad sin pisar la otra.
+ * así que no había dónde anotar la sucursal -las tres plantas del módulo
+ * Warehouse- ni dónde anotar la ciudad sin pisar la otra.
  *
  * Ahora:
  *   - `sucursal` (quotes) es un lookup a `warehouses`: las plantas se cargan y

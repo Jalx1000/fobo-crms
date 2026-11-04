@@ -75,8 +75,8 @@ completa y el **editor inline de atributos** de la vista del producto
 (`products/view/attributes.blade.php`), que postea un puñado de campos.
 
 Sin distinguirlos, cambiar el SKU desde el editor inline se leía como «el asesor
-vació la tabla» y borraba las 25 combinaciones —y las características, que ya
-tenían el mismo agujero desde antes de este cambio—. En silencio, porque un
+vació la tabla» y borraba las 25 combinaciones -y las características, que ya
+tenían el mismo agujero desde antes de este cambio-. En silencio, porque un
 `update` parcial es una operación legítima.
 
 Los dos parciales emiten un marcador (`precios_enviados`,
@@ -88,7 +88,7 @@ campo porque el campo puede faltar legítimamente cuando el asesor borra la
 Las columnas de eje se renderizan **server-side** además de mantenerlas el
 script. Si dependieran solo del JS, un fallo de carga dejaría la tabla sin los
 `<input name="precios[N][valores][Tamaño]">` y el guardado borraría la lista
-entera — una falla de JavaScript se convertiría en pérdida de datos.
+entera - una falla de JavaScript se convertiría en pérdida de datos.
 
 ## El catálogo cargado
 
@@ -116,17 +116,17 @@ Tapas, y los canales por nombre, pero no los montos.
 Nada se cargó inventado: la grilla está armada con la columna Precio vacía. Una
 fila sin precio hace que el agente **derive**, que es exactamente lo que
 corresponde mientras el precio no esté. Cuando el negocio los cargue desde el
-CRM, empieza a cotizar solo — sin tocar el agente.
+CRM, empieza a cotizar solo - sin tocar el agente.
 
 ## Archivos
 
 - `packages/Webkul/Product/src/Database/Migrations/2026_09_09_00000{1,2}_*`
 - `packages/Webkul/Product/src/Models/ProductPrice.php`
-- `packages/Webkul/Product/src/Support/ListaPrecios.php` — resolución compartida
+- `packages/Webkul/Product/src/Support/ListaPrecios.php` - resolución compartida
   entre el CRM y el agente: dos implementaciones se despegan a la primera
   corrección que se hace en una sola
 - `packages/Webkul/Product/src/Repositories/ProductPriceRepository.php`
-- `packages/Webkul/Product/src/Http/Controllers/Api/AgenteController.php` — `precio()`
+- `packages/Webkul/Product/src/Http/Controllers/Api/AgenteController.php` - `precio()`
 - `packages/Webkul/Admin/src/Resources/views/products/_precios.blade.php`
-- `docs/agent/langchain/crm_productos.py` — herramienta `precio_producto`
+- `docs/agent/langchain/crm_productos.py` - herramienta `precio_producto`
 - `tests/Feature/Product/{ListaPreciosTest,PreciosFormularioTest}.php`

@@ -5,7 +5,7 @@ use Webkul\Product\Models\Product;
 use Webkul\Quote\Repositories\QuoteRepository;
 
 /**
- * Tarea 8: la cotización en pantalla — códigos en la fila del ítem y
+ * Tarea 8: la cotización en pantalla - códigos en la fila del ítem y
  * condiciones de entrega propuestas.
  */
 beforeEach(function () {
@@ -114,7 +114,7 @@ it('guarda una cotización con la variante elegida en el formulario', function (
     expect($item->unidad)->toBe('PZA');
     expect($quote->tiempo_entrega)->toBe('Inmediata');
 
-    // Un atributo select guarda el ID de la opción, no el texto — igual que
+    // Un atributo select guarda el ID de la opción, no el texto - igual que
     // `marca`. El PDF lo resuelve a nombre con Opciones::nombre().
     expect((int) $quote->lugar_entrega)->toBe($this->lugares['Puesto almacén cliente']);
 });
@@ -242,7 +242,7 @@ it('la tabla de ítems tiene tantas celdas como encabezados', function () {
      * Regresión: al pasar los códigos de la celda del producto a columnas, la
      * vista de edición quedó con los <th> nuevos pero SIN los <td>: 12
      * encabezados contra 8 celdas, y la tabla se veía corrida. El HTML era
-     * válido, así que nada fallaba — solo se veía mal.
+     * válido, así que nada fallaba - solo se veía mal.
      */
     foreach ([route('admin.quotes.create'), route('admin.quotes.edit', quoteExistente())] as $url) {
         $html = test()->get($url)->assertOk()->getContent();
@@ -268,7 +268,7 @@ it('las clases de la tabla de ítems existen en el CSS compilado del admin', fun
     /*
      * El admin tiene su propio build de Tailwind y hace tree-shaking: una clase
      * nueva en un blade NO existe hasta correr `npm run build` en
-     * packages/Webkul/Admin. Sin eso el HTML la lleva y no pasa nada — que es
+     * packages/Webkul/Admin. Sin eso el HTML la lleva y no pasa nada - que es
      * exactamente lo que hizo que la tabla siguiera con el padding viejo.
      *
      * Ya nos pasó con `border-2` del dropzone. Este test lo detecta.
@@ -371,7 +371,7 @@ it('respeta la descripción que el asesor escribió en el formulario', function 
         'items'       => ['item_0' => [
             'product_id'  => $this->bolsas->id,
             'variante_id' => $variante->id,
-            'name'        => 'Bolsa reforzada 50 L — pedido especial',
+            'name'        => 'Bolsa reforzada 50 L - pedido especial',
             'quantity'    => 25, 'price' => 13, 'total' => 325,
         ]],
     ])->assertRedirect();
@@ -381,7 +381,7 @@ it('respeta la descripción que el asesor escribió en el formulario', function 
     $this->quotes[] = $quote->id;
 
     expect(DB::table('quote_items')->where('quote_id', $quote->id)->value('name'))
-        ->toBe('Bolsa reforzada 50 L — pedido especial');
+        ->toBe('Bolsa reforzada 50 L - pedido especial');
 });
 
 it('sin variante con nombre de ERP usa el nombre del producto', function () {

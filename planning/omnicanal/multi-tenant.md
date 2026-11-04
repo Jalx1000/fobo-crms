@@ -1,4 +1,4 @@
-# Multi-tenant — aislamiento de datos entre clientes
+# Multi-tenant - aislamiento de datos entre clientes
 
 > Decisión tomada: el CRM conecta **también cuentas de clientes**, no solo las propias.
 > Esto deja de ser una feature y pasa a ser una propiedad de seguridad del sistema.
@@ -60,7 +60,7 @@ public function resolveTenant(string $channel, string $externalId): ?ChannelTena
 }
 ```
 
-### Caso borde 1 — cuenta desconocida
+### Caso borde 1 - cuenta desconocida
 
 El `external_id` no corresponde a ninguna `channel_account` registrada.
 
@@ -70,7 +70,7 @@ El `external_id` no corresponde a ninguna `channel_account` registrada.
 | Cuarentena para revisión | Tabla `channel_orphan_payloads` + aviso en la UI. Nada se pierde, hay que mantenerla |
 | Auto-crear tenant | **No.** Cualquiera que conozca la URL del webhook inyecta tenants |
 
-### Caso borde 2 — colisión
+### Caso borde 2 - colisión
 
 Dos tenants con el mismo `page_id`. Pasa de verdad: un cliente se conecta dos veces, o una agencia
 y su cliente conectan la misma página.
@@ -82,7 +82,7 @@ y su cliente conectan la misma página.
 | Rechazar el duplicado **en el alta** | Preferible: el UNIQUE `(channel, external_id)` en `channel_accounts` lo impide antes de que llegue un solo mensaje |
 
 > Nota de esquema: el UNIQUE propuesto es `(channel, external_id)` **sin** `tenant_id`. Eso implementa
-> ya la tercera opción — una cuenta de Meta pertenece a un solo tenant, y el segundo intento de
+> ya la tercera opción - una cuenta de Meta pertenece a un solo tenant, y el segundo intento de
 > conexión falla en la pantalla de configuración con un mensaje claro. Si se prefiere permitir que
 > dos tenants compartan una página, hay que cambiar el UNIQUE a `(tenant_id, channel, external_id)`
 > y entonces el caso borde 2 vuelve a la ingesta, donde es mucho más caro de resolver.
@@ -94,7 +94,7 @@ y su cliente conectan la misma página.
 Cada endpoint nuevo necesita, como mínimo:
 
 1. Un usuario del tenant A **no** ve conversaciones del tenant B (lista, hilo y búsqueda).
-2. Un usuario del tenant A **no** puede enviar a una conversación del tenant B (404, no 403 —
+2. Un usuario del tenant A **no** puede enviar a una conversación del tenant B (404, no 403 -
    no confirmar que existe).
 3. Un webhook con `external_id` del tenant B escribe en el tenant B, aunque llegue en la misma
    tanda que uno del tenant A.

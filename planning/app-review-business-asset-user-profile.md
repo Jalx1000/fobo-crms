@@ -1,6 +1,6 @@
-# App Review — Business Asset User Profile Access (Messenger)
+# App Review - Business Asset User Profile Access (Messenger)
 
-> **App:** `917602557819401` ("Imprimir") — la que tiene suscrita la página de Messenger `155103561021423`.
+> **App:** `917602557819401` ("Imprimir") - la que tiene suscrita la página de Messenger `155103561021423`.
 > **No** es la app de WhatsApp (`2294798067962463`), aunque las dos se llamen "Imprimir".
 > **Redactado:** 2026-10-08.
 
@@ -75,7 +75,7 @@ que funciona con un cliente real.
 ## 3. Casilla final
 
 Marcar: *"Si se aprueba, confirmo que cualquier información que reciba a través de Business Asset User
-Profile Access se usará de acuerdo con el uso permitido."* — el texto de la sección 1 ya cumple ese uso.
+Profile Access se usará de acuerdo con el uso permitido."* - el texto de la sección 1 ya cumple ese uso.
 
 ---
 
@@ -93,7 +93,7 @@ Profile Access se usará de acuerdo con el uso permitido."* — el texto de la s
 
 ## 5. Instrucciones de acceso para el revisor (formulario general de App Review)
 
-### instructions-web-2 — Cómo ingresar y probar
+### instructions-web-2 - Cómo ingresar y probar
 
 > Antes de enviar: crear en el CRM un usuario **solo para Meta** (Configuración → Usuarios), con acceso
 > a la bandeja de WhatsApp/Messenger y **sin** permisos de administrador, y completar abajo su email y
@@ -120,13 +120,13 @@ Our app is an internal web CRM (no installation needed). It is used by our sales
 The screen recording attached to the permission request shows these same steps.
 ```
 
-### fblogin-web-1 — Is Facebook Login integrated on this platform?
+### fblogin-web-1 - Is Facebook Login integrated on this platform?
 
 **No.** El CRM no usa Facebook Login: la página se conecta una sola vez con un Page Access Token cargado
 por el administrador (`php artisan messenger:connect-page`). Los asesores entran con usuario y
 contraseña propios del CRM.
 
-### accesscode-web-1 — Códigos de acceso / credenciales de prueba (opcional)
+### accesscode-web-1 - Códigos de acceso / credenciales de prueba (opcional)
 
 ```
 No payment or membership is required. Use the test credentials provided in the access instructions:
@@ -138,17 +138,17 @@ These credentials will remain active for one year after submission.
 
 > Si se completa, el usuario de prueba tiene que seguir activo **un año**.
 
-### accesscode-web-2 — Códigos de regalo (opcional)
+### accesscode-web-2 - Códigos de regalo (opcional)
 
 **Dejar vacío.** No es una app de tienda ni requiere pago para descargarla.
 
-### geo-web-5 — Restricciones geográficas (opcional)
+### geo-web-5 - Restricciones geográficas (opcional)
 
 ```
 There are no geographic restrictions. The CRM can be accessed from any country. Our customers are mainly in Bolivia and the interface is in Spanish, but neither access nor any feature is geo-blocked.
 ```
 
-### documents-web-1 — Documentación complementaria (opcional)
+### documents-web-1 - Documentación complementaria (opcional)
 
 Subir:
 - [ ] El **video** de la sección 2 (MP4).
@@ -157,7 +157,7 @@ Subir:
 
 ---
 
-## 6. pages_messaging — "Prueba y reproduce la funcionalidad de tu integración"
+## 6. pages_messaging - "Prueba y reproduce la funcionalidad de tu integración"
 
 ### Preparación (antes de enviar)
 
@@ -178,7 +178,7 @@ Subir:
 Our app is an internal web CRM that our sales team uses to answer the customers who message our Facebook Page "Imprimir" (Page ID 155103561021423) on Messenger. Customers write to the Page; the messages arrive in the CRM through the Messenger webhook (pages_manage_metadata) and our advisors reply from the CRM (pages_messaging, messaging_type RESPONSE, only within the 24-hour window).
 
 TEST ACCOUNTS
-1) Facebook account (real account with the Tester role in this app) — use it to write to our Page as a customer:
+1) Facebook account (real account with the Tester role in this app) - use it to write to our Page as a customer:
    Email: <FB_TESTER_EMAIL>
    Password: <FB_TESTER_PASSWORD>
 

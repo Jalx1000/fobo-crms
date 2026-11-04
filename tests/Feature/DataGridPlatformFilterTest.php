@@ -8,7 +8,7 @@ use Webkul\Whatsapp\Support\ContactChannel;
  * The "Plataforma" filter shared by the Personas, Leads and Cotizaciones grids.
  *
  * These assert the SQL that gets BUILT, not rows that come back: the development
- * host cannot reach the database. That is not a workaround — every bug this
+ * host cannot reach the database. That is not a workaround - every bug this
  * filter can have lives in the generated SQL (a missing table prefix, a join
  * that multiplies rows, a NULL that no dropdown value can ever match).
  */
@@ -34,7 +34,7 @@ it('qualifies the joined alias with the table prefix', function () {
 it('keeps one row per contact so the listing cannot duplicate', function () {
     // Of the three grids only Leads has a GROUP BY. In the other two a join that
     // multiplied would show the same contact several times, raising no error at
-    // all — it reads as bad data rather than bad code.
+    // all - it reads as bad data rather than bad code.
     $sql = platformQuery()->toSql();
 
     expect($sql)->toContain('ROW_NUMBER() OVER')
@@ -126,7 +126,7 @@ it('builds the persons grid with the platform column without breaking its query'
 /*
 | LeadDataGrid is deliberately absent: its constructor resolves the default
 | pipeline from the database, so it cannot be built on a host without one. That
-| predates this work and is not something the platform filter introduced —
+| predates this work and is not something the platform filter introduced -
 | it is covered by the manual checklist in tasks/todo.md instead.
 */
 

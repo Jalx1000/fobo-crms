@@ -124,7 +124,7 @@ Cuerpo:
   "gateway": "kommo",                 // o "cloud_api"
   "ai_enabled": true,
   "contact": {
-    "phone": "+59176616013",          // PUEDE SER NULL — ver aviso abajo
+    "phone": "+59176616013",          // PUEDE SER NULL - ver aviso abajo
     "channel": "kommo",               // canal por el que escribió
     "name": "Alejandro",              // puede ser null
     "person_id": 7,                   // contacto en el CRM (puede ser null)
@@ -168,7 +168,7 @@ Cuerpo:
 > Instagram).
 >
 > Para identificar la conversación usá **`conversation_id`** (siempre presente) o
-> `contact.person_id`. **Nunca el teléfono** — no sirve como clave ni siquiera en
+> `contact.person_id`. **Nunca el teléfono** - no sirve como clave ni siquiera en
 > los canales que lo tienen.
 >
 > En Pydantic:
@@ -194,12 +194,12 @@ viene siempre.
 | Campo | Tipo | ¿Puede ser null? |
 |---|---|---|
 | `event`, `conversation_id`, `gateway`, `ai_enabled` | str/int/str/bool | no |
-| `contact.phone` | str | **sí** — siempre en messenger/instagram |
+| `contact.phone` | str | **sí** - siempre en messenger/instagram |
 | `contact.channel` | str | no |
 | `contact.name` | str | sí |
 | `contact.person_id`, `contact.lead_id` | int | sí |
 | `message.id`, `message.type` | int/str | no |
-| `message.text` | str | **sí** — audio, sticker y ubicación no traen texto |
+| `message.text` | str | **sí** - audio, sticker y ubicación no traen texto |
 | `message.timestamp` | str ISO-8601 | sí |
 | `history[].role`, `history[].type` | str | no |
 | `history[].content` | str | sí (mismo motivo que `message.text`) |
@@ -213,7 +213,7 @@ viene siempre.
 
 ### El agente debe distinguir el canal
 
-`gateway` (raíz del evento) y `contact.channel` **son el mismo valor** — los dos
+`gateway` (raíz del evento) y `contact.channel` **son el mismo valor** - los dos
 salen de `conversation.gateway`. No son dos datos distintos; da igual cuál leas.
 
 Valores actuales y en qué se diferencian:
@@ -270,7 +270,7 @@ Qué debe hacer tu agente:
 2. Responder **rápido `200`** al CRM (el trabajo pesado hacelo async).
 3. Procesar con LangChain usando `message.text` + `history` + `contact`.
 4. Enviar la respuesta con el `reply.url` (punto 4).
-5. Respetar `window.open`: si es `false`, WhatsApp no deja texto libre — el POST de respuesta te va a devolver `422`.
+5. Respetar `window.open`: si es `false`, WhatsApp no deja texto libre - el POST de respuesta te va a devolver `422`.
 
 ---
 
@@ -328,7 +328,7 @@ Campos del body:
 | `422` (con `message` de ventana) | Fuera de la ventana de 24h de WhatsApp | No reintentar el texto libre. Esperar a que el cliente escriba, o usar plantilla (no soportado aún) |
 | `422` (validación) | Falta `text` u otro campo | Corregir el body |
 | `404` | La conversación no existe | Revisar el `conversation_id` |
-| `401` / `500` en auth | Token inválido/ausente | Revisar el Bearer. *Nota: la REST API de Krayin hoy devuelve `500` en vez de `401` ante token inválido — es comportamiento global de la plataforma, no de este módulo* |
+| `401` / `500` en auth | Token inválido/ausente | Revisar el Bearer. *Nota: la REST API de Krayin hoy devuelve `500` en vez de `401` ante token inválido - es comportamiento global de la plataforma, no de este módulo* |
 
 ---
 

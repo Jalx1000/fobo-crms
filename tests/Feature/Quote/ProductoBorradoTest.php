@@ -11,8 +11,8 @@ use Webkul\Quote\Repositories\QuoteRepository;
  * «No query results for model [Product] 12». El 404 aparecía sobre una página
  * que sí existe, así que no había forma de adivinar la causa.
  *
- * `quote_items` guarda `sku` y `name` copiados del producto —es una foto de lo
- * que se cotizó, no un puntero— y `product_id` no tiene FK, así que borrar un
+ * `quote_items` guarda `sku` y `name` copiados del producto -es una foto de lo
+ * que se cotizó, no un puntero- y `product_id` no tiene FK, así que borrar un
  * producto deja huérfanos en silencio y rompe para siempre la edición de toda
  * cotización que lo incluyera.
  */

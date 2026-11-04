@@ -1,7 +1,7 @@
-# Cotización con formato RG-VCO-005 — análisis previo al código
+# Cotización con formato RG-VCO-005 - análisis previo al código
 
-**Fuentes:** `docs/crm/` — dos notas manuscritas de la reunión del 11/09 y la
-propuesta comercial real *"MAGIA VERDE — GRUPO QUIROZ HOLDING #3"* (formato
+**Fuentes:** `docs/crm/` - dos notas manuscritas de la reunión del 11/09 y la
+propuesta comercial real *"MAGIA VERDE - GRUPO QUIROZ HOLDING #3"* (formato
 RG-VCO-005, versión 00, edición 19/4/2024).
 **Estado:** análisis. No se tocó código.
 
@@ -41,7 +41,7 @@ RG-VCO-005, versión 00, edición 19/4/2024).
 
 Unidad: **PZA**. El nombre del ítem en su sistema: `BSA MULTIUSO MAGIA VERDE 200L 5UN`.
 
-### Mínimos y entrega (nota B) — esto **corrige** lo cargado
+### Mínimos y entrega (nota B) - esto **corrige** lo cargado
 
 | Producto | Mínimo | Entrega |
 |---|---|---|
@@ -62,7 +62,7 @@ VALIDEZ DE OFERTA   10 DIAS            LUGAR DE ENTREGA  PUESTO ALMACEN CLIENTE
 ```
 
 Y un detalle que importa: los precios de esa propuesta (7,50 · 11,50 · 12,00 ·
-13,00 · 11,50) **no coinciden con ninguna columna de la tabla de precios** —
+13,00 · 11,50) **no coinciden con ninguna columna de la tabla de precios** -
 son un *"Escenario #3, compra mínima 3 bultos por medida"*, o sea un precio
 negociado. La lista de precios es el punto de partida, no el techo: el asesor
 tiene que poder cambiar el precio del ítem en la cotización. Hoy puede.
@@ -80,7 +80,7 @@ piden ahora:
 - Cada línea de la cotización lleva **su** TR4 y **su** código de barra.
 - En el ERP de Imprimir (TR4) cada tamaño **es** un producto.
 
-### Opción A — cinco productos, uno por tamaño ✅ recomendada
+### Opción A - cinco productos, uno por tamaño ✅ recomendada
 
 ```
 CM_00002-35   Bolsa Magia Verde 35 L   TR4 020117-0044   barra 7779970880051
@@ -99,7 +99,7 @@ uno solo).
   pasa a ser un menú de SKUs. Es un cambio de prompt, no de API.
 - ⚠️ Hay que migrar las 50 filas de precio actuales (script, no a mano).
 
-### Opción B — un producto, códigos por fila de precio
+### Opción B - un producto, códigos por fila de precio
 
 Poner TR4/barra/medida en cada fila de `product_prices`.
 
@@ -118,13 +118,13 @@ que alguien toque un código.
 
 ## 4. Diseño propuesto
 
-### 4.1 Productos — columnas nuevas
+### 4.1 Productos - columnas nuevas
 
 | Columna | Tipo | Para qué |
 |---|---|---|
 | `codigo_tr4` | string 30, índice | el código del ERP; **va en cada línea del PDF** |
 | `codigo_barra` | string 20, nullable | EAN; carga manual, opcional |
-| `medida` | string 60 | "(100×120) cm" — columna MEDIDA del PDF |
+| `medida` | string 60 | "(100×120) cm" - columna MEDIDA del PDF |
 | `unidad` | string 10, default `PZA` | columna UNID |
 | `tiempo_entrega` | string 60, default `Inmediata` | "20 días" para tapas impresas |
 | `lugar_entrega` | string 60 | "Puesto almacén cliente" / "Recoge en planta" |
@@ -135,7 +135,7 @@ validan. Las características siguen siendo para lo descriptivo.
 
 `minimo` sigue en la fila de precio, corregido a **packs** donde corresponda.
 
-### 4.2 Cotización — atributos personalizados (por SQL, sin código)
+### 4.2 Cotización - atributos personalizados (por SQL, sin código)
 
 Igual que `marca` y `nit`: se crean en `kl_attributes` y el formulario los
 muestra solo.
@@ -152,7 +152,7 @@ muestra solo.
 `validez` no es campo nuevo: es `expired_at`. Se cambia el default de **7 a
 10 días** en `quotes/create.blade.php` (una línea).
 
-### 4.3 Ítems de cotización — foto de los códigos
+### 4.3 Ítems de cotización - foto de los códigos
 
 Igual que `sku`/`name` hoy: se **copian** al ítem al momento de cotizar.
 
@@ -163,11 +163,11 @@ Igual que `sku`/`name` hoy: se **copian** al ítem al momento de cotizar.
 | `medida` | idem |
 | `unidad` | idem |
 
-Sin esto, editar un producto reescribiría cotizaciones ya enviadas — y ya
+Sin esto, editar un producto reescribiría cotizaciones ya enviadas - y ya
 vimos con el bug de `findOrFail` lo que pasa cuando un ítem depende del
 producto vivo.
 
-### 4.4 El PDF — plantilla nueva, formato RG-VCO-005
+### 4.4 El PDF - plantilla nueva, formato RG-VCO-005
 
 Reescribir `quotes/pdf.blade.php` para reproducir la propuesta real:
 
@@ -194,7 +194,7 @@ El código de documento (`RG-VCO-005 · Versión 00 · Edición 19/4/2024`) va a
 config, no hardcodeado: es un dato del sistema de calidad de Imprimir y va a
 cambiar de versión.
 
-### 4.5 Lugar y tiempo de entrega — regla, no dato suelto
+### 4.5 Lugar y tiempo de entrega - regla, no dato suelto
 
 Las reglas de la nota B son por producto **y** por cantidad:
 
@@ -232,12 +232,12 @@ Cada paso deja el sistema funcionando y se puede frenar entre uno y otro.
 |---|---|---|---|
 | 1 | Atributos de cotización (4.2) + validez 10 días | SQL + 1 línea | bajo |
 | 2 | Columnas de producto (4.1) + formulario | migración + blade | bajo |
-| 3 | **Dividir bolsas en 5 productos** con sus códigos y migrar precios | seeder + script | medio — toca el agente |
+| 3 | **Dividir bolsas en 5 productos** con sus códigos y migrar precios | seeder + script | medio - toca el agente |
 | 4 | Foto de códigos en ítems (4.3) al crear/editar cotización | migración + repo | bajo |
 | 5 | Reglas de entrega (4.5) en pantalla y en la API del agente | servicio + tests | medio |
-| 6 | **PDF RG-VCO-005** (4.4) | plantilla nueva | medio — hay que mirarlo, no solo testearlo |
+| 6 | **PDF RG-VCO-005** (4.4) | plantilla nueva | medio - hay que mirarlo, no solo testearlo |
 | 7 | Corregir mínimo de bolsas a "10 packs" | seeder | trivial |
-| 8 | Prompt del agente: tamaños como SKUs, entrega, forma de pago | doc | — |
+| 8 | Prompt del agente: tamaños como SKUs, entrega, forma de pago | doc | - |
 
 Los pasos 1, 2 y 7 se pueden hacer hoy sin decidir nada. El 3 es la decisión.
 
@@ -251,7 +251,7 @@ Los pasos 1, 2 y 7 se pueden hacer hoy sin decidir nada. El 3 es la decisión.
 3. **Formas de pago reales.** La propuesta dice "AL CONTADO"; ¿hay crédito?
    ¿a cuántos días?
 4. **¿El código de barra es obligatorio o puede faltar?** La nota dice "se podría
-   agregar para ingresar manualmente" — lo leo como opcional.
+   agregar para ingresar manualmente" - lo leo como opcional.
 5. **Tiempo de entrega de tapas impresas: ¿20 días hábiles o corridos?**
 6. Las **ubicaciones de almacenes** (pendiente de Mariana): ¿van en la
    cotización, en la ficha del cliente, o solo las usa el agente para decir
@@ -263,8 +263,8 @@ Los pasos 1, 2 y 7 se pueden hacer hoy sin decidir nada. El 3 es la decisión.
 
 ## 7. Lo que NO cambia
 
-- La lista de precios por variante y `precio_producto` — se simplifican (menos
+- La lista de precios por variante y `precio_producto` - se simplifican (menos
   ejes) pero el contrato con el agente es el mismo.
 - El NIT y su sincronización cotización ↔ persona.
-- El bloque de firmas del PDF — se reubica, no se rehace.
+- El bloque de firmas del PDF - se reubica, no se rehace.
 - Los adjuntos de producto y `enviar_material`.

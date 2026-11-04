@@ -7,7 +7,7 @@ use Webkul\Admin\DataGrids\Quote\QuoteDataGrid;
  *
  * Se afirma sobre la CONFIGURACION de columnas, no sobre filas: el host de
  * desarrollo no llega a la base. Y alcanza, porque el bug que esto cubre vive
- * exactamente ahi — `processRequestedFilters()` recorre las columnas
+ * exactamente ahi - `processRequestedFilters()` recorre las columnas
  * `searchable` y, si no hay ninguna, arma un `where(function () {})` vacio: la
  * busqueda no falla, devuelve la grilla entera. Silencioso y peor que un error.
  */

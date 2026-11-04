@@ -55,7 +55,7 @@ class ProductMediaRepository extends Repository
      *
      * Con `$varianteId`, primero los de ESA variante (la ficha de 50 L cuando
      * pidió 50 L); si esa variante no tiene ninguno, los generales del
-     * producto —los que no son de ninguna variante—, que es lo que se mandaba
+     * producto -los que no son de ninguna variante-, que es lo que se mandaba
      * antes. Los de OTRAS variantes nunca: mandarle al cliente la ficha de
      * 140 L cuando pidió 50 L es peor que no mandarle nada.
      *

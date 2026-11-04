@@ -3,7 +3,7 @@
 -- El PASO 4 del flujo de venta pide razón social, NIT, correo y dirección. Los
 -- otros tres ya tenían dónde ir (organizations.name, persons.emails,
 -- organizations.address); el NIT no tenía ningún campo y terminaba apelotonado
--- como texto libre en la descripción de la cotización — donde nadie lo puede
+-- como texto libre en la descripción de la cotización - donde nadie lo puede
 -- filtrar, exportar ni usar para facturar.
 --
 -- Va en `persons` y no en `organizations` porque en Imprimir se le cotiza tanto

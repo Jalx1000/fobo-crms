@@ -71,7 +71,7 @@ class QuoteController extends Controller
      * Whether the logged-in user holds the unrestricted role.
      *
      * Same test Bouncer makes: `permission_type = 'all'` is what "Administrator"
-     * means in Krayin — the role name is free text and can be renamed or
+     * means in Krayin - the role name is free text and can be renamed or
      * translated, so matching on it would break silently.
      */
     protected function isAdministrator(): bool
@@ -90,8 +90,8 @@ class QuoteController extends Controller
         | Recotizar: el formulario arranca con los datos de una cotización
         | anterior del mismo pedido.
         |
-        | Casi toda recotización repite el cliente y las condiciones —forma de
-        | pago, entrega, NIT, marca, ciudad, sucursal— y cambia solo lo que se
+        | Casi toda recotización repite el cliente y las condiciones -forma de
+        | pago, entrega, NIT, marca, ciudad, sucursal- y cambia solo lo que se
         | pide. Copiar eso a mano era transcribir ocho campos para cambiar uno.
         |
         | Los productos NO se copian a propósito: se recotiza justamente porque
@@ -153,8 +153,8 @@ class QuoteController extends Controller
      * búsqueda: si no viene de acá, el select de variante aparece vacío y el
      * asesor no puede cambiar una tapa por otra sin borrar la fila.
      *
-     * Un producto borrado deja la fila igual —los códigos ya están copiados en
-     * el ítem— pero sin variantes para elegir.
+     * Un producto borrado deja la fila igual -los códigos ya están copiados en
+     * el ítem- pero sin variantes para elegir.
      */
     protected function itemsConVariantes($quote): array
     {
@@ -300,7 +300,7 @@ class QuoteController extends Controller
     /**
      * Send the quote to the contact over WhatsApp, as an attached PDF.
      *
-     * The PDF is the very same document print() hands to the browser — rendered
+     * The PDF is the very same document print() hands to the browser - rendered
      * here instead of downloaded, staged on the public disk and queued as an
      * outbound `document` message. It therefore lands in the contact's existing
      * thread, shows in the inbox and in the profile drawer's "Docs" tab, and
@@ -486,7 +486,7 @@ class QuoteController extends Controller
         }
 
         if ($usesTemplate && ! $conversation->last_inbound_at) {
-            // Templates exist to open a conversation, so this is allowed — but
+            // Templates exist to open a conversation, so this is allowed - but
             // it is also the pattern Meta penalises when done in volume, and if
             // the number's quality rating drops we need to be able to audit it.
             Log::info('Quotes: quote template sent to a contact with no inbound history.', [
@@ -570,7 +570,7 @@ class QuoteController extends Controller
      *     Te enviamos la cotización {{1}}.
      *     Total: {{2}}
      *
-     * Two placeholders, so exactly two values — Meta counts them and rejects the
+     * Two placeholders, so exactly two values - Meta counts them and rejects the
      * whole message with 132000 over a mismatch, without saying how many it
      * wanted.
      *
@@ -585,8 +585,8 @@ class QuoteController extends Controller
         int|string $quoteId,
     ): array {
         return [
-            // In this install `subject` holds the customer's company — the grid
-            // labels it "Empresa" — which is what the approved template's own
+            // In this install `subject` holds the customer's company - the grid
+            // labels it "Empresa" - which is what the approved template's own
             // sample value ("Farmacorp") was written against.
             $subject ?: '#'.$quoteId,
             core()->formatBasePrice($grandTotal),
@@ -596,7 +596,7 @@ class QuoteController extends Controller
     /**
      * The number to reach a contact on: their first usable phone.
      *
-     * Only ever a fallback — conversationFor() prefers a thread the contact
+     * Only ever a fallback - conversationFor() prefers a thread the contact
      * already has, so this matters exclusively for a first contact.
      */
     protected function contactPhone($person): ?string
@@ -627,7 +627,7 @@ class QuoteController extends Controller
      * The text that rides along with the PDF.
      *
      * WhatsApp accepts a caption on documents, and a bare file with no words is
-     * read as spam — so it names what it is and what it is worth.
+     * read as spam - so it names what it is and what it is worth.
      */
     protected function quoteCaption($quote): string
     {
@@ -658,7 +658,7 @@ class QuoteController extends Controller
      * PDF con un campo en blanco justo donde va el dato de facturación.
      *
      * Solo se completa si vino vacía: lo que el asesor escriba manda, porque
-     * es el caso que justifica que el campo exista — se cotiza a una persona y
+     * es el caso que justifica que el campo exista - se cotiza a una persona y
      * se factura a la empresa de su grupo.
      *
      * Se resuelve en el servidor y no solo en el formulario para que valga

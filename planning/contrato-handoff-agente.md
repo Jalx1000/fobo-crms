@@ -1,4 +1,4 @@
-# Contrato del bloque `handoff` — CRM ↔ agente IA
+# Contrato del bloque `handoff` - CRM ↔ agente IA
 
 > **Para el equipo del agente LangChain.** Este documento describe un incidente de
 > producción del 30/07/2026, el arreglo ya aplicado en el CRM, y los dos cambios
@@ -175,7 +175,7 @@ class HandoffBlock(BaseModel):
     changed: bool | None = None                 # solo en respuestas de acción
 ```
 
-Con el arreglo del CRM ya desplegado, esto **no es urgente para destrabar** — el
+Con el arreglo del CRM ya desplegado, esto **no es urgente para destrabar** - el
 agente vuelve a responder sin tocar nada. Es para que el modelo refleje la realidad
 y para poder usar `assigned_user_name` en los prompts ("te está atendiendo Ana").
 
@@ -188,7 +188,7 @@ alert_email_failed event=crm_payload_parse_error error=timed out
 ```
 
 La alerta por mail del propio agente se cayó por timeout, así que tampoco avisó por
-ese canal. Vale la pena revisar ese path — era la última red de contención.
+ese canal. Vale la pena revisar ese path - era la última red de contención.
 
 ---
 
@@ -197,7 +197,7 @@ ese canal. Vale la pena revisar ese path — era la última red de contención.
 Con una conversación **con asesor asignado** (`state: assigned`), mandá un mensaje
 de WhatsApp y confirmá los tres puntos:
 
-1. En los logs del agente aparece `crm_agent_turn_started` — o sea, pasó el parseo.
+1. En los logs del agente aparece `crm_agent_turn_started` - o sea, pasó el parseo.
 2. No aparece `crm_payload_parse_error`.
 3. En el CRM, el mensaje de respuesta queda con `sender = 'ia'`:
 

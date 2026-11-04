@@ -19,7 +19,7 @@ use Illuminate\Support\Str;
  *   - email_attachments an attachment on a synced email
  *
  * A person aggregates the full history: their own activities plus everything
- * belonging to ANY of their leads. A lead only shows its own — the complete
+ * belonging to ANY of their leads. A lead only shows its own - the complete
  * picture lives on the contact, which is where you go to answer "what have we
  * ever exchanged with them?".
  */
@@ -27,7 +27,7 @@ class EntityFiles
 {
     /**
      * Extensions we treat as viewable images/videos. Anything else that is not
-     * one of these is a document — a permissive default, because an unknown
+     * one of these is a document - a permissive default, because an unknown
      * file the advisor uploaded on purpose should still be listed and
      * downloadable rather than dropped.
      */

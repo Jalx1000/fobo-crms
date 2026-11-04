@@ -57,7 +57,7 @@ class AgenteController extends Controller
     /**
      * Qué productos puede ofrecer el agente y qué material tiene cada uno.
      *
-     * Se listan solo los que tienen algo que ofrecer —material o precios—: si el
+     * Se listan solo los que tienen algo que ofrecer -material o precios-: si el
      * agente ve un producto vacío, le promete al cliente fotos que no existen o
      * un precio que nadie cargó.
      */
@@ -71,7 +71,7 @@ class AgenteController extends Controller
         /*
         | Se lista un producto si tiene algo que ofrecer: material para mandar o
         | precios para cotizar. Antes bastaba con tener adjuntos, pero un
-        | producto con lista de precios y sin fotos igual se vende — dejarlo
+        | producto con lista de precios y sin fotos igual se vende - dejarlo
         | afuera haría que el agente diga que no existe.
         */
         $query = $this->products->getModel()->newQuery()
@@ -122,8 +122,8 @@ class AgenteController extends Controller
     /**
      * Qué precio corresponde a lo que el cliente eligió.
      *
-     * El agente manda los ejes que logró sacar de la charla —«bolsas de 50 L
-     * para un restaurante»— y el CRM resuelve la fila. Es el CRM el que decide
+     * El agente manda los ejes que logró sacar de la charla -«bolsas de 50 L
+     * para un restaurante»- y el CRM resuelve la fila. Es el CRM el que decide
      * el precio, no el modelo: un LLM que multiplica y redondea por su cuenta
      * termina cotizando números que la empresa nunca autorizó.
      *
@@ -221,7 +221,7 @@ class AgenteController extends Controller
      * el asesor tenía que leer entera para reconstruir qué quería el cliente.
      *
      * Queda una cotización de verdad, con su ítem, su cantidad y su precio, para
-     * que el asesor la revise y la mande — no para que salga sola.
+     * que el asesor la revise y la mande - no para que salga sola.
      *
      * **El precio y el total los pone el CRM**, no el agente: se resuelven acá
      * desde la misma lista que contestó `precio()`. Si el agente pudiera mandar
@@ -349,8 +349,8 @@ class AgenteController extends Controller
 
                 /*
                 | La ciudad del cliente y la planta de la que sale el producto.
-                | La ciudad se guarda como opción —el listener Ciudad la copia
-                | después al contacto— y la sucursal es el id del almacén, que
+                | La ciudad se guarda como opción -el listener Ciudad la copia
+                | después al contacto- y la sucursal es el id del almacén, que
                 | es lo que espera un atributo `lookup`.
                 */
                 'ciudad'         => $this->opcionDe('ciudad', $ciudad),
@@ -402,7 +402,7 @@ class AgenteController extends Controller
         | Se devuelven las LÍNEAS creadas, no solo el id.
         |
         | El agente no tenía forma de confirmar que la cotización quedó con su
-        | producto: `GET /api/v1/quotes/{id}` —el endpoint genérico de Krayin—
+        | producto: `GET /api/v1/quotes/{id}` -el endpoint genérico de Krayin-
         | no incluye los ítems en su respuesta, así que parecía vacía aunque no
         | lo estuviera. Devolverlas acá cierra el turno sin una segunda llamada.
         */
@@ -552,7 +552,7 @@ class AgenteController extends Controller
      * La cotización como la necesita el agente, con sus líneas.
      *
      * Existe porque `GET /api/v1/quotes/{id}` de Krayin no devuelve los ítems
-     * —su recurso no los incluye— y además responde 500 cuando la cotización no
+     * -su recurso no los incluye- y además responde 500 cuando la cotización no
      * existe, en vez de 404: le pasa `null` al Resource y este intenta leerle el
      * id. Acá el 404 es un 404.
      */
@@ -684,7 +684,7 @@ class AgenteController extends Controller
     {
         $combo = $this->comboDe($product, $fila);
 
-        $asunto = $combo ? "{$product->name} — {$combo}" : $product->name;
+        $asunto = $combo ? "{$product->name} - {$combo}" : $product->name;
 
         // Mismo motivo que la descripción: la columna corta en silencio.
         return mb_strimwidth($asunto, 0, self::LARGO_DESCRIPCION, '…');
@@ -714,8 +714,8 @@ class AgenteController extends Controller
     /**
      * El detalle que el asesor lee antes de mandar la cotización.
      *
-     * Incluye lo que el agente recogió y no entra en ningún campo —la empresa,
-     * las notas de la charla— para que no haya que volver a leer la conversación
+     * Incluye lo que el agente recogió y no entra en ningún campo -la empresa,
+     * las notas de la charla- para que no haya que volver a leer la conversación
      * entera. El mínimo se repite acá a propósito: es lo que más se olvida al
      * revisar y lo que invalida el pedido.
      */
@@ -928,8 +928,8 @@ class AgenteController extends Controller
     /**
      * Las mismas defensas que tiene el envío de texto del agente.
      *
-     * La respuesta del agente viaja lejos —CRM → webhook → n8n piensa → POST de
-     * vuelta acá— y en ese hueco puede haber ocurrido una derivación. Se rechaza
+     * La respuesta del agente viaja lejos -CRM → webhook → n8n piensa → POST de
+     * vuelta acá- y en ese hueco puede haber ocurrido una derivación. Se rechaza
      * el envío tardío en vez de dejar que la IA hable por encima del asesor.
      */
     protected function bloqueoPara($conversation): ?JsonResponse
@@ -1002,8 +1002,8 @@ class AgenteController extends Controller
             'type'            => self::TIPOS[$media->tipo],
             /*
             | Sin caption a propósito: el agente manda su propia descripción como
-            | texto aparte. Con un pie acá el cliente ve dos descripciones —una
-            | pegada a la primera imagen y la general abajo— y queda un sándwich
+            | texto aparte. Con un pie acá el cliente ve dos descripciones -una
+            | pegada a la primera imagen y la general abajo- y queda un sándwich
             | «descripción, fotos, descripción».
             */
             'body'            => null,
@@ -1032,7 +1032,7 @@ class AgenteController extends Controller
      * Lo que el agente ve de un producto.
      *
      * `adjuntos` son CONTEOS por tipo, no rutas: el agente necesita saber que
-     * hay 5 imágenes para decidir cuántas pedir, y no necesita —ni debe— ver
+     * hay 5 imágenes para decidir cuántas pedir, y no necesita -ni debe- ver
      * dónde están.
      *
      * `precio_variable` le dice al agente que no puede cotizar todavía y qué
@@ -1132,8 +1132,8 @@ class AgenteController extends Controller
      * Lo que sale de multiplicar el precio por lo que el cliente lleva.
      *
      * **La cuenta la hace el CRM.** El agente tiene prohibido calcular precios
-     * —un modelo que multiplica y redondea por su cuenta termina cotizando
-     * números que la empresa nunca autorizó— pero sin esto no tenía forma de dar
+     * -un modelo que multiplica y redondea por su cuenta termina cotizando
+     * números que la empresa nunca autorizó- pero sin esto no tenía forma de dar
      * un total, que es lo primero que pregunta cualquier cliente.
      *
      * El mínimo se compara contra el número que abre el texto de `minimo`

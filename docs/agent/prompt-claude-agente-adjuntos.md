@@ -1,4 +1,4 @@
-# Prompt para el Claude del proyecto del agente — enviar material del producto
+# Prompt para el Claude del proyecto del agente - enviar material del producto
 
 > **Contexto.** El agente hoy solo puede mandar **texto**
 > (`POST /api/v1/whatsapp/conversations/{id}/messages`, campo `text`). Cuando el
@@ -21,7 +21,7 @@ La idea central, y la razón de que la API tenga esta forma:
 > por qué vía. Las rutas de los archivos nunca pasan por el modelo.**
 
 El agente nunca ve un path, ni una URL de storage, ni un id de archivo. Solo el
-SKU —que ya es público, aparece en las cotizaciones— y cuántos adjuntos hay de
+SKU -que ya es público, aparece en las cotizaciones- y cuántos adjuntos hay de
 cada tipo.
 
 ---
@@ -79,7 +79,7 @@ POST /api/v1/productos/conversations/{conversation_id}/media
 }
 ```
 
-`conversation_id` es el que el CRM ya inyecta en cada webhook — el mismo que se
+`conversation_id` es el que el CRM ya inyecta en cada webhook - el mismo que se
 usa para responder texto.
 
 **Respuesta 200:**
@@ -103,7 +103,7 @@ el mismo turno de que no salió ninguna, para corregirse.
 
 ---
 
-## Reglas de uso — esto es lo que más importa
+## Reglas de uso - esto es lo que más importa
 
 **1. Primero el material, después la descripción.**
 El endpoint manda los archivos **sin pie de foto**, a propósito. El agente manda
@@ -117,7 +117,7 @@ es 0, no hay fotos: ofrecer el documento, o describir con palabras.
 **3. Tres imágenes, no diez.**
 El default es 3 y está elegido: una tanda larga satura el chat y el cliente deja
 de mirar. Pedir más solo si el cliente lo pidió explícitamente. El techo de 10 lo
-aplica el CRM aunque se pida más — no es negociable desde el prompt.
+aplica el CRM aunque se pida más - no es negociable desde el prompt.
 
 **4. Un envío por producto, no por mensaje.**
 Si el cliente pregunta por tres productos, mandar el material de uno, dejar que
@@ -138,7 +138,7 @@ aparecer como archivo adjunto.
 
 1. Agregar las dos herramientas al agente con estos contratos.
 2. Escribir las reglas de arriba en el system prompt, con tus palabras.
-3. Decirme si alguna regla choca con algo del flujo actual — sobre todo la de
+3. Decirme si alguna regla choca con algo del flujo actual - sobre todo la de
    "material primero, descripción después", que cambia el orden de los mensajes.
 4. Confirmarme qué pasa hoy cuando el cliente pide fotos: si el agente improvisa
    una respuesta, quiero saber cuál, para comparar.

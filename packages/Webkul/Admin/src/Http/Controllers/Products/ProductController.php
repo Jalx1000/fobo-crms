@@ -219,7 +219,7 @@ class ProductController extends Controller
      */
     /**
      * Ejes de identidad y filas de variantes del formulario, o null si no vino
-     * la tabla — mismo motivo que la lista de precios: un guardado parcial no
+     * la tabla - mismo motivo que la lista de precios: un guardado parcial no
      * puede borrarla.
      *
      * @return array{0: ?array, 1: array}|null

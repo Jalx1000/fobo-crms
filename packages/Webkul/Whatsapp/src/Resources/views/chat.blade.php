@@ -35,7 +35,7 @@
                  «chat-abierto» en <body>) y el chat baja hasta el borde. -->
             <div class="flex h-[calc(100vh-110px)] overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 max-lg:fixed max-lg:inset-x-0 max-lg:top-[62px] max-lg:bottom-[calc(56px+env(safe-area-inset-bottom))] max-lg:h-auto max-lg:rounded-none max-lg:border-0 [.chat-abierto_&]:max-lg:bottom-0">
                 <!-- ────────── Conversation list ──────────
-                     Mobile: master-detail — the list fills the screen until a
+                     Mobile: master-detail - the list fills the screen until a
                      conversation is chosen; the thread replaces it with a back button. -->
                 <div class="w-full flex-col border-r border-gray-200 dark:border-gray-800 lg:flex lg:w-[340px] lg:shrink-0"
                      :class="selected ? 'hidden' : 'flex'">
@@ -179,7 +179,7 @@
                                             <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">@{{ c.name }}</span>
                                             <!-- Where this conversation came from. Shown
                                                  only when the install has more than one
-                                                 channel — with a single one it would be
+                                                 channel - with a single one it would be
                                                  noise on every row. -->
                                             <span v-if="channels.length > 1"
                                                   class="shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium"
@@ -385,7 +385,7 @@
                         const match = this.conversations.find(c => c.id === deepLink);
 
                         // It may not be on the first page (or may be filtered
-                        // out), so fall back to selecting it by id alone — the
+                        // out), so fall back to selecting it by id alone - the
                         // thread endpoint only needs that.
                         this.select(match ?? { id: deepLink, name: 'Conversación', person_id: null, lead_id: null, phone: null });
                     });

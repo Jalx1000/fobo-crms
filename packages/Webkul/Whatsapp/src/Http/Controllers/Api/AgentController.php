@@ -6,6 +6,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Validation\Rule;
+use Webkul\Lead\Models\LeadProxy;
+use Webkul\Lead\Services\EtapaPedido;
 use Webkul\Whatsapp\Gateways\Dto\MessagingWindow;
 use Webkul\Whatsapp\Gateways\Dto\OutboundInteractive;
 use Webkul\Whatsapp\Gateways\GatewayManager;
@@ -55,7 +57,68 @@ class AgentController extends Controller
             // Lets the workflow check before asking for a handoff again, which
             // is what keeps an eager LLM from mailing the team on every message.
             'handoff'         => $this->handoff->toAgentArray($conversation),
+            // En qué etapa está el pedido, para decidir si hace falta moverlo.
+            'pedido'          => $this->pedido($conversation),
         ]);
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/api/v1/whatsapp/conversations/{id}/etapa",
+     *     operationId="whatsappAgentEtapa",
+     *     tags={"WhatsApp"},
+     *     summary="Mover el pedido de la conversación a otra etapa",
+     *     security={ {"sanctum_admin": {} }},
+     *
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *
+     *     @OA\RequestBody(required=true, @OA\JsonContent(
+     *         required={"etapa"},
+     *
+     *         @OA\Property(property="etapa", type="string", example="solicitud-recibida")
+     *     )),
+     *
+     *     @OA\Response(response=200, description="movido=false si el pedido ya estaba más adelante"),
+     *     @OA\Response(response=404, description="Conversation not found"),
+     *     @OA\Response(response=422, description="Etapa no permitida o conversación sin pedido")
+     * )
+     */
+    public function etapa(Request $request, string $id): JsonResponse
+    {
+        $permitidas = (array) config('whatsapp.ai.etapas', []);
+
+        $data = $request->validate([
+            'etapa' => ['required', 'string', Rule::in(array_keys($permitidas))],
+        ]);
+
+        $conversation = ConversationProxy::modelClass()::findOrFail($id);
+
+        if (! $conversation->lead_id) {
+            return response()->json(['message' => 'La conversación no tiene pedido.'], 422);
+        }
+
+        // Solo desde las etapas permitidas: si ya está más adelante, no se
+        // toca y se contesta 200 con movido=false (no es un error del agente).
+        $movido = app(EtapaPedido::class)->mover((int) $conversation->lead_id, $data['etapa'], (array) $permitidas[$data['etapa']]);
+
+        return response()->json([
+            'movido' => $movido,
+            'pedido' => $this->pedido($conversation),
+        ]);
+    }
+
+    /**
+     * @return array{id: int, etapa: ?string}|null
+     */
+    protected function pedido($conversation): ?array
+    {
+        if (! $conversation->lead_id) {
+            return null;
+        }
+
+        $lead = LeadProxy::modelClass()::find($conversation->lead_id);
+
+        return $lead ? ['id' => (int) $lead->id, 'etapa' => $lead->stage?->code] : null;
     }
 
     /**
@@ -96,7 +159,7 @@ class AgentController extends Controller
 
         /*
         | Con producto y ciudad, el asesor sale de la matriz por turno (round
-        | robin). Sin ellos —o si nadie atiende esa combinación— se enruta como
+        | robin). Sin ellos -o si nadie atiende esa combinación- se enruta como
         | siempre: dueño del lead, del contacto, o el pozo.
         */
         $asignarA = null;
@@ -227,7 +290,7 @@ class AgentController extends Controller
      * que los botones ya resolvían.
      *
      * Se corta acá y no solo en el prompt porque un prompt se olvida: esto es
-     * una propiedad de la conversación —no mandar lo mismo dos veces— y el CRM
+     * una propiedad de la conversación -no mandar lo mismo dos veces- y el CRM
      * es quien puede garantizarla. El 409 lleva el motivo para que el agente lo
      * entienda en el mismo turno en vez de reintentar.
      *
@@ -320,7 +383,7 @@ class AgentController extends Controller
         if (! $this->gateways->for($conversation)->capabilities()->canSend('interactive')) {
             /*
             | 501 y no 422: no es un error del agente ni algo que reintentar.
-            | El canal activo —Kommo, Messenger— simplemente no tiene botones.
+            | El canal activo -Kommo, Messenger- simplemente no tiene botones.
             */
             return response()->json([
                 'message' => 'Este canal no puede enviar botones ni listas. Mandá las opciones como texto numerado.',

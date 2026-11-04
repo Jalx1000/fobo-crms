@@ -139,7 +139,7 @@
             "message_templates"
           ]
         },
-        "description": "YA ESTÁ CREADA Y APROBADA. Solo correr si se borra o si se cambia el texto — en ese caso con otro `name`, porque el nombre no se libera hasta borrar la anterior. El header no admite emojis.",
+        "description": "YA ESTÁ CREADA Y APROBADA. Solo correr si se borra o si se cambia el texto - en ese caso con otro `name`, porque el nombre no se libera hasta borrar la anterior. El header no admite emojis.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"name\": \"carrito_abandonado_casa_rica\",\n  \"language\": \"es\",\n  \"category\": \"MARKETING\",\n  \"components\": [\n    {\n      \"type\": \"HEADER\",\n      \"format\": \"TEXT\",\n      \"text\": \"Tu canasta quedó a un paso\"\n    },\n    {\n      \"type\": \"BODY\",\n      \"text\": \"🥬 Hola {{1}}, todavía guardamos tu carrito con {{2}}.\\n\\nConfirmá hoy y entra en el reparto de mañana temprano, con todo recién cosechado.\\n\\nTocá el botón y terminá tu pedido 👇\",\n      \"example\": {\n        \"body_text\": [\n          [\n            \"Fabi\",\n            \"1 producto\"\n          ]\n        ]\n      }\n    },\n    {\n      \"type\": \"FOOTER\",\n      \"text\": \"Casa Rica · Frutas y verduras\"\n    },\n    {\n      \"type\": \"BUTTONS\",\n      \"buttons\": [\n        {\n          \"type\": \"URL\",\n          \"text\": \"Ir a mi carrito\",\n          \"url\": \"https://casarica.com.bo/{{1}}\",\n          \"example\": [\n            \"https://casarica.com.bo/?wcal_action=track_links&user_email=fperez%40fobo.digital&validate=GQBf\"\n          ]\n        }\n      ]\n    }\n  ]\n}",

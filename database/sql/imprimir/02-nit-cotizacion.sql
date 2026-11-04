@@ -3,7 +3,7 @@
 -- La cotización guarda su PROPIA copia del NIT en vez de leerlo de la persona.
 -- No es duplicación por descuido: una cotización es un documento que ya se
 -- emitió. Si leyera el NIT de la persona, corregir un NIT hoy cambiaría
--- retroactivamente todas las cotizaciones emitidas el año pasado — que dejarían
+-- retroactivamente todas las cotizaciones emitidas el año pasado - que dejarían
 -- de coincidir con el PDF que el cliente tiene guardado.
 --
 -- El listener SincronizarNitDeCotizacion mantiene los dos lados al día:

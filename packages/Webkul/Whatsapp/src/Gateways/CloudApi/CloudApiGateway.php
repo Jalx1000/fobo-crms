@@ -130,6 +130,35 @@ class CloudApiGateway extends BaseGateway
                     );
                 }
 
+                /*
+                | Coexistencia: lo que el asesor manda desde la app WhatsApp
+                | Business del mismo número llega en `smb_message_echoes`, con el
+                | cliente en `to`. Entra como eco: historial del hilo y pedido a
+                | SOLICITUD RECIBIDA. La app de Meta debe estar suscripta al campo.
+                */
+                foreach ($value['message_echoes'] ?? [] as $echo) {
+                    if (empty($echo['id']) || empty($echo['to'])) {
+                        continue;
+                    }
+
+                    $type = $this->normalizeType($echo['type'] ?? 'unknown');
+
+                    $media = $this->extractMedia($echo, $type);
+
+                    $messages[] = new InboundMessage(
+                        providerMessageId: (string) $echo['id'],
+                        contact: new ContactIdentity(phone: (string) $echo['to']),
+                        type: $type,
+                        body: $this->extractBody($echo, $type),
+                        replyToProviderId: $echo['context']['id'] ?? null,
+                        raw: $echo,
+                        mediaId: $media['id'] ?? null,
+                        mediaMime: $media['mime'] ?? null,
+                        mediaFilename: $media['filename'] ?? null,
+                        direction: 'outbound',
+                    );
+                }
+
                 foreach ($value['statuses'] ?? [] as $status) {
                     if (empty($status['id']) || empty($status['status'])) {
                         continue;
@@ -150,12 +179,12 @@ class CloudApiGateway extends BaseGateway
     /**
      * The reason Meta gives for a failed delivery receipt.
      *
-     * Meta accepts plenty of sends that it later cannot deliver — an unreachable
+     * Meta accepts plenty of sends that it later cannot deliver - an unreachable
      * handset, a recipient who never accepted the current terms, a template
      * paused after the fact. In all of those the API answered 200 with a message
      * id, so the ONLY account of what went wrong arrives here, in the receipt.
      *
-     * Shaped as "code: title — details" because the numeric code is what Meta's
+     * Shaped as "code: title - details" because the numeric code is what Meta's
      * documentation is indexed by, and the text is what a human can act on.
      */
     protected function statusError(array $status): ?string
@@ -168,7 +197,7 @@ class CloudApiGateway extends BaseGateway
 
         // Named rather than positional: with a positional list, a payload
         // missing the code slides the details up into the title's slot and the
-        // result reads as "Template Paused: Quality dropped" — two different
+        // result reads as "Template Paused: Quality dropped" - two different
         // things joined as if one labelled the other.
         $code = isset($error['code']) ? (string) $error['code'] : null;
         $title = $error['title'] ?? null;
@@ -180,7 +209,7 @@ class CloudApiGateway extends BaseGateway
             return $details ?: null;
         }
 
-        return $details ? $label.' — '.$details : $label;
+        return $details ? $label.' - '.$details : $label;
     }
 
     public function sendText(Conversation $conversation, string $body, ?string $replyToProviderId = null): SendResult
@@ -199,7 +228,7 @@ class CloudApiGateway extends BaseGateway
     {
         $node = ['id' => $this->uploadMedia($media)];
 
-        // Meta rejects `caption` on audio and sticker outright — 400, whole
+        // Meta rejects `caption` on audio and sticker outright - 400, whole
         // message lost. The caller is responsible for having relocated it.
         if ($media->caption !== null && $media->caption !== '' && Capabilities::isCaptionable($media->type)) {
             $node['caption'] = $media->caption;
@@ -247,7 +276,7 @@ class CloudApiGateway extends BaseGateway
      * Send an approved template.
      *
      * Same two steps as sendMedia when there is a header file: upload the bytes
-     * for a media id, then reference that id — a template header takes the very
+     * for a media id, then reference that id - a template header takes the very
      * same media node as a normal document message.
      *
      * Body parameters are POSITIONAL: the first element is {{1}}. Meta does not
@@ -411,7 +440,7 @@ class CloudApiGateway extends BaseGateway
 
     /**
      * Two-step media fetch: resolve the media id to a short-lived CDN URL, then
-     * download the bytes. Both calls carry the Bearer token — the CDN URL is not
+     * download the bytes. Both calls carry the Bearer token - the CDN URL is not
      * public. Returns null (message persists text-only) on any failure.
      */
     public function downloadMedia(?string $mediaId): ?array

@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
  * Meta no expone la cuenta desde el phone_number_id ni desde el token, pero la
  * manda en cada webhook: `entry[0].id` de una entrega de WhatsApp ES el WABA
  * id. Como los payloads entrantes se guardan enteros, el dato ya está en la
- * base — solo hay que ir a buscarlo.
+ * base - solo hay que ir a buscarlo.
  */
 class WabaId extends Command
 {

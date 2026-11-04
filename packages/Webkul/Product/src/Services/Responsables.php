@@ -88,8 +88,8 @@ class Responsables
      */
     public function asignar(Conversation $conversation, Product $producto, ?string $ciudad)
     {
-        // Sin ciudad en el pedido, la del contacto: la escribieron una vez —el
-        // agente, un asesor, otra cotización— y no hay razón para volver a
+        // Sin ciudad en el pedido, la del contacto: la escribieron una vez -el
+        // agente, un asesor, otra cotización- y no hay razón para volver a
         // preguntarla ni para caer en la cobertura nacional teniéndola.
         $ciudad = $ciudad ?: $this->ciudadDelContacto($conversation);
 
@@ -105,7 +105,7 @@ class Responsables
         /*
         | Quién la tiene hoy: el asignado de la conversación, si no el dueño
         | del contacto. Se respeta SOLO si esa persona figura en la matriz
-        | —o sea, si vende—: las conversaciones viejas quedaron asignadas al
+        | -o sea, si vende-: las conversaciones viejas quedaron asignadas al
         | usuario administrador por handoffs de prueba, y respetar eso dejaba
         | todas las cotizaciones a nombre suyo en vez del vendedor que toca.
         */
@@ -138,8 +138,8 @@ class Responsables
         | `CustomAttribute::getAttribute()` cachea los atributos personalizados
         | dentro de `$model->attributes`, y Eloquent no los distingue de una
         | columna: cualquier `save()` posterior los mete en el UPDATE y MySQL
-        | responde «Unknown column 'ciudad'». Leer la ciudad del contacto —lo
-        | que hacemos arriba— alcanza para envenenar ese modelo.
+        | responde «Unknown column 'ciudad'». Leer la ciudad del contacto -lo
+        | que hacemos arriba- alcanza para envenenar ese modelo.
         */
         if ($conversation->person_id) {
             $conversation->person()->getQuery()->whereKey($conversation->person_id)
@@ -363,8 +363,8 @@ class Responsables
      * El asesor para quien no dijo ciudad, o cuya ciudad no atiende nadie.
      *
      * Ya no es una persona fija (era Mariano hasta el 13/10): es el turno
-     * entre los ejecutivos «sin ciudad» —los que cubren «Bolivia» en la
-     * matriz—, menos los de `cotizacion.fuera_del_turno`. Si
+     * entre los ejecutivos «sin ciudad» -los que cubren «Bolivia» en la
+     * matriz-, menos los de `cotizacion.fuera_del_turno`. Si
      * `cotizacion.asesor_por_defecto` está configurado, manda ese.
      */
     public function asesorPorDefecto()

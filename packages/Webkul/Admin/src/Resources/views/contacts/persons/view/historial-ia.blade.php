@@ -12,7 +12,7 @@
         <div class="flex items-center justify-between border-b border-gray-200 mb-2 pb-4 dark:border-gray-800">
             <div class="flex flex-col">
                 <div class="text-base font-semibold text-gray-800 dark:text-gray-200">Historial IA</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">@{{ personName }} · @{{ personEmail ?? '—' }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">@{{ personName }} · @{{ personEmail ?? '-' }}</div>
             </div>
         </div>
 

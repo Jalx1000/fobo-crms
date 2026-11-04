@@ -36,7 +36,7 @@ return new class extends Migration
 
             $table->decimal('precio', 12, 4)->nullable();
 
-            // "por bulto", "por rollo", "por caja de 5.300 u." — sin esto un
+            // "por bulto", "por rollo", "por caja de 5.300 u." - sin esto un
             // número suelto no le dice nada al cliente ni al agente.
             $table->string('unidad', 60)->nullable();
 

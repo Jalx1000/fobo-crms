@@ -1,6 +1,6 @@
-# Spec: Modo mixto — Kommo recibe, Cloud API envía
+# Spec: Modo mixto - Kommo recibe, Cloud API envía
 
-Estado: **BORRADOR — pendiente de aprobación**
+Estado: **BORRADOR - pendiente de aprobación**
 Rama: `imprimir-modulo-whatsapp`
 Decisión de origen (2026-10-01): "todo lo que sea envío, con Cloud API; Kommo solo la recepción".
 Reemplaza el borrador anterior, que extendía los salesbots de Kommo para cada tipo de mensaje.

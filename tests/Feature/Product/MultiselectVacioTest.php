@@ -9,8 +9,8 @@ use Webkul\Product\Repositories\ProductRepository;
  * Un producto sin categoría mostraba DOS chips: uno con la categoría y otro sin
  * texto, solo con la crucecita de quitar.
  *
- * Causa: `explode(',', '')` en PHP devuelve `['']` —un array con una cadena
- * vacía— y no un array vacío. Ese '' llegaba al componente como una opción
+ * Causa: `explode(',', '')` en PHP devuelve `['']` -un array con una cadena
+ * vacía- y no un array vacío. Ese '' llegaba al componente como una opción
  * seleccionada más: se dibujaba como chip (getItemName('') no encuentra opción y
  * devuelve el id crudo, que es '') y viajaba en el submit.
  *

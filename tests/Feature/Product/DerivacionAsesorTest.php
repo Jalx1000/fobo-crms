@@ -17,8 +17,8 @@ use Webkul\Whatsapp\Services\Handoff;
 
 /**
  * Derivación: nadie fuera de la matriz «Atiende» queda como asesor asignado
- * (administradores, el usuario del agente), y sin ciudad —o sin nadie en la
- * ciudad— cae en el asesor por defecto (cotizacion.asesor_por_defecto).
+ * (administradores, el usuario del agente), y sin ciudad -o sin nadie en la
+ * ciudad- cae en el asesor por defecto (cotizacion.asesor_por_defecto).
  *
  * Contra la base del contenedor con transacciones. La base ya tiene asesores
  * reales: el asesor por defecto de los tests es uno de prueba y la ciudad de

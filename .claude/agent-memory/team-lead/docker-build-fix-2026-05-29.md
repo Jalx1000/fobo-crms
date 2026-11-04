@@ -1,4 +1,4 @@
-# Docker Build Fix — 2026-05-29
+# Docker Build Fix - 2026-05-29
 
 ## Problem
 Build failure in Railway with `apk add` exit code 2 in Stage 3 (production image).
@@ -28,5 +28,5 @@ Two issues identified:
 
 ## Verified
 All packages tested locally with Docker:
-- `php:8.2-fpm-alpine3.22` — all packages install, exit code 0
-- `php:8.2-fpm-alpine3.22` — PHP ext configure (gd, imap) completes successfully
+- `php:8.2-fpm-alpine3.22` - all packages install, exit code 0
+- `php:8.2-fpm-alpine3.22` - PHP ext configure (gd, imap) completes successfully

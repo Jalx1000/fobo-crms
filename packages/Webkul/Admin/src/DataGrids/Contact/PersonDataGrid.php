@@ -60,7 +60,7 @@ class PersonDataGrid extends DataGrid
             ->leftJoin('organizations', 'persons.organization_id', '=', 'organizations.id');
 
         // Which messaging channel this contact is reachable on. Joined as one
-        // row per contact, so it cannot duplicate the listing — this grid has no
+        // row per contact, so it cannot duplicate the listing - this grid has no
         // GROUP BY to fall back on.
         $queryBuilder->addSelect(ContactChannel::selectColumn());
 

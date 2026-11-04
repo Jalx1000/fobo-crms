@@ -36,13 +36,13 @@ Dos archivos para importar en Postman (**Import → File**, o arrastrarlos):
 
 Sobre `CARRITO_SUFIJO`: el botón está registrado en Meta como
 `https://casarica.com.bo/{{1}}`, así que solo viaja lo que sigue al dominio.
-Tiene que ir url-encodeado — `@` como `%40` y **cada `+` del token como `%2B`**;
+Tiene que ir url-encodeado - `@` como `%40` y **cada `+` del token como `%2B`**;
 si no, WordPress lee los `+` como espacios y el token no valida.
 
 ## Una cosa rara que vas a ver
 
 En la colección hay dos variables llamadas `1` y `2` con valor `{{1}}` y
 `{{2}}`. **No las borres.** El request de crear plantilla lleva `{{1}}` y
-`{{2}}` en el texto —son los placeholders de Meta—, y Postman los tomaría como
+`{{2}}` en el texto -son los placeholders de Meta-, y Postman los tomaría como
 variables propias y los mandaría vacíos. Esas dos variables hacen que lleguen
 tal cual.

@@ -1,4 +1,4 @@
-# Requisitos de tu parte — Meta, cuentas y accesos
+# Requisitos de tu parte - Meta, cuentas y accesos
 
 > **Esto es bloqueante.** Sin los puntos marcados 🔴 no se puede probar Messenger ni Instagram, y
 > el Embedded Signup de WhatsApp no funciona en absoluto.
@@ -13,7 +13,7 @@ Como la decisión fue **multi-tenant** (conectar también cuentas de clientes), 
 
 | # | Requisito | Por qué | Estado |
 |---|---|---|---|
-| 1.1 | 🔴 **App de Meta tipo Business** — App ID + App Secret | Un solo App Secret verifica la firma de los tres canales | ☐ |
+| 1.1 | 🔴 **App de Meta tipo Business** - App ID + App Secret | Un solo App Secret verifica la firma de los tres canales | ☐ |
 | 1.2 | 🔴 App en **modo Live** (no Development) | En Development el popup de Embedded Signup no funciona para terceros | ☐ |
 | 1.3 | 🔴 **Business Verification** completada en Business Manager | Requisito duro para Advanced Access y para Tech Provider | ☐ |
 | 1.4 | 🔴 **Configuration ID / Solution ID** de Embedded Signup | Es el parámetro que recibe el popup del JS SDK | ☐ |
@@ -36,7 +36,7 @@ Como la decisión fue **multi-tenant** (conectar también cuentas de clientes), 
 
 Además:
 
-- 🔴 **Feature "Human Agent"** — es lo único que permite responder fuera de la ventana de 24 h en
+- 🔴 **Feature "Human Agent"** - es lo único que permite responder fuera de la ventana de 24 h en
   Messenger e Instagram. Se solicita aparte de los permisos.
 
 > **Mientras tanto sí se puede desarrollar**: con Standard Access la integración funciona con
@@ -69,7 +69,7 @@ Además:
 
 | # | Pregunta | Impacto si no se decide |
 |---|---|---|
-| 5.1 | ¿Los mensajes de FB/IG crean **lead automático** como hoy WhatsApp (`auto_create_lead`)? | Sugerencia: crear `Person` sí, lead no — IG y FB traen bastante más ruido que WhatsApp |
+| 5.1 | ¿Los mensajes de FB/IG crean **lead automático** como hoy WhatsApp (`auto_create_lead`)? | Sugerencia: crear `Person` sí, lead no - IG y FB traen bastante más ruido que WhatsApp |
 | 5.2 | ¿El **agente IA** contesta en los tres canales o solo WhatsApp al inicio? | Define si `AgentPayload` necesita el canal desde el Sprint 1 o desde el 5 |
 | 5.3 | Fuente del lead: ¿una sola "Redes sociales" o `WhatsApp` / `Messenger` / `Instagram` separadas? | Afecta directamente tus tableros y los filtros de prospectos |
 | 5.4 | 🔴 **Resolución de tenant** ante cuenta desconocida y ante colisión | Bloquea el Sprint 0. Ver [multi-tenant.md](multi-tenant.md#decisión-abierta) |

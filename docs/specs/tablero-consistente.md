@@ -42,7 +42,7 @@ Valores obtenidos llamando a los métodos reales de `Helpers/Dashboard.php` como
 | 6 | **Tiempo en responder** (todos los usuarios, ver C8) | Bulmaro 143,7 h, Eduardo 143,7 h, Fabio 123,4 h, Gabriela 118,6 h, Mauricio 116,6 h | Tiempo real hasta la primera respuesta | **No mide respuesta: mide la edad del pedido.** `confirmed_at` no está cargado en ningún pedido del rango y `first_stage_change_at` solo en 10 de 369. Para No atendidos y Cotización enviada el reloj corre hasta *ahora*, así que el número sube cada hora sin que nadie haga nada. No excluye "Sin ciudad", a diferencia de la tarjeta 4. El "Promedio total" es el promedio simple de los promedios de cada asesor (Fabio, con 4 pedidos, pesa lo mismo que Bulmaro con 147). El empate a 143,7 h es casual (517 391 s contra 517 415 s). |
 | 7 | **Productos más solicitados** (torta) | Magia Verde 42, Stretch 35, Hules 2, Tapas 1 | Tarjeta 2 / pedidos por producto | 1) Cuenta **cotizaciones** (`quote_items`, por `quotes.created_at`), no pedidos. Los pedidos con el producto son 170 de Magia Verde y 122 de Stretch. 2) Excluye "Sin ciudad": Stretch baja de 38 a 35. 3) La fecha es la de la cotización; el resto del tablero usa la del pedido. |
 | 8 | **Productos más vendidos** (torta) | vacía | 2 entregados | Igual que la 3: los entregados tienen cantidad 0 y la consulta filtra con `HAVING SUM(quantity) > 0`. |
-| 9 | **Total contactos** (embudo por etapa) | 369 (201/32/54/67/2/6/7) | — | **Es la única tarjeta que cuenta el universo completo**: no excluye "Sin ciudad", roles ni nada. El título está mal: cuenta **pedidos**, no contactos, y choca con la tarjeta 1, que tiene casi el mismo nombre. |
+| 9 | **Total contactos** (embudo por etapa) | 369 (201/32/54/67/2/6/7) | - | **Es la única tarjeta que cuenta el universo completo**: no excluye "Sin ciudad", roles ni nada. El título está mal: cuenta **pedidos**, no contactos, y choca con la tarjeta 1, que tiene casi el mismo nombre. |
 | 10 | **No atendidos por Ciudad** (torta) | 57 | 201 no atendidos del embudo | Excluye "Sin ciudad" (144 no atendidos) y los roles excluidos. Cuadra con la tarjeta 4 (57), pero no con el embudo (201). |
 
 ### Tarjetas que nadie ve (C8)
@@ -55,7 +55,7 @@ el rol se llama **"Administrador"**, así que la condición es falsa para todos 
 | Ventas por vendedor | 2 | Cuadra con ventas totales (2). |
 | Leads por ciudad | 255 | Usa la definición de "Prospectos" (C2). |
 | Ventas por ciudad | 2 | Cuadra. |
-| "Atendidos vs no atendidos" (otra vez) | — | La grilla incluye `leads-by-users` por segunda vez. |
+| "Atendidos vs no atendidos" (otra vez) | - | La grilla incluye `leads-by-users` por segunda vez. |
 
 ### Qué ve un asesor con permiso `group` (ejemplo: Mauricio)
 
@@ -91,7 +91,7 @@ que les tapaba los números ahora es C1: 144 de sus 283 pedidos están en "Sin c
 | D3 | **Productos solicitados = unidades cotizadas por producto** (`SUM(quote_items.quantity)`). El KPI "Total productos solicitados" y la torta "Productos más solicitados" salen del **mismo método**, y la suma de la torta = el KPI. Ejemplo: si 4 cotizaciones suman 29 bolsas de Magia Verde, la porción dice 29. | Del 1 al 14/10: Magia Verde 1199, Stretch 505, Tapas 30, Hules 7 = **1741**. El 821 no es confiable (ver abajo). |
 | D4 | **Productos vendidos, valor de ventas y más vendidos salen de las cotizaciones** de los pedidos en etapa ENTREGADOS: unidades = `SUM(quote_items.quantity)`, igual que D3 pero solo para entregados; valor = total de esas cotizaciones. | Hoy dan 0 por otro motivo: los 2 entregados (#1124, #1669) **no tienen cotización**. Ver P9. |
 | D5 | El KPI "Total productos vendidos (Entregados)" y la torta "Productos más vendidos" salen del **mismo método**, y la suma de la torta = el KPI. | La torta hoy filtra `HAVING SUM(quantity) > 0` sobre `lead_products`; deja de usar esa tabla. |
-| D6 | **Entregados sin cotización:** no se bloquea el cambio de etapa. Cuentan 0 en vendidos y en valor, y las tarjetas de vendidos (KPI, Evolución, torta "Más vendidos") muestran un **aviso** "N pedidos entregados sin cotización — complétalos", con enlace a cada pedido (o a la lista de Pedidos filtrada) para cargar la cotización y sus productos. Respeta el rango, la ciudad y el ACL del tablero. Si N = 0, no se muestra. | Del 1 al 14/10: N = 2 (#1124 de Bulmaro, #1669 de Fabio, los dos en Santa Cruz). |
+| D6 | **Entregados sin cotización:** no se bloquea el cambio de etapa. Cuentan 0 en vendidos y en valor, y las tarjetas de vendidos (KPI, Evolución, torta "Más vendidos") muestran un **aviso** "N pedidos entregados sin cotización - complétalos", con enlace a cada pedido (o a la lista de Pedidos filtrada) para cargar la cotización y sus productos. Respeta el rango, la ciudad y el ACL del tablero. Si N = 0, no se muestra. | Del 1 al 14/10: N = 2 (#1124 de Bulmaro, #1669 de Fabio, los dos en Santa Cruz). |
 | D7 | Tarjetas por asesor: **solo rol Ejecutivo Comercial** (fuera Sistema, Supervisores y Administrador). | Hoy los 369 pedidos del rango son de ejecutivos. |
 | D8 | ACL en **todas** las tarjetas, totales incluidos. | Mauricio hoy ve 255 prospectos de toda la empresa, pero solo 3 asesores. |
 | D9 | La grilla oculta la ven Administrador y Supervisores. | Hoy no la ve nadie (C8). |
@@ -111,7 +111,7 @@ rollos de Stretch, y la cotización, 100. El 821 es la suma de las pocas líneas
 
 **Unidad (decidida):** unidades cotizadas. La torta muestra las unidades de cada producto y el
 KPI es su suma (1741 en el rango). En la leyenda o el tooltip de cada porción se agrega el número de cotizaciones
-(ej. "Magia Verde — 1199 u. en 42 cotizaciones"), para que no se pierda el dato de cuántos clientes pidieron.
+(ej. "Magia Verde - 1199 u. en 42 cotizaciones"), para que no se pierda el dato de cuántos clientes pidieron.
 
 ## Regla propuesta: un solo "universo de pedidos"
 
@@ -231,10 +231,10 @@ Los tests existentes de `tests/Feature/Dashboard` se actualizan solo donde cambi
 ## Preguntas abiertas
 
 1. ~~P1~~ Resuelta en D7: solo Ejecutivo Comercial.
-2. **P2 · "Sin ciudad" — PENDIENTE.** ¿Se muestra como categoría propia (recomendado: son 169 pedidos y 144 sin atender) o se excluye de **todas** las tarjetas, embudo incluido? **Decidido para la tarjeta 4 (16/10):** «Atendidos vs no atendidos» cuenta los «Sin ciudad» (el kanban de Bulmaro tenía 48 no atendidos y la tarjeta mostraba 2). Mientras tanto, cada tarjeta mantiene el comportamiento actual y el invariante 3 y el criterio "No atendidos por ciudad suma 201" quedan en espera.
+2. **P2 · "Sin ciudad" - PENDIENTE.** ¿Se muestra como categoría propia (recomendado: son 169 pedidos y 144 sin atender) o se excluye de **todas** las tarjetas, embudo incluido? **Decidido para la tarjeta 4 (16/10):** «Atendidos vs no atendidos» cuenta los «Sin ciudad» (el kanban de Bulmaro tenía 48 no atendidos y la tarjeta mostraba 2). Mientras tanto, cada tarjeta mantiene el comportamiento actual y el invariante 3 y el criterio "No atendidos por ciudad suma 201" quedan en espera.
 3. ~~P3~~ Resuelta en D8: sí, en todas las tarjetas.
-4. **P4 · Fecha de productos — supuesto:** cotizaciones de **pedidos creados en el rango** (`leads.created_at`), igual que el resto del tablero, porque así el ACL, la ciudad y el asesor se aplican por el pedido. En el rango auditado da lo mismo (83). Avisar si se prefiere la fecha de la cotización.
-5. **P5 · "Tiempo en responder" — PENDIENTE.**** mide antigüedad porque `confirmed_at` y `first_stage_change_at` no se llenan. Opciones: (a) llenar `first_stage_change_at` al primer cambio de etapa o al primer mensaje saliente del asesor, y medir eso; (b) renombrarla "Antigüedad promedio de pedidos abiertos"; (c) ocultarla hasta tener (a). Recomiendo (a), con el primer mensaje saliente por WhatsApp como evento, porque es lo que el cliente percibe como respuesta.
+4. **P4 · Fecha de productos - supuesto:** cotizaciones de **pedidos creados en el rango** (`leads.created_at`), igual que el resto del tablero, porque así el ACL, la ciudad y el asesor se aplican por el pedido. En el rango auditado da lo mismo (83). Avisar si se prefiere la fecha de la cotización.
+5. **P5 · "Tiempo en responder" - PENDIENTE.**** mide antigüedad porque `confirmed_at` y `first_stage_change_at` no se llenan. Opciones: (a) llenar `first_stage_change_at` al primer cambio de etapa o al primer mensaje saliente del asesor, y medir eso; (b) renombrarla "Antigüedad promedio de pedidos abiertos"; (c) ocultarla hasta tener (a). Recomiendo (a), con el primer mensaje saliente por WhatsApp como evento, porque es lo que el cliente percibe como respuesta.
 6. ~~P6~~ Resuelta en D3: unidades cotizadas.
 7. ~~P7~~ Resuelta en D9: Administrador y Supervisores.
 8. ~~P8~~ Resuelta en D1: respeta el rango, como hoy.

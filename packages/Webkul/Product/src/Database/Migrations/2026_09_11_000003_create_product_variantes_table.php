@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * `codigo_tr4` nullable a propósito: hoy solo están los de Magia Verde. Una
  * variante sin código se cotiza igual, con el campo vacío para completar a
- * mano — bloquearla dejaría tres productos sin poder cotizarse.
+ * mano - bloquearla dejaría tres productos sin poder cotizarse.
  */
 return new class extends Migration
 {

@@ -10,7 +10,7 @@ use Webkul\User\Models\User;
  * Buscador de pacientes en el calendario.
  *
  * Desde la barra del calendario se busca un paciente por nombre, teléfono o
- * carnet (CI/NIT) y se ven sus citas —las próximas primero—, para saltar al día
+ * carnet (CI/NIT) y se ven sus citas -las próximas primero-, para saltar al día
  * de una de ellas sin recorrer semanas a mano.
  */
 uses(DatabaseTransactions::class);

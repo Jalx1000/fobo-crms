@@ -1,4 +1,4 @@
-# TODO — CRM (auditoría del agente del 12/10/2026)
+# TODO - CRM (auditoría del agente del 12/10/2026)
 
 > Datos: 303 conversaciones (02/10 al 12/10/2026). Las tareas del agente están en `auditoria-2026-10-12-todo-agente.md`.
 > Orden sugerido: **CRM-6** → CRM-1 → CRM-2 → CRM-3 → CRM-4. CRM-6 desbloquea P1 del agente; CRM-1 y CRM-2 desbloquean P3 y P4.
@@ -9,7 +9,7 @@
 
 ---
 
-## CRM-6 — Crear la cotización aunque no haya precio cargado
+## CRM-6 - Crear la cotización aunque no haya precio cargado
 
 **Problema.** El agente llamó a `crear_cotizacion` 21 veces desde el 08/10 y **10 fueron rechazadas (422)**. Nueve fueron de **Stretch Film Manual**, que no tiene precio cargado (`filaParaCotizar` → "Esa combinación no tiene precio cargado"), en las conversaciones 5012, 5040, 5099, 5103, 5104 y 5133, entre otras. El cliente dio todos sus datos y no se creó nada.
 
@@ -26,7 +26,7 @@ Además, en 33 conversaciones el agente prometió la cotización y no existe nin
 
 ---
 
-## CRM-1 — Recuperar la opción elegida en menús que llegan por Kommo
+## CRM-1 - Recuperar la opción elegida en menús que llegan por Kommo
 
 **Problema.** Por Kommo, la elección de un menú interactivo llega como texto común: 357 de 1.256 mensajes del cliente eran el título exacto de una opción. `AgentPayload::selection()` lee `payload.interactive` y devuelve `null`, así que el agente no sabe qué se eligió y repite el menú (54 repeticiones en 46 conversaciones; la conversación 5107 recibió 4 veces la misma presentación).
 
@@ -39,7 +39,7 @@ Además, en 33 conversaciones el agente prometió la cotización y no existe nin
 
 ---
 
-## CRM-2 — Agrupar ráfagas antes de avisar al agente
+## CRM-2 - Agrupar ráfagas antes de avisar al agente
 
 **Problema.** `IngestInboundPayload` despacha un `NotifyAgent` por cada mensaje. Hubo 156 ráfagas (2 o más mensajes en menos de 60 s) y el agente respondió cada mensaje por separado (conversación 3686: contestó el saludo con la presentación e ignoró la pregunta que llegó 2 s después).
 
@@ -55,7 +55,7 @@ Además, en 33 conversaciones el agente prometió la cotización y no existe nin
 
 ---
 
-## CRM-3 — Avisar cuando el agente falla
+## CRM-3 - Avisar cuando el agente falla
 
 **Problema.** El 07/10 de 21:08 al 08/10 a las 08:48 el agente contestó 23 veces "ocurrió un error" y nadie se enteró durante unas 12 horas. Los fallos de `NotifyAgent::failed()` solo quedan en el log.
 
@@ -66,7 +66,7 @@ Además, en 33 conversaciones el agente prometió la cotización y no existe nin
 
 ---
 
-## CRM-4 — Derivaciones que nadie atiende
+## CRM-4 - Derivaciones que nadie atiende
 
 **Problema.** De 52 derivaciones, 28 no tienen ninguna respuesta humana registrada en el CRM. Las demás tardaron unas 18 horas de mediana. Hay 18 conversaciones que terminan con el cliente esperando, varias con pedidos concretos (5016 "Cuánto me sale 50 unidades?", 5060 "Me cotiza el manual", 4433 "100uni", 5019 "Y dirección", 4260 con su NIT).
 
@@ -79,7 +79,7 @@ Además, en 33 conversaciones el agente prometió la cotización y no existe nin
 
 ---
 
-## CRM-5 — Estados de entrega
+## CRM-5 - Estados de entrega
 
 **Problema.** Solo 13 de las 1.251 respuestas del agente figuran como `delivered`. En el modo mixto (Kommo recibe y Cloud API envía) no llegan los estados de entrega de Meta, así que un envío fallido no se ve.
 

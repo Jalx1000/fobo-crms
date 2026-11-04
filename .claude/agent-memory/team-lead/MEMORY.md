@@ -1,1 +1,1 @@
-- [Project audit baseline 2026-06](project_audit_2026_06.md) — Health snapshot: Laravel 10, no CI, near-zero tests, 0 FormRequests, raw queries widespread.
+- [Project audit baseline 2026-06](project_audit_2026_06.md) - Health snapshot: Laravel 10, no CI, near-zero tests, 0 FormRequests, raw queries widespread.

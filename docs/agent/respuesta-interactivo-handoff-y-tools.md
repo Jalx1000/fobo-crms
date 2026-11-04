@@ -14,13 +14,13 @@
 | 1 🔴 | Los toques de botón se descartan | **Aplicá el fix ahora.** Rutear por `selection.id`, nunca por el título |
 | 2 🟡 | El PASO 4 no persiste nada | **PASO 5 = persistir → texto → handoff**, en ese orden exacto |
 | 3 🟡 | 7 tools viejas bindeadas | **Dejá 7 en total**: las 5 del protocolo + `register_cotizacion` + `derivar_a_asesor` |
-| — | `ficha_producto` sin la lista cruda | **Tenías razón.** Que quede afuera |
+| - | `ficha_producto` sin la lista cruda | **Tenías razón.** Que quede afuera |
 
 Todo lo de abajo está verificado contra el código del CRM, no de memoria.
 
 ---
 
-## 1. 🔴 Mensajes interactivos — aplicalo ahora
+## 1. 🔴 Mensajes interactivos - aplicalo ahora
 
 Es bloqueante y tenés razón en el diagnóstico. Sin esto el protocolo cuelga en el
 PASO 1.
@@ -45,8 +45,8 @@ PASO 1.
 devuelve `interactiveReply($message)['title']`, así que el historial y el inbox
 se leen bien sin tratamiento especial.
 
-`message.selection` sale del payload crudo que guardó el webhook —el mismo dato
-que mandó Meta, sin una copia que pueda quedar desincronizada— y existe tanto
+`message.selection` sale del payload crudo que guardó el webhook -el mismo dato
+que mandó Meta, sin una copia que pueda quedar desincronizada- y existe tanto
 para botones (`button_reply`) como para listas (`list_reply`).
 
 ### La regla
@@ -55,7 +55,7 @@ para botones (`button_reply`) como para listas (`list_reply`).
 
 El título es *copy*: cambia en cuanto alguien edite el prompt, y el emoji lo hace
 frágil de comparar. El `id` lo ponés vos al llamar a `mostrar_opciones`, así que
-controlás las dos puntas — es el único contrato estable entre el menú que
+controlás las dos puntas - es el único contrato estable entre el menú que
 mostraste y la respuesta que recibís.
 
 ### Follow-up aparte (no lo metas en este fix)
@@ -87,7 +87,7 @@ Sin esa llamada pasan dos cosas, las dos malas:
 
 El 409 no es una restricción molesta que haya que sortear. Es la garantía.
 
-### El orden — acá está la trampa
+### El orden - acá está la trampa
 
 ```
 1) register_cotizacion        ← persistir los datos de empresa
@@ -113,8 +113,8 @@ POST /api/v1/leads                ← la oportunidad
 PUT  /api/v1/leads/attributes/edit/{id}
 ```
 
-> ⚠️ **Si `register_cotizacion` hoy no persiste de verdad** —solo loguea, o
-> escribe en un lado que nadie lee— **decímelo antes de aplicar esto.** Prefiero
+> ⚠️ **Si `register_cotizacion` hoy no persiste de verdad** -solo loguea, o
+> escribe en un lado que nadie lee- **decímelo antes de aplicar esto.** Prefiero
 > armar el endpoint del lado del CRM a que el PASO 5 prometa un registro que no
 > existe. Es exactamente el tipo de promesa que reaparece como un cliente enojado
 > porque nadie lo llamó.
@@ -179,7 +179,7 @@ documento, pero tu copia era anterior.
 
 Además de los 6 escenarios que ya validaste, agregá este:
 
-**Escenario 7 — flujo entero hasta la derivación**
+**Escenario 7 - flujo entero hasta la derivación**
 
 1. «hola quiero bolsas» → menú de producto (tocar el botón, no escribir)
 2. → menú de ciudad → menú de uso → tamaño

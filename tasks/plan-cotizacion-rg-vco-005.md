@@ -59,7 +59,7 @@
 | **B · Lógica** | 6, 7 | ✅ las cotizaciones nuevas llevan la foto; el PDF viejo la ignora | La foto tiene que existir antes de que el PDF la lea |
 | **C · Pantalla** | 8 | ✅ el asesor ve y edita códigos y condiciones | Valida el modelo con un humano antes de fijarlo en el PDF |
 | **D · Salida** | 9, 10 | ✅ | El PDF es lo que el cliente ve: va último y **se mira** |
-| **E · Agente** | 11 | — | Documenta lo que ya funciona |
+| **E · Agente** | 11 | - | Documenta lo que ya funciona |
 
 **Paralelizable:** 2 ∥ 3, y 6 ∥ 7 (una vez que 2 y 3 existen). El resto es secuencial.
 

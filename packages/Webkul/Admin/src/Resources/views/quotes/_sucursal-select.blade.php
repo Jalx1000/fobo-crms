@@ -1,9 +1,9 @@
 {{--
     Sucursal: un select simple con las plantas.
 
-    El atributo es `lookup` a `warehouses` —para que las plantas se carguen una
+    El atributo es `lookup` a `warehouses` -para que las plantas se carguen una
     sola vez en Configuración → Almacenes y no haya una lista paralela de
-    opciones que se desincronice—, pero un buscador con autocompletar para tres
+    opciones que se desincronice-, pero un buscador con autocompletar para tres
     plantas es más trabajo que elegir de una lista. Así que el dato sigue siendo
     el id del almacén y solo cambia cómo se pide.
 

@@ -30,7 +30,7 @@ interface Gateway
     public function key(): string;
 
     /**
-     * What this driver actually implements today — not what the provider
+     * What this driver actually implements today - not what the provider
      * supports in theory. The composer renders from this.
      */
     public function capabilities(): Capabilities;
@@ -87,7 +87,7 @@ interface Gateway
     /**
      * Send a plain text message.
      *
-     * Receives the Conversation — not a phone string — so each driver picks its
+     * Receives the Conversation - not a phone string - so each driver picks its
      * own addressing: Cloud API uses wa_phone, Kommo uses
      * provider_conversation_id (its lead id).
      */
@@ -96,7 +96,7 @@ interface Gateway
     /**
      * Send an attachment (image/audio/video/document/sticker).
      *
-     * The file already lives on the `public` disk — the driver reads it from
+     * The file already lives on the `public` disk - the driver reads it from
      * there and does whatever its provider needs (Cloud API uploads it first and
      * addresses the result by media id).
      *
@@ -118,7 +118,7 @@ interface Gateway
     /**
      * Send interactive reply buttons or an option list.
      *
-     * Unlike a template, this needs no prior approval — but it only works
+     * Unlike a template, this needs no prior approval - but it only works
      * inside the 24h window, same as any free-form message.
      */
     public function sendInteractive(Conversation $conversation, OutboundInteractive $interactive, ?string $replyToProviderId = null): SendResult;
@@ -129,7 +129,7 @@ interface Gateway
      * This is the only message a WhatsApp channel accepts once the 24h service
      * window has closed. Channels without a window (Messenger) never need it,
      * and channels that proxy someone else's inbox (Kommo) cannot address Meta's
-     * template catalogue directly — both inherit the throwing default from
+     * template catalogue directly - both inherit the throwing default from
      * BaseGateway.
      *
      * @throws \Webkul\Whatsapp\Exceptions\UnsupportedMessageException

@@ -56,8 +56,8 @@ class AvisarDerivacionSinRespuesta implements ShouldQueue
 
         /*
         | Corrió antes de tiempo (cola `sync`, o un worker que ignora el
-        | retardo): no se avisa ni se reagenda —con `sync` reagendar correría de
-        | nuevo al instante—. En producción (Redis) el retardo se respeta.
+        | retardo): no se avisa ni se reagenda -con `sync` reagendar correría de
+        | nuevo al instante-. En producción (Redis) el retardo se respeta.
         */
         if (now()->lt($conversation->handoff_requested_at->copy()->addMinutes(static::minutos()))) {
             return;

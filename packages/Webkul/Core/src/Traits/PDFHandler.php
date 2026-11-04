@@ -31,7 +31,7 @@ trait PDFHandler
      * a response.
      *
      * Needed by anything that has to hand the file to somewhere other than the
-     * browser — attaching a quote to a WhatsApp message, mailing it, archiving
+     * browser - attaching a quote to a WhatsApp message, mailing it, archiving
      * it. Kept here so there is a single definition of "what our PDFs look
      * like": the RTL branch, the paper size and the font all stay in one place.
      */

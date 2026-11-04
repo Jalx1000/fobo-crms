@@ -38,8 +38,8 @@ class DoctorServiceProvider extends ServiceProvider
 
         // NOTE: `doctor_specialty` used to be created here, on demand, at the
         // boot of every web request. It cost an information_schema query per
-        // request, and — because provider boot happens before any error
-        // handling — it turned every momentary database hiccup into a 500 on
+        // request, and - because provider boot happens before any error
+        // handling - it turned every momentary database hiccup into a 500 on
         // the whole application. The table is created by
         // 2026_01_19_120200_create_doctor_specialty_table.php, where schema
         // changes belong.

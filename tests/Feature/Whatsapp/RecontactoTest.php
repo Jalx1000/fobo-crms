@@ -11,8 +11,8 @@ use Webkul\Whatsapp\Models\Message;
 /**
  * Recontacto 6 horas antes de que cierre la ventana de 24 h.
  *
- * Si el cliente no contestó nuestro último mensaje —del agente o de un asesor,
- * por ejemplo la cotización—, a las 18 h de su último mensaje se le escribe una
+ * Si el cliente no contestó nuestro último mensaje -del agente o de un asesor,
+ * por ejemplo la cotización-, a las 18 h de su último mensaje se le escribe una
  * vez para que responda mientras todavía se le puede escribir sin plantilla.
  * En horario (lun–sáb 08–19): si las 18 h caen de noche, se corre a la
  * apertura siempre que la ventana siga abierta.

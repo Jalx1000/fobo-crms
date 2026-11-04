@@ -112,8 +112,8 @@ it('borrar el producto se lleva su lista de precios', function () {
 it('un guardado parcial no borra la lista de precios ni las características', function () {
     /*
      * Regresión: la vista del producto tiene un editor inline de atributos que
-     * postea a products.update con un puñado de campos —sin `precios` ni
-     * `caracteristicas`—. Sin distinguir «no vino el campo» de «vino vacío»,
+     * postea a products.update con un puñado de campos -sin `precios` ni
+     * `caracteristicas`-. Sin distinguir «no vino el campo» de «vino vacío»,
      * cambiar el SKU desde ahí borraba las 25 combinaciones de precio y todas
      * las características del producto, en silencio.
      */

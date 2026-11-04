@@ -68,7 +68,7 @@ class Product extends Model implements ProductContract
      * Lista de precios: una fila por combinación de los ejes del producto.
      *
      * Vacía en la mayoría de los productos, que se venden al `price` fijo. Solo
-     * la usan los que se cotizan por variante — Bolsas, Hules, Tapas.
+     * la usan los que se cotizan por variante - Bolsas, Hules, Tapas.
      */
     public function precios(): HasMany
     {
@@ -110,7 +110,7 @@ class Product extends Model implements ProductContract
      *
      * Es una consulta, no una asignación: no mueve el turno. Sin ciudad, o sin
      * nadie cargado para esa ciudad (ni con cobertura nacional), devuelve null:
-     * es mejor que la cotización quede sin asignar —y visible como tal— que
+     * es mejor que la cotización quede sin asignar -y visible como tal- que
      * asignada a quien no corresponde.
      */
     public function responsableEn(?string $ciudad)

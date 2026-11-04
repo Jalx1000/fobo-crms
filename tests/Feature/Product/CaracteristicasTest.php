@@ -6,7 +6,7 @@ use Webkul\Product\Support\Caracteristicas;
  * Traducción entre el formulario y la columna JSON `caracteristicas`.
  *
  * Son tests sin base: `Caracteristicas` es lógica pura sobre arrays, y es donde
- * viven los modos de falla que importan — filas vacías que ensucian el JSON y
+ * viven los modos de falla que importan - filas vacías que ensucian el JSON y
  * categorías múltiples que dejan campos inalcanzables.
  */
 beforeEach(function () {

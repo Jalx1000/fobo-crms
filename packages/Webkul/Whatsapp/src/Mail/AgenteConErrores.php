@@ -30,7 +30,7 @@ class AgenteConErrores extends Mailable
         foreach ($this->eventos as $e) {
             $conv = $e['conversation_id']
                 ? '<a href="'.e(route('admin.whatsapp.index').'?conversation='.$e['conversation_id']).'">#'.$e['conversation_id'].'</a>'
-                : '—';
+                : '-';
 
             $filas .= '<tr><td style="padding:4px 8px;">'.e(date('d/m H:i', $e['ts'])).'</td>'
                 .'<td style="padding:4px 8px;">'.$conv.'</td>'

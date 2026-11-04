@@ -4,19 +4,19 @@
 
 Imprimir maneja 4 líneas de producto para venta directa:
 
-**🟢 Bolsas Magia Verde —** Bolsas multiuso recicladas en 5 tamaños (35L a 200L)
+**🟢 Bolsas Magia Verde -** Bolsas multiuso recicladas en 5 tamaños (35L a 200L)
 
-**🔵 Hules —** Rollos de 1m x 100m, 75 micrones, en 7 colores
+**🔵 Hules -** Rollos de 1m x 100m, 75 micrones, en 7 colores
 
-**⚪ Stretch Film —** Plástico elástico para paletizado, 2 presentaciones
+**⚪ Stretch Film -** Plástico elástico para paletizado, 2 presentaciones
 
-**🔴 Tapas —** Tapas plásticas, caja de 5,300 unidades
+**🔴 Tapas -** Tapas plásticas, caja de 5,300 unidades
 
  
 
 # **1\. FLUJO DE FILTRADO PARA MAGIA VERDE**
 
-## **PASO 1 — Producto**
+## **PASO 1 - Producto**
 
 *¡Hola\! Gracias por escribirnos 👋 Somos Imprimir, fabricantes bolivianos con más de 30 años en la industria. ¿Qué producto le interesa?*
 
@@ -30,7 +30,7 @@ Imprimir maneja 4 líneas de producto para venta directa:
 
 **▸ 💬 Otro**
 
-## **PASO 2 — Ciudad**
+## **PASO 2 - Ciudad**
 
 💬 *¿De qué ciudad nos escribe?*
 
@@ -42,7 +42,7 @@ Imprimir maneja 4 líneas de producto para venta directa:
 
 **▸ Otra ciudad**
 
-## **PASO 3 — Canal (solo Magia Verde)**
+## **PASO 3 - Canal (solo Magia Verde)**
 
 💬 *¿Para qué uso la necesita?*
 
@@ -100,7 +100,7 @@ Muchas gracias por confiar en Imprimir.
 
 # **5\. RESPUESTAS FRECUENTES**
 
-## **5.1 Magia Verde — Si es ama de casa o quiere menos de 10 unidades.** 
+## **5.1 Magia Verde - Si es ama de casa o quiere menos de 10 unidades.** 
 
 ### **Santa Cruz:**
 
@@ -118,7 +118,7 @@ Muchas gracias por confiar en Imprimir.
 
 💬 *Por el momento no tenemos puntos de venta en su ciudad. Si le interesa compra por volumen, manejamos venta directa con entrega inmediata y personalizada.*
 
-## **5.2 Magia Verde — Distribuidor**
+## **5.2 Magia Verde - Distribuidor**
 
 ¿Tienen precios para distribuidores? 
 
@@ -158,15 +158,15 @@ Muchas gracias por confiar en Imprimir.
 
 Imprimir maneja 4 líneas de producto para venta directa:
 
-**🟢 Bolsas Magia Verde —** Bolsas multiuso recicladas en 5 tamaños (35L a 200L)
+**🟢 Bolsas Magia Verde -** Bolsas multiuso recicladas en 5 tamaños (35L a 200L)
 
-**🔵 Hules —** Rollos de 1m x 100m, 75 micrones, en 7 colores
+**🔵 Hules -** Rollos de 1m x 100m, 75 micrones, en 7 colores
 
-**⚪ Stretch Film —** Plástico elástico para paletizado, 2 presentaciones
+**⚪ Stretch Film -** Plástico elástico para paletizado, 2 presentaciones
 
-**🔴 Tapas —** Tapas plásticas, caja de 5,300 unidades
+**🔴 Tapas -** Tapas plásticas, caja de 5,300 unidades
 
-## **PASO 2 — Ciudad**
+## **PASO 2 - Ciudad**
 
 💬 ¿De qué ciudad nos escribe?
 
@@ -178,7 +178,7 @@ Imprimir maneja 4 líneas de producto para venta directa:
 
 **▸ Otra ciudad**
 
-## **PASO 3 — Canal (SF)**
+## **PASO 3 - Canal (SF)**
 
 Somos fabricantes de stretch film en Bolivia. El stretch film es un plástico elástico que se usa para envolver y asegurar la carga en los pallets.   
 Tenemos rollo de 4.7 kg manual y de 15.7 kg automático.  
@@ -202,15 +202,15 @@ Muchas gracias por confiar en Imprimir.
 
 Imprimir maneja 4 líneas de producto para venta directa:
 
-**🟢 Bolsas Magia Verde —** Bolsas multiuso recicladas en 5 tamaños (35L a 200L)
+**🟢 Bolsas Magia Verde -** Bolsas multiuso recicladas en 5 tamaños (35L a 200L)
 
-**🔵 Hules —** Rollos de 1m x 100m, 75 micrones, en 7 colores
+**🔵 Hules -** Rollos de 1m x 100m, 75 micrones, en 7 colores
 
-**⚪ Stretch Film —** Plástico elástico para paletizado, 2 presentaciones
+**⚪ Stretch Film -** Plástico elástico para paletizado, 2 presentaciones
 
-**🔴 Tapas —** Tapas plásticas, caja de 5,300 unidades
+**🔴 Tapas -** Tapas plásticas, caja de 5,300 unidades
 
-## **PASO 2 — Ciudad**
+## **PASO 2 - Ciudad**
 
 💬 *¿De qué ciudad nos escribe?*
 
@@ -222,7 +222,7 @@ Imprimir maneja 4 líneas de producto para venta directa:
 
 **▸ Otra ciudad**
 
-## **PASO 3 — Canal (tapas)**
+## **PASO 3 - Canal (tapas)**
 
 *Manejamos tapas plásticas en caja de 5,300 unidades.*
 
@@ -230,13 +230,13 @@ Imprimir maneja 4 líneas de producto para venta directa:
 
 ***Necesita sin impresión***
 
-## **PASO 3.5 — Canal (con impres)**
+## **PASO 3.5 - Canal (con impres)**
 
 - ***Imagen en alta calidad***  
 - ***máximo 3 colores***  
 - ***pedido mínimo 30 cajas***
 
-## **PASO 3.6 — Canal (sin impres)**
+## **PASO 3.6 - Canal (sin impres)**
 
 - pedido mínimo de 1 caja 
 
@@ -274,15 +274,15 @@ HULES
 
 Imprimir maneja 4 líneas de producto para venta directa:
 
-**🟢 Bolsas Magia Verde —** Bolsas multiuso recicladas en 5 tamaños (35L a 200L)
+**🟢 Bolsas Magia Verde -** Bolsas multiuso recicladas en 5 tamaños (35L a 200L)
 
-**🔵 Hules —** Rollos de 1m x 100m, 75 micrones, en 7 colores
+**🔵 Hules -** Rollos de 1m x 100m, 75 micrones, en 7 colores
 
-**⚪ Stretch Film —** Plástico elástico para paletizado, 2 presentaciones
+**⚪ Stretch Film -** Plástico elástico para paletizado, 2 presentaciones
 
-**🔴 Tapas —** Tapas plásticas, caja de 5,300 unidades
+**🔴 Tapas -** Tapas plásticas, caja de 5,300 unidades
 
-## **PASO 2 — Ciudad**
+## **PASO 2 - Ciudad**
 
 💬 ¿De qué ciudad nos escribe?
 

@@ -89,7 +89,7 @@ class RecalcularPedidos extends Command
     /**
      * Cotizaciones sin pedido cuyo contacto tiene UN solo pedido: se vinculan.
      *
-     * Con dos o más no se adivina — vincularla al equivocado es peor que
+     * Con dos o más no se adivina - vincularla al equivocado es peor que
      * dejarla suelta, porque el valor del pedido saldría de una cotización que
      * no le corresponde.
      */

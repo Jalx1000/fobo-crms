@@ -98,7 +98,7 @@ it('la ficha devuelve las características con su etiqueta legible', function ()
 it('caracteristicas es SIEMPRE un objeto JSON, nunca una lista', function () {
     /*
      * Un array PHP vacío se serializa como [] y uno con claves como {}. Sin el
-     * cast, el agente tendría que manejar dos tipos para el mismo campo — y el
+     * cast, el agente tendría que manejar dos tipos para el mismo campo - y el
      * caso vacío es el más frecuente, porque casi ningún producto tiene
      * características cargadas todavía.
      *
@@ -138,8 +138,8 @@ it('pedir material de un producto sin ese tipo devuelve 404, no 200 con cero', f
 
 it('rechaza el envío si la conversación fue derivada a un asesor', function () {
     /*
-     * La respuesta del agente viaja lejos —CRM → webhook → n8n piensa → POST de
-     * vuelta— y en ese hueco puede haber una derivación. La guarda corre ANTES
+     * La respuesta del agente viaja lejos -CRM → webhook → n8n piensa → POST de
+     * vuelta- y en ese hueco puede haber una derivación. La guarda corre ANTES
      * de buscar el SKU: no tiene sentido resolver el catálogo para una
      * conversación a la que ya no se puede escribir.
      */

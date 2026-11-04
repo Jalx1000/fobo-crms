@@ -35,7 +35,7 @@ class WebhookController extends Controller
     }
 
     /**
-     * Authenticate, queue, and get out of the way — the provider expects a fast
+     * Authenticate, queue, and get out of the way - the provider expects a fast
      * 200 and will unsubscribe us if we do work here.
      */
     public function receive(Request $request): JsonResponse

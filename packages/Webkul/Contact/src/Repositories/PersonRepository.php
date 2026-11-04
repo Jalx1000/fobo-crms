@@ -228,8 +228,8 @@ class PersonRepository extends Repository
         }
 
         // unique_id exists to de-duplicate people by their identifying data, and
-        // the column is UNIQUE. A contact with none of it — someone who wrote
-        // from a channel that carries no phone or email, like Messenger — can
+        // the column is UNIQUE. A contact with none of it - someone who wrote
+        // from a channel that carries no phone or email, like Messenger - can
         // be de-duplicated against nothing, so it gets a value of its own
         // instead of colliding with the next such contact on an empty string.
         //

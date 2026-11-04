@@ -4,6 +4,7 @@ namespace Webkul\Whatsapp\Gateways\Kommo;
 
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -29,7 +30,7 @@ use Webkul\Whatsapp\Models\Conversation;
  *
  * Inbound: form-encoded webhook using bracket notation
  * (message[add][0][text]), which PHP parses into a nested array for free.
- * It carries the lead id but NOT the phone — that needs a second call.
+ * It carries the lead id but NOT the phone - that needs a second call.
  *
  * Outbound: there is no "send message" endpoint. Sending is a two-step dance:
  *   1. PATCH /api/v4/leads/{id}   -> park the text in a custom field
@@ -203,13 +204,17 @@ class KommoGateway extends BaseGateway
         $messages = [];
 
         foreach (data_get($payload, 'message.add', []) as $event) {
-            // Kommo echoes our own outgoing messages back. Ingesting them would
-            // duplicate what we already recorded when we sent it.
-            if (($event['type'] ?? 'incoming') !== 'incoming') {
+            if (empty($event['id'])) {
                 continue;
             }
 
-            if (empty($event['id'])) {
+            if (! $this->esDeFuentePermitida($event)) {
+                continue;
+            }
+
+            $eco =($event['type'] ?? 'incoming') !== 'incoming';
+
+            if ($eco && ! $this->esEcoDeAsesor($event)) {
                 continue;
             }
 
@@ -222,8 +227,10 @@ class KommoGateway extends BaseGateway
                 contact: new ContactIdentity(
                     phone: $contactId ? $this->fetchContactPhone($contactId) : null,
                     providerId: $contactId,
-                    name: data_get($event, 'author.name'),
+                    // En un eco el autor es el asesor, no el cliente.
+                    name: $eco ? null : data_get($event, 'author.name'),
                 ),
+                direction: $eco ? 'outbound' : 'inbound',
                 type: $attachment['type'],
                 body: $attachment['body'],
                 // element_id and entity_id are the same lead id; element_id is
@@ -251,6 +258,118 @@ class KommoGateway extends BaseGateway
      *
      * @return array{type: string, body: ?string, link: ?string, name: ?string}
      */
+    /**
+     * ¿Este mensaje saliente lo escribió un asesor desde Kommo?
+     *
+     * Solo en modo mixto: ahí lo que manda el CRM sale por Cloud API y Kommo no
+     * lo ve, así que un saliente de Kommo es de una persona o de un bot de
+     * Kommo. Con el salesbot de siempre (`send_via = kommo`) también llegarían
+     * nuestros propios envíos, ya registrados al mandarlos: se descartan todos.
+     *
+     * Del autor se cuenta como persona solo el tipo de `echo_author_types`; los
+     * bots quedan afuera. Lo descartado se deja en el log con su autor, para
+     * poder ajustar la lista con el payload real.
+     */
+    protected function esEcoDeAsesor(array $event): bool
+    {
+        $tipo = (string) data_get($event, 'author.type', '');
+
+        $asesor = $this->sender() !== null
+            && in_array($tipo, (array) ($this->config['echo_author_types'] ?? ['internal', 'user']), true);
+
+        if (! $asesor) {
+            Log::info('Kommo: mensaje saliente descartado', [
+                'id'          => $event['id'] ?? null,
+                'lead'        => $event['element_id'] ?? null,
+                'author_type' => $tipo,
+                'author_name' => data_get($event, 'author.name'),
+                'mixto'       => $this->sender() !== null,
+            ]);
+        }
+
+        return $asesor;
+    }
+
+    /**
+     * ¿El mensaje entró por un número de este negocio?
+     *
+     * Una cuenta de Kommo puede tener varios números de WhatsApp (el 30/10/2026
+     * entraban acá los pacientes de Odontoking), y el webhook avisa de todos sin
+     * decir por cuál llegó. La fuente (`source_id`) es del talk, así que se
+     * consulta una vez por talk y queda en caché.
+     *
+     * Sin `allowed_source_ids` no se filtra nada. Si Kommo no responde, el
+     * mensaje entra: perder el de un cliente propio es peor que dejar pasar uno
+     * ajeno, y queda en el log para revisarlo.
+     */
+    protected function esDeFuentePermitida(array $event): bool
+    {
+        $permitidas = array_filter(array_map('trim', explode(',', (string) ($this->config['allowed_source_ids'] ?? ''))));
+
+        if (! $permitidas) {
+            return true;
+        }
+
+        $talkId = $event['talk_id'] ?? null;
+
+        if (! $talkId) {
+            Log::warning('Kommo: mensaje sin talk_id, no se puede saber su fuente; entra', ['id' => $event['id'] ?? null]);
+
+            return true;
+        }
+
+        $fuente = $this->fuenteDelTalk((string) $talkId);
+
+        if ($fuente === null) {
+            Log::warning('Kommo: no se pudo consultar la fuente del talk; el mensaje entra', ['talk_id' => $talkId]);
+
+            return true;
+        }
+
+        if (in_array($fuente, $permitidas, true)) {
+            return true;
+        }
+
+        Log::info('Kommo: mensaje de otra fuente descartado', [
+            'id'        => $event['id'] ?? null,
+            'talk_id'   => $talkId,
+            'source_id' => $fuente,
+            'lead'      => $event['element_id'] ?? null,
+        ]);
+
+        return false;
+    }
+
+    /**
+     * El `source_id` de un talk, o null si Kommo no lo pudo dar. Solo se guarda
+     * en caché una respuesta buena: un fallo se reintenta en el próximo mensaje.
+     */
+    protected function fuenteDelTalk(string $talkId): ?string
+    {
+        $key = 'kommo:talk-source:'.$talkId;
+
+        if ($cached = Cache::get($key)) {
+            return $cached;
+        }
+
+        try {
+            $response = $this->http()->get($this->url("/api/v4/talks/{$talkId}"));
+            $fuente = $response->successful() ? $response->json('source_id') : null;
+        } catch (\Throwable $e) {
+            Log::warning('Kommo: falló la consulta del talk', ['talk_id' => $talkId, 'error' => $e->getMessage()]);
+
+            return null;
+        }
+
+        if ($fuente === null) {
+            return null;
+        }
+
+        Cache::put($key, (string) $fuente, now()->addDays(30));
+
+        return (string) $fuente;
+    }
+
     protected function attachmentFrom(array $event): array
     {
         $link = data_get($event, 'attachment.link');

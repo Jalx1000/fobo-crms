@@ -48,12 +48,12 @@ class SucursalesImprimirSeeder extends Seeder
             |
             | `WarehouseRepository::create()` le pasa TODO el array al modelo, y
             | `db:seed` corre dentro de Model::unguarded(): `linea` y `maps_url`
-            | —que son atributos, no columnas— se colarían al INSERT y MySQL
+            | -que son atributos, no columnas- se colarían al INSERT y MySQL
             | rechazaría la fila.
             */
             $sucursal = Warehouse::updateOrCreate(
                 ['name' => $datos['name']],
-                ['description' => 'Sucursal '.$datos['linea'].' — Santa Cruz'],
+                ['description' => 'Sucursal '.$datos['linea'].' - Santa Cruz'],
             );
 
             $this->atributos($sucursal, [
@@ -61,7 +61,7 @@ class SucursalesImprimirSeeder extends Seeder
                 'maps_url' => $datos['maps_url'],
             ]);
 
-            $this->command?->info("· {$sucursal->name} — {$datos['linea']}");
+            $this->command?->info("· {$sucursal->name} - {$datos['linea']}");
         }
 
         $this->asignarProductos();
@@ -96,8 +96,8 @@ class SucursalesImprimirSeeder extends Seeder
      *
      * Solo se asigna TAPAS, que es la única sin ambigüedad: el nombre de la
      * sucursal coincide con el producto, y es el único que se retira en planta
-     * —los demás se entregan en almacén del cliente o a domicilio, así que hoy
-     * la sucursal no cambia lo que el agente le dice al cliente—.
+     * -los demás se entregan en almacén del cliente o a domicilio, así que hoy
+     * la sucursal no cambia lo que el agente le dice al cliente-.
      *
      * Bolsas, hules y stretch film quedan SIN sucursal hasta que el negocio
      * confirme cuál las fabrica. Se asignan desde el formulario del producto en

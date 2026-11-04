@@ -21,7 +21,7 @@ use Webkul\Whatsapp\Models\Conversation;
  * Turning `ai_enabled` off IS the handoff, mechanically: IngestInboundPayload
  * only notifies the agent while it is on, NotifyAgent re-checks it at run time,
  * and InboxController::send() unlocks the composer once it is off. Everything
- * else here — state, reason, assignee, audit trail — exists so the team knows
+ * else here - state, reason, assignee, audit trail - exists so the team knows
  * *who* owes the customer an answer.
  *
  * This service never reads auth(). The actor is always passed in: the n8n route
@@ -234,7 +234,7 @@ class Handoff
      * else nobody (the pool).
      *
      * The active check matters. Without it, a conversation whose lead belongs to
-     * someone who left stays "assigned" to a dead mailbox — invisible in the
+     * someone who left stays "assigned" to a dead mailbox - invisible in the
      * pool, and the customer was never told anything (we send them nothing on
      * handoff by design). It would rot in silence.
      */
@@ -250,8 +250,8 @@ class Handoff
             }
         }
 
-        // Si no —el dueño es un administrador, el usuario del agente o
-        // nadie—, quien atiende la ciudad del cliente, o el asesor por
+        // Si no -el dueño es un administrador, el usuario del agente o
+        // nadie-, quien atiende la ciudad del cliente, o el asesor por
         // defecto. Antes esto caía al pozo y la conversación no la tomaba nadie.
         if ($asesor = $responsables->porCiudad($responsables->ciudadDelContacto($conversation))) {
             return (int) $asesor->id;
@@ -317,7 +317,7 @@ class Handoff
      * The inbox needs the advisor's name, so toArray() models `assigned_user`
      * as an object. The agent's schema types that same key as an integer, so
      * once somebody claimed a conversation the agent rejected the whole event
-     * (pydantic ValidationError) and stopped replying — while still answering
+     * (pydantic ValidationError) and stopped replying - while still answering
      * 200, which is why nothing ever failed loudly on our side.
      *
      * The id keeps the agreed key and the name travels beside it, so the agent
@@ -351,7 +351,7 @@ class Handoff
      *
      * Unlike storeNote(), a conversation without person or lead is NOT an error
      * here: an unknown number with auto_create_person off is a normal case. And
-     * a failure to audit must never abort the handoff itself — the hard facts
+     * a failure to audit must never abort the handoff itself - the hard facts
      * already live in the conversation's own columns.
      */
     protected function audit(Conversation $conversation, string $comment, ?int $actorUserId): void

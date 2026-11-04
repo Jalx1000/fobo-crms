@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Schema;
  *   multi-page install could leave through the wrong page.
  *
  * - avatar_url: the contact's picture where the channel exposes one. Stored on
- *   the conversation rather than fetched per render — Meta's CDN URLs expire.
+ *   the conversation rather than fetched per render - Meta's CDN URLs expire.
  */
 return new class extends Migration
 {

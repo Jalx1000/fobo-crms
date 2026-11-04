@@ -15,7 +15,7 @@ class PhoneNumber
     /**
      * Normalize to a simple E.164-ish string ("+<digits>").
      *
-     * A bare national number (no country code — e.g. an 8-digit Bolivian mobile
+     * A bare national number (no country code - e.g. an 8-digit Bolivian mobile
      * typed into the CRM by hand) gets the configured default prepended, so it
      * lands on the same conversation as the international form the provider sends
      * ("59175640698") instead of fragmenting into a separate "+75640698" thread.

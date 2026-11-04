@@ -68,7 +68,7 @@ Los mismos campos aparecen en `GET /api/v1/whatsapp/conversations/{id}/messages`
 | `phone_prompt_attempts` | Cuántas veces se pidió. Lo cuenta el CRM, no vos. |
 | `phone_prompt_exhausted` | `true` = ya se pidió 3 veces. **Dejá de pedirlo.** |
 
-### 2. Cuándo pedirlo — importante
+### 2. Cuándo pedirlo - importante
 
 **No lo pidas en el primer mensaje.** Pedilo recién cuando la conversación
 califica: el cliente pregunta precio, pide una cotización, consulta plazos de
@@ -90,7 +90,7 @@ Reglas duras:
   darlo, atendelo igual.
 
 Tono: español boliviano, informal pero respetuoso (voseo). Algo como
-*"Para pasarte la cotización por WhatsApp, ¿me compartís tu número?"* — pedilo
+*"Para pasarte la cotización por WhatsApp, ¿me compartís tu número?"* - pedilo
 con un motivo concreto, no en abstracto.
 
 ### 3. Cómo lo devolvés

@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
  * propiedad de la categoría sino de cada producto: dos productos de embalaje
  * pueden cotizarse por ejes distintos, y el negocio los cambia sin deploy.
  *
- * Guarda una lista de nombres — ["Tamaño", "Canal"] — que son las columnas de la
+ * Guarda una lista de nombres - ["Tamaño", "Canal"] - que son las columnas de la
  * tabla de precios. Vacío o null = el producto usa el `price` fijo de siempre.
  */
 return new class extends Migration

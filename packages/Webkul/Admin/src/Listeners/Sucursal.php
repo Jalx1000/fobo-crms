@@ -15,8 +15,8 @@ use Webkul\Attribute\Repositories\AttributeValueRepository;
  *
  * Solo la PROPONE: si la cotización ya trae sucursal no se toca, porque puede
  * haberse acordado despachar desde otra planta. Y si el producto no tiene
- * planta asignada, se deja vacía antes que inventar una dirección —mandar al
- * cliente a la fábrica equivocada es peor que no decirle nada—.
+ * planta asignada, se deja vacía antes que inventar una dirección -mandar al
+ * cliente a la fábrica equivocada es peor que no decirle nada-.
  */
 class Sucursal
 {

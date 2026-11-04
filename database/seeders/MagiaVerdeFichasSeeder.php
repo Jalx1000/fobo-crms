@@ -12,7 +12,7 @@ use Webkul\Product\Support\Variantes;
  *
  * Los cinco PDFs se cargaron el 18/09 colgando del producto, y el orden de la
  * galería no seguía los tamaños (el segundo era el de 200 L). Se leyó el
- * contenido de cada uno —«Capacidad: 50L», «Ancho de bolsa: 65cm»— y coincide
+ * contenido de cada uno -«Capacidad: 50L», «Ancho de bolsa: 65cm»- y coincide
  * con la medida de cada variante, así que la asignación es por archivo.
  *
  * Se identifica por la ruta del archivo y no por id: es lo que no cambia si se

@@ -14,7 +14,7 @@
             role="status"
         >
             <p class="text-sm font-semibold">
-                @{{ aviso.total }} @{{ aviso.total === 1 ? 'pedido entregado sin cotización' : 'pedidos entregados sin cotización' }} — complétalos
+                @{{ aviso.total }} @{{ aviso.total === 1 ? 'pedido entregado sin cotización' : 'pedidos entregados sin cotización' }} - complétalos
             </p>
 
             <p class="mt-0.5 text-xs">

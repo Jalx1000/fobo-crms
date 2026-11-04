@@ -38,26 +38,26 @@ php artisan db:seed
 
 ## Architecture
 
-This is a **Krayin CRM** — a Laravel 10 application built on a modular monorepo structure using the Concord package system. All business logic lives in `packages/Webkul/` as independent service provider-based modules, not in the root `app/` directory.
+This is a **Krayin CRM** - a Laravel 10 application built on a modular monorepo structure using the Concord package system. All business logic lives in `packages/Webkul/` as independent service provider-based modules, not in the root `app/` directory.
 
 ### Module layout
 
 Each module under `packages/Webkul/<Module>/src/` follows the same structure:
-- `Models/` — Eloquent models implementing contracts from `Contracts/`
-- `Repositories/` — data access layer extending `Webkul\Core\Eloquent\Repository` (l5-repository pattern)
-- `Services/` — business logic
-- `Providers/` — service provider that bootstraps routes, migrations, translations, and views
-- `Database/Migrations/` — module-specific migrations
+- `Models/` - Eloquent models implementing contracts from `Contracts/`
+- `Repositories/` - data access layer extending `Webkul\Core\Eloquent\Repository` (l5-repository pattern)
+- `Services/` - business logic
+- `Providers/` - service provider that bootstraps routes, migrations, translations, and views
+- `Database/Migrations/` - module-specific migrations
 
 The **Admin** module (`packages/Webkul/Admin/`) is the UI layer and contains:
-- `Http/Controllers/` — grouped by domain (Lead, Contact, Products, Quote, etc.)
-- `DataGrids/` — data table classes extending `Webkul\DataGrid\DataGrid`
-- `Resources/views/` — Blade templates (Tailwind CSS, dark mode support)
-- `Resources/assets/` — JS/CSS assets
-- `Routes/Admin/` — route files per domain, all mounted under `config('app.admin_path')` with `web + admin_locale + user` middleware
-- `Listeners/` — event listeners
-- `Jobs/` — queued jobs
-- `Mail/` & `Notifications/` — mail/notification classes
+- `Http/Controllers/` - grouped by domain (Lead, Contact, Products, Quote, etc.)
+- `DataGrids/` - data table classes extending `Webkul\DataGrid\DataGrid`
+- `Resources/views/` - Blade templates (Tailwind CSS, dark mode support)
+- `Resources/assets/` - JS/CSS assets
+- `Routes/Admin/` - route files per domain, all mounted under `config('app.admin_path')` with `web + admin_locale + user` middleware
+- `Listeners/` - event listeners
+- `Jobs/` - queued jobs
+- `Mail/` & `Notifications/` - mail/notification classes
 
 ### Key modules
 
@@ -82,14 +82,14 @@ Business events use string-named Laravel events (e.g., `lead.create.after`, `lea
 
 ### Repository pattern
 
-All data access goes through repositories that extend `Webkul\Core\Eloquent\Repository`. Controllers receive repositories via constructor injection. Direct Eloquent queries in controllers are discouraged — put them in a repository method.
+All data access goes through repositories that extend `Webkul\Core\Eloquent\Repository`. Controllers receive repositories via constructor injection. Direct Eloquent queries in controllers are discouraged - put them in a repository method.
 
 ### DataGrid pattern
 
 List views use DataGrid classes. Each DataGrid:
 1. Extends `Webkul\DataGrid\DataGrid`
-2. Implements `prepareQueryBuilder(): Builder` — defines the base SQL query
-3. Implements `prepareColumns()` — declares columns with filters/sorting
+2. Implements `prepareQueryBuilder(): Builder` - defines the base SQL query
+3. Implements `prepareColumns()` - declares columns with filters/sorting
 4. Is instantiated in the controller via `app(LeadDataGrid::class)->toJson()`
 
 ### Frontend

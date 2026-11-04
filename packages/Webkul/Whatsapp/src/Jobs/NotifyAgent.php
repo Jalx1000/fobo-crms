@@ -17,7 +17,7 @@ use Webkul\Whatsapp\Services\AlertaAgente;
 /**
  * Notifies the external AI agent that an inbound message arrived, so it can
  * reply through the documented API. Only fires while the agent is enabled for
- * the conversation — turning the agent off is what stops AI replies.
+ * the conversation - turning the agent off is what stops AI replies.
  */
 class NotifyAgent implements ShouldQueue
 {
@@ -29,7 +29,7 @@ class NotifyAgent implements ShouldQueue
      * El minuto es para que un agente que se esta reiniciando (deploy, OOM)
      * alcance a levantar. Ojo con la expectativa: esto solo rescata fallos
      * transitorios. Si el agente rechaza el payload por validacion, las cuatro
-     * llamadas fallan igual — el mismo cuerpo produce el mismo error.
+     * llamadas fallan igual - el mismo cuerpo produce el mismo error.
      */
     public int $tries = 4;
 

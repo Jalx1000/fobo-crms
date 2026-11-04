@@ -1,6 +1,6 @@
 # Spec: Envío de cotizaciones fuera de la ventana de 24h (plantillas HSM)
 
-> Estado: **APROBADA** (2026-08-21). Preguntas abiertas resueltas — ver
+> Estado: **APROBADA** (2026-08-21). Preguntas abiertas resueltas - ver
 > "Decisiones tomadas". Lista para planificar.
 >
 > Rama: `imprimir-modulo-whatsapp` · Autor: Javier Mogro / Claude
@@ -28,7 +28,7 @@ Corregime ahora o procedo con estos:
 1. El canal en producción es **Cloud API** (`WHATSAPP_GATEWAY=cloud_api`).
    Kommo y Messenger quedan fuera de alcance: heredan el `throw` de
    `BaseGateway` como ya hacen con `sendMedia`/`sendLocation`.
-2. La plantilla se clasifica como **Utility**, no Marketing — la cotización
+2. La plantilla se clasifica como **Utility**, no Marketing - la cotización
    responde a una solicitud del cliente. (Ver `docs/specs` conversación previa.)
 3. La plantilla lleva el **PDF como header de tipo `document`**, no un link. Es
    coherente con `sendMedia`, que ya sube los bytes a Meta en vez de exponer una
@@ -54,7 +54,7 @@ desde la pestaña Cotizaciones de una oportunidad.
 
 **Éxito:** el cliente recibe el PDF de la cotización con un texto aprobado por
 Meta, y el mensaje queda registrado en el hilo del inbox igual que cualquier
-otro — con estado de entrega, y visible en la pestaña "Docs" del drawer.
+otro - con estado de entrega, y visible en la pestaña "Docs" del drawer.
 
 ### Historias
 
@@ -152,7 +152,7 @@ tests/Feature/WhatsappQuoteTemplateTest.php   → NUEVO
 
 ## Estilo
 
-Se sigue el estilo del módulo tal como está. Un DTO nuevo se ve así — inmutable,
+Se sigue el estilo del módulo tal como está. Un DTO nuevo se ve así - inmutable,
 `final`, constructor promotion, y **comentarios que explican el porqué, no el
 qué**:
 
@@ -190,7 +190,7 @@ final class OutboundTemplate
 Reglas que ya rigen en el repo y siguen rigiendo acá:
 
 - Pint (preset Laravel) pasa sin cambios.
-- Nada de queries Eloquent directas en controladores — van por repositorio o
+- Nada de queries Eloquent directas en controladores - van por repositorio o
   servicio.
 - Los mensajes al usuario salen por `trans()`, nunca hardcodeados.
 - Los errores que ve el vendedor son **frases accionables en español**, no el
@@ -234,7 +234,7 @@ tenga un test**.
 - Devolver 422 con frase accionable en español ante cualquier rechazo.
 
 **Preguntar primero:**
-- Cambios de esquema (`whatsapp_messages`) — ver Pregunta Abierta #4.
+- Cambios de esquema (`whatsapp_messages`) - ver Pregunta Abierta #4.
 - Tocar `Capabilities::MEDIA_TYPES` o el contrato `Gateway` de forma que rompa
   Messenger o Kommo.
 - Cualquier cosa que mande un mensaje real a un número real.
@@ -264,7 +264,7 @@ Concretos y verificables:
    `document` y el media id de la subida previa.
 4. El mensaje aparece en el hilo del inbox y en la pestaña "Docs" del drawer.
 5. Si la plantilla no está configurada, el vendedor lee una frase que le dice
-   qué falta — no un 500 ni un "Server Error".
+   qué falta - no un 500 ni un "Server Error".
 6. Los 8 tests de la tabla pasan; `php artisan test` completo sigue en verde.
 7. `./vendor/bin/pint --test` pasa.
 8. Kommo y Messenger siguen funcionando igual (sus tests actuales en verde).
@@ -275,7 +275,7 @@ Concretos y verificables:
 
 Las seis preguntas abiertas quedaron resueltas el 2026-08-21.
 
-### 1. La plantilla no existe — se crea con este diseño
+### 1. La plantilla no existe - se crea con este diseño
 
 A dar de alta en WhatsApp Manager antes de poder verificar de punta a punta:
 
@@ -287,7 +287,7 @@ A dar de alta en WhatsApp Manager antes de poder verificar de punta a punta:
 | Header | `DOCUMENT` (el PDF) |
 | Botones | ninguno |
 
-Body **finalmente aprobado** (2 variables, no 4 — el diseño original se redujo
+Body **finalmente aprobado** (2 variables, no 4 - el diseño original se redujo
 durante la implementación):
 
 ```
@@ -310,7 +310,7 @@ Tono deliberadamente transaccional: sin emojis de promo, sin urgencia, sin
 Marketing en la aprobación.
 
 **Restricción dura:** Meta rechaza un parámetro vacío (error 132000). Ningún
-`{{n}}` puede resolverse a string vacío — toda variable necesita un fallback.
+`{{n}}` puede resolverse a string vacío - toda variable necesita un fallback.
 Para `{{4}}` cuando `expired_at` es null: `"sin fecha de vencimiento"`.
 
 ### 2. Fallback automático, con aviso
@@ -351,7 +351,7 @@ la ventana tampoco se cobra:** el costo no es la razón.
 Si más adelante el equipo comercial necesita cambiar el texto seguido, se migra
 a System Config. Hoy no justifica el trabajo.
 
-### 4. NO se agrega un tipo de mensaje nuevo — decisión clave
+### 4. NO se agrega un tipo de mensaje nuevo - decisión clave
 
 La fila se guarda con **`type = 'document'`, igual que hoy**. Los datos de la
 plantilla viven en `payload['template']`, y **solo `SendMessage` decide** a qué
@@ -359,10 +359,10 @@ método del gateway llamar.
 
 Verificado en el código, no asumido:
 
-- `inbox-component.blade.php:408` — un tipo desconocido cae en
+- `inbox-component.blade.php:408` - un tipo desconocido cae en
   `<div v-else>Tipo no soportado</div>`. No rompe el render (eso se arregló
   después del bug del sticker), pero el vendedor vería ese texto en vez del PDF.
-- `ChatController.php:273` — el drawer filtra `whereIn('type', ['image','document'])`.
+- `ChatController.php:273` - el drawer filtra `whereIn('type', ['image','document'])`.
   Un tipo nuevo **desaparece de la pestaña Docs en silencio**, sin ningún error.
 
 Consecuencias de la decisión: cero cambios en el front, cero migración, cero
@@ -383,7 +383,7 @@ entregó el mensaje es transporte. `payload` ya se usa exactamente para eso
 
 `last_inbound_at IS NULL` es exactamente el caso que la plantilla existe para
 resolver. Se permite el envío, **pero se loguea** con nivel `info` marcando que
-fue a un contacto sin historial — es el escenario que Meta penaliza si se hace
+fue a un contacto sin historial - es el escenario que Meta penaliza si se hace
 en volumen, y queremos poder auditarlo si la calidad del número cae.
 
 No se agrega un bloqueo por código: el criterio de "¿este cliente pidió la

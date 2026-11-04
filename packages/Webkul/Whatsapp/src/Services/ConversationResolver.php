@@ -150,12 +150,21 @@ class ConversationResolver
     /**
      * Find a conversation for a phone, tolerant of whether the country code is
      * present. A number stored without one ("+75640698") must still match the
-     * international form the provider sends ("+59175640698") — otherwise every
+     * international form the provider sends ("+59175640698") - otherwise every
      * inbound would spawn a duplicate conversation for the same contact.
      *
      * Exact (indexed) match first; then a trailing-digits match, the same fuzzy
      * scheme resolvePerson() uses for Person.contact_numbers.
      */
+    /**
+     * La conversación que ya existe para este teléfono en el canal, sin crear
+     * nada: para un eco que llega por un canal distinto al que la abrió.
+     */
+    public function findByPhone(string $phone, string $gateway): ?Model
+    {
+        return $this->findConversationByPhone($phone, $gateway);
+    }
+
     protected function findConversationByPhone(string $phone, string $gateway): ?Model
     {
         $model = ConversationProxy::modelClass();
@@ -203,7 +212,7 @@ class ConversationResolver
     }
 
     /**
-     * Open a lead for a messaging contact — default pipeline + first stage, and
+     * Open a lead for a messaging contact - default pipeline + first stage, and
      * the channel's own source so the pipeline reports where the demand came
      * from. Mirrors the manual quick-create in ChatController so both paths land
      * identical leads. Never lets a failure lose the message.
@@ -260,7 +269,7 @@ class ConversationResolver
      *
      * Only a phone number identifies a human across channels. A page-scoped id
      * (Messenger) is meaningless anywhere else, so a channel without a phone
-     * never *matches* an existing contact — it registers a new one and leaves
+     * never *matches* an existing contact - it registers a new one and leaves
      * merging to a human, which is the only safe direction to be wrong in:
      * a duplicate contact can be merged, a wrongly merged one cannot be undone.
      */
@@ -274,7 +283,7 @@ class ConversationResolver
             return null;
         }
 
-        // On a phone channel a missing number means "not known YET" — Kommo
+        // On a phone channel a missing number means "not known YET" - Kommo
         // delivers it in a second call that can fail or lag. Registering a
         // phone-less Person now would produce a duplicate the moment the number
         // arrives and matches a real contact, so we wait: backfill() links the
@@ -287,7 +296,7 @@ class ConversationResolver
     }
 
     /**
-     * The family of a channel — 'whatsapp' for the phone-based providers.
+     * The family of a channel - 'whatsapp' for the phone-based providers.
      */
     protected function family(string $gateway): string
     {

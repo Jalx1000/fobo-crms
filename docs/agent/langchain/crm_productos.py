@@ -11,7 +11,7 @@ La idea que gobierna el diseño de la API, y que conviene no perder al integrar:
     El agente pide "3 imágenes del SKU X". El CRM decide cuáles, en qué orden y
     por qué vía. Las rutas de los archivos NUNCA pasan por el modelo.
 
-El modelo solo manipula el `sku` —que es público, aparece en las cotizaciones—
+El modelo solo manipula el `sku` -que es público, aparece en las cotizaciones-
 y ve *cuántos* adjuntos hay de cada tipo. Nunca un path, ni una URL de storage,
 ni un id de archivo.
 ──────────────────────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ def _client_whatsapp() -> httpx.AsyncClient:
     """
     Los botones y listas NO son del módulo de productos: son una capacidad
     genérica de WhatsApp, y viven en `/api/v1/whatsapp`. Por eso el prefijo
-    distinto — es la misma separación que mantiene el CRM del lado del servidor.
+    distinto - es la misma separación que mantiene el CRM del lado del servidor.
     """
     return httpx.AsyncClient(
         base_url=f"{settings.base_url}/api/v1/whatsapp",
@@ -133,13 +133,13 @@ def _precio_texto(p: dict) -> str:
     if p.get("precio_variable"):
         ejes = ", ".join(p.get("ejes_precio") or []) or "la variante"
 
-        return f"precio según {ejes} — usá precio_producto"
+        return f"precio según {ejes} - usá precio_producto"
 
     return f"Bs {p['precio']}"
 
 
 def _linea_catalogo(p: dict) -> str:
-    return "{sku} — {nombre} ({precio}) · imágenes: {imagen}, documentos: {documento}, enlaces: {enlace}".format(
+    return "{sku} - {nombre} ({precio}) · imágenes: {imagen}, documentos: {documento}, enlaces: {enlace}".format(
         sku=p["sku"],
         nombre=p["nombre"],
         precio=_precio_texto(p),
@@ -168,7 +168,7 @@ async def ficha_producto(sku: str) -> str:
 
     d = r.json()
 
-    lineas = [f"{d['sku']} — {d['nombre']}", f"Precio: {_precio_texto(d)}"]
+    lineas = [f"{d['sku']} - {d['nombre']}", f"Precio: {_precio_texto(d)}"]
 
     # La lista completa entra en la ficha para que el modelo pueda comparar
     # («la de 50 sale un poco más»), pero el precio que se le DICE al cliente
@@ -192,7 +192,7 @@ async def ficha_producto(sku: str) -> str:
     adj = d["adjuntos"]
 
     lineas.append(
-        f"Material disponible — imágenes: {adj['imagen']}, "
+        f"Material disponible - imágenes: {adj['imagen']}, "
         f"documentos: {adj['documento']}, enlaces: {adj['enlace']}"
     )
 
@@ -208,7 +208,7 @@ async def precio_producto(sku: str, criterios: dict[str, str] | None = None) -> 
     redondees un precio vos: el CRM es el que sabe cuánto se cobra.
 
     Pasá en `criterios` lo que el cliente ya te dijo. Si falta algo, la
-    herramienta te devuelve QUÉ preguntar y con qué opciones — preguntá eso y
+    herramienta te devuelve QUÉ preguntar y con qué opciones - preguntá eso y
     volvé a llamarla.
 
     Args:
@@ -307,7 +307,7 @@ async def enviar_material(
 
     """
     Ningún error de acá se reintenta: todos son definitivos para este turno.
-    Se devuelven como TEXTO y no como excepción — una excepción corta el turno y
+    Se devuelven como TEXTO y no como excepción - una excepción corta el turno y
     el cliente se queda sin respuesta, cuando lo que hay que hacer es contarle
     lo que pasó.
     """

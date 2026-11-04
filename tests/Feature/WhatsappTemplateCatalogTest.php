@@ -86,7 +86,7 @@ it('keeps the header format so a document template can be told apart', function 
 
 it('flags a document-header template as unsendable from the chat', function () {
     // Es la plantilla real de cotizaciones: el header DOCUMENT es un parámetro
-    // obligatorio, y mandarla sin el archivo devuelve 132012 — un error que no
+    // obligatorio, y mandarla sin el archivo devuelve 132012 - un error que no
     // menciona en ninguna parte que falta un adjunto.
     fakeMeta([metaTemplate(['name' => 'cotizacion_documento_v2', 'components' => [
         ['type' => 'HEADER', 'format' => 'DOCUMENT'],

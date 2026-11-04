@@ -11,7 +11,7 @@ use RuntimeException;
  * worker often run as different users, and whichever one created
  * storage/app/public/whatsapp/media/{conversation}/ owns it. If the web process
  * is not the owner, every outbound upload fails while inbound media keeps
- * working — which makes the symptom look like a WhatsApp problem instead of a
+ * working - which makes the symptom look like a WhatsApp problem instead of a
  * filesystem one.
  */
 class AttachmentStorageException extends RuntimeException

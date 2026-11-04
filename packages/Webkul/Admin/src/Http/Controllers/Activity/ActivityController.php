@@ -231,7 +231,7 @@ class ActivityController extends Controller
 
     /**
      * Buscador de pacientes del calendario: por nombre, teléfono o carnet
-     * (CI/NIT), con sus citas —las próximas primero, después las pasadas—
+     * (CI/NIT), con sus citas -las próximas primero, después las pasadas-
      * para saltar al día de una sin recorrer el calendario.
      */
     public function buscarPaciente(): JsonResponse

@@ -150,7 +150,7 @@
                                 :label="trans('Instructor asignado')"
                                 :placeholder="trans('Selecciona instructor')"
                             >
-                                <option value="">—</option>
+                                <option value="">-</option>
                                 @foreach ($instructors as $u)
                                     <option value="{{ $u->id }}">{{ $u->name }}</option>
                                 @endforeach
@@ -390,7 +390,7 @@
         <script type="text/x-template" id="v-specialty-preview-template">
             <div class="rounded border border-gray-200 p-3 dark:border-gray-800">
                 <div class="mb-2">
-                    <p class="text-lg font-bold text-gray-800 dark:text-white">@{{ form.name || '—' }}</p>
+                    <p class="text-lg font-bold text-gray-800 dark:text-white">@{{ form.name || '-' }}</p>
                     <p class="text-sm text-gray-600 dark:text-gray-300">@{{ form.code ? ('Código: ' + form.code) : '' }}</p>
                     <p class="text-sm text-gray-600 dark:text-gray-300">@{{ form.area_of_knowledge ? ('Área: ' + form.area_of_knowledge) : '' }}</p>
                     <p class="text-sm text-gray-600 dark:text-gray-300">@{{ difficultyLabel }}</p>

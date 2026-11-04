@@ -39,7 +39,7 @@ class Conversation extends Model implements ConversationContract
      * @var array
      */
     protected $fillable = [
-        // Which channel this thread lives on — the key of a registered gateway
+        // Which channel this thread lives on - the key of a registered gateway
         // ('cloud_api', 'kommo', 'messenger'). Every read and every reply is
         // resolved through it, so a thread is always answered where it arrived.
         'gateway',
@@ -112,7 +112,7 @@ class Conversation extends Model implements ConversationContract
      * A customer is waiting on a human: either nobody has claimed it yet
      * (requested) or an advisor owns it (assigned).
      *
-     * While this holds, the AI agent must stay out — see Services\Handoff and
+     * While this holds, the AI agent must stay out - see Services\Handoff and
      * the guard in InboxController::toggleAgent().
      */
     /**
@@ -120,7 +120,7 @@ class Conversation extends Model implements ConversationContract
      *
      * `aiEffective()` sola no alcanza: contesta «la IA está encendida», que no
      * es lo mismo que «el agente debe contestar». Con un handoff pedido la IA
-     * sigue encendida —el asesor puede devolverla— pero el turno ya es de un
+     * sigue encendida -el asesor puede devolverla- pero el turno ya es de un
      * humano.
      *
      * Sin esto el CRM invitaba al agente a responder y después le rechazaba la

@@ -60,8 +60,8 @@ class PersonController extends Controller
      *
      * City lives in the "global_pipeline_id" cookie, the date range in
      * "global_date_range" ("from|to"). We normalize both to explicit query
-     * params (pipeline_id, start, end) so the DataGrid — which forwards the
-     * page's query string on its AJAX request — filters accordingly.
+     * params (pipeline_id, start, end) so the DataGrid - which forwards the
+     * page's query string on its AJAX request - filters accordingly.
      *
      * Returns a RedirectResponse when the URL had to be normalized, otherwise
      * null so the caller can render the view.

@@ -5,7 +5,7 @@
 >
 > **ALCANCE REDUCIDO durante la revisión:** solo se implementa el filtro de
 > **plataforma**. Nombre ya existía en los tres y queda intacto; teléfono salió
-> del alcance por decisión del usuario — el filtro de Personas sigue siendo el
+> del alcance por decisión del usuario - el filtro de Personas sigue siendo el
 > LIKE sobre el JSON crudo que ya tenía.
 >
 > Rama: `imprimir-modulo-whatsapp`
@@ -50,7 +50,7 @@ Corregime ahora o procedo con estos:
 
 1. **Los tres módulos son Personas, Leads y Cotizaciones.** Son las tres grillas
    donde se busca a alguien y les falta teléfono y/o plataforma. Ver Pregunta
-   Abierta #1 — es lo único que bloquea.
+   Abierta #1 - es lo único que bloquea.
 2. "Plataforma" = el canal de mensajería (`cloud_api`, `kommo`, `messenger`),
    tomado de `whatsapp_conversations.gateway`, no de `lead_source`.
 3. Un contacto puede tener varias conversaciones. La plataforma que se muestra y
@@ -184,7 +184,7 @@ Pest, `tests/Feature/DataGridFilterTest.php`.
 
 **Restricción real:** la base no es alcanzable desde el host de desarrollo
 (`heaven_imprimir` no resuelve), así que los tests **no pueden ejecutar
-consultas**. Se verifica el **SQL generado** con `toSql()` y sus bindings — que
+consultas**. Se verifica el **SQL generado** con `toSql()` y sus bindings - que
 es además donde viven los bugs de esta feature.
 
 | # | Caso | Qué prueba |
@@ -218,7 +218,7 @@ grilla muestra el mismo contacto tres veces sin ningún error.
 - Correr `pint` sin ruta.
 - Subconsulta correlacionada en el `WHERE` de una grilla paginada.
 - Hardcodear la lista de canales: sale de `GatewayManager`.
-- Romper el filtro `lead_source_name` que ya existe en Leads — es otra pregunta,
+- Romper el filtro `lead_source_name` que ya existe en Leads - es otra pregunta,
   y alguien la está usando.
 
 ---
@@ -239,17 +239,17 @@ grilla muestra el mismo contacto tres veces sin ningún error.
 
 ## Preguntas abiertas
 
-### 1. Los tres módulos — RESUELTA
+### 1. Los tres módulos - RESUELTA
 
 **Personas, Leads y Cotizaciones.** El inbox queda fuera: ya tiene los tres
 filtros. Organizaciones queda fuera.
 
-### 2. El teléfono se muestra, no solo se filtra — RESUELTA
+### 2. El teléfono se muestra, no solo se filtra - RESUELTA
 
 Columna visible en Leads y Cotizaciones. Un filtro sobre algo invisible obliga a
 abrir cada registro para confirmar que el resultado es el correcto.
 
-### 3. Contacto sin conversación — RESUELTA
+### 3. Contacto sin conversación - RESUELTA
 
 El dropdown incluye una opción explícita **"Sin canal"**, implementada como
 `COALESCE(contact_channel.gateway, 'none')` en la columna del filtro: un dropdown
@@ -265,7 +265,7 @@ Dos cosas verificadas en el código que gobiernan la implementación:
 expresión `DB::raw` tiene que interpolar `DB::getTablePrefix()`, como ya hacen
 `LeadDataGrid` y `QuoteDataGrid`.
 
-**Solo Leads tiene `groupBy('leads.id')`** (línea 110) — lo necesita porque ya
+**Solo Leads tiene `groupBy('leads.id')`** (línea 110) - lo necesita porque ya
 joinea `lead_tags`/`tags`. Personas y Cotizaciones **no agrupan**, así que están
 desprotegidas contra un join que multiplique filas. Por eso la subconsulta de
 plataforma debe garantizar una fila por contacto por construcción

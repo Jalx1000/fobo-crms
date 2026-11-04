@@ -1,4 +1,4 @@
-# Informe de implementación — Tablero / Dashboard
+# Informe de implementación - Tablero / Dashboard
 
 **Proyecto:** Krayin CRM (Kohlberg) · **Rama:** `kohlberg` · **Entorno:** producción (kohlberg.sofopolis.com)
 **Fecha del informe:** 2026-06-26
@@ -34,7 +34,7 @@ Se rediseñó el Tablero para que **todas las tarjetas concilien entre sí** y c
 
 ## 3. Conciliación de métricas
 
-### 3.1 "Opción B" — cada lead se cuenta en su etapa actual por su fecha de evento
+### 3.1 "Opción B" - cada lead se cuenta en su etapa actual por su fecha de evento
 
 Se introdujo una expresión SQL `stageEventDateExpr()` que asigna a cada lead la fecha relevante según su etapa:
 
@@ -46,7 +46,7 @@ Se introdujo una expresión SQL `stageEventDateExpr()` que asigna a cada lead la
 
 Esto hace que los conteos por período sean consistentes en todas las tarjetas (funnel, por usuario, por ciudad, evolución, KPIs).
 
-### 3.2 "Significado B'" — definición de "Prospectos"
+### 3.2 "Significado B'" - definición de "Prospectos"
 
 La métrica **Prospectos** = leads actualmente en etapa **Prospecto OR Pedido confirmado** (el pipeline abierto), contados por su fecha de evento. Implementado con `openStageIds()` (unión de IDs de Prospecto + Confirmado).
 
@@ -93,7 +93,7 @@ Se alineó el vocabulario del Tablero con la vista por etapa:
 
 ## 6. Nuevos KPIs y layout
 
-- **Nuevo KPI "Total productos vendidos (Entregados)"** — cantidad de productos en leads en etapa Entregado, por `closed_at`.
+- **Nuevo KPI "Total productos vendidos (Entregados)"** - cantidad de productos en leads en etapa Entregado, por `closed_at`.
 - **KPI "Total de Prospectos"** corregido: antes usaba `total_persons` (entidad personas) con una etiqueta heredada del rename Clientes→Prospectos, mostrando 18 en vez de 10. Ahora usa `total_leads` con B'.
 - **Layout:** las 4 tarjetas KPI se pusieron en **una sola fila de 4 columnas** (`grid-cols-4`, responsive a 2 y 1 columnas).
 
@@ -110,27 +110,27 @@ Se alineó el vocabulario del Tablero con la vista por etapa:
 ## 8. Archivos principales modificados
 
 **Backend / Reporting:**
-- `packages/Webkul/Admin/src/Helpers/Reporting/Lead.php` — `stageEventDateExpr`, `openStageIds`, B', `buildEvolutionPayload`, anclaje de intervalos.
-- `packages/Webkul/Admin/src/Helpers/Reporting/Product.php` — productos vendidos (entregados), evolución de unidades.
-- `packages/Webkul/Admin/src/Helpers/Dashboard.php` — `total_products_sold`, período de evolución.
-- `packages/Webkul/Admin/src/Http/Controllers/DashboardController.php` — defaults globales del servidor.
-- `packages/Webkul/Admin/src/Http/Controllers/Lead/LeadController.php` — filtros globales ciudad/fecha + kanban.
-- `packages/Webkul/Lead/src/Repositories/LeadRepository.php` — regla de lead_value.
-- `packages/Webkul/Lead/src/Models/Lead.php` — flag `lead_value_is_manual`.
-- `packages/Webkul/Lead/src/Database/Migrations/...add_lead_value_is_manual...` — nueva columna.
-- `app/Http/Middleware/EncryptCookies.php` — cookies globales exentas.
+- `packages/Webkul/Admin/src/Helpers/Reporting/Lead.php` - `stageEventDateExpr`, `openStageIds`, B', `buildEvolutionPayload`, anclaje de intervalos.
+- `packages/Webkul/Admin/src/Helpers/Reporting/Product.php` - productos vendidos (entregados), evolución de unidades.
+- `packages/Webkul/Admin/src/Helpers/Dashboard.php` - `total_products_sold`, período de evolución.
+- `packages/Webkul/Admin/src/Http/Controllers/DashboardController.php` - defaults globales del servidor.
+- `packages/Webkul/Admin/src/Http/Controllers/Lead/LeadController.php` - filtros globales ciudad/fecha + kanban.
+- `packages/Webkul/Lead/src/Repositories/LeadRepository.php` - regla de lead_value.
+- `packages/Webkul/Lead/src/Models/Lead.php` - flag `lead_value_is_manual`.
+- `packages/Webkul/Lead/src/Database/Migrations/...add_lead_value_is_manual...` - nueva columna.
+- `app/Http/Middleware/EncryptCookies.php` - cookies globales exentas.
 
 **Frontend:**
-- `dashboard/index.blade.php` — filtros globales Vue + cookies.
-- `dashboard/index/over-all.blade.php` — KPIs (4 columnas, nuevos KPIs).
-- `dashboard/index/evolution.blade.php` — rediseño dos series + tabs.
-- `dashboard/index/total-leads.blade.php`, `total-leads-vs-entregados.blade.php` — colores de leyenda.
-- `lang/es/app.php` y `lang/en/app.php` — léxico unificado.
+- `dashboard/index.blade.php` - filtros globales Vue + cookies.
+- `dashboard/index/over-all.blade.php` - KPIs (4 columnas, nuevos KPIs).
+- `dashboard/index/evolution.blade.php` - rediseño dos series + tabs.
+- `dashboard/index/total-leads.blade.php`, `total-leads-vs-entregados.blade.php` - colores de leyenda.
+- `lang/es/app.php` y `lang/en/app.php` - léxico unificado.
 
 ---
 
 ## 9. Pendiente / opcional
 
-- **Descripción por tarjeta (subtítulo)** para mejorar UX — pendiente de definir el **término** para "Prospecto + Pedido confirmado" (se descartó "Prospectos abiertos").
+- **Descripción por tarjeta (subtítulo)** para mejorar UX - pendiente de definir el **término** para "Prospecto + Pedido confirmado" (se descartó "Prospectos abiertos").
 - (Opcional) Aplicar B' a tarjetas hoy comentadas si se reactivan (ingresos por fuentes/tipos, funnel viejo, vendedores, leads por sucursal).
 - (Opcional) Endurecer el group-key semanal (`%Y-%u` SQL vs `Y-W` PHP).

@@ -45,7 +45,7 @@ indistinguible del que genera el asesor.
 
 ## Modelo de datos
 
-### Variantes de producto — `product_variantes` (tabla nueva)
+### Variantes de producto - `product_variantes` (tabla nueva)
 
 Los códigos dependen de **algunos** ejes del producto, no de todos: en bolsas
 el TR4 cambia con el tamaño pero **no** con el canal ni la zona. Ponerlos en la
@@ -79,7 +79,7 @@ products.ejes_identidad   JSON   ["Tamaño"]      ← bolsas
 el CRM toma solo los ejes de identidad (`Tamaño`) y busca la variante
 `{Tamaño: 50 L}`. Misma comparación tolerante que `ListaPrecios::filtrar()`.
 
-### Producto — columnas nuevas
+### Producto - columnas nuevas
 
 | Columna | Tipo | Default | Para |
 |---|---|---|---|
@@ -91,12 +91,12 @@ el CRM toma solo los ejes de identidad (`Tamaño`) y busca la variante
 Estos tres últimos son por **producto**, no por variante: la entrega no cambia
 con el color del hule.
 
-> **Ajuste 11/09 (tarea 5):** tapas rompe esa regla — sin impresión es
+> **Ajuste 11/09 (tarea 5):** tapas rompe esa regla - sin impresión es
 > inmediata, con impresión 20 días. Se agregó `product_variantes.tiempo_entrega`
 > nullable como **override**: null usa el del producto. Solo se carga donde
 > difiere.
 
-### Ítem de cotización — foto de la variante
+### Ítem de cotización - foto de la variante
 
 | Columna nueva en `quote_items` | Por qué se copia |
 |---|---|
@@ -104,20 +104,20 @@ con el color del hule.
 | `codigo_barra` | idem |
 | `medida` | idem |
 | `unidad` | idem |
-| `variante` (JSON) | qué variante era: `{"Tamaño":"50 L"}` — para reconstruir |
+| `variante` (JSON) | qué variante era: `{"Tamaño":"50 L"}` - para reconstruir |
 
 Mismo principio que `sku`/`name` hoy, y la razón por la que arreglamos el bug
 del `findOrFail`: el ítem es una foto, no un puntero.
 
-### Cotización — atributos personalizados (SQL, sin código)
+### Cotización - atributos personalizados (SQL, sin código)
 
 | Código | Tipo | Opciones / default |
 |---|---|---|
-| `forma_pago` | select | Al contado · Crédito 15 días · Crédito 30 días — default Al contado |
+| `forma_pago` | select | Al contado · Crédito 15 días · Crédito 30 días - default Al contado |
 | `lugar_entrega` | select | Puesto almacén cliente · Recoge en planta · A domicilio |
 | `tiempo_entrega` | text | propuesto desde los ítems |
 | `orden_compra` | text | lo llena el cliente |
-| `sucursal` | select | Santa Cruz · La Paz · Cochabamba · Otra — hereda de la persona |
+| `sucursal` | select | Santa Cruz · La Paz · Cochabamba · Otra - hereda de la persona |
 | `observaciones` | textarea | "Escenario #3 compra mínima 3 bultos" |
 
 Validez: `expired_at` con default **10 días** (hoy 7).
@@ -199,11 +199,11 @@ agente puede decir *"desde 50 rollos lo llevamos a domicilio"* sin inventarlo.
 
 | Producto | tiempo | lugar | domicilio desde | mínimo (corrige lo cargado) |
 |---|---|---|---|---|
-| Bolsas | Inmediata | Puesto almacén cliente | — | **10 packs** |
+| Bolsas | Inmediata | Puesto almacén cliente | - | **10 packs** |
 | Hules | Inmediata | Puesto almacén cliente | 5 rollos | 1 rollo |
 | Stretch Film | Inmediata | Puesto almacén cliente | 50 rollos | 1 rollo |
-| Tapas sin impresión | Inmediata | Recoge en planta | — | 1 caja |
-| Tapas con impresión | **20 días** | Recoge en planta | — | 30 cajas |
+| Tapas sin impresión | Inmediata | Recoge en planta | - | 1 caja |
+| Tapas con impresión | **20 días** | Recoge en planta | - | 30 cajas |
 
 Hules, Stretch Film y Tapas: variantes creadas **sin TR4** (a completar cuando
 el negocio los pase). El CRM cotiza igual con el código vacío.
@@ -218,7 +218,7 @@ Vue 3 en el admin (formulario de cotización) · Tailwind.
 ## Comandos
 
 ```bash
-# Tests — SOLO las suites afectadas, NUNCA la suite completa contra producción
+# Tests - SOLO las suites afectadas, NUNCA la suite completa contra producción
 docker exec -w /code <laravel> php artisan test tests/Feature/Quote/ tests/Feature/Product/
 
 # Estilo
@@ -311,7 +311,7 @@ Cobertura mínima por paso:
 ## Preguntas abiertas
 
 1. Días de crédito en la forma de pago (¿15 y 30?). Los plazos de **entrega** ya están definidos por producto y cantidad; esto es solo el crédito.
-2. TR4 y códigos de barra de hules, stretch film y tapas — se crean las variantes vacías y se completan cuando lleguen.
+2. TR4 y códigos de barra de hules, stretch film y tapas - se crean las variantes vacías y se completan cuando lleguen.
 3. ¿Tapas impresas: 20 días hábiles o corridos?
 4. Ubicaciones de almacenes (Mariana): ¿van en la cotización o solo las usa el agente?
 5. ¿Quién actualiza el código de documento (RG-VCO-005 v00) cuando cambie de versión?

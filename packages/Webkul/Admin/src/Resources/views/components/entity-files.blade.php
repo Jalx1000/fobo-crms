@@ -8,7 +8,7 @@
 
     The endpoint is what differs: a person returns their whole history (their
     activities plus every file of every lead they own), a lead returns only its
-    own. Everything below is source-agnostic — it renders whatever the server
+    own. Everything below is source-agnostic - it renders whatever the server
     normalized.
 --}}
 <v-entity-files
@@ -84,7 +84,7 @@
                      a list, where the file name is what you actually scan for. -->
                 {{-- Inline grid template rather than sm:/lg: column classes:
                      this panel sits in tabs of varying width, so sizing off the
-                     CONTAINER beats guessing at viewport breakpoints — and it
+                     CONTAINER beats guessing at viewport breakpoints - and it
                      cannot be dropped by a CSS purge. --}}
                 <div
                     v-if="gridFiles.length"
@@ -293,7 +293,7 @@
                 },
 
                 // Only images take part in the viewer, and only the ones
-                // currently visible — paging into a filtered-out file would be
+                // currently visible - paging into a filtered-out file would be
                 // confusing.
                 openViewer(file) {
                     const images = this.visibleFiles.filter(f => f.kind === 'image');

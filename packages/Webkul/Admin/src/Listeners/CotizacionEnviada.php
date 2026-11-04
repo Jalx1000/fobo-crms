@@ -47,7 +47,7 @@ class CotizacionEnviada
                 'id'      => $quote->id,
                 'channel' => $canal,
                 'to'      => $destino ?: trans('admin::app.quotes.index.whatsapp.param-customer'),
-                'user'    => $usuario?->name ?? '—',
+                'user'    => $usuario?->name ?? '-',
             ]),
             'is_done' => 1,
             'user_id' => $usuario?->id,

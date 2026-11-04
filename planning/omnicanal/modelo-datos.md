@@ -22,7 +22,7 @@ $table->timestamps();
 
 > **Por qué tabla propia y no los `groups` de Krayin:** los grupos agrupan *personas*, no expresan
 > *propiedad de datos*. Colgar el aislamiento de ellos significa que mover a un usuario de grupo le
-> abre el inbox de otro cliente. Si se prefiere atarlo a grupos, es cambiar la FK — pero hay que
+> abre el inbox de otro cliente. Si se prefiere atarlo a grupos, es cambiar la FK - pero hay que
 > decidirlo **antes** de la migración.
 
 ### `channel_accounts`
@@ -87,13 +87,13 @@ $table->index('person_id');
 
 | Columna | Cambio |
 |---|---|
-| `channel` | **nueva** — `whatsapp` \| `messenger` \| `instagram` |
-| `tenant_id` | **nueva** — denormalizada desde la cuenta, para filtrar sin join |
-| `account_id` | **nueva** — FK `channel_accounts` |
-| `external_contact_id` | **nueva** — PSID / IGSID / teléfono. Es la identidad real |
+| `channel` | **nueva** - `whatsapp` \| `messenger` \| `instagram` |
+| `tenant_id` | **nueva** - denormalizada desde la cuenta, para filtrar sin join |
+| `account_id` | **nueva** - FK `channel_accounts` |
+| `external_contact_id` | **nueva** - PSID / IGSID / teléfono. Es la identidad real |
 | `external_conversation_id` | **renombrada** desde `provider_conversation_id` |
-| `window_expires_at` | **nueva** — vencimiento de la ventana de 24 h |
-| `reopen_strategy` | **nueva** — `template` \| `human_agent_tag` \| `none` |
+| `window_expires_at` | **nueva** - vencimiento de la ventana de 24 h |
+| `reopen_strategy` | **nueva** - `template` \| `human_agent_tag` \| `none` |
 | `wa_phone` | **deja de ser UNIQUE**, pasa a informativo nullable |
 | `gateway` | se mantiene por compatibilidad; el driver ya se resuelve por `account_id` |
 
@@ -101,17 +101,17 @@ $table->index('person_id');
 
 > Quitar el UNIQUE de `wa_phone` es el cambio de esquema más delicado del proyecto: es lo que hoy
 > garantiza que no haya conversaciones duplicadas por teléfono. Su reemplazo es el UNIQUE compuesto,
-> que debe existir **en la misma migración** — nunca dejar una ventana sin ninguno de los dos.
+> que debe existir **en la misma migración** - nunca dejar una ventana sin ninguno de los dos.
 
 ### `whatsapp_messages` → `messages`
 
 | Columna | Cambio |
 |---|---|
 | `external_message_id` | **renombrada** desde `wa_message_id`. UNIQUE compuesto con `channel` |
-| `channel` | **nueva** — denormalizada, para el UNIQUE y para filtrar |
-| `reaction` | **nueva** — emoji de reacción a otro mensaje |
-| `attachment_url` | **nueva** — URL original de FB/IG, solo para trazabilidad. **El archivo servido siempre sale de `media_path`** |
-| `is_echo` | **nueva** — el mensaje se envió desde la Bandeja de Meta, no desde el CRM |
+| `channel` | **nueva** - denormalizada, para el UNIQUE y para filtrar |
+| `reaction` | **nueva** - emoji de reacción a otro mensaje |
+| `attachment_url` | **nueva** - URL original de FB/IG, solo para trazabilidad. **El archivo servido siempre sale de `media_path`** |
+| `is_echo` | **nueva** - el mensaje se envió desde la Bandeja de Meta, no desde el CRM |
 
 > `messages` es un nombre muy genérico en un Laravel. Verificar que no colisiona con nada del CRM ni
 > de paquetes de terceros antes de ejecutar el rename. Alternativa: `channel_messages` /
@@ -123,10 +123,10 @@ $table->index('person_id');
 
 Tres commits, en este orden, **nunca fusionados**:
 
-**Commit 1 — aditivo.** Crea `channel_tenants`, `channel_accounts`, `channel_identities`.
+**Commit 1 - aditivo.** Crea `channel_tenants`, `channel_accounts`, `channel_identities`.
 Nada existente se toca. Reversible sin consecuencias.
 
-**Commit 2 — backfill.** Un comando, no una migración, para poder correrlo y auditarlo por partes:
+**Commit 2 - backfill.** Un comando, no una migración, para poder correrlo y auditarlo por partes:
 
 ```
 php artisan channels:backfill --dry-run
@@ -140,11 +140,11 @@ php artisan channels:backfill --dry-run
 4. Por cada conversación con `person_id`: crea su `channel_identity`.
 5. Verifica que el conteo antes y después coincide, y aborta si no.
 
-**Commit 3 — rename.** Renombra las tablas y ajusta índices. Requiere:
+**Commit 3 - rename.** Renombra las tablas y ajusta índices. Requiere:
 
 - Copia de producción restaurada en local y migración probada ahí primero
 - `down()` verificado, no solo escrito
-- Ventana de despliegue con la cola pausada — un job en vuelo contra el nombre viejo revienta
+- Ventana de despliegue con la cola pausada - un job en vuelo contra el nombre viejo revienta
 
 ---
 

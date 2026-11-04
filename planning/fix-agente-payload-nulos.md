@@ -1,4 +1,4 @@
-# Consigna para el repo del agente — payload rechazado y mensajes perdidos
+# Consigna para el repo del agente - payload rechazado y mensajes perdidos
 
 > **Para**: quien mantiene el servicio Python del agente (FastAPI + LangChain).
 > **Contexto completo del contrato**: [`integracion-agente.md`](./integracion-agente.md)
@@ -48,7 +48,7 @@ sticker y ubicación. `history[].content` tiene el mismo problema.
 
 ### 3. `gateway` no debe ser un Enum cerrado
 
-Se van a agregar canales — Instagram Direct es el próximo. Un valor desconocido
+Se van a agregar canales - Instagram Direct es el próximo. Un valor desconocido
 no puede reventar el parseo del evento entero.
 
 ```python
@@ -88,8 +88,8 @@ Lo que corresponde:
 | Situación | Status | Por qué |
 |---|---|---|
 | Payload no parseable | `422` | El CRM lo registra. **No se arregla reintentando**: el mismo cuerpo produce el mismo error las 4 veces |
-| Agente caído / reiniciando / dependencia lenta | `503` o timeout | Transitorio — acá los reintentos del CRM sí rescatan el mensaje |
-| Procesado OK | `200` | — |
+| Agente caído / reiniciando / dependencia lenta | `503` o timeout | Transitorio - acá los reintentos del CRM sí rescatan el mensaje |
+| Procesado OK | `200` | - |
 
 > El CRM ya reintenta: **1 intento inicial + 3 reintentos espaciados 1 minuto**
 > (`NotifyAgent.php`). El minuto es para que un agente que se está reiniciando
@@ -97,7 +97,7 @@ Lo que corresponde:
 >
 > Por eso importa distinguir 422 de 5xx: reintentar un error de validación
 > desperdicia los 4 intentos en un fallo determinista, y el mensaje se pierde
-> igual — pero cuatro minutos más tarde.
+> igual - pero cuatro minutos más tarde.
 
 ### 5. Arreglar la alerta
 
@@ -151,5 +151,5 @@ En el repo del agente, la guía de integración está en
 LLM, hay una confusión de roles: esto es una especificación para **programar el
 servicio**, no instrucciones de conversación para el modelo. Metida en el prompt
 gasta contexto con tablas de nulabilidad que no sirven para hablar con un
-cliente, y no arregla nada — el crash es de Pydantic y ocurre **antes** de que el
+cliente, y no arregla nada - el crash es de Pydantic y ocurre **antes** de que el
 LLM se entere. Vale confirmar si se inyecta o si solo está guardada ahí.

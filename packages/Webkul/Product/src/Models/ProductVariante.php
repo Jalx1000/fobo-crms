@@ -35,7 +35,7 @@ class ProductVariante extends Model implements ProductVarianteContract
      * Lo que un ítem de cotización copia de la variante.
      *
      * Es la FOTO: se pega en `quote_items` al cotizar y no se vuelve a leer. Si
-     * después alguien corrige el TR4, la cotización ya emitida no cambia — es
+     * después alguien corrige el TR4, la cotización ya emitida no cambia - es
      * un documento, no una vista.
      */
     public function foto(): array

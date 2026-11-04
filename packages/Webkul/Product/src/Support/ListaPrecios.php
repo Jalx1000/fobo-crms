@@ -88,7 +88,7 @@ class ListaPrecios
      * Se devuelve una colección y no una fila porque el agente casi nunca tiene
      * todos los ejes en el mismo turno: el cliente dice "de 50 litros" y todavía
      * no dijo si es para su tienda o para un hotel. Con criterios parciales
-     * quedan varias candidatas, y ahí el agente tiene que repreguntar — devolver
+     * quedan varias candidatas, y ahí el agente tiene que repreguntar - devolver
      * la primera sería inventarle un canal al cliente.
      *
      * Los criterios que no son ejes del producto se ignoran en vez de vaciar el
@@ -185,7 +185,7 @@ class ListaPrecios
      *
      * Así "50 L", "50l" y "50 litros"… no, "50 litros" no: eso sigue sin
      * coincidir, y está bien. Lo que se tolera es la escritura del mismo valor
-     * (espacios, acentos, mayúsculas), no un sinónimo — un sinónimo aceptado de
+     * (espacios, acentos, mayúsculas), no un sinónimo - un sinónimo aceptado de
      * más le haría cotizar al agente una combinación que el cliente no pidió.
      */
     public static function comparable(string $valor): string

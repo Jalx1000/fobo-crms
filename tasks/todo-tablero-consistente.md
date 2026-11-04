@@ -22,7 +22,7 @@ docker exec -u www-data -w /code $C ./vendor/bin/pint packages/Webkul/Admin/src/
     - [ ] Los tests actuales de `tests/Feature/Dashboard` pasan sin modificarse.
   - Verificar: `php artisan test tests/Feature/Dashboard`; `audit.php 2026-10-01 2026-10-14 1` da los mismos valores que la auditoría.
   - Archivos: `Helpers/Reporting/AbstractReporting.php`, `Helpers/Reporting/Lead.php`, `Helpers/Reporting/Product.php`
-  - Depende de: —
+  - Depende de: -
 
 ### ✅ Checkpoint 1: tests en verde y números idénticos a la auditoría.
 
@@ -59,7 +59,7 @@ docker exec -u www-data -w /code $C ./vendor/bin/pint packages/Webkul/Admin/src/
   - Depende de: T3
 
 - [x] **T5 · Aviso de entregados sin cotización (D6)** (M)
-  - Descripción: `Lead::getEntregadosSinCotizacion()` devuelve el conteo y la lista (`id`, título, asesor) de los pedidos en ENTREGADOS del rango, sin fila en `lead_quotes`, con `pedidosDelTablero()`. Nuevo `type` `entregados-sin-cotizacion` en `DashboardController`. Se muestra en el KPI de vendidos, en Evolución y en la torta "Más vendidos": "N pedidos entregados sin cotización — complétalos", y cada uno enlaza a `route('admin.leads.view', id)`. Si N = 0, no se muestra.
+  - Descripción: `Lead::getEntregadosSinCotizacion()` devuelve el conteo y la lista (`id`, título, asesor) de los pedidos en ENTREGADOS del rango, sin fila en `lead_quotes`, con `pedidosDelTablero()`. Nuevo `type` `entregados-sin-cotizacion` en `DashboardController`. Se muestra en el KPI de vendidos, en Evolución y en la torta "Más vendidos": "N pedidos entregados sin cotización - complétalos", y cada uno enlaza a `route('admin.leads.view', id)`. Si N = 0, no se muestra.
   - Aceptación:
     - [ ] Producción 1–14/10: N = 2, con enlaces a #1124 y #1669.
     - [ ] Al vincular una cotización a un pedido, deja de aparecer.
@@ -68,7 +68,7 @@ docker exec -u www-data -w /code $C ./vendor/bin/pint packages/Webkul/Admin/src/
   - Archivos: `Helpers/Reporting/Lead.php`, `Helpers/Dashboard.php`, `Http/Controllers/DashboardController.php`, `views/dashboard/index/over-all.blade.php`, `views/dashboard/index/quantity-products-sold-pie.blade.php`
   - Depende de: T3
 
-### ✅ Checkpoint 2 (revisar con el usuario) — 15/10
+### ✅ Checkpoint 2 (revisar con el usuario) - 15/10
 Resultado: 19 tests del tablero en verde. Producción 1–14/10: solicitados 1738 = torta (Javier), 1501 = torta (Mauricio, ACL), 1057 = torta (Santa Cruz); vendidos 0, aviso de 2 (#1669, #1124).
 Extra: «Valor de pedidos ganados» del Excel también pasa a cotizaciones (getTotalWonLeadValue), si no quedaba distinto del tablero.
 Fuera de alcance, ya roto antes: la suite completa no arranca por `ciudadDe()` duplicada (Contact/SincronizarCiudadTest y Quote/CiudadYSucursalTest); 2 tests de Product (CotizacionAgenteTest, EntregaTest) fallan igual sin estos cambios.
@@ -115,10 +115,10 @@ Fuera de alcance, ya roto antes: la suite completa no arranca por `ciudadDe()` d
     - [ ] "Atendidos vs no atendidos" aparece una sola vez.
   - Verificar: test de vista (respuesta de `/admin/dashboard` por rol) y revisión visual.
   - Archivos: `views/dashboard/index.blade.php`, `views/dashboard/index/open-leads-by-states-fixed.blade.php`
-  - Depende de: —
+  - Depende de: -
 
 - [ ] **T9 · Tortas con número y total (D2b)** (S)
-  - Descripción: en "No atendidos por ciudad", "Más solicitados" y "Más vendidos", la leyenda dice "Nombre — N" (en productos: "1199 u. · 42 cotizaciones") y la cabecera muestra el total. Solo frontend.
+  - Descripción: en "No atendidos por ciudad", "Más solicitados" y "Más vendidos", la leyenda dice "Nombre - N" (en productos: "1199 u. · 42 cotizaciones") y la cabecera muestra el total. Solo frontend.
   - Aceptación:
     - [ ] Se lee el 57 (o el valor del rango) sin pasar el mouse.
     - [ ] El total de cada torta = la suma de su leyenda.
