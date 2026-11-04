@@ -90,18 +90,22 @@ it('productos más solicitados no cuenta cotizaciones de pedidos Sin ciudad', fu
         ->and($s->pluck('name'))->not->toContain('Tapas');
 });
 
-it('no atendidos por ciudad suma también la porción Sin ciudad, con su total', function () {
-    // 20/10/2026: la torta debe cuadrar con el kanban (antes 42 de 155).
+it('pedidos por ciudad cuenta todas las etapas y la porción Sin ciudad, con su total', function () {
+    // La torta debe cuadrar con el kanban: no solo los no atendidos.
     tarjetaPedido($this, 1, 'no-atendidos');
     tarjetaPedido($this, $this->sinCiudad, 'no-atendidos');
     tarjetaPedido($this, $this->sinCiudad, 'no-atendidos');
+    tarjetaPedido($this, 1, 'solicitud-recibida');
+    tarjetaPedido($this, 1, 'cotizacion-enviada');
+    tarjetaPedido($this, 1, 'cancelados');
 
-    $s = tarjeta('leads-no-atendidos-por-ciudad');
+    $s = tarjeta('pedidos-por-ciudad');
     $porCiudad = array_combine($s['labels'], $s['data']);
 
     expect($porCiudad['Sin ciudad'])->toBe(2)
-        ->and($porCiudad[DB::table('lead_pipelines')->where('id', 1)->value('name')])->toBe(1)
-        ->and($s['total'])->toBe(array_sum($s['data']));
+        ->and($porCiudad[DB::table('lead_pipelines')->where('id', 1)->value('name')])->toBe(4)
+        ->and($s['total'])->toBe(array_sum($s['data']))
+        ->and($s['total'])->toBe(collect(tarjeta('open-leads-by-states-fixed'))->sum('total'));
 });
 
 it('atendidos vs no atendidos no trae la barra del usuario del agente', function () {

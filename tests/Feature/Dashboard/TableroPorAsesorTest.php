@@ -191,10 +191,11 @@ it('las tarjetas por ciudad cuentan todos los pedidos, también los de no ejecut
     pedidoDe($this, $this->mariano->id);
     pedidoDe($this, null);
 
-    $s = tarjetaComo($this->javier, 'leads-no-atendidos-por-ciudad');
+    $s = tarjetaComo($this->javier, 'pedidos-por-ciudad');
     $i = array_search('Santa Cruz', $s['labels']);
 
-    expect($s['data'][$i])->toBe(2);
+    // 2 cotizaciones del beforeEach + los 2 pedidos de no ejecutivos.
+    expect($s['data'][$i])->toBe(4);
 });
 
 /**

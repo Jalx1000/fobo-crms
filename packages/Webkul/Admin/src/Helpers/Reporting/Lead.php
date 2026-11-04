@@ -1231,13 +1231,13 @@ class Lead extends AbstractReporting
     }
 
     /**
-     * Leads "No atendidos" (etapa inicial "No atendido", $notAttendedStageIds)
-     * agrupados por ciudad - cada pipeline representa una ciudad. Alimenta el
-     * card doughnut "No atendidos por Ciudad". Cuenta por created_at y respeta
-     * el filtro de pipeline, los roles ignorados y el ACL, igual que el resto
-     * de métricas. Solo incluye ciudades con al menos un lead no atendido.
+     * Pedidos agrupados por ciudad, en cualquier etapa - cada pipeline
+     * representa una ciudad. Alimenta la torta «Pedidos por ciudad». Usa la
+     * misma fecha que el embudo «Total pedidos», así los dos dan el mismo
+     * total, y respeta el filtro de ciudad y el ACL. Solo incluye ciudades con
+     * al menos un pedido.
      */
-    public function getNotAttendedLeadsCountByPipelines(): array
+    public function getPedidosCountByPipelines(): array
     {
         $tablePrefix = DB::getTablePrefix();
         $pipelineId = is_numeric(request('pipeline_id')) ? request('pipeline_id') : null;
@@ -1251,13 +1251,12 @@ class Lead extends AbstractReporting
                 'leads.lead_pipeline_id as pipeline_id',
                 DB::raw('COUNT(DISTINCT '.$tablePrefix.'leads.id) AS count')
             )
-            ->whereIn('leads.lead_pipeline_stage_id', $this->notAttendedStageIds ?: [0])
             ->whereRaw('('.$this->stageEventDateExpr().') BETWEEN ? AND ?', [$this->startDate, $this->endDate])
             ->when($pipelineId, function ($q) use ($pipelineId) {
                 $q->where('leads.lead_pipeline_id', $pipelineId);
             })
             // «Sin ciudad» va como una porción más (20/10/2026): sin ella la
-            // torta mostraba 42 de 155 no atendidos y no cuadraba con el kanban.
+            // torta no cuadra con el kanban.
             ->groupBy('leads.lead_pipeline_id');
 
         if (! is_null($userIds = $this->asesoresVisibles())) {

@@ -41,7 +41,7 @@ class DashboardController extends Controller
         'ventas-por-pipeline'             => 'getVentasByPipelinesStats',
         'leads-por-ciudad'                => 'getLeadsByPipelinesStats',
         'leads-por-pipeline'              => 'getLeadsByPipelinesStats',
-        'leads-no-atendidos-por-ciudad'   => 'getNotAttendedLeadsByCityStats',
+        'pedidos-por-ciudad'              => 'getPedidosByCityStats',
         'entregados-sin-cotizacion'       => 'getEntregadosSinCotizacionStats',
         'total-leads-by-stages'           => 'getTotalLeadsByStages',
         'total-leads-by-stages-over-time' => 'getTotalLeadsByStagesOverTime',

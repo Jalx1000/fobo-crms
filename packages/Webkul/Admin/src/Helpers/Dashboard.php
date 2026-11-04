@@ -219,9 +219,9 @@ class Dashboard
         return $this->leadReporting->getEntregadosSinCotizacion();
     }
 
-    public function getNotAttendedLeadsByCityStats(): array
+    public function getPedidosByCityStats(): array
     {
-        return $this->leadReporting->getNotAttendedLeadsCountByPipelines();
+        return $this->leadReporting->getPedidosCountByPipelines();
     }
 
     /**
