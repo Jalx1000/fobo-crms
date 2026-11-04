@@ -18,23 +18,18 @@ catálogo nuevo de Tessa. Validado en **producción** (2026-11-04).
 3. Cargar la variable `token` (Bearer Sanctum del usuario dedicado del agente).
    El **catálogo** y la **disponibilidad pública** funcionan sin token para probar.
 
-## Descargar esta carpeta por SSH (Railway)
+## Descargar este bundle
 
-Los archivos viven en el contenedor de la app desplegada. Desde una máquina con el
-CLI de Railway autenticado (`railway login`) y el repo enlazado:
+Desde cualquier servidor (en tu sesión SSH), **descarga directa por HTTP** (sin auth):
 
 ```bash
-# Baja toda la carpeta como .tgz (base64 para no corromper el binario)
-railway ssh --service tessa-crm --environment production \
-  "tar czf - docs/entrega-agente | base64" | base64 -d > entrega-agente.tgz
-tar xzf entrega-agente.tgz    # -> docs/entrega-agente/
-
-# O un archivo suelto:
-railway ssh --service tessa-crm --environment production \
-  "cat docs/entrega-agente/tessa-agente.postman_collection.json" > tessa-agente.postman_collection.json
+curl -O https://tessa.sofopolis.com/entrega-agente.tgz
+tar xzf entrega-agente.tgz      # -> entrega-agente/
 ```
 
 > También está en el repo Git (rama `tessa`): `docs/entrega-agente/`.
+> (Las docs se excluyen del contenedor vía `.dockerignore`, por eso la descarga
+> es el `.tgz` publicado en `public/`, no `railway ssh`.)
 
 ## Endpoints en una línea
 
