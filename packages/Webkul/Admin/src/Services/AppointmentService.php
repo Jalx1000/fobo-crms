@@ -552,7 +552,7 @@ class AppointmentService
                     'product_name' => $product->name ?? null,
                     'message'      => $validateWithSmd
                         ? 'Cita creada y sincronizada correctamente.'
-                        : 'Cita creada localmente. No se validó disponibilidad en ShareMeData (smd.validate_availability=false).',
+                        : 'Cita creada. Disponibilidad validada contra la agenda local (turno y solapamiento). Sin integración con ShareMeData.',
                 ];
             });
         } catch (AppointmentException $e) {

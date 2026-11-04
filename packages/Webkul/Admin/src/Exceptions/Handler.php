@@ -30,11 +30,23 @@ class Handler extends AppExceptionHandler
         parent::__construct($container);
 
         $this->jsonErrorMessages = [
-            '404' => trans('admin::app.common.resource-not-found'),
-            '403' => trans('admin::app.common.forbidden-error'),
-            '401' => trans('admin::app.common.unauthenticated'),
-            '500' => trans('admin::app.common.internal-server-error'),
+            '404' => $this->errorMessage('admin::app.common.resource-not-found', 'Resource not found.'),
+            '403' => $this->errorMessage('admin::app.common.forbidden-error', 'This action is unauthorized.'),
+            '401' => $this->errorMessage('admin::app.common.unauthenticated', 'Unauthenticated.'),
+            '500' => $this->errorMessage('admin::app.common.internal-server-error', 'Server error.'),
         ];
+    }
+
+    /**
+     * Mensaje traducido, con fallback en texto plano si la clave i18n no resuelve
+     * (en el grupo de rutas `api` el namespace `admin::` puede no estar cargado y
+     * `trans()` devolvería la clave cruda).
+     */
+    private function errorMessage(string $key, string $fallback): string
+    {
+        $translated = trans($key);
+
+        return $translated === $key ? $fallback : $translated;
     }
 
     /**
@@ -74,6 +86,17 @@ class Handler extends AppExceptionHandler
      */
     private function renderCustomResponse(Throwable $exception)
     {
+        // Auth fallida/ausente debe ser 401 (no 500). En producción (app.debug=false)
+        // render() entra directo acá y saltea el unauthenticated() del handler base,
+        // así que hay que contemplar el caso explícitamente para la API con token.
+        if ($exception instanceof AuthenticationException) {
+            if (request()->expectsJson()) {
+                return response()->json(['message' => $this->jsonErrorMessages[401]], 401);
+            }
+
+            return redirect()->guest(route('customer.session.index'));
+        }
+
         if ($exception instanceof HttpException) {
             $statusCode = in_array($exception->getStatusCode(), [401, 403, 404, 503])
                 ? $exception->getStatusCode()
