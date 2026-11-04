@@ -3945,13 +3945,29 @@
         background: var(--hours-bg)
     }
 
+    /* Fondo del día: el tiempo NO disponible se ve con rayado diagonal (como
+       OdontoKing); el disponible lo tapa en blanco con .dwc-availability-block. */
     .dwc-days-stack {
         position: relative;
-        background: #ecececff;
+        background-color: #f1f5f9;
+        background-image: repeating-linear-gradient(
+            -45deg,
+            rgba(148, 163, 184, 0.30) 0,
+            rgba(148, 163, 184, 0.30) 1px,
+            transparent 1px,
+            transparent 8px
+        );
     }
 
     .dark .dwc-days-stack {
-        background: #111827;
+        background-color: #0b0f19;
+        background-image: repeating-linear-gradient(
+            -45deg,
+            rgba(148, 163, 184, 0.16) 0,
+            rgba(148, 163, 184, 0.16) 1px,
+            transparent 1px,
+            transparent 8px
+        );
     }
 
     .dwc-availability-block {
