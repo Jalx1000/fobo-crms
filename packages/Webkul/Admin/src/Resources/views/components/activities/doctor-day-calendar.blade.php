@@ -86,18 +86,19 @@
                 >
             </div>
 
+            <!-- Filtros: Línea (especialidad) y Estado de la cita. En blanco = todos. -->
+            <div class="ddc-tb-filters">
+                <select class="ddc-tb-select" v-model="specialtyFilter" aria-label="Filtrar por línea">
+                    <option value="">Línea: todas</option>
+                    <option v-for="s in specialties" :key="'spf-'+s.id" :value="String(s.id)">@{{ s.name }}</option>
+                </select>
+                <select class="ddc-tb-select" v-model="statusFilter" aria-label="Filtrar por estado">
+                    <option value="">Estado: todos</option>
+                    <option v-for="st in stages" :key="'stf-'+st.id" :value="String(st.id)">@{{ st.name }}</option>
+                </select>
+            </div>
+
             <div class="ddc-tb-doctors">
-                <!-- Filtros: Línea (especialidad) y Estado de la cita. En blanco = todos. -->
-                <div class="ddc-tb-filters">
-                    <select class="ddc-tb-select" v-model="specialtyFilter" aria-label="Filtrar por línea">
-                        <option value="">Línea: todas</option>
-                        <option v-for="s in specialties" :key="'spf-'+s.id" :value="String(s.id)">@{{ s.name }}</option>
-                    </select>
-                    <select class="ddc-tb-select" v-model="statusFilter" aria-label="Filtrar por estado">
-                        <option value="">Estado: todos</option>
-                        <option v-for="st in stages" :key="'stf-'+st.id" :value="String(st.id)">@{{ st.name }}</option>
-                    </select>
-                </div>
                 <div class="ddc-tb-doctors-head">
                     <span>Doctores</span>
                     <button type="button" class="ddc-tb-link" @click="selectAllDoctors">Todos</button>
@@ -344,7 +345,7 @@
                         </div>
 
                         <!-- Lines -->
-                        <div v-for="idx in 13" :key="'line-sd-'+idx" class="dwc-hour-line" :style="{ top: ((idx - 1) * hourHeight) + 'px' }"></div>
+                        <div v-for="idx in 53" :key="'line-sd-'+idx" class="dwc-hour-line" :class="{ 'is-quarter': (idx - 1) % 4 !== 0 }" :style="{ top: ((idx - 1) * hourHeight / 4) + 'px' }"></div>
 
                         <!-- Events -->
                         <div v-for="ev in dayDoctorEvents(day.date, columns[0].id)" :key="'ev-sd-'+ev.id" class="dwc-event" :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-confirmed': ev.is_confirmed, 'dwc-event-surgery': ev.is_surgery, 'dwc-event-lost': ev.is_lost, 'dwc-event-compact': ev.height < 64, 'dwc-event-tiny': ev.height < 40 }" :style="{ top: ev.top + 'px', height: ev.height + 'px', left: 'calc(' + ev.left + '% + 6px)', width: 'calc(' + ev.width + '% - 12px)' }" @click.stop="openViewModal(ev)" @mouseenter="onEventMouseEnter($event, ev.id, ev)" @mouseleave="hoveredEventId = null; hoveredEvent = null">
@@ -412,7 +413,7 @@
                                  :style="{ top: av.top + 'px', height: av.height + 'px' }">
                             </div>
 
-                            <div v-for="idx in 13" :key="'line-'+di+'-'+idx" class="dwc-hour-line" :style="{ top: ((idx - 1) * hourHeight) + 'px' }"></div>
+                            <div v-for="idx in 53" :key="'line-'+di+'-'+idx" class="dwc-hour-line" :class="{ 'is-quarter': (idx - 1) % 4 !== 0 }" :style="{ top: ((idx - 1) * hourHeight / 4) + 'px' }"></div>
 
                             <div v-for="ev in dayDoctorEvents(day.date, col.id)" :key="'ev-'+ev.id" class="dwc-event" :class="{ 'dwc-event-cancelled': ev.is_cancelled, 'dwc-event-completed': ev.is_completed, 'dwc-event-confirmed': ev.is_confirmed, 'dwc-event-surgery': ev.is_surgery, 'dwc-event-lost': ev.is_lost, 'dwc-event-compact': ev.height < 64, 'dwc-event-tiny': ev.height < 40 }" :style="{ top: ev.top + 'px', height: ev.height + 'px', left: 'calc(' + ev.left + '% + 6px)', width: 'calc(' + ev.width + '% - 12px)' }" @click.stop="openViewModal(ev)" @mouseenter="onEventMouseEnter($event, ev.id, ev)" @mouseleave="hoveredEventId = null; hoveredEvent = null">
                                 <div class="dwc-event-content dwc-event-layout">
@@ -3949,13 +3950,13 @@
        OdontoKing); el disponible lo tapa en blanco con .dwc-availability-block. */
     .dwc-days-stack {
         position: relative;
-        background-color: #f1f5f9;
+        background-color: #f8fafc;
         background-image: repeating-linear-gradient(
             -45deg,
-            rgba(148, 163, 184, 0.30) 0,
-            rgba(148, 163, 184, 0.30) 1px,
+            rgba(148, 163, 184, 0.16) 0,
+            rgba(148, 163, 184, 0.16) 1px,
             transparent 1px,
-            transparent 8px
+            transparent 10px
         );
     }
 
@@ -3992,6 +3993,13 @@
         background: var(--grid-line);
         z-index: 1;
         pointer-events: none;
+    }
+
+    /* Línea de los 15 min: más tenue y punteada, para no competir con la hora. */
+    .dwc-hour-line.is-quarter {
+        background: transparent;
+        border-top: 1px dashed var(--grid-line);
+        opacity: 0.55;
     }
 
     .dwc-event {
@@ -4770,15 +4778,19 @@
     /* Escritorio: fecha (y buscador) a la izquierda; doctores y vista siempre
        juntos a la derecha. Entre 1024 y 1439px no entra todo en una fila: el
        buscador baja a la segunda fila, a la izquierda. */
+    /* Dos filas: arriba la fecha (izq) y los botones de vista (der); abajo el
+       buscador (izq), los filtros (centro) y los doctores (der). Así la vista
+       nunca se encima con los filtros. */
     .ddc-toolbar {
-        display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(16rem, 26rem) auto;
-        grid-template-areas: "date . doctors seg" "search search . .";
+        display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(16rem, 26rem);
+        grid-template-areas: "date . seg" "search filters doctors";
         border: 0; gap: 10px 12px; padding: 10px; align-items: center;
     }
     .ddc-tb-date { grid-area: date; }
-    .ddc-seg { grid-area: seg; }
+    .ddc-seg { grid-area: seg; justify-self: end; }
     .ddc-tb-search { grid-area: search; justify-self: start; width: 100%; }
     .ddc-tb-search input { min-width: 0; }
+    .ddc-tb-filters { grid-area: filters; min-width: 0; }
     .ddc-tb-doctors { grid-area: doctors; min-width: 0; }
     .ddc-tb-date { display: flex; align-items: center; gap: 6px; }
     .ddc-tb-icon, .ddc-tb-chip, .ddc-tb-date-label {
@@ -4852,14 +4864,6 @@
     .dwc-doctor-header { gap: 6px; white-space: nowrap; }
     .dwc-doctor-header-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .dwc-doctor-header-count { flex-shrink: 0; }
-    /* Pantallas anchas: todo en una fila (doctores al lado de la vista). */
-    @media (min-width: 1440px) {
-        .ddc-toolbar {
-            grid-template-columns: auto minmax(12rem, 1fr) minmax(0, 30rem) auto;
-            grid-template-areas: "date search doctors seg";
-        }
-    }
-
     /* Escritorio: estilo del admin (botones blancos con borde fino, vista como
        grupo de botones). El estilo de relleno gris es solo para el celular. */
     @media (min-width: 1024px) {
