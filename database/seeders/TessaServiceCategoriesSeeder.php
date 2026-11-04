@@ -30,6 +30,7 @@ class TessaServiceCategoriesSeeder extends Seeder
         $map = [
             'DEPILACION-LASER' => ['depilacion', 'facial'],
             'HIFU'             => ['facial'],
+            'HIFU-CORPORAL'    => ['corporal'],
             'DERMAPEN'         => ['facial'],
             'CRIOLIPOLISIS'    => ['corporal'],
             'ULTRACAVITACION'  => ['corporal'],

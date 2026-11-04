@@ -7,11 +7,15 @@ use Webkul\Product\Models\Product;
 use Webkul\Product\Models\ServiceZone;
 
 /**
- * Catálogo de Tessa: 8 SERVICIOS (products) con sus datos (información/beneficios
- * y sesión/frecuencia, del cuadro de Tessa) y sus ZONAS (service_zones, con
- * duración + precio). Los precios/duraciones son MOCK hasta tener la lista real.
+ * Catálogo de Tessa: SERVICIOS (products) con sus datos (información/beneficios
+ * y sesión/frecuencia) y sus ZONAS (service_zones, con duración + precio).
  *
- * Idempotente: updateOrCreate por sku (servicio) y por (product_id, name) (zona).
+ * HIFU, HIFU Corporal, Depilación láser y Dermapen llevan datos/precios REALES
+ * (lista de Tessa, nov. 2026). El resto sigue con precios/duraciones MOCK hasta
+ * tener la lista real. Las duraciones de HIFU son estimadas.
+ *
+ * Idempotente: updateOrCreate por sku (servicio) y por (product_id, name) (zona),
+ * y borra de cada servicio las zonas que ya no estén en la lista (reemplazo).
  */
 class TessaMockCatalogSeeder extends Seeder
 {
@@ -20,8 +24,8 @@ class TessaMockCatalogSeeder extends Seeder
         $services = [
             'DEPILACION-LASER' => [
                 'name'        => 'Depilación láser',
-                'description' => 'Servicio estrella de Tessa, en todo el cuerpo. Las zonas más solicitadas son axilas y bikini. Reducción progresiva del vello con sesiones sucesivas (cada zona dura 30 minutos).',
-                'frequency'   => '6 a 8 sesiones, a veces hasta 10, una por mes.',
+                'description' => 'Servicio estrella de Tessa con tecnología ALMA Soprano Titanium: 4 láseres en simultáneo (Alexandrita, Diodo y Nd:YAG en 2 profundidades) para una acción completa en todas las profundidades del folículo. Prácticamente indoloro, ayuda a atenuar manchas, unifica el tono de la piel y estimula el colágeno. Resultados visibles desde la primera sesión. Zonas más solicitadas: axilas y bikini.',
+                'frequency'   => 'La mayoría de zonas: 6 a 8 sesiones; rostro y zona íntima: 8 a 10. Las primeras 5 sesiones una vez al mes; la 6ª y 7ª cada 40 días; las últimas cada 50 a 60 días. La clave está en la constancia.',
                 'interval'    => 30,
                 'sessions'    => [6, 10],
                 'zones'       => [
@@ -32,15 +36,35 @@ class TessaMockCatalogSeeder extends Seeder
             ],
             'HIFU' => [
                 'name'        => 'HIFU',
-                'description' => 'Rejuvenece la piel y regenera colágeno y elastina. Se aplica en rostro, o en rostro y cuello.',
-                'frequency'   => 'Cada 90 días, como plazo mínimo. Total de sesiones según evaluación y avance de cada paciente.',
+                'description' => 'Tecnología HIFU 25D PRO MAX 360°: combina ultrasonido focalizado, radiofrecuencia y estimulación muscular para mejorar la firmeza, estimular el colágeno y la elastina y definir el contorno. Tratamiento facial integral del rostro completo, papada y cuello (líneas de expresión, lifting, pómulos, surcos, óvalo facial y definición de mandíbula).',
+                'frequency'   => 'Según la edad, la calidad de la piel y el grado de flacidez: puede realizarse cada 3, 4, 6 meses o una vez al año, para estimular el colágeno y mantener resultados progresivos y naturales.',
                 'interval'    => 90,
                 'sessions'    => [null, null],
-                'zones'       => [['Rostro', 60, 900], ['Rostro y cuello', 90, 1300]],
+                'zones'       => [
+                    ['Óvalo facial + mandíbula + papada', 60, 900],
+                    ['Rostro completo', 60, 1500],
+                    ['Rostro completo + papada', 75, 1800],
+                    ['Rostro completo + papada + cuello', 90, 2190],
+                    ['Papada + cuello', 45, 800],
+                ],
+            ],
+            'HIFU-CORPORAL' => [
+                'name'        => 'HIFU Corporal',
+                'description' => 'HIFU 25D PRO MAX 360° aplicado al cuerpo: mejora la firmeza, la definición y el contorno (brazos, cintura, abdomen, glúteos y piernas) combinando ultrasonido focalizado, radiofrecuencia y estimulación muscular.',
+                'frequency'   => 'Protocolo de 3 sesiones, cada una con un intervalo de 30 a 40 días.',
+                'interval'    => 30,
+                'sessions'    => [3, 3],
+                // Precio por zona = paquete completo de 3 sesiones (Bs 1.090).
+                'zones'       => [
+                    ['Papada y región submentoniana', 60, 1090],
+                    ['Posterior de brazos + zona subaxilar', 60, 1090],
+                    ['Abdomen bajo', 60, 1090],
+                    ['Rollitos de la cintura', 60, 1090],
+                ],
             ],
             'DERMAPEN' => [
                 'name'        => 'Dermapen',
-                'description' => 'Cumple la misma función que el HIFU: rejuvenecimiento de la piel y regeneración de colágeno y elastina.',
+                'description' => 'Renovación y rejuvenecimiento facial: estimula la regeneración natural de la piel, mejora la textura, suaviza líneas de expresión, minimiza la apariencia de los poros y aporta luminosidad, firmeza y un aspecto más uniforme. Potenciado con activos de última generación: Exosomas + PDRN (regeneración, hidratación y elasticidad) y Péptidos + GH-Cu / péptido de cobre (reparación cutánea y firmeza).',
                 'frequency'   => 'Cada 30 días. Total de sesiones según evaluación y avance de cada paciente.',
                 'interval'    => 30,
                 'sessions'    => [null, null],
@@ -110,8 +134,16 @@ class TessaMockCatalogSeeder extends Seeder
                     ['duration_minutes' => $duration, 'price' => $price, 'is_active' => true]
                 );
             }
+
+            // Reemplazo: elimina zonas del servicio que ya no están en la lista
+            // (p. ej. las zonas mock anteriores de HIFU). Las promos que apunten a
+            // una zona borrada quedan con service_zone_id nulo (nullOnDelete).
+            $keepNames = array_map(fn ($z) => $z[0], $s['zones']);
+            ServiceZone::where('product_id', $product->id)
+                ->whereNotIn('name', $keepNames)
+                ->delete();
         }
 
-        $this->command?->info('Tessa: 8 servicios (con info/frecuencia) + zonas cargados.');
+        $this->command?->info('Tessa: '.count($services).' servicios (con info/frecuencia) + zonas cargados.');
     }
 }

@@ -29,9 +29,9 @@ class TessaSpecialtiesSeeder extends Seeder
                 'skus'        => ['HIFU', 'DERMAPEN'],
             ],
             'reduccion-grasa-localizada' => [
-                'name'        => 'Reducción de grasa localizada',
-                'description' => 'Tratamientos corporales para grasa localizada y modelado (criolipólisis, ultracavitación, vacuum RF, maderoterapia, masoterapia).',
-                'skus'        => ['CRIOLIPOLISIS', 'ULTRACAVITACION', 'VACUUM-RF', 'MADEROTERAPIA', 'MASOTERAPIA'],
+                'name'        => 'Reducción de grasa localizada y modelado',
+                'description' => 'Tratamientos corporales para grasa localizada, firmeza y modelado del contorno (criolipólisis, ultracavitación, vacuum RF, maderoterapia, masoterapia, HIFU corporal).',
+                'skus'        => ['CRIOLIPOLISIS', 'ULTRACAVITACION', 'VACUUM-RF', 'MADEROTERAPIA', 'MASOTERAPIA', 'HIFU-CORPORAL'],
             ],
         ];
 
