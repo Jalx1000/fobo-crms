@@ -301,6 +301,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'Ver mais',
+                'ver-menos' => 'Ver menos',
                 'actions'              => 'Ações',
                 'no-records-available' => 'Nenhum Registro Disponível.',
             ],
@@ -489,6 +491,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'Cadastrados',
+                ],
+
                 'title'                  => 'Pessoas',
                 'create-btn'             => 'Adicionar Pessoa',
                 'create-success'         => 'Pessoa adicionada com sucesso.',
@@ -1758,6 +1764,23 @@ return [
             'text-generation-failed' => 'Falha na extração de texto. O arquivo pode estar vazio ou ilegível.',
         ],
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'Filtros',
+                'embudo'       => 'Funil',
+                'periodo'      => 'Período',
+                'desde'        => 'De',
+                'hasta'        => 'Até',
+                'vista'        => 'Visualização',
+                'kanban'       => 'Kanban',
+                'lista'        => 'Lista',
+                'por-columna'  => 'Filtros por coluna',
+                'limpiar'      => 'Limpar datas',
+                'mover'        => 'Mover',
+                'mover-a'      => 'Mover “:titulo” para…',
+                'etapa-actual' => 'Etapa atual',
+                'cancelar'     => 'Cancelar',
+            ],
+
             'title'      => 'Oportunidades',
             'create-btn' => 'Adicionar Negócio',
             'datagrid'   => [
@@ -1780,6 +1803,8 @@ return [
                 'mass-update'    => 'Atualizar em Massa',
             ],
             'kanban' => [
+                'error-conexion'         => 'Não foi possível salvar a alteração. Verifique a conexão e tente novamente.',
+                'etapas' => 'Etapas',
                 'rotten-days'            => 'Negócio estagnado por :days dias',
                 'empty-list'             => 'Sua lista de Negócios está vazia',
                 'empty-list-description' => 'Adicione um negócio para organizar seus objetivos.',
@@ -2074,6 +2099,13 @@ return [
         ],
     ],
     'layouts' => [
+        'volver' => 'Voltar para a lista',
+
+        'mobile-nav' => [
+            'title' => 'Navegação principal',
+            'more'  => 'Mais',
+        ],
+
         'app-version' => 'Versão: :version',
         'dashboard'   => 'Início',
         'leads'       => 'Oportunidades',

@@ -302,6 +302,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'Ver más',
+                'ver-menos' => 'Ver menos',
                 'actions'              => 'Acciones',
                 'no-records-available' => 'No hay Registros Disponibles.',
             ],
@@ -490,6 +492,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'Registrados',
+                ],
+
                 'title'                  => 'Pacientes',
                 'create-btn'             => 'Crear Paciente',
                 'create-success'         => 'Paciente creada con éxito.',
@@ -1791,7 +1797,26 @@ return [
                 'mass-delete'    => 'Eliminar en Masa',
                 'mass-update'    => 'Actualizar en Masa',
             ],
+            'filtros-movil' => [
+                'titulo'       => 'Filtros',
+                'embudo'       => 'Embudo',
+                'periodo'      => 'Período',
+                'desde'        => 'Desde',
+                'hasta'        => 'Hasta',
+                'vista'        => 'Vista',
+                'kanban'       => 'Kanban',
+                'lista'        => 'Lista',
+                'por-columna'  => 'Filtros por columna',
+                'limpiar'      => 'Limpiar fechas',
+                'mover'        => 'Mover',
+                'mover-a'      => 'Mover «:titulo» a…',
+                'etapa-actual' => 'Etapa actual',
+                'cancelar'     => 'Cancelar',
+            ],
+
             'kanban' => [
+                'error-conexion'         => 'No se pudo guardar el cambio. Revisá la conexión y volvé a intentar.',
+                'etapas'                 => 'Etapas',
                 'rotten-days'            => 'El lead está podrido desde hace :days días',
                 'empty-list'             => 'Tu lista de leads está vacía',
                 'empty-list-description' => 'Crea un lead para organizar tus objetivos.',
@@ -2119,6 +2144,13 @@ return [
         ],
     ],
     'layouts' => [
+        'volver' => 'Volver al listado',
+
+        'mobile-nav' => [
+            'title' => 'Navegación principal',
+            'more'  => 'Más',
+        ],
+
         'app-version' => 'Versión: :version',
         'dashboard'   => 'Tablero',
         'leads'       => 'Citas',

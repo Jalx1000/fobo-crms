@@ -22,15 +22,41 @@
         </template>
 
         <template v-else>
-            <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-4 max-lg:gap-0">
                 @include('admin::leads.index.kanban.toolbar')
 
                 {!! view_render_event('admin.leads.index.kanban.content.before') !!}
 
-                <div class="flex gap-2.5 overflow-x-auto">
+                <!--
+                    Celular: una etapa por pantalla. Las pestañas saltan a la
+                    etapa y se marcan solas al deslizar entre columnas.
+                -->
+                <div
+                    class="-mx-3 flex gap-1 overflow-x-auto border-b border-gray-200 bg-white px-3 dark:border-gray-800 dark:bg-gray-900 lg:hidden"
+                    role="tablist"
+                    aria-label="@lang('admin::app.leads.index.kanban.etapas')"
+                >
+                    <button
+                        type="button"
+                        role="tab"
+                        class="h-11 shrink-0 whitespace-nowrap border-b-[3px] px-3 text-sm transition"
+                        :class="etapaVisible === posicion ? 'border-brandColor font-semibold text-brandColor' : 'border-transparent text-gray-600 dark:text-gray-300'"
+                        :aria-selected="etapaVisible === posicion ? 'true' : 'false'"
+                        v-for="(stage, clave, posicion) in stageLeads"
+                        @click="irAEtapa(posicion)"
+                    >
+                        @{{ stage.name }} · @{{ stage.leads.meta.total }}
+                    </button>
+                </div>
+
+                <div
+                    ref="columnas"
+                    class="flex gap-2.5 overflow-x-auto max-lg:-mx-3 max-lg:snap-x max-lg:snap-mandatory max-lg:gap-0"
+                    @scroll.passive="alDesplazarColumnas"
+                >
                     <!-- Stage Cards -->
                     <div
-                        class="flex min-w-[275px] max-w-[275px] flex-col gap-1 rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+                        class="flex min-w-[275px] max-w-[275px] flex-col gap-1 rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 max-lg:min-w-full max-lg:max-w-full max-lg:snap-start max-lg:rounded-none max-lg:border-0"
                         v-for="(stage, index) in stageLeads"
                     >
                         {!! view_render_event('admin.leads.index.kanban.content.stage.header.before') !!}
@@ -78,11 +104,11 @@
 
                         <!-- Draggable Stage Lead Cards -->
                         <draggable
-                            class="flex h-[calc(100vh-317px)] flex-col gap-2 overflow-y-auto p-2"
+                            class="flex h-[calc(100vh-317px)] flex-col gap-2 overflow-y-auto p-2 max-lg:h-[calc(100dvh-344px-env(safe-area-inset-bottom))] max-lg:bg-gray-50 dark:max-lg:bg-gray-950"
                             :class="{ 'justify-center': stage.leads.data.length === 0 }"
                             ghost-class="draggable-ghost"
                             handle=".lead-item"
-                            v-bind="{animation: 200}"
+                            v-bind="{animation: 200, delay: 300, delayOnTouchOnly: true}"
                             :list="stage.leads.data"
                             item-key="id"
                             group="leads"
@@ -127,7 +153,7 @@
                                 {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.before') !!}
 
                                 <a
-                                    class="lead-item flex cursor-pointer flex-col gap-5 rounded-md border border-gray-100 bg-gray-50 p-2 dark:border-gray-400 dark:bg-gray-400"
+                                    class="lead-item flex cursor-pointer flex-col gap-5 rounded-md border border-gray-100 bg-gray-50 p-2 max-lg:gap-3 max-lg:border-gray-200 max-lg:bg-white max-lg:p-3 dark:border-gray-400 dark:bg-gray-400"
                                     :href="'{{ route('admin.leads.view', 'replaceId') }}'.replace('replaceId', element.id)"
                                 >
                                     {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.header.before') !!}
@@ -224,6 +250,20 @@
                                             {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.tag.after') !!}
                                         </template>
                                     </div>
+
+                                    <!-- Celular: la etapa de la cita y cómo cambiarla (sin arrastrar). -->
+                                    <button
+                                        type="button"
+                                        class="flex h-10 items-center justify-between gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 text-xs font-semibold text-gray-700 lg:hidden dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                                        @click.prevent.stop="abrirMover(element, stage)"
+                                    >
+                                        <span class="truncate">@{{ stage.name }}</span>
+
+                                        <span class="flex shrink-0 items-center gap-1 text-brandColor">
+                                            @lang('admin::app.leads.index.filtros-movil.mover')
+                                            <span class="icon-right-arrow text-base" aria-hidden="true"></span>
+                                        </span>
+                                    </button>
                                 </a>
 
                                 {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.after') !!}
@@ -235,6 +275,60 @@
                 </div>
 
                 {!! view_render_event('admin.leads.index.kanban.content.after') !!}
+
+                <!-- Celular: panel desde abajo para cambiar la etapa de una cita. -->
+                <div
+                    v-if="mover.lead"
+                    class="fixed inset-0 z-[10002] lg:hidden"
+                >
+                    <div
+                        class="absolute inset-0 bg-gray-900/50"
+                        @click="cerrarMover"
+                    ></div>
+
+                    <section
+                        role="dialog"
+                        aria-modal="true"
+                        :aria-label="textoMoverA"
+                        class="absolute inset-x-0 bottom-0 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2 dark:bg-gray-900"
+                    >
+                        <div class="mx-auto mb-3 h-1.5 w-10 rounded-full bg-gray-300 dark:bg-gray-700" aria-hidden="true"></div>
+
+                        <p class="text-base font-semibold text-gray-900 [overflow-wrap:anywhere] dark:text-white">@{{ textoMoverA }}</p>
+
+                        <div class="mt-3 flex flex-col gap-2">
+                            <button
+                                type="button"
+                                class="flex h-12 items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm transition"
+                                :class="destino.id === mover.desde.id
+                                    ? 'border-brandColor bg-gray-50 font-semibold text-gray-900 dark:bg-gray-800 dark:text-white'
+                                    : 'border-gray-200 text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'"
+                                :disabled="destino.id === mover.desde.id"
+                                v-for="destino in stageLeads"
+                                @click="moverA(destino)"
+                            >
+                                <span class="truncate">@{{ destino.name }}</span>
+
+                                <span
+                                    v-if="destino.id === mover.desde.id"
+                                    class="shrink-0 text-xs font-medium text-brandColor"
+                                >
+                                    @lang('admin::app.leads.index.filtros-movil.etapa-actual')
+                                </span>
+
+                                <span v-else class="shrink-0 text-xs text-gray-500 dark:text-gray-400">@{{ destino.leads.meta.total }}</span>
+                            </button>
+                        </div>
+
+                        <button
+                            type="button"
+                            class="mt-2 h-12 w-full text-sm font-semibold text-gray-600 dark:text-gray-300"
+                            @click="cerrarMover"
+                        >
+                            @lang('admin::app.leads.index.filtros-movil.cancelar')
+                        </button>
+                    </section>
+                </div>
             </div>
 
             <!-- Show modal for additional information while updating the leads into won or lost stage. -->
@@ -334,6 +428,12 @@
                         columns: @json($columns),
                     },
 
+                    // Celular: la etapa que se ve (índice de la columna).
+                    etapaVisible: 0,
+
+                    // Celular: la cita que se está por mover y su etapa de origen.
+                    mover: { lead: null, desde: null },
+
                     applied: {
                         filters: {
                             columns: [],
@@ -388,7 +488,22 @@
                     }
 
                     return totalAmount;
-                }
+                },
+
+                // Título del panel «Mover a…» con el nombre de la cita.
+                textoMoverA() {
+                    return @json(__('admin::app.leads.index.filtros-movil.mover-a', ['titulo' => '__TITULO__'])).replace('__TITULO__', this.mover.lead?.title ?? '');
+                },
+
+                // Celular: filtros por columna puestos (sin el buscador, que va aparte).
+                columnasFiltradas() {
+                    return this.applied.filters.columns.filter((column) => column.index !== 'all').length;
+                },
+
+                // Celular: el número del botón «Filtros» (rango de fechas + columnas).
+                filtrosMovilActivos() {
+                    return (this.applied.quick || this.applied.dateFrom || this.applied.dateTo ? 1 : 0) + this.columnasFiltradas;
+                },
             },
 
             mounted () {
@@ -396,6 +511,87 @@
             },
 
             methods: {
+                abrirMover(lead, desde) {
+                    this.mover = { lead, desde };
+                },
+
+                cerrarMover() {
+                    this.mover = { lead: null, desde: null };
+                },
+
+                /**
+                 * Celular: pasa la cita a otra etapa sin arrastrar. Hace lo mismo
+                 * que soltarla en otra columna (handleUpdate): resta y suma los
+                 * totales, guarda, y en Ganado/Perdido abre el modal.
+                 */
+                moverA(destino) {
+                    const { lead, desde } = this.mover;
+
+                    this.cerrarMover();
+
+                    if (! lead || ! desde || destino.id === desde.id) {
+                        return;
+                    }
+
+                    const posicion = desde.leads.data.findIndex((item) => item.id === lead.id);
+
+                    if (posicion >= 0) {
+                        desde.leads.data.splice(posicion, 1);
+                    }
+
+                    destino.leads.data.unshift(lead);
+
+                    this.handleUpdate(desde, { removed: { element: lead } });
+
+                    this.handleUpdate(destino, { added: { element: lead } });
+                },
+
+                /**
+                 * Celular: cierra «Filtros» y abre los filtros por columna (v-kanban-filter).
+                 */
+                abrirFiltrosPorColumna() {
+                    this.$refs.filtrosMovil?.close();
+
+                    this.$emitter.emit('kanban:filtros-por-columna');
+                },
+
+                /**
+                 * Celular: lleva a la columna de la etapa elegida.
+                 */
+                irAEtapa(posicion) {
+                    const columnas = this.$refs.columnas;
+
+                    const columna = columnas?.children[posicion];
+
+                    if (columna) {
+                        columnas.scrollTo({ left: columna.offsetLeft - columnas.offsetLeft, behavior: 'smooth' });
+                    }
+                },
+
+                /**
+                 * Celular: al deslizar, marca la pestaña de la columna que quedó a la vista.
+                 */
+                alDesplazarColumnas(event) {
+                    const columnas = event.target;
+
+                    if (! columnas.clientWidth) {
+                        return;
+                    }
+
+                    // La columna más cerca del borde izquierdo.
+                    const inicio = columnas.scrollLeft + columnas.offsetLeft;
+
+                    let cercana = 0;
+
+                    [...columnas.children].forEach((columna, posicion) => {
+                        if (Math.abs(columna.offsetLeft - inicio) < Math.abs(columnas.children[cercana].offsetLeft - inicio)) {
+                            cercana = posicion;
+                        }
+                    });
+
+                    this.etapaVisible = cercana;
+                },
+
                 /**
                  * Initialization: This function checks for any previously saved filters in local storage and applies them as needed.
                  *
@@ -618,7 +814,7 @@
                             this.$emitter.emit('add-flash', { type: 'success', message: response.data.message });
                         })
                         .catch(error => {
-                            this.$emitter.emit('add-flash', { type: 'error', message: error.response.data.message });
+                            this.$emitter.emit('add-flash', { type: 'error', message: error.response?.data?.message ?? @json(trans('admin::app.leads.index.kanban.error-conexion')) });
                         });;
                 },
 
@@ -656,7 +852,7 @@
                             this.$emitter.emit('add-flash', { type: 'success', message: response.data.message });
                         })
                         .catch(error => {
-                            this.$emitter.emit('add-flash', { type: 'error', message: error.response.data.message });
+                            this.$emitter.emit('add-flash', { type: 'error', message: error.response?.data?.message ?? @json(trans('admin::app.leads.index.kanban.error-conexion')) });
                         }).finally(() => {
                             this.finalized.updating = false;
                         });

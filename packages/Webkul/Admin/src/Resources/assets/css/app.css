@@ -535,6 +535,57 @@
         scrollbar-color: #888 #f1f1f1;
     }
 
+    /*
+     * Fila de pestañas que se desliza de costado: barra siempre visible y
+     * gruesa, para quien usa mouse y no touchpad.
+     *
+     * Chrome/Edge/Safari ignoran ::-webkit-scrollbar si el elemento tiene
+     * scrollbar-width o scrollbar-color (el `*` de arriba los pone), y entonces
+     * en Mac la barra es flotante y se esconde. Por eso acá vuelven a `auto`
+     * y Firefox, que no lee ::-webkit-scrollbar, recibe los suyos aparte.
+     */
+    .pestanas-scroll {
+        scrollbar-width: auto;
+        scrollbar-color: auto;
+    }
+
+    @supports (-moz-appearance: none) {
+        .pestanas-scroll {
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+
+        html.dark .pestanas-scroll {
+            scrollbar-color: #6b7280 #1f2937;
+        }
+    }
+
+    .pestanas-scroll::-webkit-scrollbar {
+        height: 12px;
+    }
+
+    .pestanas-scroll::-webkit-scrollbar-track {
+        background: #f3f4f6;
+    }
+
+    .pestanas-scroll::-webkit-scrollbar-thumb {
+        background: #9ca3af;
+        border: 2px solid #f3f4f6;
+        border-radius: 6px;
+    }
+
+    .pestanas-scroll::-webkit-scrollbar-thumb:hover {
+        background: #6b7280;
+    }
+
+    html.dark .pestanas-scroll::-webkit-scrollbar-track {
+        background: #1f2937;
+    }
+
+    html.dark .pestanas-scroll::-webkit-scrollbar-thumb {
+        background: #6b7280;
+        border-color: #1f2937;
+    }
+
     ::selection {
         background-color: rgba(0, 68, 242, .2);
     }

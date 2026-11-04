@@ -18,7 +18,7 @@
     <script type="text/x-template" id="v-lead-stages-template">
         <!-- Stages Container -->
         <div
-            class="flex w-full max-w-full"
+            class="flex w-full max-w-full max-lg:overflow-x-auto max-lg:bg-white max-lg:px-3 max-lg:py-2 max-lg:[&>*]:shrink-0 dark:max-lg:bg-gray-900"
             :class="{'opacity-50 pointer-events-none': isUpdating}"
         >
             <!-- Stages Item -->

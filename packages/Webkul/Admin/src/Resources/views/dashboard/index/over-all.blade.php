@@ -21,10 +21,11 @@
         <!-- Total Sales Section -->
         <template v-else>
             <!-- Stats Cards -->
-            <div class="grid gap-3" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+            {{-- Celular: de a dos, con aire a los costados (la columna va de borde a borde). --}}
+            <div class="grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-lg:gap-2 max-lg:px-3">
                 <!-- Average Revenue Card (Oculto) -->
                 <!--
-                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         @lang('admin::app.dashboard.index.over-all.average-lead-value')
                     </p>
@@ -52,7 +53,7 @@
                 -->
                 
                 <!-- Total Contactos Card (personas creadas en el rango) -->
-                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         Total contactos
                     </p>
@@ -79,7 +80,7 @@
                 </div>
 
                 <!-- Total Citas (leads) Card -->
-                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         @lang('admin::app.dashboard.index.over-all.total-citas')
                     </p>
@@ -106,7 +107,7 @@
                 </div>
 
                 <!-- Average Lead Per Day -->
-                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         @lang('admin::app.dashboard.index.over-all.average-leads-per-day')
                     </p>
@@ -133,7 +134,7 @@
                 </div>
 
                 <!-- Total Services -->
-                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         Total servicios solicitados
                     </p>
@@ -160,7 +161,7 @@
                 </div>
                 
                 <!-- Total Quotes -->
-                <!-- <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <!-- <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         @lang('admin::app.dashboard.index.over-all.total-quotations')
                     </p>
@@ -187,7 +188,7 @@
                 </div> -->
                 
                 <!-- Total Persons -->
-                <!-- <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <!-- <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         @lang('admin::app.dashboard.index.over-all.total-persons')
                     </p>
@@ -214,7 +215,7 @@
                 </div> -->
                 
                 <!-- Total Organizations -->
-                <!-- <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 dark:border-gray-800 dark:bg-gray-900">
+                <!-- <div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-5 max-lg:gap-1 max-lg:px-3 max-lg:py-3 dark:border-gray-800 dark:bg-gray-900">
                     <p class="text-xs font-medium text-gray-600 dark:text-gray-300">
                         @lang('admin::app.dashboard.index.over-all.total-organizations')
                     </p>

@@ -30,7 +30,7 @@
         <!-- chat column -->
         <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
             <!-- Header -->
-            <div class="flex items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900 max-lg:flex-wrap max-lg:gap-2 max-lg:px-3 max-lg:py-2">
                 <div class="-m-1 flex items-center gap-3 rounded-md p-1"
                      :class="context.personId ? 'cursor-pointer transition hover:bg-gray-200/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-800' : ''"
                      :title="context.personId ? 'Ver detalle del cliente' : null"
@@ -44,7 +44,7 @@
                     </div>
                     <div class="flex flex-col">
                         <div class="text-sm font-semibold text-gray-800 dark:text-gray-100">@{{ context.name }}</div>
-                        <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                             <span v-if="context.phone">@{{ context.phone }}</span>
                             <span v-else class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Sin número</span>
 
@@ -65,8 +65,9 @@
 
                 <!-- AI agent switch. Disabled outright in test mode: the switch
                      would store a preference the backend ignores, so the honest
-                     UI is to block it and say why. -->
-                <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-300"
+                     UI is to block it and say why. Celular: pasa a su propia fila,
+                     a la derecha. -->
+                <label class="flex cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-300 max-lg:ml-auto max-lg:min-h-[40px] max-lg:text-sm"
                        :class="agentToggling || agentTestBlocked ? 'opacity-50 pointer-events-none' : ''"
                        :title="agentTestBlocked
                            ? 'El agente está en modo prueba y este número no está en la lista habilitada'
@@ -87,7 +88,7 @@
             <!-- Messages -->
             <div class="relative" :class="fullHeight ? 'flex min-h-0 flex-1 flex-col' : ''">
             <div ref="scroll" @scroll="onScroll" class="wa-scroll flex flex-col gap-1.5 overflow-y-auto bg-[#efeae2] px-4 py-3 dark:bg-[#0b141a]"
-                 :class="fullHeight ? 'flex-1' : 'h-[440px]'">
+                 :class="fullHeight ? 'flex-1' : 'h-[440px] max-lg:h-[60dvh]'">
                 <div v-if="isLoading" class="m-auto flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                     <x-admin::spinner /> <span>Cargando conversación…</span>
                 </div>
@@ -240,7 +241,7 @@
             </div>
 
             <!-- Composer -->
-            <div class="border-t border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900">
+            <div class="border-t border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900 max-lg:pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
                 <!-- reply preview -->
                 <div v-if="replyingTo" class="mb-2 flex items-center justify-between rounded-md border-l-2 border-brandColor bg-black/5 px-2 py-1 text-xs dark:bg-white/10">
                     <div class="min-w-0">
@@ -248,7 +249,7 @@
                         <div class="truncate text-gray-600 dark:text-gray-300">@{{ replyingTo.preview }}</div>
                     </div>
                     <button type="button" aria-label="Cancelar respuesta"
-                            class="ml-2 rounded text-gray-500 transition hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:text-gray-200"
+                            class="ml-2 rounded text-gray-500 transition max-lg:flex max-lg:h-9 max-lg:w-9 max-lg:shrink-0 max-lg:items-center max-lg:justify-center hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:text-gray-200"
                             @click="replyingTo = null">✕</button>
                 </div>
 
@@ -256,12 +257,12 @@
                      or the window closed - it never reaches the customer -->
                 <div v-if="conversationId && !useMock" class="mb-2 flex gap-1 text-xs">
                     <button type="button" @click="composerMode = 'mensaje'"
-                            class="rounded-full px-3 py-1 font-medium transition"
+                            class="rounded-full px-3 py-1 font-medium transition max-lg:h-9 max-lg:px-4 max-lg:text-sm"
                             :class="composerMode === 'mensaje' ? 'bg-brandColor text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300'">
                         Mensaje
                     </button>
                     <button type="button" @click="composerMode = 'nota'"
-                            class="rounded-full px-3 py-1 font-medium transition"
+                            class="rounded-full px-3 py-1 font-medium transition max-lg:h-9 max-lg:px-4 max-lg:text-sm"
                             :class="composerMode === 'nota' ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300'">
                         Nota interna
                     </button>
@@ -276,18 +277,18 @@
                             ref="noteInput"
                             v-model="noteDraft"
                             rows="1"
-                            placeholder="Nota interna para el equipo (el cliente no la ve)…"
+                            :placeholder="esCelular ? 'Nota interna (el cliente no la ve)' : 'Nota interna para el equipo (el cliente no la ve)…'"
                             title="Enter guarda · Shift+Enter salto de línea"
                             @input="autoGrow"
                             @keydown.enter.exact.prevent="sendNote"
                             @keydown.enter.ctrl.exact.prevent="sendNote"
                             @keydown.enter.meta.exact.prevent="sendNote"
-                            class="max-h-28 flex-1 resize-none rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-gray-800 focus:border-amber-500 focus:outline-none dark:border-amber-700 dark:bg-amber-900/20 dark:text-gray-100"
+                            class="max-h-28 flex-1 resize-none rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-gray-800 max-lg:text-base focus:border-amber-500 focus:outline-none dark:border-amber-700 dark:bg-amber-900/20 dark:text-gray-100"
                         ></textarea>
                         <button type="button" @click="sendNote" :disabled="!noteDraft.trim() || noteSaving"
                                 aria-label="Guardar nota interna"
                                 title="Guardar nota"
-                                class="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500 text-white transition hover:bg-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 disabled:opacity-40">
+                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500 max-lg:h-10 max-lg:w-10 text-white transition hover:bg-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 disabled:opacity-40">
                             <span class="icon-note text-xl"></span>
                         </button>
                     </div>
@@ -308,7 +309,7 @@
                     <div class="flex items-center justify-between gap-3">
                         <span>Ventana de 24h cerrada. WhatsApp no permite texto libre hasta que el cliente vuelva a escribir.</span>
                         <button v-if="canSend('template')" type="button" @click="openTemplates"
-                                class="shrink-0 rounded-md bg-red-600 px-2.5 py-1 font-semibold text-white transition hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                                class="shrink-0 rounded-md bg-red-600 px-2.5 py-1 font-semibold text-white max-lg:py-2.5 transition hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
                             Enviar plantilla
                         </button>
                     </div>
@@ -329,7 +330,7 @@
                                 @{{ selectedTemplate ? selectedTemplate.name : 'Elegí una plantilla' }}
                             </h3>
                             <button type="button" @click="closeTemplates" aria-label="Cerrar"
-                                    class="rounded text-gray-400 transition hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+                                    class="rounded text-gray-400 transition max-lg:-my-2 max-lg:-mr-2 max-lg:flex max-lg:h-10 max-lg:w-10 max-lg:items-center max-lg:justify-center hover:text-gray-600 dark:hover:text-gray-200">✕</button>
                         </div>
 
                         <div class="wa-scroll min-h-0 flex-1 overflow-y-auto p-4">
@@ -439,8 +440,9 @@
                         <button type="button" class="font-semibold text-brandColor underline" @click="openQuickReplies">Crear una</button>
                     </div>
 
-                    <!-- emoji picker: only when the gateway can deliver them (Cloud API) -->
-                    <div v-if="canSend('emoji')" class="js-pop relative">
+                    <!-- emoji picker: only when the gateway can deliver them (Cloud API).
+                         Celular: lo trae el teclado del teléfono. -->
+                    <div v-if="canSend('emoji')" class="js-pop relative max-lg:hidden">
                         <button type="button" @click="showEmoji = !showEmoji"
                                 :disabled="agentLocked"
                                 aria-label="Insertar emoji"
@@ -461,11 +463,12 @@
                         </div>
                     </div>
 
+                    <!-- Celular: va en el menú «+». -->
                     <button type="button" @click="openQuickReplies"
                             :disabled="agentLocked"
                             aria-label="Respuestas rápidas"
                             title="Respuestas rápidas (escribí / para insertarlas)"
-                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:cursor-not-allowed disabled:hover:bg-transparent dark:hover:bg-gray-700">
+                            class="flex h-9 w-9 shrink-0 max-lg:hidden items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:cursor-not-allowed disabled:hover:bg-transparent dark:hover:bg-gray-700">
                         <span class="icon-bookmark text-xl"></span>
                     </button>
 
@@ -498,25 +501,42 @@
                         <span class="icon-microphone text-xl"></span>
                     </button>
 
-                    <div v-if="canAttach && ! recording" class="js-pop relative">
+                    <!-- Celular: es el menú «+» (adjuntos, respuestas rápidas y
+                         plantillas), así la caja de texto tiene lugar. Aparece
+                         aunque no se puedan mandar archivos. -->
+                    <div v-if="(canAttach || esCelular) && ! recording" class="js-pop relative">
                         <input ref="fileInput" type="file" class="hidden" @change="uploadFile">
                         <button type="button" @click="showAttach = !showAttach"
                                 :disabled="uploading || agentLocked"
-                                aria-label="Adjuntar archivo"
-                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent dark:hover:bg-gray-700">
+                                :aria-label="esCelular ? 'Más opciones' : 'Adjuntar archivo'"
+                                :aria-expanded="showAttach ? 'true' : 'false'"
+                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 max-lg:h-10 max-lg:w-10 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent dark:hover:bg-gray-700">
                             <span v-if="uploading" class="icon-loader animate-spin text-xl"></span>
-                            <span v-else class="icon-attachment text-xl"></span>
+                            <span v-else class="text-xl" :class="esCelular ? 'icon-add' : 'icon-attachment'"></span>
                         </button>
-                        <div v-if="showAttach" class="absolute bottom-11 left-0 z-10 w-40 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                            <button v-if="canSend('image')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="pickFile('image')">
+                        <div v-if="showAttach" class="absolute bottom-11 left-0 z-10 w-40 rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg max-lg:bottom-12 max-lg:w-56 max-lg:text-base dark:border-gray-700 dark:bg-gray-800">
+                            <button v-if="canAttach && canSend('image')" type="button" class="flex w-full items-center gap-2 px-3 py-1.5 max-lg:py-3 hover:bg-gray-100 dark:hover:bg-gray-700" @click="pickFile('image')">
                                 <span class="icon-image"></span> Imagen
                             </button>
-                            <button v-if="canSend('document')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="pickFile('document')">
+                            <button v-if="canAttach && canSend('document')" type="button" class="flex w-full items-center gap-2 px-3 py-1.5 max-lg:py-3 hover:bg-gray-100 dark:hover:bg-gray-700" @click="pickFile('document')">
                                 <span class="icon-file"></span> Documento
                             </button>
-                            <button v-if="canSend('audio')" class="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700" @click="pickFile('audio')">
+                            <button v-if="canAttach && canSend('audio')" type="button" class="flex w-full items-center gap-2 px-3 py-1.5 max-lg:py-3 hover:bg-gray-100 dark:hover:bg-gray-700" @click="pickFile('audio')">
                                 <span class="icon-microphone"></span> Audio
                             </button>
+
+                            <!-- Celular: lo que en la computadora son botones sueltos. -->
+                            <template v-if="esCelular">
+                                <div v-if="canAttach" class="my-1 border-t border-gray-200 dark:border-gray-700"></div>
+                                <button type="button" class="flex w-full items-center gap-2 px-3 py-3 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        @click="showAttach = false; openQuickReplies()">
+                                    <span class="icon-bookmark"></span> Respuestas rápidas
+                                </button>
+                                <button v-if="canSend('template')" type="button" class="flex w-full items-center gap-2 px-3 py-3 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        @click="showAttach = false; openTemplates()">
+                                    <span class="icon-file"></span> Plantilla
+                                </button>
+                            </template>
                         </div>
                         <div v-if="uploadError"
                              class="absolute bottom-11 left-0 z-10 w-64 rounded-md border border-red-300 bg-red-50 px-2 py-1 text-[11px] text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
@@ -531,7 +551,7 @@
                             :disabled="uploading || agentLocked"
                             aria-label="Enviar plantilla"
                             title="Enviar plantilla aprobada"
-                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:opacity-50 dark:hover:bg-gray-700">
+                            class="flex h-9 w-9 shrink-0 max-lg:hidden items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:opacity-50 dark:hover:bg-gray-700">
                         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"
                              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -546,8 +566,8 @@
                         rows="1"
                         :disabled="agentLocked"
                         :placeholder="agentLocked
-                            ? 'El agente IA está respondiendo - desactivalo para escribir'
-                            : 'Escribe un mensaje… (/ para respuestas rápidas)'"
+                            ? (esCelular ? 'Responde el agente IA' : 'El agente IA está respondiendo - desactivalo para escribir')
+                            : (esCelular ? 'Mensaje' : 'Escribe un mensaje… (/ para respuestas rápidas)')"
                         title="Enter envía · Shift+Enter salto de línea"
                         @input="autoGrow"
                         @keydown.enter.exact.prevent="send"
@@ -555,13 +575,13 @@
                         @keydown.enter.meta.exact.prevent="send"
                         @keydown.down="qrMove($event, 1)"
                         @keydown.up="qrMove($event, -1)"
-                        class="max-h-28 min-w-0 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-brandColor focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:disabled:bg-gray-900"
+                        class="max-h-28 min-w-0 flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 max-lg:text-base focus:border-brandColor focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:disabled:bg-gray-900"
                     ></textarea>
 
                     <button v-if="! recording" type="button" @click="send" :disabled="!draft.trim() || agentLocked"
                             aria-label="Enviar mensaje"
                             title="Enviar"
-                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brandColor text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:cursor-not-allowed disabled:opacity-40">
+                            class="flex h-9 w-9 shrink-0 max-lg:h-10 max-lg:w-10 items-center justify-center rounded-full bg-brandColor text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor disabled:cursor-not-allowed disabled:opacity-40">
                         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor" aria-hidden="true">
                             <path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a1 1 0 00-1.38 1.2L4.4 11 12 12l-7.6 1-2.38 6.2a1 1 0 001.38 1.2z"/>
                         </svg>
@@ -577,12 +597,12 @@
 
             <!-- Client detail sidebar (WhatsApp-Web style) -->
             <aside v-if="profileOpen"
-                   class="absolute inset-y-0 right-0 z-10 flex w-full max-w-[320px] flex-col border-l border-gray-200 bg-white shadow-xl lg:static lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
+                   class="absolute inset-y-0 right-0 z-10 flex w-full max-w-[320px] flex-col max-lg:max-w-none border-l border-gray-200 bg-white shadow-xl lg:static lg:shadow-none dark:border-gray-800 dark:bg-gray-900">
                 <!-- sidebar header -->
                 <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-800">
                     <h3 class="text-sm font-semibold text-gray-800 dark:text-white">Detalle del cliente</h3>
                     <button type="button" aria-label="Cerrar detalle"
-                            class="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-800"
+                            class="flex h-7 w-7 max-lg:h-10 max-lg:w-10 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-800"
                             @click="profileOpen = false">
                         <span class="icon-cross-large text-lg"></span>
                     </button>
@@ -628,7 +648,7 @@
                     <!-- tabs -->
                     <div class="flex shrink-0 gap-0.5 overflow-x-auto border-b border-gray-200 px-1.5 dark:border-gray-800">
                         <button v-for="t in visibleProfileTabs" :key="t.id" type="button"
-                                class="whitespace-nowrap px-2 py-2 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brandColor"
+                                class="whitespace-nowrap px-2 py-2 text-xs font-medium transition max-lg:px-3 max-lg:py-3 max-lg:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brandColor"
                                 :class="profileTab === t.id
                                     ? 'border-b-2 border-brandColor !text-brandColor'
                                     : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
@@ -977,7 +997,7 @@
 
                     <!-- sidebar footer -->
                     <div class="border-t border-gray-200 p-2.5 dark:border-gray-800">
-                        <a :href="profile.view_url" target="_blank" class="primary-button w-full justify-center !py-1.5 text-sm">
+                        <a :href="profile.view_url" target="_blank" class="primary-button w-full justify-center !py-1.5 text-sm max-lg:!py-2.5">
                             Ver perfil completo
                         </a>
                     </div>
@@ -1044,12 +1064,12 @@
                                 </div>
                                 <div class="flex shrink-0 items-center gap-1">
                                     <button type="button" aria-label="Editar respuesta rápida" title="Editar"
-                                            class="rounded-md p-1.5 transition-all hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-950"
+                                            class="rounded-md p-1.5 transition-all max-lg:p-2.5 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-950"
                                             @click="editQuickReply(r)">
                                         <span class="icon-edit text-xl" aria-hidden="true"></span>
                                     </button>
                                     <button type="button" aria-label="Eliminar respuesta rápida" title="Eliminar"
-                                            class="rounded-md p-1.5 transition-all hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-950"
+                                            class="rounded-md p-1.5 transition-all max-lg:p-2.5 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brandColor dark:hover:bg-gray-950"
                                             @click="deleteQuickReply(r)">
                                         <span class="icon-delete text-xl" aria-hidden="true"></span>
                                     </button>
@@ -1097,8 +1117,8 @@
                             </p>
                         </div>
 
-                        <label class="flex w-max cursor-pointer select-none items-center gap-2 text-sm text-gray-800 dark:text-gray-300">
-                            <input type="checkbox" v-model="qrForm.is_global" class="h-4 w-4 accent-brandColor">
+                        <label class="flex w-max cursor-pointer select-none items-center gap-2 text-sm text-gray-800 max-lg:min-h-[44px] dark:text-gray-300">
+                            <input type="checkbox" v-model="qrForm.is_global" class="h-4 w-4 accent-brandColor max-lg:h-5 max-lg:w-5">
                             Visible para todo el equipo
                         </label>
                     </x-slot>
@@ -1152,6 +1172,8 @@
 
             data() {
                 return {
+                    // Debajo de lg: cambia el compositor (menú «+», textos cortos).
+                    esCelular: window.matchMedia('(max-width: 1023px)').matches,
                     messages: [],
                     draft: '',
                     isLoading: false,
@@ -1385,7 +1407,8 @@
                 // bottom of the thread (a hidden container can't be scrolled).
                 this.visibilityObserver = new IntersectionObserver(entries => {
                     if (entries.some(entry => entry.isIntersecting)) {
-                        this.focusComposer();
+                        // Celular: no se abre el teclado solo, taparía medio hilo.
+                        if (! this.esCelular) this.focusComposer();
                         this.scrollToBottom();
                     }
                 });
@@ -1408,6 +1431,10 @@
                     }
                 };
                 document.addEventListener('click', this.docClickHandler);
+
+                this.mediaCelular = window.matchMedia('(max-width: 1023px)');
+                this.cambioCelular = (event) => { this.esCelular = event.matches; };
+                this.mediaCelular.addEventListener('change', this.cambioCelular);
             },
 
             beforeUnmount() {
@@ -1415,9 +1442,54 @@
                 if (this.visibilityObserver) this.visibilityObserver.disconnect();
                 if (this.escHandler) document.removeEventListener('keydown', this.escHandler);
                 if (this.docClickHandler) document.removeEventListener('click', this.docClickHandler);
+                if (this.cambioCelular) this.mediaCelular.removeEventListener('change', this.cambioCelular);
             },
 
             methods: {
+                /**
+                 * Guarda un mensaje en el hilo: lo reemplaza si ya está (mismo id) y si no
+                 * lo agrega; después deja el hilo en orden de llegada.
+                 *
+                 * Un solo lugar para todas las altas. Antes cada camino hacía su propio
+                 * push: el poll agregaba al final sin ordenar (un mensaje cruzado con
+                 * otro quedaba fuera de orden hasta recargar), y si el poll traía el
+                 * mensaje real antes de que respondiera el envío, quedaba DUPLICADO.
+                 */
+                guardarMensaje(mensaje, reemplazaA = null) {
+                    if (! mensaje) {
+                        return;
+                    }
+
+                    const provisorio = reemplazaA === null ? -1 : this.messages.findIndex((m) => m.id === reemplazaA);
+
+                    if (provisorio !== -1) {
+                        this.messages.splice(provisorio, 1);
+                    }
+
+                    const i = this.messages.findIndex((m) => m.id === mensaje.id);
+
+                    if (i === -1) {
+                        this.messages.push(mensaje);
+                    } else {
+                        this.messages.splice(i, 1, mensaje);
+                    }
+
+                    this.ordenarMensajes();
+                },
+
+                /**
+                 * Orden de llegada: por hora y, en el mismo segundo, por id (el orden en
+                 * que el CRM los guardó). Lo provisorio, que todavía no tiene hora del
+                 * servidor, queda al final en el orden en que se escribió.
+                 */
+                ordenarMensajes() {
+                    const hora = (m) => (m.timestamp && ! String(m.id).startsWith('tmp-') ? Date.parse(m.timestamp) : Number.POSITIVE_INFINITY);
+                    const numero = (m) => (typeof m.id === 'number' ? m.id : Number.POSITIVE_INFINITY);
+                    const comparar = (a, b) => (a === b ? 0 : (a < b ? -1 : 1));
+
+                    this.messages.sort((a, b) => comparar(hora(a), hora(b)) || comparar(numero(a), numero(b)));
+                },
+
                 /**
                  * Clases literales, no concatenadas: Tailwind purga lo que no puede
                  * "ver" en el template, así que armar el nombre de la clase en runtime
@@ -1619,9 +1691,9 @@
                                 this.messages = incoming;
                             } else {
                                 for (const m of incoming) {
-                                    const i = this.messages.findIndex(x => x.id === m.id);
-                                    if (i === -1) { this.messages.push(m); appended = true; }
-                                    else this.messages.splice(i, 1, m);
+                                    if (this.messages.findIndex(x => x.id === m.id) === -1) appended = true;
+
+                                    this.guardarMensaje(m);
                                 }
                             }
 
@@ -1685,9 +1757,8 @@
                             reply_to_id: replyId,
                         })
                         .then(res => {
-                            const real = res.data?.message;
-                            const i = this.messages.findIndex(m => m.id === tempId);
-                            if (real && i !== -1) this.messages.splice(i, 1, real);
+                            // Si el poll ya lo trajo, se saca el provisorio y no queda duplicado.
+                            this.guardarMensaje(res.data?.message, tempId);
                         })
                         .catch(() => {
                             const i = this.messages.findIndex(m => m.id === tempId);
@@ -1905,9 +1976,7 @@
 
                     this.$axios.post(`${this.agentUrlBase}/${this.conversationId}/notes`, { comment: text })
                         .then(res => {
-                            const real = res.data?.note;
-                            const i = this.messages.findIndex(m => m.id === tempId);
-                            if (real && i !== -1) this.messages.splice(i, 1, real);
+                            this.guardarMensaje(res.data?.note, tempId);
                             this.noteDraft = '';
                             this.$nextTick(() => { if (this.$refs.noteInput) this.$refs.noteInput.style.height = 'auto'; });
                         })
@@ -2007,7 +2076,7 @@
                         })
                         .then(({ data }) => {
                             if (data?.message) {
-                                this.messages.push(data.message);
+                                this.guardarMensaje(data.message);
                                 this.scrollToBottom();
                             }
                             this.closeTemplates();
@@ -2158,7 +2227,7 @@
                     this.$axios.post(this.sendMediaUrl, form)
                         .then(({ data }) => {
                             if (data?.message) {
-                                this.messages.push(data.message);
+                                this.guardarMensaje(data.message);
                                 this.draft = '';
                                 this.scrollToBottom();
                             }

@@ -335,6 +335,8 @@ return [
             ],
 
             'table' => [
+                'ver-mas'   => 'See more',
+                'ver-menos' => 'See less',
                 'actions'              => 'Actions',
                 'no-records-available' => 'No Records Available.',
             ],
@@ -541,6 +543,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'Registered',
+                ],
+
                 'title'                    => 'Persons',
                 'create-btn'               => 'Create Person',
                 'create-success'           => 'Person created successfully.',
@@ -1926,6 +1932,23 @@ return [
         ],
 
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'Filters',
+                'embudo'       => 'Pipeline',
+                'periodo'      => 'Period',
+                'desde'        => 'From',
+                'hasta'        => 'To',
+                'vista'        => 'View',
+                'kanban'       => 'Kanban',
+                'lista'        => 'List',
+                'por-columna'  => 'Column filters',
+                'limpiar'      => 'Clear dates',
+                'mover'        => 'Move',
+                'mover-a'      => 'Move “:titulo” to…',
+                'etapa-actual' => 'Current stage',
+                'cancelar'     => 'Cancel',
+            ],
+
             'title'      => 'Leads',
             'create-btn' => 'Create Lead',
 
@@ -1950,6 +1973,8 @@ return [
             ],
 
             'kanban' => [
+                'error-conexion'         => 'The change could not be saved. Check your connection and try again.',
+                'etapas' => 'Stages',
                 'rotten-days'            => 'Lead is rotten for :days days',
                 'empty-list'             => 'Your Leads List is Empty',
                 'empty-list-description' => 'Create a lead to organize your goals.',
@@ -2306,6 +2331,13 @@ return [
     ],
 
     'layouts' => [
+        'volver' => 'Back to list',
+
+        'mobile-nav' => [
+            'title' => 'Main navigation',
+            'more'  => 'More',
+        ],
+
         'app-version'          => 'Version: :version',
         'dashboard'            => 'Dashboard',
         'leads'                => 'Leads',

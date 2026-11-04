@@ -5,11 +5,12 @@
     <!-- Head Details Section -->
     {!! view_render_event('admin.dashboard.index.header.before') !!}
 
-    <div class="mb-5 flex items-center justify-between gap-4 max-sm:flex-wrap">
+    {{-- Celular: banda blanca de borde a borde, como en Citas: «Tablero», el período y el botón «Filtros». --}}
+    <div class="mb-5 flex items-center justify-between gap-4 max-lg:-mx-3 max-lg:-mt-3 max-lg:mb-0 max-lg:border-b max-lg:border-gray-200 max-lg:bg-white max-lg:px-3 max-lg:py-2 dark:max-lg:border-gray-800 dark:max-lg:bg-gray-900">
         {!! view_render_event('admin.dashboard.index.header.left.before') !!}
 
         <div class="grid gap-1.5">
-            <p class="text-2xl font-semibold dark:text-white">
+            <p class="text-2xl font-semibold max-lg:text-xl max-lg:font-bold dark:text-white">
                 @lang('admin::app.dashboard.index.title')
             </p>
         </div>
@@ -35,11 +36,13 @@
     <!-- Body Component -->
     {!! view_render_event('admin.dashboard.index.content.before') !!}
 
-    <div class="mt-3.5 flex gap-4 max-xl:flex-wrap">
+    {{-- Celular: tarjetas de borde a borde (sin el gris de los costados), separadas por una franja fina. --}}
+    <div class="mt-3.5 flex gap-4 max-xl:flex-wrap max-lg:-mx-3 max-lg:mt-2 max-lg:gap-2 max-lg:[&>div>*]:rounded-none max-lg:[&>div>*]:border-x-0">
         <!-- Left Section -->
         {!! view_render_event('admin.dashboard.index.content.left.before') !!}
 
-        <div class="flex flex-1 flex-col gap-4 max-xl:flex-auto">
+        {{-- min-w-0: sin esto la columna no se encoge bajo el ancho de sus gráficos y se sale de la pantalla. --}}
+        <div class="flex min-w-0 flex-1 flex-col gap-4 max-xl:flex-auto max-xl:basis-full max-lg:gap-2">
             {{-- @include('admin::dashboard.index.revenue') --}}
             @include('admin::dashboard.index.over-all')
             @include('admin::dashboard.index.total-leads-by-stages-over-time')
@@ -53,7 +56,7 @@
         <!-- Right Section -->
         {!! view_render_event('admin.dashboard.index.content.right.before') !!}
 
-        <div class="flex w-[378px] max-w-full flex-col gap-4 max-sm:w-full">
+        <div class="flex w-[378px] min-w-0 max-w-full flex-col gap-4 max-xl:w-full max-lg:gap-2">
             {{-- Funel anterior --}}
             {{-- @include('admin::dashboard.index.open-leads-by-states') --}}
 
@@ -86,12 +89,56 @@
         >
             {!! view_render_event('admin.dashboard.index.date_filters.before') !!}
 
-            <div class="flex gap-1.5">
+            {{--
+                Celular (debajo de lg), como en Citas: en la banda queda el período
+                elegido y el botón «Filtros»; los controles van en un panel lateral.
+                En la computadora son los mismos controles en línea (todo lo
+                «max-lg:» se ignora y el panel no existe).
+            --}}
+            <div class="flex items-center gap-2 lg:hidden">
+                <span class="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400" v-text="resumenPeriodo"></span>
 
-            <div class="flex gap-1">
+                <button
+                    type="button"
+                    class="flex h-10 shrink-0 items-center gap-1.5 rounded-lg border bg-white px-3 text-sm font-medium text-gray-700 transition-all hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                    @click="filtrosAbiertos = true"
+                >
+                    <span class="icon-filter text-xl"></span>
+
+                    {{ trans('admin::app.leads.index.filtros-movil.titulo') }}
+                </button>
+            </div>
+
+            <div
+                v-show="filtrosAbiertos"
+                class="fixed inset-0 z-[10002] bg-gray-900/40 lg:hidden"
+                @click="filtrosAbiertos = false"
+            ></div>
+
+            <div
+                class="flex gap-1.5 max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-[10003] max-lg:w-[88%] max-lg:max-w-[340px] max-lg:flex-col max-lg:gap-5 max-lg:overflow-y-auto max-lg:bg-white max-lg:p-4 max-lg:text-sm max-lg:shadow-xl max-lg:transition-transform max-lg:duration-200 dark:max-lg:bg-gray-900"
+                :class="filtrosAbiertos ? 'max-lg:translate-x-0' : 'max-lg:translate-x-full'"
+                role="dialog"
+                aria-label="{{ trans('admin::app.leads.index.filtros-movil.titulo') }}"
+            >
+                <div class="flex items-center justify-between lg:hidden">
+                    <p class="text-lg font-semibold dark:text-white">{{ trans('admin::app.leads.index.filtros-movil.titulo') }}</p>
+
                     <button
                         type="button"
-                        class="flex min-h-[39px] items-center rounded-md border px-3 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                        class="icon-cross-large flex h-10 w-10 items-center justify-center text-2xl text-gray-600 dark:text-gray-300"
+                        aria-label="{{ trans('admin::app.leads.index.filtros-movil.cancelar') }}"
+                        @click="filtrosAbiertos = false"
+                    ></button>
+                </div>
+
+            <div class="contents max-lg:flex max-lg:flex-col max-lg:gap-1.5">
+                <span class="font-semibold text-gray-700 dark:text-gray-300 lg:hidden">{{ trans('admin::app.leads.index.filtros-movil.periodo') }}</span>
+
+            <div class="flex gap-1 max-lg:grid max-lg:grid-cols-2 max-lg:gap-2">
+                    <button
+                        type="button"
+                        class="flex min-h-[39px] items-center rounded-md border px-3 text-sm text-gray-600 transition-all hover:border-gray-400 max-lg:h-11 max-lg:justify-center max-lg:rounded-lg max-lg:font-medium dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
                         :style="quickRangeStyle(7)"
                         :aria-pressed="activeQuick === 7"
                         @click="setQuickRange(7)"
@@ -101,7 +148,7 @@
 
                     <button
                         type="button"
-                        class="flex min-h-[39px] items-center rounded-md border px-3 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                        class="flex min-h-[39px] items-center rounded-md border px-3 text-sm text-gray-600 transition-all hover:border-gray-400 max-lg:h-11 max-lg:justify-center max-lg:rounded-lg max-lg:font-medium dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
                         :style="quickRangeStyle(30)"
                         :aria-pressed="activeQuick === 30"
                         @click="setQuickRange(30)"
@@ -111,7 +158,7 @@
 
                     <button
                         type="button"
-                        class="flex min-h-[39px] items-center rounded-md border px-3 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                        class="flex min-h-[39px] items-center rounded-md border px-3 text-sm text-gray-600 transition-all hover:border-gray-400 max-lg:h-11 max-lg:justify-center max-lg:rounded-lg max-lg:font-medium dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
                         :style="quickRangeStyle(90)"
                         :aria-pressed="activeQuick === 90"
                         @click="setQuickRange(90)"
@@ -121,7 +168,7 @@
 
                     <button
                         type="button"
-                        class="flex min-h-[39px] items-center rounded-md border px-3 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                        class="flex min-h-[39px] items-center rounded-md border px-3 text-sm text-gray-600 transition-all hover:border-gray-400 max-lg:h-11 max-lg:justify-center max-lg:rounded-lg max-lg:font-medium dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
                         :style="quickRangeStyle('month')"
                         :aria-pressed="activeQuick === 'month'"
                         @click="setCurrentMonth()"
@@ -129,14 +176,19 @@
                         Este mes
                     </button>
                 </div>
+            </div>
 
+            <div class="contents max-lg:flex max-lg:flex-col max-lg:gap-1.5">
+                <span class="font-semibold text-gray-700 dark:text-gray-300 lg:hidden">{{ trans('admin::app.leads.index.filtros-movil.desde') }} – {{ trans('admin::app.leads.index.filtros-movil.hasta') }}</span>
+
+                <div class="contents max-lg:flex max-lg:gap-2">
                 <x-admin::flat-picker.date
-                    class="!w-[140px]"
+                    class="!w-[140px] max-lg:!w-[calc(50%-4px)]"
                     ::allow-input="false"
                     ::max-date="filters.end"
                 >
                     <input
-                        class="flex min-h-[39px] w-full rounded-md border px-3 py-2 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                        class="flex min-h-[39px] w-full rounded-md border px-3 py-2 text-sm text-gray-600 max-lg:h-11 max-lg:rounded-lg transition-all hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
                         :style="customRangeStyle()"
                         v-model="filters.start"
                         @change="onManualDate"
@@ -145,19 +197,28 @@
                 </x-admin::flat-picker.date>
 
                 <x-admin::flat-picker.date
-                    class="!w-[140px]"
+                    class="!w-[140px] max-lg:!w-[calc(50%-4px)]"
                     ::allow-input="false"
                     ::min-date="filters.start"
                 >
                     <input
-                        class="flex min-h-[39px] w-full rounded-md border px-3 py-2 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                        class="flex min-h-[39px] w-full rounded-md border px-3 py-2 text-sm text-gray-600 max-lg:h-11 max-lg:rounded-lg transition-all hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
                         :style="customRangeStyle()"
                         v-model="filters.end"
                         @change="onManualDate"
                         placeholder="@lang('admin::app.dashboard.index.end-date')"
                     />
                 </x-admin::flat-picker.date>
-                
+                </div>
+            </div>
+
+                <button
+                    type="button"
+                    class="primary-button h-11 justify-center lg:hidden"
+                    @click="filtrosAbiertos = false"
+                >
+                    Ver tablero
+                </button>
             </div>
 
             {!! view_render_event('admin.dashboard.index.date_filters.after') !!}
@@ -182,7 +243,21 @@
 
                         // Botón rápido activo: 7 | 30 | 90 | 'month' | '' (personalizado).
                         activeQuick: window.OdontoDateRange.normalizeQuick(saved.quick),
+
+                        // Celular: panel lateral de filtros.
+                        filtrosAbiertos: false,
                     };
+                },
+
+                computed: {
+                    // Celular: el período elegido, a la vista en la banda («20 oct – 27 oct»).
+                    resumenPeriodo() {
+                        const corta = (fecha) => fecha
+                            ? new Date(fecha + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short' }).replace('.', '')
+                            : '';
+
+                        return [corta(this.filters.start), corta(this.filters.end)].filter(Boolean).join(' – ');
+                    },
                 },
 
                 watch: {

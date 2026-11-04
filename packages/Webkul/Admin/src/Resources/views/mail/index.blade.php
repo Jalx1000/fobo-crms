@@ -4,7 +4,7 @@
     </x-slot>
 
     <div class="flex flex-col gap-4">
-        <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+        <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
             <div class="flex flex-col gap-2">
                 {!! view_render_event('admin.mail.create.breadcrumbs.before') !!}
 
@@ -22,8 +22,8 @@
                 </div>
             </div>
 
-            <div class="flex items-center gap-x-2.5">
-                <div class="flex items-center gap-x-2.5">
+            <div class="flex items-center gap-x-2.5 max-lg:flex-wrap max-lg:gap-y-2">
+                <div class="flex items-center gap-x-2.5 max-lg:flex-wrap max-lg:gap-y-2">
                     {!! view_render_event('admin.mail.create.compose_mail_btn.before') !!}
 
                     <!-- Create button for person -->
@@ -299,62 +299,16 @@
                             </div>
                         </div>
                         
-                        <!-- Mobile Card View -->
-                        <div
-                            class="hidden border-b px-4 py-4 text-black dark:border-gray-800 dark:text-gray-300 max-lg:block"
+                        <!-- Mobile Card View: componente compartido (datagrid/mobile-card). -->
+                        {{-- «Editar» abre el modal, como en la fila de escritorio: navegar a su URL muestra JSON. --}}
+                        <v-datagrid-mobile-card
                             v-for="record in available.records"
-                            @click.stop="selectedMail=true; editModal(record.actions.find(action => action.index === 'edit'))"
-                        >
-                            <div class="mb-2 flex items-center justify-between">
-                                <!-- Mass Actions for Mobile Cards -->
-                                <div class="flex w-full items-center justify-between gap-2">
-                                    <p v-if="available.massActions.length">
-                                        <input
-                                            type="checkbox"
-                                            :name="`mass_action_select_record_${record.id}`"
-                                            :id="`mass_action_select_record_${record.id}`"
-                                            :value="record.id"
-                                            class="peer hidden"
-                                            v-model="applied.massActions.indices"
-                                            @click.stop
-                                        >
-
-                                        <label
-                                            class="icon-checkbox-outline peer-checked:icon-checkbox-select cursor-pointer rounded-md text-2xl !text-gray-500 peer-checked:!text-brandColor dark:!text-gray-300"
-                                            :for="`mass_action_select_record_${record.id}`"
-                                            @click.stop
-                                        ></label>
-                                    </p>
-
-                                    <!-- Dot Indicator -->
-                                    <span
-                                        class="h-1.5 w-1.5 rounded-full bg-sky-600 dark:bg-white"
-                                        v-if="! record.is_read"
-                                    ></span>
-                                </div>
-                            </div>
-
-                            <!-- Card Content -->
-                            <div class="grid gap-2">
-                                <template v-for="column in available.columns">
-                                    <div class="flex flex-wrap items-baseline gap-x-2">
-                                        <span 
-                                            :class="{'font-semibold': ! record.is_read}"
-                                            class="text-slate-600 dark:text-gray-300" 
-                                            v-html="column.label + ':'"
-                                        ></span>
-                                        <span                         
-                                            :class="{
-                                                'font-medium': record.is_read,
-                                                'font-semibold': ! record.is_read
-                                            }"
-                                            class="break-words text-slate-900 dark:text-white" 
-                                            v-html="record[column.index]"
-                                        ></span>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
+                            :key="record[available.meta.primary_column]"
+                            :record="record"
+                            :available="available"
+                            :applied="applied"
+                            @action="accion => accion.index === 'edit' ? (selectedMail = true, editModal(accion)) : performAction(accion)"
+                        ></v-datagrid-mobile-card>
                     </template>
                 </template>
             </x-admin::datagrid>

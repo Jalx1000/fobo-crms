@@ -301,6 +301,8 @@ return [
                 ],
             ],
             'table' => [
+                'ver-mas'   => 'بیشتر',
+                'ver-menos' => 'کمتر',
                 'actions'              => 'اقدامات',
                 'no-records-available' => 'رکوردی موجود نیست.',
             ],
@@ -489,6 +491,10 @@ return [
     'contacts' => [
         'persons' => [
             'index' => [
+                'filtros-movil' => [
+                    'registrados' => 'ثبت‌شده‌ها',
+                ],
+
                 'title'                  => 'اشخاص',
                 'create-btn'             => 'ایجاد شخص',
                 'create-success'         => 'شخص با موفقیت ایجاد شد.',
@@ -1758,6 +1764,23 @@ return [
             'text-generation-failed' => 'استخراج متن ناموفق بود. فایل ممکن است خالی یا غیرقابل خواندن باشد.',
         ],
         'index' => [
+            'filtros-movil' => [
+                'titulo'       => 'فیلترها',
+                'embudo'       => 'قیف فروش',
+                'periodo'      => 'دوره',
+                'desde'        => 'از',
+                'hasta'        => 'تا',
+                'vista'        => 'نما',
+                'kanban'       => 'کانبان',
+                'lista'        => 'فهرست',
+                'por-columna'  => 'فیلتر ستون‌ها',
+                'limpiar'      => 'پاک کردن تاریخ‌ها',
+                'mover'        => 'انتقال',
+                'mover-a'      => 'انتقال «:titulo» به…',
+                'etapa-actual' => 'مرحله فعلی',
+                'cancelar'     => 'لغو',
+            ],
+
             'title'      => 'سرنخ‌ها',
             'create-btn' => 'ایجاد سرنخ',
             'datagrid'   => [
@@ -1780,6 +1803,8 @@ return [
                 'mass-update'    => 'به‌روزرسانی گروهی',
             ],
             'kanban' => [
+                'error-conexion'         => 'ذخیره تغییر ممکن نشد. اتصال را بررسی کنید و دوباره تلاش کنید.',
+                'etapas' => 'مراحل',
                 'rotten-days'            => 'سرنخ برای :days روز خراب شده است',
                 'empty-list'             => 'لیست سرنخ‌های شما خالی است',
                 'empty-list-description' => 'یک سرنخ ایجاد کنید تا اهداف خود را سازماندهی کنید.',
@@ -2074,6 +2099,13 @@ return [
         ],
     ],
     'layouts' => [
+        'volver' => 'بازگشت به فهرست',
+
+        'mobile-nav' => [
+            'title' => 'ناوبری اصلی',
+            'more'  => 'بیشتر',
+        ],
+
         'app-version' => 'نسخه: :version',
         'dashboard'   => 'داشبورد',
         'leads'       => 'لیدها',

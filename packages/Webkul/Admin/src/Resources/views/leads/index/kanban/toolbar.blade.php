@@ -1,7 +1,8 @@
 {!! view_render_event('admin.leads.index.kanban.toolbar.before') !!}
 
-<div class="flex justify-between gap-2 max-md:flex-wrap">
-    <div class="flex w-full items-center gap-x-1.5 max-md:justify-between">
+{{-- Celular: banda blanca de borde a borde con el buscador y el botón «Filtros». --}}
+<div class="flex justify-between gap-2 max-lg:-mx-3 max-lg:border-b max-lg:border-gray-200 max-lg:bg-white max-lg:px-3 max-lg:py-2 max-md:flex-wrap dark:max-lg:border-gray-800 dark:max-lg:bg-gray-900">
+    <div class="flex w-full items-center gap-x-1.5 max-lg:flex-nowrap max-lg:gap-x-2">
         {!! view_render_event('admin.leads.index.kanban.toolbar.search.before') !!}
 
         <!-- Search Panel -->
@@ -11,15 +12,19 @@
 
         {!! view_render_event('admin.leads.index.kanban.toolbar.filter.before') !!}
 
-        <!-- Filter -->
+        <!-- Filter (en el celular su botón se esconde: se abre desde «Filtros») -->
         @include('admin::leads.index.kanban.filter')
+
+        <!-- Celular: embudo, fechas, filtros por columna y vista, en un panel lateral -->
+        @include('admin::leads.index.filtros-movil')
 
         {!! view_render_event('admin.leads.index.kanban.toolbar.filter.after') !!}
 
         {!! view_render_event('admin.leads.index.kanban.toolbar.date_range.before') !!}
 
-        <!-- Date Range Filter (rápidos + rango personalizado Desde/Hasta) -->
-        <div class="flex flex-wrap items-center gap-1.5">
+        <!-- Date Range Filter (rápidos + rango personalizado Desde/Hasta).
+             Celular: está en «Filtros». -->
+        <div class="flex flex-wrap items-center gap-1.5 max-lg:hidden">
             <template v-for="range in [
                 { value: '7', label: '@lang('admin::app.leads.index.kanban.toolbar.date-range.last-7-days')' },
                 { value: '30', label: '@lang('admin::app.leads.index.kanban.toolbar.date-range.last-30-days')' },
@@ -73,8 +78,10 @@
 
     {!! view_render_event('admin.leads.index.kanban.toolbar.switcher.before') !!}
 
-    <!-- View Switcher -->
-    @include('admin::leads.index.view-switcher')
+    <!-- View Switcher (en el celular, dentro de «Filtros») -->
+    <div class="max-lg:hidden lg:contents">
+        @include('admin::leads.index.view-switcher')
+    </div>
 
     {!! view_render_event('admin.leads.index.kanban.toolbar.switcher.after') !!}
 </div>

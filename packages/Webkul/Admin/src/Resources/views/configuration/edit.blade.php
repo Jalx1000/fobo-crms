@@ -21,7 +21,7 @@
             </p>
 
             <!-- Save Inventory -->
-            <div class="flex items-center gap-x-2.5">
+            <div class="flex items-center gap-x-2.5 max-lg:flex-wrap max-lg:gap-y-2">
                 {!! view_render_event('admin.configuration.edit.back_button.before') !!}
 
                 <!-- Back Button -->

@@ -6,6 +6,8 @@ module.exports = {
         "./src/Resources/**/*.blade.php",
         "./src/Resources/**/*.js",
         path.resolve(__dirname, "../Whatsapp/src/Resources/**/*.blade.php"),
+        // Las vistas de Doctores usan este CSS (el layout del Admin): sin esto, sus clases que no aparecen en el Admin se purgaban.
+        path.resolve(__dirname, "../Doctor/src/Resources/**/*.blade.php"),
     ],
 
     theme: {

@@ -15,10 +15,10 @@ class PersonResource extends JsonResource
      */
     public function toArray($request)
     {
-        $ciAttr = app(AttributeRepository::class)->findOneByField('code', 'ci_paciente');
+        $ciAttr = static::attribute('ci_paciente');
         $ci = $ciAttr ? $this->getCustomAttributeValue($ciAttr) : null;
 
-        $fechaAttr = app(AttributeRepository::class)->findOneByField('code', 'fecha_nacimiento');
+        $fechaAttr = static::attribute('fecha_nacimiento');
         $fecha = $fechaAttr ? $this->getCustomAttributeValue($fechaAttr) : null;
 
         return [
@@ -32,5 +32,17 @@ class PersonResource extends JsonResource
             'created_at'       => $this->created_at,
             'updated_at'       => $this->updated_at,
         ];
+    }
+
+    /**
+     * Definición del atributo, buscada una vez por proceso y no una por
+     * persona: en una colección (ej. el selector de paciente) eran dos
+     * consultas por fila. Los ids de estos atributos no cambian.
+     */
+    protected static function attribute(string $code)
+    {
+        static $attributes = [];
+
+        return $attributes[$code] ??= app(AttributeRepository::class)->findOneByField('code', $code);
     }
 }

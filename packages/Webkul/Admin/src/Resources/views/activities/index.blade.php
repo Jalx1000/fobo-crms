@@ -8,7 +8,7 @@
     <!-- Activities Datagrid -->
     <v-activities>
         <div class="flex flex-col gap-4">
-            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm max-lg:flex-wrap max-lg:gap-3 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                 <div class="flex flex-col gap-2">
                     <x-admin::breadcrumbs name="activities" />
 
@@ -47,14 +47,57 @@
 
     {!! view_render_event('admin.activities.index.activities.after') !!}
 
+    {{-- En <head> (pila "styles"): un <style> dentro del contenido lo descarta
+         Vue al montar #app, y la cabecera quedaba sin estos estilos. --}}
+    @push('styles')
+    <style>
+        /* Cabecera del Calendario. Escritorio: el título toma el espacio libre y
+           acciones + vista quedan juntas a la derecha. */
+        .act-head .act-head-title { flex: 1 1 auto; }
+        .act-head .act-head-right { display: flex; align-items: center; gap: 8px; }
+
+        /* Celular y tablet: sin borde gris, a lo ancho como leads, y en dos filas. */
+        @media (max-width: 1023px) {
+            .act-head {
+                display: grid; grid-template-columns: 1fr auto; gap: 10px;
+                margin: -12px -12px 0; padding: 12px; border: 0; border-radius: 0;
+            }
+            .act-head .act-head-right { display: contents; }
+            .act-head .act-head-title { grid-column: 1; grid-row: 1; }
+            .act-head .act-head-views { grid-column: 2; grid-row: 1; align-self: center; }
+            .act-head .act-head-actions {
+                grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+                gap: 8px; margin: 0;
+            }
+            /* Sin fondo gris a la vista: sin separación entre cabecera y
+               calendario, y el calendario de borde a borde. */
+            .act-page { gap: 0; }
+            .act-page > .act-body:has(.dwc-container) { margin: 0 -12px; }
+            .act-head .act-head-create {
+                display: inline-flex; align-items: center; justify-content: center;
+                height: 36px; padding: 0 12px; border: 0; border-radius: 8px; white-space: nowrap;
+            }
+        }
+
+        /* Celulares angostos (320px): que las tres acciones entren sin salirse. */
+        @media (max-width: 359px) {
+            .act-head .act-head-create, .act-head .ssc-btn { padding: 0 8px; font-size: 13px; }
+            .act-head .ssc-wrap { gap: 6px; }
+            .act-head .act-head-actions { gap: 6px; }
+        }
+    </style>
+    @endpush
+
     @pushOnce('scripts')
         <script
             type="text/x-template"
             id="v-activities-template"
         >
-            <div class="flex flex-col gap-4">
-                <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-                    <div class="flex flex-col gap-2">
+            <div class="act-page flex flex-col gap-4">
+                <!-- Cabecera: en el celular título + vista arriba y las tres acciones
+                     debajo, a lo ancho y sin bordes grises (estilos al final). -->
+                <div class="act-head flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                    <div class="act-head-title flex flex-col gap-2">
                         <x-admin::breadcrumbs name="activities" />
 
                         <div class="text-xl font-bold dark:text-white">
@@ -64,7 +107,9 @@
 
                     {!! view_render_event('admin.activities.index.toggle_view.before') !!}
 
-                    <div class="flex items-center gap-x-2.5">
+                    <!-- Acciones y selector de vista juntos a la derecha. -->
+                    <div class="act-head-right">
+                    <div class="act-head-actions flex items-center gap-x-2.5">
                         @if (bouncer()->hasPermission('activities'))
                             <v-smd-sync-control></v-smd-sync-control>
                         @endif
@@ -72,32 +117,33 @@
                         @if (bouncer()->hasPermission('leads.create'))
                             <a
                                 href="{{ route('admin.leads.create') }}"
-                                class="primary-button"
+                                class="primary-button act-head-create"
                             >
                                 @lang('admin::app.leads.index.create-btn')
                             </a>
                         @endif
+                    </div>
 
-                        <div class="flex">
-                            <i
-                                class="icon-list cursor-pointer rounded-md p-2 text-2xl"
-                                :class="{'bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-white': viewType == 'table'}"
-                                @click="toggleView('table')"
-                            ></i>
+                    <div class="act-head-views flex">
+                        <i
+                            class="icon-list cursor-pointer rounded-md p-2 text-2xl"
+                            :class="{'bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-white': viewType == 'table'}"
+                            @click="toggleView('table')"
+                        ></i>
 
-                            <i
-                                class="icon-calendar cursor-pointer rounded-md p-2 text-2xl"
-                                :class="{'bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-white': viewType == 'calendar'}"
-                                @click="toggleView('calendar')"
-                            ></i>
-                        </div>
+                        <i
+                            class="icon-calendar cursor-pointer rounded-md p-2 text-2xl"
+                            :class="{'bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-white': viewType == 'calendar'}"
+                            @click="toggleView('calendar')"
+                        ></i>
+                    </div>
                     </div>
 
                     {!! view_render_event('admin.activities.index.toggle_view.after') !!}
                 </div>
 
                 <!-- DataGrid Shimmer -->
-                <div>
+                <div class="act-body">
                     <template v-if="viewType == 'table'">
                         {!! view_render_event('admin.activities.index.datagrid.before') !!}
 
@@ -354,57 +400,15 @@
                                         </div>
                                     </div>
 
-                                    <!-- Mobile Card View -->
-                                    <div
-                                        class="hidden border-b px-4 py-4 text-black dark:border-gray-800 dark:text-gray-300 max-lg:block"
+                                    <!-- Mobile Card View: componente compartido (datagrid/mobile-card). -->
+                                    <v-datagrid-mobile-card
                                         v-for="record in available.records"
-                                    >
-                                        <div class="mb-2 flex items-center justify-between">
-                                            <!-- Mass Actions for Mobile Cards -->
-                                            <div class="flex w-full items-center justify-between gap-2">
-                                                <p v-if="available.massActions.length">
-                                                    <label :for="`mass_action_select_record_${record[available.meta.primary_column]}`">
-                                                        <input
-                                                            type="checkbox"
-                                                            :name="`mass_action_select_record_${record[available.meta.primary_column]}`"
-                                                            :value="record[available.meta.primary_column]"
-                                                            :id="`mass_action_select_record_${record[available.meta.primary_column]}`"
-                                                            class="peer hidden"
-                                                            v-model="applied.massActions.indices"
-                                                        >
-
-                                                        <span class="icon-checkbox-outline peer-checked:icon-checkbox-select cursor-pointer rounded-md text-2xl text-gray-500 peer-checked:text-brandColor">
-                                                        </span>
-                                                    </label>
-                                                </p>
-
-                                                <!-- Actions for Mobile -->
-                                                <div
-                                                    class="flex w-full items-center justify-end"
-                                                    v-if="available.actions.length"
-                                                >
-                                                    <span
-                                                        class="dark:hover:bg-gray-80 cursor-pointer rounded-md p-1.5 text-2xl transition-all hover:bg-gray-200"
-                                                        :class="action.icon"
-                                                        v-text="! action.icon ? action.title : ''"
-                                                        v-for="action in record.actions"
-                                                        @click="performAction(action)"
-                                                    >
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <!-- Card Content -->
-                                        <div class="grid gap-2">
-                                            <template v-for="column in available.columns">
-                                                <div class="flex flex-wrap items-baseline gap-x-2">
-                                                    <span class="text-slate-600 dark:text-gray-300" v-html="column.label + ':'"></span>
-                                                    <span class="break-words font-medium text-slate-900 dark:text-white" v-html="record[column.index]"></span>
-                                                </div>
-                                            </template>
-                                        </div>
-                                    </div>
+                                        :key="record[available.meta.primary_column]"
+                                        :record="record"
+                                        :available="available"
+                                        :applied="applied"
+                                        @action="performAction"
+                                    ></v-datagrid-mobile-card>
                                 </template>
                             </template>
                         </x-admin::datagrid>
