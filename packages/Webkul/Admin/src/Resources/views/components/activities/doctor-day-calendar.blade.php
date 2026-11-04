@@ -337,12 +337,15 @@
                 </div>
 
                 <div class="dwc-days-stack" :style="{ height: dayHeight + 'px' }">
-                    <div class="dwc-day-block" :style="{ height: dayHeight + 'px', borderBottom: 'none' }" @click="onDayClick($event, day, columns[0].id)">
+                    <div class="dwc-day-block" :style="{ height: dayHeight + 'px', borderBottom: 'none' }" @click="onDayClick($event, day, columns[0].id)" @mousemove="onDaySlotHover($event, day.date, columns[0].id)" @mouseleave="hoverSlot.key = null">
                         <!-- Availability -->
-                        <div v-for="av in getDoctorAvailability(day.date, columns[0].id)" :key="'av-sd-'+av.id" 
-                                class="dwc-availability-block" 
+                        <div v-for="av in getDoctorAvailability(day.date, columns[0].id)" :key="'av-sd-'+av.id"
+                                class="dwc-availability-block"
                                 :style="{ top: av.top + 'px', height: av.height + 'px' }">
                         </div>
+
+                        <!-- Slot de 15 min bajo el cursor -->
+                        <div v-if="hoverSlot.key === (day.date + '|' + columns[0].id)" class="dwc-hover-slot" :style="{ top: hoverSlot.top + 'px', height: (hourHeight / 4) + 'px' }"></div>
 
                         <!-- Lines -->
                         <div v-for="idx in 53" :key="'line-sd-'+idx" class="dwc-hour-line" :class="{ 'is-quarter': (idx - 1) % 4 !== 0 }" :style="{ top: ((idx - 1) * hourHeight / 4) + 'px' }"></div>
@@ -407,11 +410,14 @@
                     </div>
 
                     <div class="dwc-days-stack" :style="{ height: totalHeight + 'px' }">
-                        <div v-for="(day, di) in days" :key="'day-'+di" class="dwc-day-block" :style="{ height: dayHeight + 'px' }" @click="onDayClick($event, day, col.id)">
-                            <div v-for="av in getDoctorAvailability(day.date, col.id)" :key="'av-'+av.id" 
-                                 class="dwc-availability-block" 
+                        <div v-for="(day, di) in days" :key="'day-'+di" class="dwc-day-block" :style="{ height: dayHeight + 'px' }" @click="onDayClick($event, day, col.id)" @mousemove="onDaySlotHover($event, day.date, col.id)" @mouseleave="hoverSlot.key = null">
+                            <div v-for="av in getDoctorAvailability(day.date, col.id)" :key="'av-'+av.id"
+                                 class="dwc-availability-block"
                                  :style="{ top: av.top + 'px', height: av.height + 'px' }">
                             </div>
+
+                            <!-- Slot de 15 min bajo el cursor -->
+                            <div v-if="hoverSlot.key === (day.date + '|' + col.id)" class="dwc-hover-slot" :style="{ top: hoverSlot.top + 'px', height: (hourHeight / 4) + 'px' }"></div>
 
                             <div v-for="idx in 53" :key="'line-'+di+'-'+idx" class="dwc-hour-line" :class="{ 'is-quarter': (idx - 1) % 4 !== 0 }" :style="{ top: ((idx - 1) * hourHeight / 4) + 'px' }"></div>
 
@@ -1622,6 +1628,7 @@
                 specialties: [],
                 specialtyFilter: '',
                 statusFilter: '',
+                hoverSlot: { key: null, top: 0 },
                 selectedDoctorIds: [],
                 doctorFilterInitialized: false,
                 patientSearch: '',
@@ -2625,6 +2632,23 @@
             },
             totalCount(doctorId) {
                 return this.appointments.filter(a => String(a.doctor_id) === String(doctorId)).length;
+            },
+            /**
+             * Resalta el slot de 15 min bajo el cursor mientras se pasa el mouse
+             * por una columna del día (feedback de dónde caería la cita).
+             */
+            onDaySlotHover(e, dateStr, doctorId) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const yLocal = e.clientY - rect.top;
+                const slotH = this.hourHeight / 4;
+                const idx = Math.floor(yLocal / slotH);
+                const maxIdx = 13 * 4 - 1; // 13 horas en slots de 15 min
+                const clamped = Math.max(0, Math.min(maxIdx, idx));
+
+                this.hoverSlot = {
+                    key: dateStr + '|' + doctorId,
+                    top: clamped * slotH,
+                };
             },
             onDayClick(e, day, doctorId) {
                 const container = e.currentTarget;
@@ -4000,6 +4024,18 @@
         background: transparent;
         border-top: 1px dashed var(--grid-line);
         opacity: 0.55;
+    }
+
+    /* Slot de 15 min resaltado bajo el cursor. No captura el mouse para no
+       interferir con el click ni con el mousemove de la columna. */
+    .dwc-hover-slot {
+        position: absolute;
+        left: 0;
+        right: 0;
+        background: rgba(59, 130, 246, 0.14);
+        box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.45);
+        pointer-events: none;
+        z-index: 2;
     }
 
     .dwc-event {
