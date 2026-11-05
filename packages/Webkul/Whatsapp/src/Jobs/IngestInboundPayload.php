@@ -177,10 +177,16 @@ class IngestInboundPayload implements ShouldQueue
 
         $yaHabiaFallado = $message->status === 'failed';
 
-        $message->update(['status' => $update->status]);
+        $motivo = $update->status === 'failed' ? NotifyMensajeFallido::motivoDeMeta($update->errors) : null;
 
-        if ($update->status === 'failed' && ! $yaHabiaFallado) {
-            NotifyMensajeFallido::dispatch($message->id, NotifyMensajeFallido::motivoDeMeta($update->errors))
+        // El motivo queda en el mensaje: el mail puede no salir y Meta no lo repite.
+        $message->update(array_filter([
+            'status' => $update->status,
+            'error'  => $motivo,
+        ]));
+
+        if ($motivo && ! $yaHabiaFallado) {
+            NotifyMensajeFallido::dispatch($message->id, $motivo)
                 ->onQueue(config('whatsapp.queue'));
         }
     }

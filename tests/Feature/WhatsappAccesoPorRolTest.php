@@ -171,3 +171,40 @@ it('registra el rechazo del agente con su status y su cuerpo', function () {
             && str_contains($contexto['respuesta'] ?? '', 'Unauthorized')
             && ($contexto['conversation_id'] ?? null) === $conv->id);
 });
+
+/*
+ * El motivo de un envío fallido es técnico: lo ven sólo los Administradores. Los demás
+ * ven que falló por el estado, pero el motivo ni siquiera les llega en la respuesta.
+ */
+function conversacionConMensajeFallido(): object
+{
+    $conversacion = Webkul\Whatsapp\Models\ConversationProxy::modelClass()::create([
+        'gateway' => 'cloud_api', 'wa_phone' => '+5493880000'.random_int(100, 999), 'wa_name' => 'Prueba',
+    ]);
+
+    Webkul\Whatsapp\Models\Message::create([
+        'conversation_id' => $conversacion->id, 'direction' => 'outbound', 'type' => 'text', 'body' => 'Hola',
+        'status' => 'failed', 'sender' => 'ia', 'error' => '131026 — Message undeliverable',
+    ]);
+
+    return $conversacion;
+}
+
+it('un administrador ve el motivo de un envío fallido', function () {
+    $conversacion = conversacionConMensajeFallido();
+
+    test()->actingAs(getDefaultAdmin(), 'user')
+        ->getJson(route('admin.whatsapp.thread', ['conversation_id' => $conversacion->id]))
+        ->assertOk()
+        ->assertSee('131026');
+});
+
+it('un usuario que no es administrador ve que falló, pero no el motivo', function () {
+    $conversacion = conversacionConMensajeFallido();
+
+    test()->actingAs(usuarioConPermisos(['dashboard', 'whatsapp']), 'user')
+        ->getJson(route('admin.whatsapp.thread', ['conversation_id' => $conversacion->id]))
+        ->assertOk()
+        ->assertSee('failed')
+        ->assertDontSee('131026');
+});

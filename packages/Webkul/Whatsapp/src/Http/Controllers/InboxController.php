@@ -717,6 +717,11 @@ class InboxController extends Controller
         return ConversationLocator::desde($request);
     }
 
+    protected function veMotivoDeFallo(): bool
+    {
+        return auth()->guard('user')->user()?->role?->permission_type === 'all';
+    }
+
     /**
      * Shape a message for the inbox front-end.
      */
@@ -729,7 +734,8 @@ class InboxController extends Controller
             'text'      => $message->body,
             'sender'    => $message->sender,
             'status'    => $message->status,
-            'error'     => $message->error,
+            // El motivo técnico es para Administradores; los demás ven sólo que falló.
+            'error'     => $this->veMotivoDeFallo() ? $message->error : null,
             'time'      => optional($message->created_at)->format('H:i'),
             'date'      => optional($message->created_at)->toDateString(), // Y-m-d, for day separators
             'timestamp' => optional($message->created_at)->toIso8601String(),

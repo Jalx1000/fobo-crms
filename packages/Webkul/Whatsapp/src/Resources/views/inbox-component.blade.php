@@ -411,7 +411,7 @@
 
                             <div v-else class="italic text-gray-500">Tipo no soportado</div>
 
-                            <!-- why it failed: the agent is who needs this, not the log -->
+                            <!-- por qué falló: el backend sólo lo manda a los Administradores -->
                             <div v-if="msg.status === 'failed' && msg.error"
                                  class="mt-1 rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
                                 <span class="font-semibold">No se envió:</span> @{{ msg.error }}

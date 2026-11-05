@@ -85,6 +85,12 @@ return [
     'timezone' => env('APP_TIMEZONE', 'Asia/Kolkata'),
 
     /*
+    | País con el que se completan los teléfonos cargados sin código (PhoneNumber).
+    | `AR` es el único soportado; sin definir, los números quedan como se cargaron.
+    */
+    'phone_default_country' => env('PHONE_DEFAULT_COUNTRY'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------

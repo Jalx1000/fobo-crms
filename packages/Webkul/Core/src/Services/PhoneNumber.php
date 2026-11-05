@@ -21,12 +21,39 @@ class PhoneNumber
 
     /**
      * Normalize to a simple E.164-ish string ("+<digits>").
+     *
+     * Lo que ya viene con "+" no se toca: es un número internacional, y también es
+     * como están guardadas las conversaciones, que se buscan por coincidencia exacta.
      */
     public static function normalize(?string $value): string
     {
         $digits = self::digits($value);
 
-        return $digits === '' ? '' : '+'.$digits;
+        if ($digits === '') {
+            return '';
+        }
+
+        return '+'.(str_starts_with(ltrim((string) $value), '+') ? $digits : self::conPais($digits));
+    }
+
+    /**
+     * Completa el país de un número cargado a mano, según PHONE_DEFAULT_COUNTRY. Sin
+     * esto, "388 576-3067" sale como +388…, que para WhatsApp no es Argentina, y Meta
+     * rechaza el envío. Sin la variable no hace nada: Core lo comparten CRMs de otros
+     * países. Sólo cubre las formas sin ambigüedad; el resto queda como vino.
+     */
+    protected static function conPais(string $digits): string
+    {
+        if (config('app.phone_default_country') !== 'AR') {
+            return $digits;
+        }
+
+        return match (true) {
+            (bool) preg_match('/^[123]\d{9}$/', $digits)    => '549'.$digits,             // 388 576-3067
+            (bool) preg_match('/^0[123]\d{9}$/', $digits)   => '549'.substr($digits, 1),  // 0388 576-3067
+            (bool) preg_match('/^54[123]\d{9}$/', $digits)  => '549'.substr($digits, 2),  // 54 388 576-3067
+            default                                         => $digits,
+        };
     }
 
     /**
