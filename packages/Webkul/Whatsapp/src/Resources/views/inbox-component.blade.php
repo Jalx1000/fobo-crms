@@ -406,6 +406,12 @@
                             -->
                             <div v-else-if="msg.type === 'template'">
                                 <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide opacity-60">Plantilla</span>
+                                <!-- El archivo del encabezado, para ver lo mismo que recibió el cliente. -->
+                                <template v-if="msg.encabezado">
+                                    <video v-if="msg.encabezado.format === 'VIDEO'" controls preload="metadata" :src="msg.encabezado.url" class="mb-1 max-h-56 rounded-md"></video>
+                                    <img v-else-if="msg.encabezado.format === 'IMAGE'" :src="msg.encabezado.url" class="mb-1 max-h-56 rounded-md" alt="encabezado de la plantilla">
+                                    <a v-else :href="msg.encabezado.url" target="_blank" rel="noopener" class="mb-1 block underline">Ver archivo adjunto</a>
+                                </template>
                                 <div class="whitespace-pre-wrap break-words" v-html="formatText(msg.text)"></div>
                             </div>
 

@@ -745,12 +745,35 @@ class InboxController extends Controller
                 'meta'     => $message->media_mime,
             ] : null,
             'location'    => $this->locationOf($message),
+            'encabezado'  => $this->encabezadoDe($message),
             'interactive' => $this->interactiveOf($message),
             'reaction'    => $this->reactionOf($message),
             'replyTo'     => $message->replyTo ? [
                 'author'  => $message->replyTo->direction === 'inbound' ? 'Cliente' : 'Agente',
                 'preview' => \Illuminate\Support\Str::limit((string) $message->replyTo->body, 60),
             ] : null,
+        ];
+    }
+
+    /**
+     * El archivo con el que salió una plantilla (video, imagen o documento).
+     *
+     * El cliente lo recibe, pero el hilo mostraba sólo el texto: parecía que la
+     * plantilla había salido sin video. Está en el payload, que es lo que se envió.
+     *
+     * @return array{format:string, url:string}|null
+     */
+    protected function encabezadoDe($message): ?array
+    {
+        $encabezado = $message->type === 'template' ? ($message->payload['header'] ?? null) : null;
+
+        if (empty($encabezado['link'])) {
+            return null;
+        }
+
+        return [
+            'format' => strtoupper((string) ($encabezado['format'] ?? '')),
+            'url'    => (string) $encabezado['link'],
         ];
     }
 
