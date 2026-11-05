@@ -563,7 +563,7 @@
                         </div>
                     </div>
 
-                    <div v-if="appointmentForm.person.id" class="col-span-2 border rounded-lg p-3 dark:border-gray-700">
+                    <div v-if="insuranceEnabled && appointmentForm.person.id" class="col-span-2 border rounded-lg p-3 dark:border-gray-700">
                         <div class="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">Seguro médico</div>
                         <div class="grid grid-cols-2 gap-2">
                             <div class="flex flex-col gap-1">
@@ -892,7 +892,7 @@
                     </div>
 
                     <!-- Seguro médico del paciente (ver + agregar/editar) -->
-                    <div v-if="viewAppointment.data.person_id">
+                    <div v-if="insuranceEnabled && viewAppointment.data.person_id">
                         <div class="mb-1.5 flex items-center justify-between">
                             <p class="text-xs font-medium uppercase text-gray-400">Seguro médico</p>
                             <button type="button" v-if="!apptInsurance.editing" @click="startEditApptInsurance"
@@ -1072,7 +1072,7 @@
                             </div>
 
                             <!-- Seguro médico del paciente (editable; persiste en la ficha del paciente) -->
-                            <div class="col-span-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                            <div v-if="insuranceEnabled" class="col-span-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
                                 <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Seguro médico</p>
                                 <div class="flex flex-col gap-2">
                                     <div class="flex flex-col gap-1">
@@ -1785,6 +1785,9 @@
                 hoveredEvent: null,
                 tooltipPos: { top: 0, left: 0 },
                 scheduleStoreUrl: "{{ route('admin.schedules.store') }}",
+                // Tessa no maneja seguros: la UI de seguro del calendario se oculta con esta flag
+                // (misma feature flag que usa el resto del CRM). Reactivar con TESSA_INSURANCE_SMD=true.
+                insuranceEnabled: @json((bool) config('tessa.features.insurance_smd')),
                 insuranceOptionsUrl: "{{ route('admin.contacts.persons.insurance_options') }}",
                 verifyInsuranceQuickUrl: "{{ route('admin.contacts.persons.verify_insurance_quick') }}",
                 insuranceStatusUrlTemplate: "{{ route('admin.contacts.persons.insurance_status', 'replaceId') }}",
@@ -2007,6 +2010,7 @@
         },
         methods: {
             loadInsuranceOptions() {
+                if (!this.insuranceEnabled) return;
                 this.$axios.get(this.insuranceOptionsUrl)
                     .then(r => { this.insuranceOptions = r.data.options || []; })
                     .catch(() => {});
@@ -2054,6 +2058,7 @@
 
             // Carga el seguro guardado del paciente de la cita abierta.
             loadApptInsurance(personId) {
+                if (!this.insuranceEnabled) return;
                 this.apptInsurance.editing = false;
                 this.apptInsurance.result = null;
                 this.apptInsurance.ci = '';
