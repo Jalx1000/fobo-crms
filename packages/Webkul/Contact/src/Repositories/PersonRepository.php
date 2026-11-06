@@ -107,7 +107,22 @@ class PersonRepository extends Repository
     {
         $data = $this->sanitizeRequestedPersonData($data, $id);
 
-        $data['user_id'] = empty($data['user_id']) ? null : $data['user_id'];
+        /*
+         * El asesor sólo cambia si el pedido lo trae. Antes se ponía en null cuando no
+         * venía, así que cualquier guardado parcial —el agente corrigiendo el nombre, el
+         * Punto, una automatización— le borraba el distribuidor al cliente, y en su
+         * siguiente pedido el reparto lo mandaba al responsable.
+         *
+         * Por la API tampoco se vacía: el agente entra con un token y un user_id vacío
+         * no es una decisión de nadie. Quitarle el asesor queda para el formulario.
+         */
+        if (array_key_exists('user_id', $data) && empty($data['user_id'])) {
+            if (request()->is('api/*')) {
+                unset($data['user_id']);
+            } else {
+                $data['user_id'] = null;
+            }
+        }
 
         if (! empty($data['organization_name'])) {
             $organization = $this->fetchOrCreateOrganizationByName($data['organization_name']);
