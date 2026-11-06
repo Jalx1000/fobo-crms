@@ -13,10 +13,12 @@ use Webkul\Distribuidor\Models\EntregaProxy;
 use Webkul\Distribuidor\Models\PagoProxy;
 use Webkul\Distribuidor\Repositories\PagoRepository;
 use Webkul\Distribuidor\Services\Alcance;
+use Webkul\Distribuidor\Services\Bidones;
 use Webkul\Distribuidor\Services\Catalogo;
 use Webkul\Distribuidor\Services\Clientes;
 use Webkul\Distribuidor\Services\Geocodificador;
 use Webkul\Distribuidor\Services\PuntoPedido;
+use Webkul\Distribuidor\Services\Recordatorios;
 use Webkul\Distribuidor\Services\RegistroDeEdicion;
 use Webkul\Distribuidor\Services\RegistroDeEntrega;
 use Webkul\Distribuidor\Services\Ubicacion;
@@ -41,6 +43,8 @@ class PuntoController extends Controller
         protected Ubicacion $ubicacion,
         protected Clientes $clientes,
         protected Distribuidores $distribuidores,
+        protected Bidones $bidones,
+        protected Recordatorios $recordatorios,
     ) {}
 
     /*
