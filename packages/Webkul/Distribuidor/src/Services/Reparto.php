@@ -4,7 +4,6 @@ namespace Webkul\Distribuidor\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Webkul\Core\Services\AsignacionDeAsesor;
 use Webkul\Core\Services\Distribuidores;
 use Webkul\Lead\Services\CitySyncService;
 
@@ -130,11 +129,12 @@ class Reparto
         $dueno = $this->duenoPara($personId, $pipelineId, $preferido);
 
         /*
-         * El cliente es de un encargado porque alguien lo decidió (Huascar se queda un
-         * cliente, por ejemplo). Cada update del pedido pasa por acá, así que sin esto
-         * el siguiente cambio de etapa le sacaba el pedido y se lo daba al responsable.
+         * Alguien eligió a este asesor para el cliente, aunque no reparta en esta ciudad
+         * (Huascar se queda un cliente, o se lo da a un distribuidor de otra zona). Cada
+         * update del pedido pasa por acá, así que sin esto el siguiente cambio de etapa
+         * le sacaba el pedido y se lo daba al responsable.
          */
-        if (! $dueno && $this->esDelEncargadoDelCliente($actual, $personId)) {
+        if (! $dueno && $this->esAsesorElegidoDelCliente($lead, $actual, $personId)) {
             return $actual;
         }
 
@@ -239,13 +239,15 @@ class Reparto
     }
 
     /**
-     * Si el dueño del pedido es también el dueño del cliente y tiene rol de encargado.
-     * Un pedido a nombre de un administrador o del token del agente no cuenta: esos
-     * siguen yendo al responsable, donde alguien los mira.
+     * Si el dueño del pedido es también el dueño del cliente y su rol atiende pedidos.
+     *
+     * Un administrador o el token del agente no cuentan: esos siguen yendo al
+     * responsable, donde alguien los mira. Un pedido nuevo o que acaba de mudarse de
+     * ciudad tampoco: ahí sí le toca decidir al reparto.
      */
-    protected function esDelEncargadoDelCliente(?int $userId, ?int $personId): bool
+    protected function esAsesorElegidoDelCliente($lead, ?int $userId, ?int $personId): bool
     {
-        if (! $userId || ! $personId) {
+        if (! $userId || ! $personId || $lead->wasRecentlyCreated || $lead->wasChanged('lead_pipeline_id')) {
             return false;
         }
 
@@ -253,9 +255,11 @@ class Reparto
             return false;
         }
 
-        $roleId = DB::table('users')->where('id', $userId)->value('role_id');
-
-        return app(AsignacionDeAsesor::class)->esRolEncargado($roleId ? (int) $roleId : null);
+        return DB::table('users')
+            ->join('roles', 'roles.id', '=', 'users.role_id')
+            ->where('users.id', $userId)
+            ->whereIn('roles.name', (array) config('attribute_lookups.distribuidores.role'))
+            ->exists();
     }
 
     /** @return int Cuántos pedidos se movieron. */

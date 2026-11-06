@@ -88,7 +88,7 @@ class PedidoChatController extends Controller
         $disponibles = array_column($this->pedidos->asesoresDe((int) $lead->lead_pipeline_id), 'id');
 
         if (! in_array((int) $data['user_id'], $disponibles, true)) {
-            throw ValidationException::withMessages(['user_id' => 'Ese asesor no atiende esta ciudad.']);
+            throw ValidationException::withMessages(['user_id' => 'Ese usuario no puede ser asesor de este pedido.']);
         }
 
         $person = $lead->person_id ? PersonProxy::modelClass()::find($lead->person_id) : null;

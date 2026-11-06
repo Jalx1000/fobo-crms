@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\DB;
 use Webkul\Admin\Support\VisibilidadLeads;
 use Webkul\Core\Services\AlcanceCiudades;
 use Webkul\Core\Services\AsignacionDeAsesor;
-use Webkul\Core\Services\Distribuidores;
 use Webkul\Lead\Models\LeadProxy;
 use Webkul\Lead\Services\CitySyncService;
 use Webkul\Whatsapp\Models\ConversationProxy;
@@ -29,7 +28,6 @@ class PedidosDelChat
     public function __construct(
         protected AlcanceCiudades $alcance,
         protected AsignacionDeAsesor $asignacion,
-        protected Distribuidores $distribuidores,
     ) {}
 
     /**
@@ -114,33 +112,26 @@ class PedidosDelChat
     }
 
     /**
-     * A quién se le puede dar un pedido de esa ciudad: sus distribuidores y los
-     * encargados que la ven. Un distribuidor de otra ciudad no: el reparto se lo
-     * sacaría en el siguiente guardado. Administradores tampoco, igual que en
-     * "Asesor Asignado": no atienden pedidos.
+     * A quién se le puede dar un pedido: los mismos roles que "Asesor Asignado", así
+     * que todos los distribuidores activos, atiendan o no esa ciudad. Un encargado
+     * sólo si ve la ciudad: si no, el pedido quedaría a nombre de alguien que no lo
+     * encuentra. Administradores no: no atienden pedidos.
      *
      * @return array<int, array{id:int, name:string}>
      */
     public function asesoresDe(int $pipelineId): array
     {
-        return $this->asesoresPorCiudad[$pipelineId] ??= (function () use ($pipelineId) {
-            $encargados = DB::table('users')
-                ->join('roles', 'roles.id', '=', 'users.role_id')
-                ->where('users.status', 1)
-                ->where('roles.name', AsignacionDeAsesor::ROL_ENCARGADO)
-                ->pluck('users.id')
-                ->map(fn ($id) => (int) $id)
-                ->filter(fn ($id) => ! $this->distribuidores->esDistribuidor($id) && $this->alcance->puedeVer($pipelineId, $id));
-
-            $ids = array_values(array_unique([...$this->distribuidores->deCiudad($pipelineId), ...$encargados]));
-
-            return DB::table('users')
-                ->whereIn('id', $ids)
-                ->orderBy('name')
-                ->get(['id', 'name'])
-                ->map(fn ($usuario) => ['id' => (int) $usuario->id, 'name' => (string) $usuario->name])
-                ->all();
-        })();
+        return $this->asesoresPorCiudad[$pipelineId] ??= DB::table('users')
+            ->join('roles', 'roles.id', '=', 'users.role_id')
+            ->where('users.status', 1)
+            ->whereIn('roles.name', (array) config('attribute_lookups.distribuidores.role'))
+            ->orderBy('users.name')
+            ->get(['users.id', 'users.name', 'roles.name as rol'])
+            ->filter(fn ($usuario) => $usuario->rol !== AsignacionDeAsesor::ROL_ENCARGADO
+                || $this->alcance->puedeVer($pipelineId, (int) $usuario->id))
+            ->map(fn ($usuario) => ['id' => (int) $usuario->id, 'name' => (string) $usuario->name])
+            ->values()
+            ->all();
     }
 
     /**

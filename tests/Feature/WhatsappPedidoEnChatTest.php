@@ -223,7 +223,7 @@ it('asignar a un encargado se lleva al cliente y resiste el siguiente cambio de 
     expect((int) DB::table('leads')->where('id', $leadId)->value('user_id'))->toBe((int) $destino->id);
 });
 
-it('no asigna a quien no atiende la ciudad del pedido', function () {
+it('no asigna a quien no tiene un rol que atienda pedidos', function () {
     $habilitado = chatUsuario([], true, AsignacionDeAsesor::ROL_ENCARGADO);
     $ajeno = chatUsuario($this->permisosChat);
     $leadId = chatPedido(chatCliente(), $this->inicial);
@@ -232,6 +232,44 @@ it('no asigna a quien no atiende la ciudad del pedido', function () {
         ->patchJson(route('admin.whatsapp.pedido.asesor', $leadId), ['user_id' => $ajeno->id])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('user_id');
+});
+
+it('ofrece y conserva a un distribuidor de otra ciudad al cambiar la etapa', function () {
+    $otraCiudad = DB::table('lead_pipelines')->where('id', '!=', $this->inicial->lead_pipeline_id)->value('id');
+
+    if (! $otraCiudad || ! DB::table('roles')->where('name', 'Distribuidor')->exists()) {
+        $this->markTestSkipped('Hace falta otra ciudad y el rol Distribuidor.');
+    }
+
+    $habilitado = chatUsuario([], true, AsignacionDeAsesor::ROL_ENCARGADO);
+    $distribuidor = chatUsuario([], false, 'Distribuidor');
+
+    DB::table('distribuidor_zonas')->insert([
+        'user_id'          => $distribuidor->id,
+        'lead_pipeline_id' => $otraCiudad,
+        'created_at'       => now(),
+        'updated_at'       => now(),
+    ]);
+
+    $personId = chatCliente();
+    $leadId = chatPedido($personId, $this->inicial);
+
+    test()->actingAs($habilitado, 'user')
+        ->getJson(route('admin.whatsapp.pedido.index', $personId))
+        ->assertOk()
+        ->assertJsonFragment(['id' => (int) $distribuidor->id, 'name' => $distribuidor->name]);
+
+    test()->actingAs($habilitado, 'user')
+        ->patchJson(route('admin.whatsapp.pedido.asesor', $leadId), ['user_id' => $distribuidor->id])
+        ->assertOk();
+
+    test()->actingAs($habilitado, 'user')
+        ->putJson(route('admin.leads.stage.update', $leadId), [
+            'lead_pipeline_stage_id' => $this->inicial->id,
+        ])
+        ->assertOk();
+
+    expect((int) DB::table('leads')->where('id', $leadId)->value('user_id'))->toBe((int) $distribuidor->id);
 });
 
 it('cambiar la ciudad mueve el pedido y lleva la etapa a su equivalente', function () {
