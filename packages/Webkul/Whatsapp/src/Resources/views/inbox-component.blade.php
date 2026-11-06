@@ -7,6 +7,8 @@
     $waMoneda = \Webkul\Whatsapp\Support\Currency::symbol();
 @endphp
 
+@include('whatsapp::pedido-chat')
+
 @pushOnce('scripts')
     <style>
         .wa-scroll::-webkit-scrollbar { width: 6px; }
@@ -128,6 +130,15 @@
                     </span>
                 </label>
             </div>
+
+            <!-- Pedido del cliente: fuera de la cabecera clicable a propósito. -->
+            <v-whatsapp-pedido v-if="context.personId && !useMock"
+                               :person-id="Number(context.personId)"
+                               :conversation-id="conversationId"
+                               :lead-id="context.leadId ? Number(context.leadId) : null"
+                               :refresh-key="`${messages.length}-${profile?.leads?.length ?? 0}`"
+                               @crear="profileTab = 'pedidos'; leadFormOpen = true; if (!profileOpen) openProfile()">
+            </v-whatsapp-pedido>
 
             <!-- Messages -->
             <div class="relative" :class="fullHeight ? 'flex min-h-0 flex-1 flex-col' : ''">

@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Webkul\Whatsapp\Http\Controllers\ChatController;
 use Webkul\Whatsapp\Http\Controllers\InboxController;
+use Webkul\Whatsapp\Http\Controllers\PedidoChatController;
 use Webkul\Whatsapp\Http\Controllers\QuickReplyController;
 
 /*
@@ -53,6 +54,22 @@ Route::controller(ChatController::class)
         Route::get('products', 'products')->name('products');
         Route::get('stages', 'stages')->name('stages');
         Route::get('cities', 'cities')->name('cities');
+    });
+
+/*
+ * Gestión del pedido desde el chat. Sin whatsapp_scope: acá {id} es una persona o un
+ * pedido, y ese middleware lo leería como conversación. El alcance lo valida el
+ * controlador con VisibilidadLeads, la misma regla que la ficha del pedido. La etapa
+ * y la cancelación usan admin.leads.stage.update, igual que el kanban.
+ */
+Route::controller(PedidoChatController::class)
+    ->prefix('whatsapp')
+    ->name('admin.whatsapp.pedido.')
+    ->group(function () {
+        Route::get('persons/{id}/pedidos', 'index')->name('index');
+        Route::post('pedidos/{id}/entrega', 'entregar')->name('entrega');
+        Route::patch('pedidos/{id}/asesor', 'asesor')->name('asesor');
+        Route::patch('pedidos/{id}/ciudad', 'ciudad')->name('ciudad');
     });
 
 Route::controller(QuickReplyController::class)

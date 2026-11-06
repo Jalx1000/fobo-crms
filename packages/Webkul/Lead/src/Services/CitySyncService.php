@@ -196,7 +196,7 @@ class CitySyncService
      * Traduce una etapa al pipeline destino usando su `code`, que es común a todos
      * los pipelines. Si no hay equivalente, cae en la primera etapa del destino.
      */
-    private function mapStageToPipeline(?int $stageId, int $pipelineId): ?int
+    public function mapStageToPipeline(?int $stageId, int $pipelineId): ?int
     {
         $stageModel = StageProxy::modelClass();
 

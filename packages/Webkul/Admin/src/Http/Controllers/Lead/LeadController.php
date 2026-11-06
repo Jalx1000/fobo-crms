@@ -677,6 +677,9 @@ class LeadController extends Controller
 
         $lead = $this->leadRepository->findOrFail($id);
 
+        // El permiso dice si puede mover etapas; esto, si ESTE pedido es de su alcance.
+        abort_unless(VisibilidadLeads::puedeVer($lead), 403, 'Ese pedido no está en tu alcance.');
+
         /**
          * Resolve the target stage within the lead's OWN pipeline. When dragging in
          * "all pipelines" mode the incoming stage id belongs to the canonical pipeline,

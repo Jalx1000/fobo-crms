@@ -13,13 +13,12 @@ use Webkul\Distribuidor\Models\EntregaProxy;
 use Webkul\Distribuidor\Models\PagoProxy;
 use Webkul\Distribuidor\Repositories\PagoRepository;
 use Webkul\Distribuidor\Services\Alcance;
-use Webkul\Distribuidor\Services\Bidones;
 use Webkul\Distribuidor\Services\Catalogo;
 use Webkul\Distribuidor\Services\Clientes;
 use Webkul\Distribuidor\Services\Geocodificador;
 use Webkul\Distribuidor\Services\PuntoPedido;
-use Webkul\Distribuidor\Services\Recordatorios;
 use Webkul\Distribuidor\Services\RegistroDeEdicion;
+use Webkul\Distribuidor\Services\RegistroDeEntrega;
 use Webkul\Distribuidor\Services\Ubicacion;
 use Webkul\Lead\Models\LeadProxy;
 use Webkul\Whatsapp\Services\Bienvenida;
@@ -40,9 +39,7 @@ class PuntoController extends Controller
         protected PagoRepository $pagos,
         protected Alcance $alcance,
         protected Ubicacion $ubicacion,
-        protected Bidones $bidones,
         protected Clientes $clientes,
-        protected Recordatorios $recordatorios,
         protected Distribuidores $distribuidores,
     ) {}
 
@@ -381,60 +378,16 @@ class PuntoController extends Controller
 
         $this->exigirPedidoMio($lead);
 
-        $this->pedidos->avanzar((int) $id, config('distribuidor.etapas.'.$data['etapa']));
-
-        /*
-         * La entrega se registra acá y no se deduce de la etapa: `updated_at` del
-         * lead se mueve con cualquier edición posterior, así que no sirve para
-         * contestar "¿cuándo se lo entregaron?" — que es exactamente lo que se
-         * pregunta cuando un cliente dice que no le llegó.
-         */
         if ($data['etapa'] === 'entregado') {
-            EntregaProxy::modelClass()::create([
-                'lead_id'      => (int) $id,
-                'user_id'      => auth()->guard('user')->id(),
-                'entregado_at' => now(),
-                // Nombre aleatorio: la ruta de la foto viaja al navegador, y un
-                // nombre predecible dejaría ver la entrega de otro pedido.
-                // Null-safe: la foto es opcional y sin el ?-> esto reventaba.
-                'foto_path'    => $request->file('foto')?->store('distribuidor/entregas', 'public'),
-            ]);
-
-            /*
-             * Los bidones se cuentan contra el CLIENTE y no contra el pedido: el
-             * saldo que importa es "cuántos tiene en su casa", y eso atraviesa
-             * todos sus pedidos. El lead queda igual en el movimiento, para poder
-             * reconstruir en qué visita pasó.
-             */
-            if ($lead->person_id) {
-                $this->bidones->registrar(
-                    (int) $lead->person_id,
-                    (int) $id,
-                    (int) ($data['bidones_entregados'] ?? 0),
-                    (int) ($data['bidones_retirados'] ?? 0),
-                );
-
-                /*
-                 * El recordatorio de recompra se programa acá, al entregar: es el
-                 * único momento en que sabemos que el cliente YA TIENE el agua, y la
-                 * cuenta regresiva hasta que se le acabe empieza ahí. Programarlo al
-                 * tomar el pedido lo adelantaría todos los días que tarde el reparto.
-                 *
-                 * En try/catch y sin dejar que nada se propague: entregar es el
-                 * trabajo, el recordatorio es un extra, y una entrega que no se puede
-                 * confirmar porque falló algo de WhatsApp deja al distribuidor
-                 * trabado en la puerta del cliente. Mismo criterio que la bienvenida.
-                 */
-                try {
-                    $this->recordatorios->programarTrasEntrega((int) $lead->person_id);
-                } catch (\Throwable $e) {
-                    Log::warning('No se pudo programar el recordatorio de recompra', [
-                        'person_id' => $lead->person_id,
-                        'lead_id'   => $id,
-                        'error'     => $e->getMessage(),
-                    ]);
-                }
-            }
+            app(RegistroDeEntrega::class)->registrar(
+                (int) $id,
+                $lead->person_id ? (int) $lead->person_id : null,
+                $request->file('foto'),
+                (int) ($data['bidones_entregados'] ?? 0),
+                (int) ($data['bidones_retirados'] ?? 0),
+            );
+        } else {
+            $this->pedidos->avanzar((int) $id, config('distribuidor.etapas.'.$data['etapa']));
         }
 
         return response()->json(['pedido' => $this->pedido((int) $id)]);

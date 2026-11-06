@@ -4,6 +4,7 @@ namespace Webkul\Distribuidor\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Webkul\Core\Services\AsignacionDeAsesor;
 use Webkul\Core\Services\Distribuidores;
 use Webkul\Lead\Services\CitySyncService;
 
@@ -128,6 +129,15 @@ class Reparto
 
         $dueno = $this->duenoPara($personId, $pipelineId, $preferido);
 
+        /*
+         * El cliente es de un encargado porque alguien lo decidió (Huascar se queda un
+         * cliente, por ejemplo). Cada update del pedido pasa por acá, así que sin esto
+         * el siguiente cambio de etapa le sacaba el pedido y se lo daba al responsable.
+         */
+        if (! $dueno && $this->esDelEncargadoDelCliente($actual, $personId)) {
+            return $actual;
+        }
+
         if (! $dueno) {
             /*
              * Sin distribuidor: va al responsable (Huascar), que lo reparte. Así un pedido
@@ -226,6 +236,26 @@ class Reparto
             ->value('lead_pipeline_id');
 
         return $delPedido ? (int) $delPedido : null;
+    }
+
+    /**
+     * Si el dueño del pedido es también el dueño del cliente y tiene rol de encargado.
+     * Un pedido a nombre de un administrador o del token del agente no cuenta: esos
+     * siguen yendo al responsable, donde alguien los mira.
+     */
+    protected function esDelEncargadoDelCliente(?int $userId, ?int $personId): bool
+    {
+        if (! $userId || ! $personId) {
+            return false;
+        }
+
+        if ((int) DB::table('persons')->where('id', $personId)->value('user_id') !== $userId) {
+            return false;
+        }
+
+        $roleId = DB::table('users')->where('id', $userId)->value('role_id');
+
+        return app(AsignacionDeAsesor::class)->esRolEncargado($roleId ? (int) $roleId : null);
     }
 
     /** @return int Cuántos pedidos se movieron. */
