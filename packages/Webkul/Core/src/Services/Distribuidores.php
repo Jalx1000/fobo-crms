@@ -28,6 +28,8 @@ use Illuminate\Support\Facades\Schema;
  */
 class Distribuidores
 {
+    public const ROL = 'Distribuidor';
+
     /** @var array<int, bool> */
     protected array $esDistribuidor = [];
 
@@ -203,5 +205,19 @@ class Distribuidores
     public function clientesDe(int|array $userIds)
     {
         return DB::table('persons')->select('id')->whereIn('user_id', (array) $userIds);
+    }
+
+    /**
+     * Los clientes cuyo asesor tiene el rol Distribuidor, como subconsulta para un
+     * whereIn. Mira el rol y no `distribuidor_zonas`: un distribuidor al que todavía
+     * no le cargaron zonas igual es el asesor de ese cliente.
+     */
+    public function clientesConDistribuidor()
+    {
+        return DB::table('persons')
+            ->join('users', 'users.id', '=', 'persons.user_id')
+            ->join('roles', 'roles.id', '=', 'users.role_id')
+            ->where('roles.name', self::ROL)
+            ->select('persons.id');
     }
 }

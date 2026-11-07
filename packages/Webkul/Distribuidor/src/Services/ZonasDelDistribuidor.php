@@ -5,6 +5,7 @@ namespace Webkul\Distribuidor\Services;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Webkul\Core\Services\AlcanceCiudades;
+use Webkul\Core\Services\Distribuidores;
 
 /**
  * En qué ciudades reparte un distribuidor: lo que se elige en "Distribuye en" del
@@ -19,7 +20,7 @@ use Webkul\Core\Services\AlcanceCiudades;
  */
 class ZonasDelDistribuidor
 {
-    public const ROL = 'Distribuidor';
+    public const ROL = Distribuidores::ROL;
 
     public function esRolDistribuidor(?int $roleId): bool
     {

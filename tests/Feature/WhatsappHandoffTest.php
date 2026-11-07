@@ -287,20 +287,41 @@ it('el filtro "Míos" no devuelve el pool cuando no hay sesión', function () {
     expect(json_decode($respuesta->getContent(), true)['data'])->toBeEmpty();
 });
 
-it('el filtro "Sin asesor" muestra solo lo que nadie tomó', function () {
-    $pool = convHandoff(['person_id' => personaCon(null)]);
-    $asignada = convHandoff(['person_id' => personaCon(ciudadId(0))]);
+it('el filtro "Sin distribuidor" deja afuera solo a los clientes con asesor de ese rol', function () {
+    $marca = uniqid('filtro');
 
-    app(Handoff::class)->request($pool, 'sin ciudad');
-    app(Handoff::class)->request($asignada, 'con ciudad');
+    $asesorDe = fn (string $rol) => (int) DB::table('users')->insertGetId([
+        'name'     => "Asesor {$rol}",
+        'email'    => uniqid('asesor').'@example.com',
+        'password' => 'x',
+        'status'   => 1,
+        'role_id'  => DB::table('roles')->where('name', $rol)->value('id')
+            ?? DB::table('roles')->insertGetId(['name' => $rol, 'permission_type' => 'all']),
+    ]);
+
+    $clienteDe = function (?int $userId) use ($marca) {
+        $personId = personaCon(null);
+        DB::table('persons')->where('id', $personId)->update(['user_id' => $userId]);
+
+        return convHandoff(['person_id' => $personId, 'wa_name' => $marca]);
+    };
+
+    $conDistribuidor = $clienteDe($asesorDe('Distribuidor'));
+    $conOtroRol = $clienteDe($asesorDe('Encargado'));
+    $sinAsesor = $clienteDe(null);
+    $sinContacto = convHandoff(['wa_name' => $marca]);
 
     $respuesta = app(\Webkul\Whatsapp\Http\Controllers\ChatController::class)
-        ->conversations(\Illuminate\Http\Request::create('/', 'GET', ['filter' => 'pool']));
+        ->conversations(\Illuminate\Http\Request::create('/', 'GET', [
+            'filter' => 'sin_distribuidor', 'search' => $marca,
+        ]));
 
     $ids = collect(json_decode($respuesta->getContent(), true)['data'])->pluck('id');
 
-    expect($ids)->toContain($pool->id)
-        ->and($ids)->not->toContain($asignada->id);
+    expect($ids)->toContain($conOtroRol->id)
+        ->and($ids)->toContain($sinAsesor->id)
+        ->and($ids)->toContain($sinContacto->id)
+        ->and($ids)->not->toContain($conDistribuidor->id);
 });
 
 it('las derivaciones suben al tope de la lista', function () {

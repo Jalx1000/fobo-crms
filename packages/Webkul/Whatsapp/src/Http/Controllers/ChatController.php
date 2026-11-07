@@ -111,8 +111,15 @@ class ChatController extends Controller
             // Derivaciones. Son las que tienen a alguien esperando del otro
             // lado, así que llegan primero que el resto en el orden de abajo.
             'handoff'    => $query->whereIn('handoff_state', ['requested', 'assigned']),
-            // Sin asesor: el pool. Es la cola que nadie mira si no se la muestra.
-            'pool'       => $query->where('handoff_state', 'requested')->whereNull('assigned_user_id'),
+            /*
+             * Sin distribuidor: el asesor del cliente (`persons.user_id`, el que
+             * muestra el chat) no tiene ese rol. Entra también la conversación sin
+             * contacto: tampoco tiene quién la atienda. El whereNull es necesario
+             * porque `NULL NOT IN (...)` no da verdadero.
+             */
+            'sin_distribuidor' => $query->where(fn ($q) => $q
+                ->whereNull('whatsapp_conversations.person_id')
+                ->orWhereNotIn('whatsapp_conversations.person_id', app(Distribuidores::class)->clientesConDistribuidor())),
             /*
              * whereNotNull antes de comparar: si no hay usuario en sesión,
              * `where('assigned_user_id', null)` lo traduce a `IS NULL` y "Míos"

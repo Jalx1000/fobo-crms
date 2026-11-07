@@ -314,10 +314,7 @@
                         filters: [
                             { value: 'all', label: 'Todas' },
                             { value: 'unread', label: 'No leídas' },
-                            // Las tres del handoff. `pool` primero de las tres
-                            // porque es la única cola donde nadie tiene la
-                            // conversación asignada: si no se mira, se pierde.
-                            { value: 'pool', label: 'Sin asesor' },
+                            { value: 'sin_distribuidor', label: 'Sin distribuidor' },
                             { value: 'mine', label: 'Míos' },
                             { value: 'handoff', label: 'Derivadas' },
                             { value: 'unassigned', label: 'Sin contacto' },
