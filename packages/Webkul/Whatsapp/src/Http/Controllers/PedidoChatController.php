@@ -5,6 +5,7 @@ namespace Webkul\Whatsapp\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -76,16 +77,39 @@ class PedidoChatController extends Controller
      * Va por el dueño del CLIENTE porque un cliente no puede quedar repartido entre
      * dos asesores: cambiar sólo el pedido lo dejaría en manos del reparto, que lo
      * devolvería al dueño anterior. ClienteCambiaDeDistribuidor hace la mudanza.
+     *
+     * Con `lead_pipeline_id` guarda también la ciudad que muestra el panel. Las dos
+     * cosas van juntas o ninguna, y la ciudad primero: mudar el pedido vuelve a pasar
+     * por el reparto, que podría cambiar al asesor. Así el elegido es el que queda.
      */
-    public function asesor(Request $request, string $id): JsonResponse
-    {
+    public function asesor(
+        Request $request,
+        string $id,
+        LeadRepository $leads,
+        CitySyncService $ciudades,
+        AlcanceCiudades $alcance,
+    ): JsonResponse {
         $this->exigirAsignar();
 
-        $data = $request->validate(['user_id' => 'required|integer']);
+        $data = $request->validate([
+            'user_id'          => 'required|integer',
+            'lead_pipeline_id' => 'nullable|integer',
+        ]);
 
         $lead = $this->pedidoAbierto($id);
 
-        $disponibles = array_column($this->pedidos->asesoresDe((int) $lead->lead_pipeline_id), 'id');
+        $destino = isset($data['lead_pipeline_id']) ? (int) $data['lead_pipeline_id'] : null;
+        $muda = $destino !== null && $destino !== (int) $lead->lead_pipeline_id;
+
+        if ($muda) {
+            $this->exigirCiudad($destino, $alcance);
+        }
+
+        // Contra la ciudad en la que va a quedar el pedido.
+        $disponibles = array_column(
+            $this->pedidos->asesoresDe($muda ? $destino : (int) $lead->lead_pipeline_id),
+            'id',
+        );
 
         if (! in_array((int) $data['user_id'], $disponibles, true)) {
             throw ValidationException::withMessages(['user_id' => 'Ese usuario no puede ser asesor de este pedido.']);
@@ -99,34 +123,37 @@ class PedidoChatController extends Controller
 
         $anterior = $person->user_id;
 
-        Event::dispatch('contacts.person.update.before', $person->id);
+        DB::transaction(function () use ($lead, $person, $data, $destino, $muda, $leads, $ciudades) {
+            if ($muda) {
+                $this->mudar($lead, $destino, $leads, $ciudades);
+            }
 
-        /*
-         * Sobre el modelo y no por PersonRepository::update(): ese método normaliza la
-         * ficha entera y espera el formulario completo, y acá sólo cambia el dueño.
-         */
-        $person->user_id = (int) $data['user_id'];
-        $person->save();
+            Event::dispatch('contacts.person.update.before', $person->id);
 
-        Event::dispatch('contacts.person.update.after', $person);
+            /*
+             * Sobre el modelo y no por PersonRepository::update(): ese método normaliza la
+             * ficha entera y espera el formulario completo, y acá sólo cambia el dueño.
+             */
+            $person->user_id = (int) $data['user_id'];
+            $person->save();
+
+            Event::dispatch('contacts.person.update.after', $person);
+        });
 
         Log::info('WhatsApp: asesor cambiado desde el chat', [
             'lead_id'   => $lead->id,
             'person_id' => $person->id,
             'antes'     => $anterior,
             'ahora'     => $person->user_id,
+            'ciudad'    => $muda ? $destino : null,
             'por'       => auth()->guard('user')->id(),
         ]);
 
-        return response()->json(['message' => 'Asesor actualizado.']);
+        return response()->json(['message' => $muda ? 'Asesor y ciudad actualizados.' : 'Asesor actualizado.']);
     }
 
     /**
-     * Muda el pedido a otra ciudad. Sólo a una que quien lo pide atiende, y la etapa
-     * pasa a su equivalente allá: cada ciudad tiene sus propios ids de etapa.
-     *
-     * Va por el repositorio porque es el que dispara todo lo demás: la ciudad del
-     * cliente (CitySyncService) y el reparto del nuevo asesor.
+     * Muda el pedido a otra ciudad. Sólo a una que quien lo pide atiende.
      */
     public function ciudad(
         Request $request,
@@ -143,14 +170,33 @@ class PedidoChatController extends Controller
 
         $destino = (int) $data['lead_pipeline_id'];
 
-        if (! in_array($destino, array_column($alcance->ciudades(), 'id'), true)) {
-            throw ValidationException::withMessages(['lead_pipeline_id' => 'No atendés esa ciudad.']);
-        }
+        $this->exigirCiudad($destino, $alcance);
 
         if ($destino === (int) $lead->lead_pipeline_id) {
             return response()->json(['message' => 'El pedido ya está en esa ciudad.']);
         }
 
+        $this->mudar($lead, $destino, $leads, $ciudades);
+
+        return response()->json(['message' => 'Ciudad actualizada.']);
+    }
+
+    protected function exigirCiudad(int $destino, AlcanceCiudades $alcance): void
+    {
+        if (! in_array($destino, array_column($alcance->ciudades(), 'id'), true)) {
+            throw ValidationException::withMessages(['lead_pipeline_id' => 'No atendés esa ciudad.']);
+        }
+    }
+
+    /**
+     * La etapa pasa a su equivalente en la ciudad nueva: cada ciudad tiene sus propios
+     * ids de etapa.
+     *
+     * Va por el repositorio porque es el que dispara todo lo demás: la ciudad del
+     * cliente (CitySyncService) y el reparto del nuevo asesor.
+     */
+    protected function mudar($lead, int $destino, LeadRepository $leads, CitySyncService $ciudades): void
+    {
         $etapa = $ciudades->mapStageToPipeline((int) $lead->lead_pipeline_stage_id, $destino);
 
         Event::dispatch('lead.update.before', $lead->id);
@@ -162,8 +208,6 @@ class PedidoChatController extends Controller
         ], $lead->id, ['lead_pipeline_stage_id']);
 
         Event::dispatch('lead.update.after', $lead);
-
-        return response()->json(['message' => 'Ciudad actualizada.']);
     }
 
     protected function exigirAsignar(): void

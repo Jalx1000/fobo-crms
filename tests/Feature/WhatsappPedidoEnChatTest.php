@@ -306,3 +306,65 @@ it('cambiar la ciudad mueve el pedido y lleva la etapa a su equivalente', functi
         ->and((int) DB::table('lead_pipeline_stages')->where('id', $lead->lead_pipeline_stage_id)->value('lead_pipeline_id'))
         ->toBe($otra['id']);
 });
+
+it('cambiar el asesor con ciudad guarda las dos y deja al asesor elegido', function () {
+    $habilitado = chatUsuario([], true, AsignacionDeAsesor::ROL_ENCARGADO);
+
+    test()->actingAs($habilitado, 'user');
+
+    $otra = collect(app(\Webkul\Core\Services\AlcanceCiudades::class)->ciudades())
+        ->first(fn ($ciudad) => $ciudad['id'] !== (int) $this->inicial->lead_pipeline_id
+            && DB::table('lead_pipeline_stages')
+                ->where('lead_pipeline_id', $ciudad['id'])
+                ->where('code', $this->inicial->code)
+                ->exists());
+
+    if (! $otra || ! DB::table('roles')->where('name', 'Distribuidor')->exists()) {
+        $this->markTestSkipped('Hace falta otra ciudad con la misma etapa y el rol Distribuidor.');
+    }
+
+    $distribuidor = chatUsuario([], false, 'Distribuidor');
+
+    DB::table('distribuidor_zonas')->insert([
+        'user_id'          => $distribuidor->id,
+        'lead_pipeline_id' => $otra['id'],
+        'created_at'       => now(),
+        'updated_at'       => now(),
+    ]);
+
+    $personId = chatCliente();
+    $leadId = chatPedido($personId, $this->inicial);
+
+    test()->patchJson(route('admin.whatsapp.pedido.asesor', $leadId), [
+        'user_id'          => $distribuidor->id,
+        'lead_pipeline_id' => $otra['id'],
+    ])->assertOk()->assertJsonPath('message', 'Asesor y ciudad actualizados.');
+
+    $lead = DB::table('leads')->where('id', $leadId)->first();
+
+    expect((int) $lead->lead_pipeline_id)->toBe($otra['id'])
+        ->and((int) $lead->user_id)->toBe((int) $distribuidor->id)
+        ->and((int) DB::table('persons')->where('id', $personId)->value('user_id'))->toBe((int) $distribuidor->id)
+        ->and((int) DB::table('lead_pipeline_stages')->where('id', $lead->lead_pipeline_stage_id)->value('lead_pipeline_id'))
+        ->toBe($otra['id']);
+
+    expect(app(\Webkul\Distribuidor\Services\Reparto::class)->ciudadDelCliente($personId))->toBe($otra['id']);
+});
+
+it('con una ciudad que no atiende no cambia ni el asesor ni la ciudad', function () {
+    $habilitado = chatUsuario([], true, AsignacionDeAsesor::ROL_ENCARGADO);
+    $asesor = chatUsuario([], false, AsignacionDeAsesor::ROL_ENCARGADO);
+
+    $personId = chatCliente();
+    $leadId = chatPedido($personId, $this->inicial);
+
+    test()->actingAs($habilitado, 'user')
+        ->patchJson(route('admin.whatsapp.pedido.asesor', $leadId), [
+            'user_id'          => $asesor->id,
+            'lead_pipeline_id' => 999999,
+        ])->assertStatus(422);
+
+    expect(DB::table('persons')->where('id', $personId)->value('user_id'))->toBeNull()
+        ->and((int) DB::table('leads')->where('id', $leadId)->value('lead_pipeline_id'))
+        ->toBe((int) $this->inicial->lead_pipeline_id);
+});

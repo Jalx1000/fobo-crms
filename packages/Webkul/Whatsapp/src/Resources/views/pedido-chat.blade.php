@@ -355,8 +355,8 @@
 
                 /*
                  * La ciudad del asesor elegido, si reparte en una sola y quien asigna
-                 * la atiende. Si no, vuelve a la del pedido. Sólo prellena: la ciudad
-                 * se guarda con su propio botón.
+                 * la atiende. Si no, vuelve a la del pedido. Se guarda con el botón
+                 * Cambiar del asesor.
                  */
                 prellenarCiudad() {
                     const zonas = this.pedido?.asesores.find(item => item.id === this.asesorElegido)?.ciudades ?? [];
@@ -471,17 +471,24 @@
                 cambiarAsesor() {
                     const asesor = this.pedido.asesores.find(item => item.id === this.asesorElegido);
                     const id = this.pedido.id;
+                    const userId = this.asesorElegido;
+                    const ciudadId = this.ciudadElegida && this.ciudadElegida !== this.pedido.ciudad.id
+                        ? this.ciudadElegida
+                        : null;
+                    const ciudad = this.ciudades.find(item => item.id === ciudadId);
 
                     this.$emitter.emit('open-confirm-modal', {
-                        title: 'Cambiar asesor',
-                        message: `El cliente pasa a ${asesor?.name}, con sus pedidos abiertos y su conversación.`,
+                        title: ciudad ? 'Cambiar asesor y ciudad' : 'Cambiar asesor',
+                        message: ciudad
+                            ? `El cliente pasa a ${asesor?.name}, con sus pedidos abiertos y su conversación. El pedido y la ficha del cliente pasan a ${ciudad.name}.`
+                            : `El cliente pasa a ${asesor?.name}, con sus pedidos abiertos y su conversación.`,
                         agree: () => this.guardar(
-                            () => this.$axios.patch(waPedidoRuta('asesor', id), { user_id: this.asesorElegido }),
+                            () => this.$axios.patch(waPedidoRuta('asesor', id), {
+                                user_id: userId,
+                                lead_pipeline_id: ciudadId,
+                            }),
                             'No se pudo cambiar el asesor.',
-                        )
-                            // Guardar relee el pedido y borra lo prellenado.
-                            .then(() => this.prellenarCiudad())
-                            .catch(() => {}),
+                        ).catch(() => {}),
                     });
                 },
 
