@@ -150,7 +150,7 @@
                         <div class="wa-pedido__seccion">
                             <label class="wa-pedido__titulo block" for="wa-pedido-asesor">Asesor</label>
                             <div class="wa-pedido__campo">
-                                <select id="wa-pedido-asesor" v-model.number="asesorElegido" class="wa-pedido__select">
+                                <select id="wa-pedido-asesor" v-model.number="asesorElegido" class="wa-pedido__select" @change="prellenarCiudad">
                                     <option :value="0" disabled>Elegir asesor</option>
                                     <option v-for="asesor in pedido.asesores" :key="asesor.id" :value="asesor.id">@{{ asesor.name }}</option>
                                 </select>
@@ -353,6 +353,18 @@
                     this.ciudadElegida = this.pedido?.ciudad.id ?? 0;
                 },
 
+                /*
+                 * La ciudad del asesor elegido, si reparte en una sola y quien asigna
+                 * la atiende. Si no, vuelve a la del pedido. Sólo prellena: la ciudad
+                 * se guarda con su propio botón.
+                 */
+                prellenarCiudad() {
+                    const zonas = this.pedido?.asesores.find(item => item.id === this.asesorElegido)?.ciudades ?? [];
+                    const disponible = zonas.length === 1 && this.ciudades.some(item => item.id === zonas[0]);
+
+                    this.ciudadElegida = disponible ? zonas[0] : (this.pedido?.ciudad.id ?? 0);
+                },
+
                 alternar() {
                     this.abierto = !this.abierto;
 
@@ -466,7 +478,10 @@
                         agree: () => this.guardar(
                             () => this.$axios.patch(waPedidoRuta('asesor', id), { user_id: this.asesorElegido }),
                             'No se pudo cambiar el asesor.',
-                        ).catch(() => {}),
+                        )
+                            // Guardar relee el pedido y borra lo prellenado.
+                            .then(() => this.prellenarCiudad())
+                            .catch(() => {}),
                     });
                 },
 

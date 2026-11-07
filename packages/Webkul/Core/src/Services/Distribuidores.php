@@ -208,6 +208,25 @@ class Distribuidores
     }
 
     /**
+     * Las ciudades en las que reparte cada usuario. Un usuario sin zonas no aparece.
+     *
+     * @return array<int, array<int, int>>
+     */
+    public function ciudadesPorUsuario(): array
+    {
+        if (! $this->tablaLista()) {
+            return [];
+        }
+
+        return DB::table('distribuidor_zonas')
+            ->orderBy('lead_pipeline_id')
+            ->get(['user_id', 'lead_pipeline_id'])
+            ->groupBy('user_id')
+            ->map(fn ($zonas) => $zonas->pluck('lead_pipeline_id')->map(fn ($id) => (int) $id)->all())
+            ->all();
+    }
+
+    /**
      * Los clientes cuyo asesor tiene el rol Distribuidor, como subconsulta para un
      * whereIn. Mira el rol y no `distribuidor_zonas`: un distribuidor al que todavía
      * no le cargaron zonas igual es el asesor de ese cliente.

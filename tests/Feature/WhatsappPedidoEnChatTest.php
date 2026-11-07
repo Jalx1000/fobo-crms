@@ -257,7 +257,11 @@ it('ofrece y conserva a un distribuidor de otra ciudad al cambiar la etapa', fun
     test()->actingAs($habilitado, 'user')
         ->getJson(route('admin.whatsapp.pedido.index', $personId))
         ->assertOk()
-        ->assertJsonFragment(['id' => (int) $distribuidor->id, 'name' => $distribuidor->name]);
+        ->assertJsonFragment([
+            'id'       => (int) $distribuidor->id,
+            'name'     => $distribuidor->name,
+            'ciudades' => [(int) $otraCiudad],
+        ]);
 
     test()->actingAs($habilitado, 'user')
         ->patchJson(route('admin.whatsapp.pedido.asesor', $leadId), ['user_id' => $distribuidor->id])

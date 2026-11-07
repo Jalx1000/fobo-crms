@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Webkul\Admin\Support\VisibilidadLeads;
 use Webkul\Core\Services\AlcanceCiudades;
 use Webkul\Core\Services\AsignacionDeAsesor;
+use Webkul\Core\Services\Distribuidores;
 use Webkul\Lead\Models\LeadProxy;
 use Webkul\Lead\Services\CitySyncService;
 use Webkul\Whatsapp\Models\ConversationProxy;
@@ -25,9 +26,13 @@ class PedidosDelChat
     /** @var array<int, array<int, array{id:int, name:string}>> */
     protected array $asesoresPorCiudad = [];
 
+    /** @var array<int, array<int, int>>|null */
+    protected ?array $zonas = null;
+
     public function __construct(
         protected AlcanceCiudades $alcance,
         protected AsignacionDeAsesor $asignacion,
+        protected Distribuidores $distribuidores,
     ) {}
 
     /**
@@ -117,10 +122,14 @@ class PedidosDelChat
      * sólo si ve la ciudad: si no, el pedido quedaría a nombre de alguien que no lo
      * encuentra. Administradores no: no atienden pedidos.
      *
-     * @return array<int, array{id:int, name:string}>
+     * `ciudades` son las zonas del asesor: el chat las usa para prellenar la ciudad.
+     *
+     * @return array<int, array{id:int, name:string, ciudades:array<int, int>}>
      */
     public function asesoresDe(int $pipelineId): array
     {
+        $zonas = $this->zonas ??= $this->distribuidores->ciudadesPorUsuario();
+
         return $this->asesoresPorCiudad[$pipelineId] ??= DB::table('users')
             ->join('roles', 'roles.id', '=', 'users.role_id')
             ->where('users.status', 1)
@@ -129,7 +138,11 @@ class PedidosDelChat
             ->get(['users.id', 'users.name', 'roles.name as rol'])
             ->filter(fn ($usuario) => $usuario->rol !== AsignacionDeAsesor::ROL_ENCARGADO
                 || $this->alcance->puedeVer($pipelineId, (int) $usuario->id))
-            ->map(fn ($usuario) => ['id' => (int) $usuario->id, 'name' => (string) $usuario->name])
+            ->map(fn ($usuario) => [
+                'id'       => (int) $usuario->id,
+                'name'     => (string) $usuario->name,
+                'ciudades' => $zonas[$usuario->id] ?? [],
+            ])
             ->values()
             ->all();
     }
